@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 namespace Windows.Win32.Graphics.Gdi;
@@ -16,13 +16,17 @@ namespace Windows.Win32.Graphics.Gdi;
 /// </remarks>
 internal readonly ref struct GetDcScope
 {
+    public static Func<HWND, HDC>? GetDCCallback { get; set; }
+    public static Func<HWND, HRGN, GET_DCX_FLAGS, HDC>? GetDCExCallback { get; set; }
+    public static Action<HWND, HDC>? ReleaseDCCallback { get; set; }
+
     public HDC HDC { get; }
     public HWND HWND { get; }
 
     public GetDcScope(HWND hwnd)
     {
         HWND = hwnd;
-        HDC = PInvokeCore.GetDC(hwnd);
+        HDC = GetDCCallback is object ? GetDCCallback(hwnd) : PInvokeCore.GetDC(hwnd);
     }
 
     /// <summary>
@@ -40,7 +44,7 @@ internal readonly ref struct GetDcScope
     public GetDcScope(HWND hwnd, HRGN hrgnClip, GET_DCX_FLAGS flags)
     {
         HWND = hwnd;
-        HDC = PInvokeCore.GetDCEx(hwnd, hrgnClip, flags);
+        HDC = GetDCExCallback is object ? GetDCExCallback(hwnd, hrgnClip, flags) : PInvokeCore.GetDCEx(hwnd, hrgnClip, flags);
     }
 
     /// <summary>
@@ -63,7 +67,14 @@ internal readonly ref struct GetDcScope
     {
         if (!HDC.IsNull)
         {
-            PInvokeCore.ReleaseDC(HWND, HDC);
+            if (ReleaseDCCallback is object)
+            {
+                ReleaseDCCallback(HWND, HDC);
+            }
+            else
+            {
+                PInvokeCore.ReleaseDC(HWND, HDC);
+            }
         }
     }
 }

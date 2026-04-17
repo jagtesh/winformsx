@@ -8,6 +8,7 @@ namespace System.Windows.Forms.Platform
     internal interface IGdi32Interop
     {
         HDC GetDC(HWND hWnd);
+        HDC GetDCEx(HWND hWnd, HRGN hrgnClip, GET_DCX_FLAGS flags);
         int ReleaseDC(HWND hWnd, HDC hDC);
     }
 }

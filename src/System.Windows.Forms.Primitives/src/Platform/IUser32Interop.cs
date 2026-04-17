@@ -5,14 +5,14 @@ namespace System.Windows.Forms.Platform
 {
     internal interface IUser32Interop
     {
-        HWND CreateWindowEx(WINDOW_EX_STYLE dwExStyle, string lpClassName, string lpWindowName, WINDOW_STYLE dwStyle, int X, int Y, int nWidth, int nHeight, HWND hWndParent, global::Windows.Win32.UI.WindowsAndMessaging.HMENU hMenu, HINSTANCE hInstance, nint lpParam);
+        HWND CreateWindowEx(WINDOW_EX_STYLE dwExStyle, string lpClassName, string lpWindowName, WINDOW_STYLE dwStyle, int X, int Y, int nWidth, int nHeight, HWND hWndParent, global::Windows.Win32.UI.WindowsAndMessaging.HMENU hMenu, HINSTANCE hInstance, object? lpParam);
 
         bool DestroyWindow(HWND hWnd);
 
         LRESULT DefWindowProc(HWND hWnd, uint Msg, WPARAM wParam, LPARAM lParam);
 
-        LRESULT SendMessage(HWND hWnd, uint Msg, WPARAM wParam, LPARAM lParam);
+        LRESULT SendMessage(HWND hWnd, uint Msg, WPARAM wParam = default, LPARAM lParam = default);
 
-        bool PostMessage(HWND hWnd, uint Msg, WPARAM wParam, LPARAM lParam);
+        bool PostMessage(HWND hWnd, uint Msg, WPARAM wParam = default, LPARAM lParam = default);
     }
 }

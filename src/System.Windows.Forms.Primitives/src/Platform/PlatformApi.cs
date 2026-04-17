@@ -27,6 +27,11 @@ namespace System.Windows.Forms.Platform
         public static void Initialize(IPlatformProvider provider)
         {
             s_provider = provider;
+
+            // Inject GDI abstraction into GetDcScope
+            global::Windows.Win32.Graphics.Gdi.GetDcScope.GetDCCallback = hwnd => Gdi32.GetDC(hwnd);
+            global::Windows.Win32.Graphics.Gdi.GetDcScope.GetDCExCallback = (hwnd, hrgn, flags) => Gdi32.GetDCEx(hwnd, hrgn, flags);
+            global::Windows.Win32.Graphics.Gdi.GetDcScope.ReleaseDCCallback = (hwnd, hdc) => Gdi32.ReleaseDC(hwnd, hdc);
         }
     }
 }

@@ -1,9 +1,10 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.ComponentModel;
 using System.Runtime.ConstrainedExecution;
 using System.Runtime.InteropServices;
+using System.Windows.Forms.Platform;
 
 namespace System.Windows.Forms;
 
@@ -134,7 +135,7 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
         if (!handle.IsNull && ownedHandle)
         {
             // If we owned the handle, post a WM_CLOSE to get rid of it.
-            PInvoke.PostMessage(handle, PInvoke.WM_CLOSE);
+            PlatformApi.User32.PostMessage(handle, PInvoke.WM_CLOSE, default, default);
         }
     }
 
@@ -434,7 +435,7 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
                                 cp.Caption = cp.Caption[..short.MaxValue];
                             }
 
-                            createResult = PInvoke.CreateWindowEx(
+                            createResult = PlatformApi.User32.CreateWindowEx(
                                 (WINDOW_EX_STYLE)cp.ExStyle,
                                 windowClass._windowClassName,
                                 cp.Caption,
@@ -500,7 +501,7 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
 
                 // At this point, there isn't much we can do.  There's a small chance the following
                 // line will allow the rest of the program to run, but don't get your hopes up.
-                m.ResultInternal = PInvoke.DefWindowProc(m.HWND, (uint)m.Msg, m.WParamInternal, m.LParamInternal);
+                m.ResultInternal = PlatformApi.User32.DefWindowProc(m.HWND, (uint)m.Msg, m.WParamInternal, m.LParamInternal);
                 return;
             }
 
@@ -526,12 +527,12 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
         {
             if (!HWND.IsNull)
             {
-                if (!PInvoke.DestroyWindow(HWND))
+                if (!PlatformApi.User32.DestroyWindow(HWND))
                 {
                     UnSubclass();
 
                     // Now post a close and let it do whatever it needs to do on its own.
-                    PInvoke.PostMessage(this, PInvoke.WM_CLOSE);
+                    PlatformApi.User32.PostMessage(HWND, PInvoke.WM_CLOSE, default, default);
                 }
 
                 HWND = HWND.Null;
@@ -617,7 +618,7 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
                     {
                         PInvoke.SetWindowLong(handle, WINDOW_LONG_PTR_INDEX.GWL_WNDPROC, DefaultWindowProc);
                         PInvoke.SetClassLong(handle, GET_CLASS_LONG_INDEX.GCL_WNDPROC, DefaultWindowProc);
-                        PInvoke.PostMessage(handle, PInvoke.WM_CLOSE);
+                        PlatformApi.User32.PostMessage(handle, PInvoke.WM_CLOSE, default, default);
 
                         // Fish out the Window object, if it is valid, and NULL the handle pointer.  This
                         // way the rest of WinForms won't think the handle is still valid here.
