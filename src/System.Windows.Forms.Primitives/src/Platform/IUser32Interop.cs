@@ -14,5 +14,9 @@ namespace System.Windows.Forms.Platform
         LRESULT SendMessage(HWND hWnd, uint Msg, WPARAM wParam = default, LPARAM lParam = default);
 
         bool PostMessage(HWND hWnd, uint Msg, WPARAM wParam = default, LPARAM lParam = default);
+
+        BOOL GetWindowRect(HWND hWnd, out RECT lpRect);
+
+        BOOL SetWindowPos(HWND hWnd, HWND hWndInsertAfter, int X, int Y, int cx, int cy, SET_WINDOW_POS_FLAGS uFlags);
     }
 }

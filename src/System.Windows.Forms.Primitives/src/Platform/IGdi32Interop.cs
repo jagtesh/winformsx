@@ -10,5 +10,7 @@ namespace System.Windows.Forms.Platform
         HDC GetDC(HWND hWnd);
         HDC GetDCEx(HWND hWnd, HRGN hrgnClip, GET_DCX_FLAGS flags);
         int ReleaseDC(HWND hWnd, HDC hDC);
+        BOOL BitBlt(HDC hdc, int x, int y, int cx, int cy, HDC hdcSrc, int x1, int y1, ROP_CODE rop);
+        HDC CreateCompatibleDC(HDC hdc);
     }
 }

@@ -1,5 +1,5 @@
 BI_COMPRESSION
-BitBlt
+ROP_CODE
 BOOL
 CLIPBRD_E_BAD_DATA
 CoCreateInstance
@@ -7,7 +7,7 @@ CombineRgn
 CopyImage
 CreateBitmap
 CreateCompatibleBitmap
-CreateCompatibleDC
+
 CreateDC
 CreateDIBSection
 CreateFontIndirect

@@ -254,7 +254,6 @@ GetViewportExtEx
 GetWindow
 GetWindowDpiAwarenessContext
 GetWindowPlacement
-GetWindowRect
 GetWindowText
 GetWindowTextLength
 GetWindowThreadProcessId
@@ -387,7 +386,6 @@ IRecordInfo
 IRichEditOle
 IRichEditOleCallback
 IsAccelerator
-IsAppThemed
 IsChild
 IScrollItemProvider
 IScrollProvider
@@ -633,7 +631,6 @@ SetViewportOrgEx
 SetWindowExtEx
 SetWindowOrgEx
 SetWindowPlacement
-SetWindowPos
 SetWindowRgn
 SetWindowsHookEx
 SetWindowText

@@ -7,5 +7,6 @@ namespace System.Windows.Forms.Platform
     {
         IUser32Interop User32 { get; }
         IGdi32Interop Gdi32 { get; }
+        IUxThemeInterop UxTheme { get; }
     }
 }
