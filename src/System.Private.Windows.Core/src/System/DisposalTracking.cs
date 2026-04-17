@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 namespace System;
@@ -66,7 +66,7 @@ internal static class DisposalTracking
                 int backtick = friendlyName.IndexOf('`');
                 if (backtick != -1)
                 {
-                    friendlyName = friendlyName.Remove(backtick);
+                    friendlyName = friendlyName[..backtick];
                 }
 
                 friendlyName += $"<{string.Join(",", type.GetGenericArguments().Select(GetFriendlyTypeName))}>";

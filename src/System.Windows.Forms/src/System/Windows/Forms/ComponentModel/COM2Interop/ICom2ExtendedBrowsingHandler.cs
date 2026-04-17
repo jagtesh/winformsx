@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 namespace System.Windows.Forms.ComponentModel.Com2Interop;
@@ -21,11 +21,11 @@ internal unsafe interface ICom2ExtendedBrowsingHandler
     /// <summary>
     ///  Returns <see langword="true"/> if the given object is supported by this type.
     /// </summary>
-    public bool ObjectSupportsInterface(object @object);
+    bool ObjectSupportsInterface(object @object);
 
     /// <summary>
     ///  Called to setup the property handlers on a given property. In this method, the handler will add listeners
     ///  to the events that the <see cref="Com2PropertyDescriptor"/> surfaces that it cares about.
     /// </summary>
-    public void RegisterEvents(Com2PropertyDescriptor[]? properties);
+    void RegisterEvents(Com2PropertyDescriptor[]? properties);
 }

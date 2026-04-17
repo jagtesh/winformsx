@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WinFormsX</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body {
+            width: 100%; height: 100%;
+            overflow: hidden;
+            background: #1a1a2e;
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            color: #e0e0e0;
+        }
+
+        /* ─── Toolbar ──────────────────────────────────────────── */
+        #toolbar {
+            height: 40px;
+            background: linear-gradient(180deg, #16213e 0%, #0f3460 100%);
+            border-bottom: 1px solid #1a3a6c;
+            display: flex;
+            align-items: center;
+            padding: 0 16px;
+            gap: 12px;
+            user-select: none;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            z-index: 10;
+        }
+        #toolbar .brand {
+            font-size: 13px;
+            font-weight: 600;
+            color: #53c0f0;
+            letter-spacing: 0.5px;
+            margin-right: 8px;
+        }
+        #toolbar .separator {
+            width: 1px;
+            height: 20px;
+            background: rgba(255,255,255,0.12);
+        }
+        #toolbar label {
+            font-size: 12px;
+            font-weight: 500;
+            color: #8899aa;
+        }
+        #toolbar .dpi-group {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        #toolbar .dpi-btn {
+            padding: 3px 10px;
+            font-size: 11px;
+            font-weight: 600;
+            font-family: 'Inter', sans-serif;
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 4px;
+            background: rgba(255,255,255,0.04);
+            color: #aabbcc;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        #toolbar .dpi-btn:hover {
+            background: rgba(83,192,240,0.15);
+            border-color: rgba(83,192,240,0.3);
+            color: #53c0f0;
+        }
+        #toolbar .dpi-btn.active {
+            background: rgba(83,192,240,0.2);
+            border-color: #53c0f0;
+            color: #53c0f0;
+            box-shadow: 0 0 6px rgba(83,192,240,0.15);
+        }
+        #toolbar .info {
+            margin-left: auto;
+            font-size: 11px;
+            color: #556677;
+        }
+        #toolbar .info span {
+            color: #8899aa;
+        }
+
+        /* ─── Canvas Container ─────────────────────────────────── */
+        #canvas-container {
+            width: 100%;
+            height: calc(100vh - 40px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            overflow: hidden;
+        }
+        #winformsx-canvas {
+            display: block;
+            cursor: default;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.05);
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <div id="toolbar">
+        <span class="brand">WinFormsX</span>
+        <div class="separator"></div>
+        <label>Scale:</label>
+        <div class="dpi-group">
+            <button class="dpi-btn" data-scale="0.5">0.5×</button>
+            <button class="dpi-btn" data-scale="0.75">0.75×</button>
+            <button class="dpi-btn active" data-scale="1">1×</button>
+            <button class="dpi-btn" data-scale="1.25">1.25×</button>
+            <button class="dpi-btn" data-scale="1.5">1.5×</button>
+            <button class="dpi-btn" data-scale="2">2×</button>
+        </div>
+        <div class="separator"></div>
+        <div class="info">
+            Buffer: <span id="info-buffer">900 × 680</span> &nbsp;|&nbsp;
+            CSS: <span id="info-css">—</span>
+        </div>
+    </div>
+    <div id="canvas-container">
+        <canvas id="winformsx-canvas"></canvas>
+    </div>
+
+    <script type="module">
+        import { dotnet } from './_framework/dotnet.js';
+        import { setDotnetExports } from './main.js';
+
+        const runtime = await dotnet.create();
+
+        // Start Main WITHOUT awaiting — Main() never returns in WASM (Task.Delay(-1))
+        const mainPromise = runtime.runMain();
+
+        // Wait briefly for assemblies to be loaded by Main before getting exports
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        try {
+            const exports = await runtime.getAssemblyExports('WinFormsX.dll');
+            setDotnetExports(exports);
+            console.log('[index.html] Assembly exports loaded successfully');
+        } catch (e) {
+            console.error('[index.html] Failed to get assembly exports:', e);
+            // Retry after a longer delay
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            const exports = await runtime.getAssemblyExports('WinFormsX.dll');
+            setDotnetExports(exports);
+            console.log('[index.html] Assembly exports loaded (retry)');
+        }
+    </script>
+</body>
+</html>

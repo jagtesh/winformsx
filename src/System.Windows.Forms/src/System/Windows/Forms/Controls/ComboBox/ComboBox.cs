@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Collections;
@@ -2160,7 +2160,7 @@ public partial class ComboBox : ListControl
                 else
                 {
                     // Remove one character from matching text and rematch
-                    MatchingText = MatchingText.Remove(MatchingText.Length - 1);
+                    MatchingText = MatchingText[..^1];
                     SelectedIndex = FindString(MatchingText);
                 }
 
