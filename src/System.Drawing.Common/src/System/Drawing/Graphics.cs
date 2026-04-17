@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.ComponentModel;
@@ -24,6 +24,16 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     ///  we don't want to keep track of changes in it.
     /// </summary>
     private GraphicsContext? _previousContext;
+
+    /// <summary>
+    ///  Custom hardware-accelerated rendering backend (e.g. Impeller). If set, drawing commands will route here.
+    /// </summary>
+    internal IRenderingBackend? _backend;
+
+    /// <summary>
+    ///  Optional factory to produce a backend for a given HWND.
+    /// </summary>
+    internal static Func<IntPtr, IRenderingBackend?>? BackendFactory { get; set; }
 
     private static readonly object s_syncObject = new();
 
@@ -90,7 +100,9 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     {
         GpGraphics* nativeGraphics;
         Gdip.CheckStatus(PInvoke.GdipCreateFromHDC((HDC)hdc, &nativeGraphics));
-        return new Graphics(nativeGraphics);
+        var g = new Graphics(nativeGraphics);
+        if (BackendFactory is not null) g._backend = BackendFactory(IntPtr.Zero);
+        return g;
     }
 
     /// <summary>
@@ -120,7 +132,9 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
         // another PInvoke method.
         GdiPlusInitialization.EnsureInitialized();
         Gdip.CheckStatus(PInvokeCore.GdipCreateFromHWND((HWND)hwnd, &nativeGraphics));
-        return new Graphics(nativeGraphics);
+        var g = new Graphics(nativeGraphics);
+        if (BackendFactory is not null) g._backend = BackendFactory(hwnd);
+        return g;
     }
 
     /// <summary>
@@ -743,6 +757,13 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     public void DrawRectangle(Pen pen, float x, float y, float width, float height)
     {
         ArgumentNullException.ThrowIfNull(pen);
+        
+        if (_backend is not null)
+        {
+            _backend.StrokeRect(x, y, width, height, pen.Color, pen.Width);
+            return;
+        }
+
         CheckErrorStatus(PInvoke.GdipDrawRectangle(NativeGraphics, pen.NativePen, x, y, width, height));
         GC.KeepAlive(pen);
     }
@@ -1190,7 +1211,16 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     /// <summary>
     ///  Fills the entire drawing surface with the specified color.
     /// </summary>
-    public void Clear(Color color) => CheckStatus(PInvoke.GdipGraphicsClear(NativeGraphics, (uint)color.ToArgb()));
+    public void Clear(Color color)
+    {
+        if (_backend is not null)
+        {
+            _backend.Clear(color);
+            return;
+        }
+
+        CheckStatus(PInvoke.GdipGraphicsClear(NativeGraphics, (uint)color.ToArgb()));
+    }
 
 #if NET9_0_OR_GREATER
     /// <inheritdoc cref="FillRoundedRectangle(Brush, RectangleF, SizeF)"/>/>
@@ -1222,6 +1252,13 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     public void FillRectangle(Brush brush, float x, float y, float width, float height)
     {
         ArgumentNullException.ThrowIfNull(brush);
+
+        if (_backend is not null)
+        {
+            Color color = brush is SolidBrush sb ? sb.Color : Color.Black;
+            _backend.FillRect(x, y, width, height, color);
+            return;
+        }
 
         CheckErrorStatus(PInvoke.GdipFillRectangle(
             NativeGraphics,
@@ -1735,6 +1772,23 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
 
         ArgumentNullException.ThrowIfNull(font);
 
+        if (_backend is not null)
+        {
+            Color color = brush is SolidBrush sb ? sb.Color : Color.Black;
+            bool bold = font.Style.HasFlag(FontStyle.Bold);
+            bool italic = font.Style.HasFlag(FontStyle.Italic);
+            
+            ContentAlignment alignment = ContentAlignment.TopLeft;
+            if (format is not null)
+            {
+                if (format.Alignment == StringAlignment.Center) alignment = ContentAlignment.TopCenter;
+                else if (format.Alignment == StringAlignment.Far) alignment = ContentAlignment.TopRight;
+            }
+
+            _backend.DrawStringAligned(s.ToString(), layoutRectangle, alignment, color, font.FontFamily.Name, font.Size, bold, italic);
+            return;
+        }
+
         fixed (char* c = s)
         {
             CheckErrorStatus(PInvoke.GdipDrawString(
@@ -2092,6 +2146,12 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     public void DrawImage(Image image, RectangleF destRect, RectangleF srcRect, GraphicsUnit srcUnit)
     {
         ArgumentNullException.ThrowIfNull(image);
+
+        if (_backend is not null)
+        {
+            _backend.DrawImageRect(image, srcRect.X, srcRect.Y, srcRect.Width, srcRect.Height, destRect.X, destRect.Y, destRect.Width, destRect.Height);
+            return;
+        }
 
         Status status = PInvoke.GdipDrawImageRectRect(
             NativeGraphics,
