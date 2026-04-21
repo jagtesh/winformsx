@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.ComponentModel;
@@ -2476,11 +2476,13 @@ public class PictureBoxTests
 
     public static IEnumerable<object[]> OnPaint_Image_TestData()
     {
-        foreach (object[] testData in CommonTestHelperEx.GetPaintEventArgsTheoryData())
+        Bitmap image2479 = new(10, 10);
+        Graphics graphics2479 = Graphics.FromImage(image2479);
+        foreach (PaintEventArgs? paintArgs in new PaintEventArgs?[] { null, new(graphics2479, Rectangle.Empty) })
         {
             foreach (PictureBoxSizeMode sizeMode in Enum.GetValues(typeof(PictureBoxSizeMode)))
             {
-                yield return new object[] { sizeMode, testData[0] };
+                yield return new object[] { sizeMode, paintArgs };
             }
         }
     }
@@ -2521,10 +2523,12 @@ public class PictureBoxTests
 
     public static IEnumerable<object[]> OnPaint_NullOrEmptyImageLocation_TestData()
     {
-        foreach (object[] testData in CommonTestHelperEx.GetPaintEventArgsTheoryData())
+        Bitmap image2524 = new(10, 10);
+        Graphics graphics2524 = Graphics.FromImage(image2524);
+        foreach (PaintEventArgs? paintArgs in new PaintEventArgs?[] { null, new(graphics2524, Rectangle.Empty) })
         {
-            yield return new object[] { string.Empty, testData[0] };
-            yield return new object[] { null, testData[0] };
+            yield return new object[] { string.Empty, paintArgs };
+            yield return new object[] { null, paintArgs };
         }
     }
 
@@ -2547,12 +2551,14 @@ public class PictureBoxTests
 
     public static IEnumerable<object[]> OnPaint_InvalidImageLocation_TestData()
     {
-        foreach (object[] testData in CommonTestHelperEx.GetPaintEventArgsTheoryData())
+        Bitmap image2550 = new(10, 10);
+        Graphics graphics2550 = Graphics.FromImage(image2550);
+        foreach (PaintEventArgs? paintArgs in new PaintEventArgs?[] { null, new(graphics2550, Rectangle.Empty) })
         {
             foreach (PictureBoxSizeMode sizeMode in Enum.GetValues(typeof(PictureBoxSizeMode)))
             {
-                yield return new object[] { sizeMode, "NoSuchImage", testData[0] };
-                yield return new object[] { sizeMode, "  ", testData[0] };
+                yield return new object[] { sizeMode, "NoSuchImage", paintArgs };
+                yield return new object[] { sizeMode, "  ", paintArgs };
             }
         }
     }

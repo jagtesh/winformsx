@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Collections;
@@ -104,17 +104,17 @@ public class BinaryFormatWriterTests
     }
 
     public static IEnumerable<object[]?> TryWriteObject_SupportedObjects_TestData =>
-        HashtableTests.Hashtables_TestData.Concat(
-            ListTests.PrimitiveLists_TestData).Concat(
-            ListTests.ArrayLists_TestData).Concat(
-            PrimitiveTypeTests.Primitive_Data).Concat(
-            SystemDrawing_TestData).Concat(
+        ((IEnumerable<object[]>)HashtableTests.Hashtables_TestData).Concat(
+            (IEnumerable<object[]>)ListTests.PrimitiveLists_TestData).Concat(
+            (IEnumerable<object[]>)ListTests.ArrayLists_TestData).Concat(
+            (IEnumerable<object[]>)PrimitiveTypeTests.Primitive_Data).Concat(
+            (IEnumerable<object[]>)SystemDrawing_TestData).Concat(
             Array_TestData).Skip(9);
 
     public static IEnumerable<object[]?> TryWriteObject_UnsupportedObjects_TestData =>
-        HashtableTests.Hashtables_UnsupportedTestData.Concat(
-            ListTests.Lists_UnsupportedTestData).Concat(
-            ListTests.ArrayLists_UnsupportedTestData).Concat(
+        ((IEnumerable<object[]>)HashtableTests.Hashtables_UnsupportedTestData).Concat(
+            (IEnumerable<object[]>)ListTests.Lists_UnsupportedTestData).Concat(
+            (IEnumerable<object[]>)ListTests.ArrayLists_UnsupportedTestData).Concat(
             Array_UnsupportedTestData);
 
     public static TheoryData<object> SystemDrawing_TestData => new()
@@ -138,7 +138,25 @@ public class BinaryFormatWriterTests
         new DateTime[] { DateTime.MaxValue }
     };
 
-    public static IEnumerable<object[]> Array_TestData => StringArray_Parse_Data.Concat(PrimitiveArray_Parse_Data);
+    public static IEnumerable<object[]> Array_TestData
+    {
+        get
+        {
+            foreach (string?[] item in StringArray_Parse_Data)
+                yield return new object[] { item };
+            foreach (Array item in PrimitiveArray_Parse_Data)
+                yield return new object[] { item };
+        }
+    }
+
+    public static IEnumerable<object[]> Array_UnsupportedTestData_Enumerable
+    {
+        get
+        {
+            foreach (Array item in Array_UnsupportedTestData)
+                yield return new object[] { item };
+        }
+    }
 
     public static TheoryData<Array> Array_UnsupportedTestData => new()
     {

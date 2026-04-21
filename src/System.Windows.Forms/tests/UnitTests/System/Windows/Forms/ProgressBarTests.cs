@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.ComponentModel;
@@ -2091,9 +2091,9 @@ public class ProgressBarTests
     {
         foreach (ProgressBarStyle style in Enum.GetValues(typeof(ProgressBarStyle)))
         {
-            foreach (object[] testData in CommonTestHelper.GetEventArgsTheoryData())
+            foreach (EventArgs? eventArgsItem in new EventArgs?[] { null, new EventArgs() })
             {
-                yield return new object[] { style, testData[0] };
+                yield return new object[] { style, eventArgsItem };
             }
         }
     }

@@ -1,10 +1,9 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.ComponentModel;
 using System.Drawing;
 using System.Runtime.Serialization.Formatters.Binary;
-using System.Windows.Forms.TestUtilities;
 
 namespace System.Windows.Forms.Tests;
 
@@ -665,10 +664,8 @@ public class ImageListTests
 
     public static IEnumerable<object[]> TransparentColor_Set_TestData()
     {
-        foreach (object[] testData in CommonTestHelper.GetColorWithEmptyTheoryData())
-        {
-            yield return testData;
-        }
+        yield return new object[] { Color.Red };
+        yield return new object[] { Color.Empty };
 
         yield return new object[] { Color.LightGray };
     }

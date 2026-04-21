@@ -30,7 +30,7 @@ public sealed partial class Application
         }
         else
         {
-            Platform.PlatformApi.Initialize(new Platform.WindowsPlatformProvider());
+            Platform.PlatformApi.Initialize(new Platform.ImpellerPlatformProvider());
         }
     }
 

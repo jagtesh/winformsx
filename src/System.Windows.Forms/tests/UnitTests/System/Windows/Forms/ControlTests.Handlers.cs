@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.ComponentModel;
@@ -2177,10 +2177,10 @@ public partial class ControlTests
 
     public static IEnumerable<object[]> OnHandleCreated_Region_TestData()
     {
-        foreach (object[] testData in CommonTestHelper.GetEventArgsTheoryData())
+        foreach (EventArgs? eventArgsItem in new EventArgs?[] { null, new EventArgs() })
         {
-            yield return new object[] { testData[0], new Region() };
-            yield return new object[] { testData[0], new Region(new Rectangle(1, 2, 3, 4)) };
+            yield return new object[] { eventArgsItem, new Region() };
+            yield return new object[] { eventArgsItem, new Region(new Rectangle(1, 2, 3, 4)) };
         }
     }
 
@@ -2221,11 +2221,11 @@ public partial class ControlTests
 
     public static IEnumerable<object[]> OnHandleCreated_Text_TestData()
     {
-        foreach (object[] testData in CommonTestHelper.GetEventArgsTheoryData())
+        foreach (EventArgs? eventArgsItem in new EventArgs?[] { null, new EventArgs() })
         {
-            yield return new object[] { testData[0], null, string.Empty };
-            yield return new object[] { testData[0], string.Empty, string.Empty };
-            yield return new object[] { testData[0], "text", "text" };
+            yield return new object[] { eventArgsItem, null, string.Empty };
+            yield return new object[] { eventArgsItem, string.Empty, string.Empty };
+            yield return new object[] { eventArgsItem, "text", "text" };
         }
     }
 
@@ -2329,10 +2329,10 @@ public partial class ControlTests
 
     public static IEnumerable<object[]> OnHandleDestroyed_Region_TestData()
     {
-        foreach (object[] testData in CommonTestHelper.GetEventArgsTheoryData())
+        foreach (EventArgs? eventArgsItem in new EventArgs?[] { null, new EventArgs() })
         {
-            yield return new object[] { testData[0], new Region() };
-            yield return new object[] { testData[0], new Region(new Rectangle(1, 2, 3, 4)) };
+            yield return new object[] { eventArgsItem, new Region() };
+            yield return new object[] { eventArgsItem, new Region(new Rectangle(1, 2, 3, 4)) };
         }
     }
 
@@ -2371,11 +2371,11 @@ public partial class ControlTests
 
     public static IEnumerable<object[]> OnHandleDestroyed_Text_TestData()
     {
-        foreach (object[] testData in CommonTestHelper.GetEventArgsTheoryData())
+        foreach (EventArgs? eventArgsItem in new EventArgs?[] { null, new EventArgs() })
         {
-            yield return new object[] { testData[0], null, string.Empty };
-            yield return new object[] { testData[0], string.Empty, string.Empty };
-            yield return new object[] { testData[0], "text", "text" };
+            yield return new object[] { eventArgsItem, null, string.Empty };
+            yield return new object[] { eventArgsItem, string.Empty, string.Empty };
+            yield return new object[] { eventArgsItem, "text", "text" };
         }
     }
 
@@ -3260,10 +3260,10 @@ public partial class ControlTests
 
     public static IEnumerable<object[]> OnLocationChanged_HandleWithTransparentBackColor_TestData()
     {
-        foreach (object[] testData in CommonTestHelper.GetEventArgsTheoryData())
+        foreach (EventArgs? eventArgsItem in new EventArgs?[] { null, new EventArgs() })
         {
-            yield return new object[] { true, testData[0], 1 };
-            yield return new object[] { false, testData[0], 0 };
+            yield return new object[] { true, eventArgsItem, 1 };
+            yield return new object[] { false, eventArgsItem, 0 };
         }
     }
 

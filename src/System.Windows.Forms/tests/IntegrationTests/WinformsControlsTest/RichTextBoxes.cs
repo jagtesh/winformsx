@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using Windows.Win32;
@@ -59,7 +59,7 @@ This is a custom link\v #data#\v0  with hidden text after the link.\par
     private string ReportLinkClickedEventArgs(object sender, LinkClickedEventArgs e)
     {
         RichTextBox control = (RichTextBox)sender;
-        string prefix = control.Text.Remove(e.LinkStart);
+        string prefix = control.Text[..e.LinkStart];
         string content = control.Text.Substring(e.LinkStart, e.LinkLength);
         string suffix = control.Text[(e.LinkStart + e.LinkLength)..];
 
@@ -72,7 +72,7 @@ This is a custom link\v #data#\v0  with hidden text after the link.\par
         index = suffix.IndexOf('\n');
         if (index >= 0)
         {
-            suffix = suffix.Remove(index);
+            suffix = suffix[..index];
         }
 
         return
