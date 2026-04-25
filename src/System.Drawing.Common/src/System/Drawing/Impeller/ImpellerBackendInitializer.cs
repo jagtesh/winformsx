@@ -4,36 +4,66 @@ namespace System.Drawing.Impeller;
 
 public static class ImpellerBackendInitializer
 {
-    private static nint s_impellerContext;
     private static ImpellerRenderingBackend? s_activeBackend;
+    private static bool s_initFailed;
 
-    public static void Register()
+    /// <summary>
+    /// Registers a rendering backend factory. The <paramref name="contextAndBackendFactory"/>
+    /// receives an HWND and must return (impellerContext, platformBackend).
+    /// This keeps Vulkan context creation in the platform layer where the
+    /// proc address resolver is available.
+    /// </summary>
+    public static void Register(Func<nint, (nint impellerContext, IPlatformBackend backend)?> contextAndBackendFactory)
     {
         Graphics.BackendFactory = (hwnd) =>
         {
+            // Once the backend exists, always return it (singleton per context).
+            if (s_activeBackend is not null)
+            {
+                return s_activeBackend;
+            }
+
+            // Permanently failed — don't retry
+            if (s_initFailed) return null;
+
+            // First call must provide a real HWND to bootstrap the platform backend.
             if (hwnd == IntPtr.Zero) return null;
-            if (s_impellerContext == nint.Zero)
+
+            try
             {
-                var settings = new ImpellerContextVulkanSettings();
-                s_impellerContext = NativeMethods.ImpellerContextCreateVulkanNew(NativeMethods.ImpellerGetVersion(), ref settings);
+                var result = contextAndBackendFactory(hwnd);
+                if (result is null)
+                {
+                    s_initFailed = true;
+                    return null;
+                }
+
+                s_activeBackend = new ImpellerRenderingBackend(result.Value.backend, result.Value.impellerContext);
+                return s_activeBackend;
             }
-            if (s_activeBackend is null)
+            catch
             {
-                s_activeBackend = new ImpellerRenderingBackend(new DummyPlatformBackend(hwnd), s_impellerContext);
+                s_initFailed = true;
+                return null;
             }
-            return s_activeBackend;
         };
     }
 
-    private sealed class DummyPlatformBackend : IPlatformBackend
+    /// <summary>
+    /// Simplified registration for cases where context creation is handled internally.
+    /// </summary>
+    public static void Register(Func<nint, nint, IPlatformBackend>? platformBackendFactory = null)
     {
-        private readonly nint _hwnd;
-        public DummyPlatformBackend(nint hwnd) { _hwnd = hwnd; }
-        public nint AcquireNextSurface()
+        Register((hwnd) =>
         {
-            var size = new ImpellerISize(100, 100);
-            return NativeMethods.ImpellerSurfaceCreateWrappedFBONew(s_impellerContext, 0, 0, ref size);
-        }
-        public void PresentSurface(nint surface) => NativeMethods.ImpellerSurfacePresent(surface);
+            var settings = new ImpellerContextVulkanSettings();
+            var ctx = NativeMethods.ImpellerContextCreateVulkanNew(NativeMethods.ImpellerGetVersion(), ref settings);
+            if (ctx == nint.Zero) return null;
+
+            IPlatformBackend backend = platformBackendFactory is object
+                ? platformBackendFactory(hwnd, ctx)
+                : throw new InvalidOperationException("No platform backend factory provided.");
+            return (ctx, backend);
+        });
     }
 }

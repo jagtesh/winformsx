@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Collections.Concurrent;
@@ -19,6 +19,10 @@ internal sealed class ImpellerMessageInterop : IMessageInterop
     {
         // Synchronous dispatch — look up the NativeWindow for this HWND and invoke
         // its WndProc directly (wxWidgets-style synthetic message dispatch).
+        // WM_PAINT flows through the standard WinForms WmPaint pipeline:
+        //   BeginPaintScope → ImpellerGdiInterop.BeginPaint (acquires Impeller surface)
+        //   → PaintEventArgs → Graphics.FromHdcInternal (creates backend-backed Graphics)
+        //   → OnPaint → EndPaint (presents frame)
         if (NativeWindow.DispatchMessageDirect(hWnd, msg, wParam, lParam, out LRESULT result))
         {
             return result;
@@ -38,6 +42,11 @@ internal sealed class ImpellerMessageInterop : IMessageInterop
 
     public bool PeekMessage(out MSG lpMsg, HWND hWnd, uint filterMin, uint filterMax, PEEK_MESSAGE_REMOVE_TYPE flags)
     {
+        if (PlatformApi.Window is ImpellerWindowInterop windowInterop)
+        {
+            windowInterop.PumpEvents();
+        }
+
         if (_messageQueue.TryPeek(out var im))
         {
             lpMsg = im.ToMSG();
@@ -61,6 +70,11 @@ internal sealed class ImpellerMessageInterop : IMessageInterop
         SpinWait spin = default;
         while (!_messageQueue.TryDequeue(out im))
         {
+            if (PlatformApi.Window is ImpellerWindowInterop windowInterop)
+            {
+                windowInterop.PumpEvents();
+            }
+
             spin.SpinOnce();
         }
 

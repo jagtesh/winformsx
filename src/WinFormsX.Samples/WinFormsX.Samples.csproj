@@ -50,6 +50,7 @@
       <HintPath>..\..\artifacts\bin\System.Windows.Forms\Debug\net9.0\System.Private.Windows.Core.dll</HintPath>
     </Reference>
     <PackageReference Include="Microsoft.Win32.SystemEvents" Version="9.0.0" />
+    <PackageReference Include="Silk.NET.Windowing" Version="2.23.0" />
   </ItemGroup>
 
   <!-- Copy wwwroot content to WASM AppBundle -->

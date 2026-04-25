@@ -1,10 +1,10 @@
-// Licensed to the .NET Foundation under one or more agreements.
+ï»¿// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 namespace System.Windows.Forms.Platform;
 
 /// <summary>
-/// Impeller GDI interop — routes all drawing through IRenderingBackend.
+/// Impeller GDI interop â€” routes all drawing through IRenderingBackend.
 /// HDC handles are synthetic identifiers mapped to DisplayListBuilder instances.
 /// </summary>
 internal sealed unsafe class ImpellerGdiInterop : IGdiInterop
@@ -17,8 +17,25 @@ internal sealed unsafe class ImpellerGdiInterop : IGdiInterop
     public HDC GetDC(HWND hWnd) => AllocDC(hWnd);
     public HDC GetDCEx(HWND hWnd, HRGN clip, GET_DCX_FLAGS flags) => AllocDC(hWnd);
     public int ReleaseDC(HWND hWnd, HDC hDC) { _dcs.Remove(hDC); return 1; }
-    public HDC BeginPaint(HWND hWnd, out PAINTSTRUCT ps) { ps = default; return AllocDC(hWnd); }
+    public HDC BeginPaint(HWND hWnd, out PAINTSTRUCT ps)
+    {
+        var hdc = AllocDC(hWnd);
+        var windowInterop = (ImpellerWindowInterop)PlatformApi.Window;
+        var windowState = windowInterop.GetWindowState(hWnd);
+        int w = windowState?.Width ?? 800;
+        int h = windowState?.Height ?? 600;
+        ps = new PAINTSTRUCT
+        {
+            rcPaint = new RECT(0, 0, w, h),
+            hdc = hdc,
+            fErase = true,
+        };
+
+        return hdc;
+    }
+
     public bool EndPaint(HWND hWnd, in PAINTSTRUCT ps) => true;
+
     public HDC CreateCompatibleDC(HDC hdc) => AllocDC(HWND.Null);
     public bool DeleteDC(HDC hdc) { _dcs.Remove(hdc); return true; }
     public int SaveDC(HDC hdc) => 1;
@@ -58,7 +75,7 @@ internal sealed unsafe class ImpellerGdiInterop : IGdiInterop
     public bool TextOut(HDC hdc, int x, int y, string text, int c) => true;
     public bool GetTextExtentPoint32(HDC hdc, string text, int c, out SIZE size)
     {
-        // Approximate: 8px per char, 16px height — will be replaced by HarfBuzz
+        // Approximate: 8px per char, 16px height â€” will be replaced by HarfBuzz
         size = new SIZE(text.Length * 8, 16);
         return true;
     }
@@ -123,3 +140,7 @@ internal sealed class ImpellerDCState
 {
     public HWND Window;
 }
+
+
+
+

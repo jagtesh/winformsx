@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.ComponentModel;
@@ -8227,6 +8227,9 @@ public unsafe partial class Control :
         ((EventHandler?)Events[s_resizeEvent])?.Invoke(this, e);
     }
 
+    internal void InvokePaintInternal(PaintEventArgs e) => OnPaint(e);
+    internal void InvokePaintBackgroundInternal(PaintEventArgs e) => OnPaintBackground(e);
+
     /// <summary>
     ///  Raises the <see cref="PreviewKeyDown"/> event.
     /// </summary>
@@ -11068,7 +11071,7 @@ public unsafe partial class Control :
 
         if (IsHandleCreated)
         {
-            PInvokeCore.GetClientRect(this, out rect);
+            PInvoke.GetClientRect(this, out rect);
             clientWidth = rect.right;
             clientHeight = rect.bottom;
             PInvoke.GetWindowRect(this, out rect);

@@ -98,10 +98,42 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     [EditorBrowsable(EditorBrowsableState.Advanced)]
     public static Graphics FromHdcInternal(IntPtr hdc)
     {
+        // When a rendering backend (e.g. Impeller) is active, the HDC may be a synthetic
+        // identifier allocated by the platform's GDI interop layer (ImpellerGdiInterop).
+        // GDI+'s GdipCreateFromHDC would fail on these synthetic handles.
+        //
+        // Following the wxWidgets wxPaintDC pattern: the DC abstraction hides the
+        // platform-specific surface. We create a stub GDI+ Graphics from a tiny bitmap
+        // and attach the rendering backend which handles all actual drawing.
+        if (BackendFactory is not null)
+        {
+            IRenderingBackend? backend = BackendFactory(IntPtr.Zero);
+            if (backend is not null)
+            {
+                return CreateBackendBacked(backend);
+            }
+        }
+
         GpGraphics* nativeGraphics;
         Gdip.CheckStatus(PInvoke.GdipCreateFromHDC((HDC)hdc, &nativeGraphics));
-        var g = new Graphics(nativeGraphics);
-        if (BackendFactory is not null) g._backend = BackendFactory(IntPtr.Zero);
+        return new Graphics(nativeGraphics);
+    }
+
+    /// <summary>
+    ///  Creates a Graphics object backed purely by a rendering backend (no real GDI+ DC).
+    ///  The GDI+ native graphics is a stub from a 1×1 bitmap — all actual drawing is
+    ///  routed through <see cref="_backend"/>.
+    /// </summary>
+    private static Graphics CreateBackendBacked(IRenderingBackend backend)
+    {
+        // Allocate a tiny in-memory bitmap to satisfy GDI+'s requirement for a
+        // non-null GpGraphics pointer.  All draw calls are intercepted by _backend
+        // before they ever touch this stub surface.
+        GpGraphics* stubGraphics;
+        using var bmp = new Bitmap(1, 1);
+        Gdip.CheckStatus(PInvoke.GdipGetImageGraphicsContext((GpImage*)bmp.Pointer(), &stubGraphics));
+
+        var g = new Graphics(stubGraphics) { _backend = backend };
         return g;
     }
 
@@ -125,6 +157,17 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     [EditorBrowsable(EditorBrowsableState.Advanced)]
     public static Graphics FromHwndInternal(IntPtr hwnd)
     {
+        // When a rendering backend is active, the HWND may be synthetic.
+        // Bypass GDI+ and create a backend-backed Graphics.
+        if (BackendFactory is not null)
+        {
+            IRenderingBackend? backend = BackendFactory(hwnd);
+            if (backend is not null)
+            {
+                return CreateBackendBacked(backend);
+            }
+        }
+
         GpGraphics* nativeGraphics;
 
         // This is one of the few places we need to manually ensure GDI+ is initialized. Other calls to PInvoke will do
@@ -132,9 +175,7 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
         // another PInvoke method.
         GdiPlusInitialization.EnsureInitialized();
         Gdip.CheckStatus(PInvokeCore.GdipCreateFromHWND((HWND)hwnd, &nativeGraphics));
-        var g = new Graphics(nativeGraphics);
-        if (BackendFactory is not null) g._backend = BackendFactory(hwnd);
-        return g;
+        return new Graphics(nativeGraphics);
     }
 
     /// <summary>
@@ -210,6 +251,18 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     internal GpGraphics* NativeGraphics { get; private set; }
 
     nint IPointer<GpGraphics>.Pointer => (nint)NativeGraphics;
+
+    [EditorBrowsable(EditorBrowsableState.Advanced)]
+    public bool BeginFrame() => _backend?.BeginFrame(0, 0) ?? false;
+
+    [EditorBrowsable(EditorBrowsableState.Advanced)]
+    public bool BeginFrame(int width, int height) => _backend?.BeginFrame(width, height) ?? false;
+
+    [EditorBrowsable(EditorBrowsableState.Advanced)]
+    public void EndFrame() => _backend?.EndFrame(0, 0);
+
+    [EditorBrowsable(EditorBrowsableState.Advanced)]
+    public void EndFrame(int width, int height) => _backend?.EndFrame(width, height);
 
     public Region Clip
     {
@@ -544,8 +597,15 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
 
     public void SetClip(RectangleF rect) => SetClip(rect, Drawing2D.CombineMode.Replace);
 
-    public void SetClip(RectangleF rect, Drawing2D.CombineMode combineMode) =>
+    public void SetClip(RectangleF rect, Drawing2D.CombineMode combineMode)
+    {
+        if (combineMode == Drawing2D.CombineMode.Intersect || combineMode == Drawing2D.CombineMode.Replace)
+        {
+             _backend?.ClipRect(rect.X, rect.Y, rect.Width, rect.Height);
+        }
+
         CheckStatus(PInvoke.GdipSetClipRect(NativeGraphics, rect.X, rect.Y, rect.Width, rect.Height, (GdiPlus.CombineMode)combineMode));
+    }
 
     public void SetClip(GraphicsPath path) => SetClip(path, Drawing2D.CombineMode.Replace);
 
@@ -565,11 +625,14 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
 
     public void IntersectClip(Rectangle rect) => IntersectClip((RectangleF)rect);
 
-    public void IntersectClip(RectangleF rect) =>
+    public void IntersectClip(RectangleF rect)
+    {
+        _backend?.ClipRect(rect.X, rect.Y, rect.Width, rect.Height);
         CheckStatus(PInvoke.GdipSetClipRect(
             NativeGraphics,
             rect.X, rect.Y, rect.Width, rect.Height,
             GdiPlus.CombineMode.CombineModeIntersect));
+    }
 
     public void IntersectClip(Region region)
     {
@@ -645,8 +708,11 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
 
     public void TranslateTransform(float dx, float dy) => TranslateTransform(dx, dy, MatrixOrder.Prepend);
 
-    public void TranslateTransform(float dx, float dy, MatrixOrder order) =>
+    public void TranslateTransform(float dx, float dy, MatrixOrder order)
+    {
+        _backend?.Translate(dx, dy);
         CheckStatus(PInvoke.GdipTranslateWorldTransform(NativeGraphics, dx, dy, (GdiPlus.MatrixOrder)order));
+    }
 
     public void ScaleTransform(float sx, float sy) => ScaleTransform(sx, sy, MatrixOrder.Prepend);
 
@@ -3482,6 +3548,7 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
 
     public GraphicsState Save()
     {
+        _backend?.Save();
         GraphicsContext context = new(this);
         uint state;
         Status status = PInvoke.GdipSaveGraphics(NativeGraphics, &state);
@@ -3502,6 +3569,7 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
 
     public void Restore(GraphicsState gstate)
     {
+        _backend?.Restore(); // WinForms usually restores in order, so Restore() is typically enough. If it's a deep restore, this might need RestoreToCount, but Impeller backend does not have a 1:1 mapping of state IDs.
         CheckStatus(PInvoke.GdipRestoreGraphics(NativeGraphics, (uint)gstate._nativeState));
         PopContext(gstate._nativeState);
     }
