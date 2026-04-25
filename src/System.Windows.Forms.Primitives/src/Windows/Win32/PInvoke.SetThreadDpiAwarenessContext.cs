@@ -1,10 +1,15 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
+
+using System.Windows.Forms.Platform;
 
 namespace Windows.Win32;
 
 internal static partial class PInvoke
 {
+    public static DPI_AWARENESS_CONTEXT SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT dpiContext)
+        => PlatformApi.System.SetThreadDpiAwarenessContext(dpiContext);
+
     /// <summary>
     ///  Sets the thread DPI awareness context.
     /// </summary>
@@ -14,17 +19,11 @@ internal static partial class PInvoke
     /// </returns>
     public static DPI_AWARENESS_CONTEXT SetThreadDpiAwarenessContextInternal(DPI_AWARENESS_CONTEXT dpiContext)
     {
-        if (OsVersion.IsWindows10_1607OrGreater())
+        if (dpiContext == DPI_AWARENESS_CONTEXT.UNSPECIFIED_DPI_AWARENESS_CONTEXT)
         {
-            if (dpiContext == DPI_AWARENESS_CONTEXT.UNSPECIFIED_DPI_AWARENESS_CONTEXT)
-            {
-                throw new ArgumentException(nameof(dpiContext), dpiContext.ToString());
-            }
-
-            return SetThreadDpiAwarenessContext(dpiContext);
+            throw new ArgumentException(nameof(dpiContext), dpiContext.ToString());
         }
 
-        // legacy OS that does not have this API available.
-        return DPI_AWARENESS_CONTEXT.UNSPECIFIED_DPI_AWARENESS_CONTEXT;
+        return SetThreadDpiAwarenessContext(dpiContext);
     }
 }

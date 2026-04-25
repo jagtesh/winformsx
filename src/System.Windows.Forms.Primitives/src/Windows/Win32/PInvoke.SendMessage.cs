@@ -1,10 +1,15 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
+
+using System.Windows.Forms.Platform;
 
 namespace Windows.Win32;
 
 internal static partial class PInvoke
 {
+    public static LRESULT SendMessage(HWND hWnd, uint Msg, WPARAM wParam, LPARAM lParam)
+        => PlatformApi.Message.SendMessage(hWnd, Msg, wParam, lParam);
+
     /// <inheritdoc cref="SendMessage(HWND, uint, WPARAM, LPARAM)"/>
     public static LRESULT SendMessage<T>(
         T hWnd,

@@ -1,13 +1,17 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
+
+using System.Windows.Forms.Platform;
 
 namespace Windows.Win32;
 
 internal static partial class PInvoke
 {
+    public static BOOL EnableWindow(HWND hWnd, BOOL bEnable)
+        => PlatformApi.Window.EnableWindow(hWnd, bEnable);
+
     /// <inheritdoc cref="EnableWindow(HWND, BOOL)"/>
-    public static BOOL EnableWindow<T>(T hWnd, BOOL bEnable)
-        where T : IHandle<HWND>
+    public static BOOL EnableWindow<T>(T hWnd, BOOL bEnable) where T : IHandle<HWND>
     {
         BOOL result = EnableWindow(hWnd.Handle, bEnable);
         GC.KeepAlive(hWnd.Wrapper);

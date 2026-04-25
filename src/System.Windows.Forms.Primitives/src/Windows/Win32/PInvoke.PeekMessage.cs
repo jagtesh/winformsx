@@ -1,17 +1,25 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
+
+using System.Windows.Forms.Platform;
 
 namespace Windows.Win32;
 
 internal static partial class PInvoke
 {
+    public static unsafe BOOL PeekMessage(MSG* lpMsg, HWND hWnd, uint wMsgFilterMin, uint wMsgFilterMax, PEEK_MESSAGE_REMOVE_TYPE wRemoveMsg)
+    {
+        BOOL result = PlatformApi.Message.PeekMessage(out MSG msg, hWnd, wMsgFilterMin, wMsgFilterMax, wRemoveMsg);
+        if (lpMsg is not null)
+        {
+            *lpMsg = msg;
+        }
+
+        return result;
+    }
+
     /// <inheritdoc cref="PeekMessage(MSG*, HWND, uint, uint, PEEK_MESSAGE_REMOVE_TYPE)"/>
-    public static unsafe BOOL PeekMessage<T>(
-        MSG* lpMsg,
-        T hWnd,
-        uint wMsgFilterMin,
-        uint wMsgFilterMax,
-        PEEK_MESSAGE_REMOVE_TYPE wRemoveMsg)
+    public static unsafe BOOL PeekMessage<T>(MSG* lpMsg, T hWnd, uint wMsgFilterMin, uint wMsgFilterMax, PEEK_MESSAGE_REMOVE_TYPE wRemoveMsg)
         where T : IHandle<HWND>
     {
         BOOL result = PeekMessage(lpMsg, hWnd.Handle, wMsgFilterMin, wMsgFilterMax, wRemoveMsg);

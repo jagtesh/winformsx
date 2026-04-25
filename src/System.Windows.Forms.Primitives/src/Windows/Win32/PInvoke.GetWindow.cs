@@ -1,10 +1,15 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
+
+using System.Windows.Forms.Platform;
 
 namespace Windows.Win32;
 
 internal static partial class PInvoke
 {
+    public static HWND GetWindow(HWND hWnd, GET_WINDOW_CMD uCmd)
+        => PlatformApi.Window.GetWindow(hWnd, uCmd);
+
     /// <inheritdoc cref="GetWindow(HWND, GET_WINDOW_CMD)"/>
     public static HWND GetWindow<T>(T hWnd, GET_WINDOW_CMD uCmd) where T : IHandle<HWND>
     {

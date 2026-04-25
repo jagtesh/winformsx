@@ -1,15 +1,20 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
+
+using System.Windows.Forms.Platform;
 
 namespace Windows.Win32;
 
 internal static partial class PInvoke
 {
+    public static HWND GetParent(HWND hWnd)
+        => PlatformApi.Window.GetParent(hWnd);
+
     /// <inheritdoc cref="GetParent(HWND)"/>
-    public static HWND GetParent<T>(T hwnd) where T : IHandle<HWND>
+    public static HWND GetParent<T>(T hWnd) where T : IHandle<HWND>
     {
-        HWND result = GetParent(hwnd.Handle);
-        GC.KeepAlive(hwnd.Wrapper);
+        HWND result = GetParent(hWnd.Handle);
+        GC.KeepAlive(hWnd.Wrapper);
         return result;
     }
 }

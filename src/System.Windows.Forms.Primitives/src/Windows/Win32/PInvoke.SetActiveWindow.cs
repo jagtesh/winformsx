@@ -1,10 +1,15 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
+
+using System.Windows.Forms.Platform;
 
 namespace Windows.Win32;
 
 internal static partial class PInvoke
 {
+    public static HWND SetActiveWindow(HWND hWnd)
+        => PlatformApi.Window.SetActiveWindow(hWnd);
+
     /// <inheritdoc cref="SetActiveWindow(HWND)"/>
     public static HWND SetActiveWindow<T>(T hWnd) where T : IHandle<HWND>
     {

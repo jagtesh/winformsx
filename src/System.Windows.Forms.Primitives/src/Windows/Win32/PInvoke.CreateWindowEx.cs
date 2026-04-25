@@ -1,14 +1,13 @@
-ï»¿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-using System.Runtime.InteropServices;
-using System.Text;
+using System.Windows.Forms.Platform;
 
 namespace Windows.Win32;
 
 internal static partial class PInvoke
 {
-    /// <inheritdoc cref="CreateWindowEx(WINDOW_EX_STYLE, string, string, WINDOW_STYLE, int, int, int, int, HWND, HMENU, HINSTANCE, void*)"/>
+    /// <summary>Creates a window via the PAL.</summary>
     public static unsafe HWND CreateWindowEx(
         WINDOW_EX_STYLE dwExStyle,
         string? lpClassName,
@@ -23,52 +22,32 @@ internal static partial class PInvoke
         HINSTANCE hInstance,
         object? lpParam)
     {
-        fixed (char* cn = lpClassName)
-        fixed (char* wn = lpWindowName)
-        {
-            if (lpParam is null)
-            {
-                // No need to marshal.
-                return CreateWindowEx(dwExStyle, cn, wn, dwStyle, X, Y, nWidth, nHeight, hWndParent, hMenu, hInstance, null);
-            }
+        return PlatformApi.Window.CreateWindowEx(
+            dwExStyle, lpClassName, lpWindowName,
+            dwStyle, X, Y, nWidth, nHeight,
+            hWndParent, hMenu, hInstance, lpParam);
+    }
 
-            // Trying to replicate [MarshalAs(UnmanagedType.AsAny)] here. Note that the runtime has an AsAnyMarshaller
-            // in src/coreclr/System.Private.CoreLib/src/System/StubHelpers.cs, but it isn't publicly available.
-            // The implmentations for these Marshal methods can be found in marshalnative.cpp.
-
-            // The only case we are not handling is non-blittable arrays. This is a breaking change, but it
-            // is very unlikely anyone will have been doing this. If we find this to be a problem we can revist
-            // and potentially port the code from StubHelpers.
-
-            if (lpParam is StringBuilder builder)
-            {
-                lpParam = builder.ToString();
-            }
-
-            if (lpParam is string stringValue)
-            {
-                fixed (char* sv = stringValue)
-                {
-                    return CreateWindowEx(dwExStyle, cn, wn, dwStyle, X, Y, nWidth, nHeight, hWndParent, hMenu, hInstance, sv);
-                }
-            }
-
-            int size = Marshal.SizeOf(lpParam);
-            nint native = Marshal.AllocCoTaskMem(size);
-            try
-            {
-                // This will emit IL to create a marshaller for the given object if it isn't blittable.
-                Marshal.StructureToPtr(lpParam, native, fDeleteOld: false);
-                return CreateWindowEx(dwExStyle, cn, wn, dwStyle, X, Y, nWidth, nHeight, hWndParent, hMenu, hInstance, (void*)native);
-            }
-            finally
-            {
-                if (native != 0)
-                {
-                    Marshal.DestroyStructure(native, lpParam.GetType());
-                    Marshal.FreeCoTaskMem(native);
-                }
-            }
-        }
+    /// <summary>Low-level CreateWindowEx with void* param — routes through managed overload.</summary>
+    public static unsafe HWND CreateWindowEx(
+        WINDOW_EX_STYLE dwExStyle,
+        PCWSTR lpClassName,
+        PCWSTR lpWindowName,
+        WINDOW_STYLE dwStyle,
+        int X,
+        int Y,
+        int nWidth,
+        int nHeight,
+        HWND hWndParent,
+        HMENU hMenu,
+        HINSTANCE hInstance,
+        void* lpParam)
+    {
+        string? className = lpClassName.ToString();
+        string? windowName = lpWindowName.ToString();
+        return PlatformApi.Window.CreateWindowEx(
+            dwExStyle, className, windowName,
+            dwStyle, X, Y, nWidth, nHeight,
+            hWndParent, hMenu, hInstance, null);
     }
 }

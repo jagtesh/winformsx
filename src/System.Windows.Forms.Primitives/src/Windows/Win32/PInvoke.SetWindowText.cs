@@ -1,14 +1,19 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
+
+using System.Windows.Forms.Platform;
 
 namespace Windows.Win32;
 
 internal static partial class PInvoke
 {
-    /// <inheritdoc cref="SetWindowText(HWND, string)"/>
-    public static BOOL SetWindowText<T>(T hWnd, string text) where T : IHandle<HWND>
+    public static BOOL SetWindowText(HWND hWnd, string? lpString)
+        => PlatformApi.Window.SetWindowText(hWnd, lpString);
+
+    /// <inheritdoc cref="SetWindowText(HWND, string?)"/>
+    public static BOOL SetWindowText<T>(T hWnd, string? lpString) where T : IHandle<HWND>
     {
-        BOOL result = SetWindowText(hWnd.Handle, text);
+        BOOL result = SetWindowText(hWnd.Handle, lpString);
         GC.KeepAlive(hWnd.Wrapper);
         return result;
     }

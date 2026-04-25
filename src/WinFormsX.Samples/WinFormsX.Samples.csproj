@@ -32,8 +32,24 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
+  <!-- Reference pre-built winforms DLLs from the fork's artifacts -->
   <ItemGroup Condition="'$(UseRealWinForms)'!='true'">
-    <ProjectReference Include="..\System.Windows.Forms\src\System.Windows.Forms.csproj" />
+    <Reference Include="System.Windows.Forms">
+      <HintPath>..\..\artifacts\bin\System.Windows.Forms\Debug\net9.0\System.Windows.Forms.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Windows.Forms.Primitives">
+      <HintPath>..\..\artifacts\bin\System.Windows.Forms\Debug\net9.0\System.Windows.Forms.Primitives.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Drawing.Common">
+      <HintPath>..\..\artifacts\bin\System.Windows.Forms\Debug\net9.0\System.Drawing.Common.dll</HintPath>
+    </Reference>
+    <Reference Include="Accessibility">
+      <HintPath>..\..\artifacts\bin\System.Windows.Forms\Debug\net9.0\Accessibility.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Private.Windows.Core">
+      <HintPath>..\..\artifacts\bin\System.Windows.Forms\Debug\net9.0\System.Private.Windows.Core.dll</HintPath>
+    </Reference>
+    <PackageReference Include="Microsoft.Win32.SystemEvents" Version="9.0.0" />
   </ItemGroup>
 
   <!-- Copy wwwroot content to WASM AppBundle -->
@@ -43,4 +59,3 @@
   </ItemGroup>
 
 </Project>
-

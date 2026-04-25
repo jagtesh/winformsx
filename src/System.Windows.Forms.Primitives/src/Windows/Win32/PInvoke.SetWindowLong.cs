@@ -1,43 +1,35 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-using System.Runtime.InteropServices;
+using System.Windows.Forms.Platform;
 
 namespace Windows.Win32;
 
 internal static partial class PInvoke
 {
-    [DllImport(Libraries.User32, SetLastError = true)]
-    private static extern nint SetWindowLongW(HWND hWnd, WINDOW_LONG_PTR_INDEX nIndex, nint dwNewLong);
+    public static nint SetWindowLong(HWND hWnd, WINDOW_LONG_PTR_INDEX nIndex, nint dwNewLong)
+        => PlatformApi.Window.SetWindowLong(hWnd, nIndex, dwNewLong);
 
-    [DllImport(Libraries.User32, SetLastError = true)]
-    private static extern nint SetWindowLongPtrW(HWND hWnd, WINDOW_LONG_PTR_INDEX nIndex, nint dwNewLong);
+    public static nint SetWindowLong<T>(T hWnd, WINDOW_LONG_PTR_INDEX nIndex, nint dwNewLong)
+        where T : IHandle<HWND>
+    { nint r = SetWindowLong(hWnd.Handle, nIndex, dwNewLong); GC.KeepAlive(hWnd.Wrapper); return r; }
 
-    public static nint SetWindowLong<T>(T hWnd, WINDOW_LONG_PTR_INDEX nIndex, nint newValue)
+    public static nint SetWindowLong<THwnd, TValue>(THwnd hWnd, WINDOW_LONG_PTR_INDEX nIndex, TValue dwNewLong)
+        where THwnd : IHandle<HWND> where TValue : IHandle<HWND>
+    { nint r = SetWindowLong(hWnd.Handle, nIndex, dwNewLong.Handle); GC.KeepAlive(hWnd.Wrapper); GC.KeepAlive(dwNewLong.Wrapper); return r; }
+
+    public static nint SetWindowLong<T>(T hWnd, WINDOW_LONG_PTR_INDEX nIndex, WNDPROC newProc)
         where T : IHandle<HWND>
     {
-        nint result = Environment.Is64BitProcess
-            ? SetWindowLongPtrW(hWnd.Handle, nIndex, newValue)
-            : SetWindowLongW(hWnd.Handle, nIndex, (int)newValue);
+        nint r = SetWindowLong(hWnd.Handle, nIndex, (nint)global::System.Runtime.InteropServices.Marshal.GetFunctionPointerForDelegate(newProc));
         GC.KeepAlive(hWnd.Wrapper);
-        return result;
+        return r;
     }
 
-    public static nint SetWindowLong<THwnd, TNewValue>(THwnd hWnd, WINDOW_LONG_PTR_INDEX nIndex, TNewValue newValue)
-        where THwnd : IHandle<HWND>
-        where TNewValue : IHandle<HWND>
-    {
-        nint result = SetWindowLong(hWnd, nIndex, (nint)newValue.Handle);
-        GC.KeepAlive(newValue.Wrapper);
-        return result;
-    }
-
-    public static nint SetWindowLong<T>(T hWnd, WINDOW_LONG_PTR_INDEX nIndex, WNDPROC dwNewLong)
+    public static unsafe nint SetWindowLong<T>(T hWnd, WINDOW_LONG_PTR_INDEX nIndex, void* newProc)
         where T : IHandle<HWND>
-    {
-        IntPtr pointer = Marshal.GetFunctionPointerForDelegate(dwNewLong);
-        IntPtr result = SetWindowLong(hWnd, nIndex, pointer);
-        GC.KeepAlive(dwNewLong);
-        return result;
-    }
+    { nint r = SetWindowLong(hWnd.Handle, nIndex, (nint)newProc); GC.KeepAlive(hWnd.Wrapper); return r; }
+
+    public static nint SetWindowLong(HWND hWnd, WINDOW_LONG_PTR_INDEX nIndex, WNDPROC newProc)
+        => SetWindowLong(hWnd, nIndex, (nint)global::System.Runtime.InteropServices.Marshal.GetFunctionPointerForDelegate(newProc));
 }

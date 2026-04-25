@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Runtime.CompilerServices;
@@ -8,7 +8,7 @@ namespace Windows.Win32;
 
 internal static partial class PInvoke
 {
-    /// <inheritdoc cref="RegLoadMUIString(System.Registry.HKEY, string, PWSTR, uint, uint*, uint, string)"/>
+    /// <inheritdoc cref="RegLoadMUIString(Windows.Win32.System.Registry.HKEY, string, PWSTR, uint, uint*, uint, string)"/>
     [SkipLocalsInit]
     public static unsafe bool RegLoadMUIString(RegistryKey key, string keyName, out string localizedValue)
     {
@@ -20,7 +20,7 @@ internal static partial class PInvoke
             {
                 uint bytes = 0;
                 var errorCode = RegLoadMUIString(
-                    (System.Registry.HKEY)key.Handle.DangerousGetHandle(),
+                    (Windows.Win32.System.Registry.HKEY)key.Handle.DangerousGetHandle(),
                     keyName,
                     pszOutBuf,
                     (uint)(buffer.Length * sizeof(char)),
