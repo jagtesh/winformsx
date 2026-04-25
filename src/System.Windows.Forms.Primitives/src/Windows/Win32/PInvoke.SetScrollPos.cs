@@ -9,8 +9,9 @@ internal static partial class PInvoke
     public static int SetScrollPos<T>(T hWnd, SCROLLBAR_CONSTANTS nBar, int nPos, BOOL bRedraw)
         where T : IHandle<HWND>
     {
-        int result = SetScrollPos(hWnd.Handle, nBar, nPos, bRedraw);
-        GC.KeepAlive(hWnd.Wrapper);
-        return result;
+        // Impeller: no Win32 scrollbars
+        GC.KeepAlive(hWnd.Wrapper); return 0;
     }
 }
+
+

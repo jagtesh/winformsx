@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using Windows.Win32.Data.HtmlHelp;
@@ -11,21 +11,18 @@ internal static partial class PInvoke
     internal static unsafe HWND HtmlHelp<T>(T hwndCaller, string? pszFile, HTML_HELP_COMMAND uCommand, nuint dwData)
         where T : IHandle<HWND>
     {
-        HWND result = HtmlHelp(hwndCaller.Handle, pszFile, uCommand, dwData);
+        // Impeller: no Win32 HTML help
         GC.KeepAlive(hwndCaller.Wrapper);
-        return result;
+        return HWND.Null;
     }
 
     /// <inheritdoc cref="HtmlHelp(HWND, string, HTML_HELP_COMMAND, nuint)" />
     internal static unsafe HWND HtmlHelp<T>(T hwndCaller, string? pszFile, HTML_HELP_COMMAND uCommand, string? dwData)
         where T : IHandle<HWND>
     {
-        fixed (void* d = dwData)
-        {
-            HWND result = HtmlHelp(hwndCaller.Handle, pszFile, uCommand, (nuint)d);
-            GC.KeepAlive(hwndCaller.Wrapper);
-            return result;
-        }
+        // Impeller: no Win32 HTML help
+        GC.KeepAlive(hwndCaller.Wrapper);
+        return HWND.Null;
     }
 
     /// <inheritdoc cref="HtmlHelp(HWND, string, HTML_HELP_COMMAND, nuint)" />
@@ -37,11 +34,8 @@ internal static partial class PInvoke
         where TCaller : IHandle<HWND>
         where TData : unmanaged
     {
-        fixed (void* v = &dwData)
-        {
-            HWND result = HtmlHelp(hwndCaller.Handle, pszFile, uCommand, (nuint)v);
-            GC.KeepAlive(hwndCaller.Wrapper);
-            return result;
-        }
+        // Impeller: no Win32 HTML help
+        GC.KeepAlive(hwndCaller.Wrapper);
+        return HWND.Null;
     }
 }

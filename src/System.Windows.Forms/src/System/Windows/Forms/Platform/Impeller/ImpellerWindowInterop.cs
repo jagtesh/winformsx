@@ -1,10 +1,10 @@
-// Licensed to the .NET Foundation under one or more agreements.
+﻿// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 namespace System.Windows.Forms.Platform;
 
 /// <summary>
-/// Impeller window management � manages virtual windows backed by Impeller surfaces.
+/// Impeller window management — manages virtual windows backed by Impeller surfaces.
 /// Each "window" is an Impeller rendering target with its own display list.
 /// </summary>
 internal sealed class ImpellerWindowInterop : IWindowInterop
@@ -33,6 +33,9 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
             Height = nHeight,
             Parent = hWndParent,
             Visible = false,
+            // Sentinel default WndProc — the framework expects a non-null prior
+            // WndProc when subclassing via AssignHandle/SetWindowLong.
+            WndProc = 0x1,
         };
         return handle;
     }
@@ -46,7 +49,19 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
     {
         if (_windows.TryGetValue(hWnd, out var state))
         {
-            state.Visible = nCmdShow != SHOW_WINDOW_CMD.SW_HIDE;
+            bool show = nCmdShow != SHOW_WINDOW_CMD.SW_HIDE;
+            state.Visible = show;
+
+            // wxWidgets pattern: dispatch WM_SHOWWINDOW so the managed Control
+            // state (States.Visible) is updated, preventing recursion when
+            // Form.CreateHandle sets Visible = true.
+            NativeWindow.DispatchMessageDirect(
+                hWnd,
+                (uint)PInvoke.WM_SHOWWINDOW,
+                (WPARAM)(nuint)(show ? 1u : 0u),
+                (LPARAM)0,
+                out _);
+
             return true;
         }
 
@@ -247,3 +262,5 @@ internal sealed class ImpellerWindowState
     public nint WndProc;
     public nint Id;
 }
+
+

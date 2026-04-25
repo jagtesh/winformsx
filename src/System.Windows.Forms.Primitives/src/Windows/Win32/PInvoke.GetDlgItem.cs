@@ -9,8 +9,9 @@ internal static partial class PInvoke
     public static HWND GetDlgItem<T>(T hDlg, int nIDDlgItem)
         where T : IHandle<HWND>
     {
-        HWND result = GetDlgItem(hDlg.Handle, nIDDlgItem);
-        GC.KeepAlive(hDlg.Wrapper);
-        return result;
+        // Impeller: no Win32 dialogs
+        GC.KeepAlive(hDlg.Wrapper); return HWND.Null;
     }
 }
+
+

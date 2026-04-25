@@ -9,8 +9,9 @@ internal static partial class PInvoke
     public static BOOL DrawMenuBar<T>(T hWnd)
         where T : IHandle<HWND>
     {
-        BOOL result = DrawMenuBar(hWnd.Handle);
-        GC.KeepAlive(hWnd.Wrapper);
-        return result;
+        // Impeller: no Win32 menu bar
+        GC.KeepAlive(hWnd.Wrapper); return true;
     }
 }
+
+

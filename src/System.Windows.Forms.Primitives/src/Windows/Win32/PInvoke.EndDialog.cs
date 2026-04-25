@@ -9,8 +9,9 @@ internal static partial class PInvoke
     public static BOOL EndDialog<T>(T hDlg, IntPtr nResult)
         where T : IHandle<HWND>
     {
-        BOOL result = EndDialog(hDlg.Handle, nResult);
-        GC.KeepAlive(hDlg.Wrapper);
-        return result;
+        // Impeller: no Win32 dialogs
+        GC.KeepAlive(hDlg.Wrapper); return true;
     }
 }
+
+

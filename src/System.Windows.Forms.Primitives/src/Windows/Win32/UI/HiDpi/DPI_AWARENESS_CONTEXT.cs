@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 namespace Windows.Win32.UI.HiDpi;
@@ -21,11 +21,8 @@ internal readonly partial struct DPI_AWARENESS_CONTEXT
             return true;
         }
 
-        if (OsVersion.IsWindows10_1607OrGreater())
-        {
-            return PInvoke.AreDpiAwarenessContextsEqual(this, dpiContext);
-        }
-
-        return false;
+        // Direct value comparison — works across PAL/Impeller without requiring
+        // the Win32 AreDpiAwarenessContextsEqual API.
+        return Value == dpiContext.Value;
     }
 }

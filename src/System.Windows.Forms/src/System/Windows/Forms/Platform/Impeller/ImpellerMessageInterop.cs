@@ -1,4 +1,4 @@
-// Licensed to the .NET Foundation under one or more agreements.
+ï»¿// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Collections.Concurrent;
@@ -6,7 +6,7 @@ using System.Collections.Concurrent;
 namespace System.Windows.Forms.Platform;
 
 /// <summary>
-/// Impeller message interop — internal message queue replacing the Win32 message pump.
+/// Impeller message interop â€” internal message queue replacing the Win32 message pump.
 /// Messages are dispatched through a managed queue rather than the OS.
 /// </summary>
 internal sealed class ImpellerMessageInterop : IMessageInterop
@@ -17,8 +17,13 @@ internal sealed class ImpellerMessageInterop : IMessageInterop
 
     public LRESULT SendMessage(HWND hWnd, uint msg, WPARAM wParam, LPARAM lParam)
     {
-        // Synchronous dispatch — find the window's WndProc and call it directly
-        // TODO: Look up the NativeWindow for this HWND and invoke its WndProc
+        // Synchronous dispatch â€” look up the NativeWindow for this HWND and invoke
+        // its WndProc directly (wxWidgets-style synthetic message dispatch).
+        if (NativeWindow.DispatchMessageDirect(hWnd, msg, wParam, lParam, out LRESULT result))
+        {
+            return result;
+        }
+
         return (LRESULT)0;
     }
 
@@ -50,7 +55,7 @@ internal sealed class ImpellerMessageInterop : IMessageInterop
 
     public bool GetMessage(out MSG lpMsg, HWND hWnd, uint filterMin, uint filterMax)
     {
-        // Blocking — spin until a message arrives
+        // Blocking â€” spin until a message arrives
         // TODO: Use a proper wait handle for efficiency
         ImpellerMessage im;
         SpinWait spin = default;
@@ -107,3 +112,4 @@ internal readonly record struct ImpellerMessage(HWND HWnd, uint Msg, WPARAM WPar
         lParam = LParam,
     };
 }
+

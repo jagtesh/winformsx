@@ -220,7 +220,6 @@ GetUpdateRect
 GetUpdateRgn
 GetUserObjectInformation
 GetViewportExtEx
-GetWindowDpiAwarenessContext
 GetWindowPlacement
 GetWorldTransform
 GMR_*

@@ -16,7 +16,7 @@ internal static partial class PInvoke
 
     public static nint SetWindowLong<THwnd, TValue>(THwnd hWnd, WINDOW_LONG_PTR_INDEX nIndex, TValue dwNewLong)
         where THwnd : IHandle<HWND> where TValue : IHandle<HWND>
-    { nint r = SetWindowLong(hWnd.Handle, nIndex, dwNewLong.Handle); GC.KeepAlive(hWnd.Wrapper); GC.KeepAlive(dwNewLong.Wrapper); return r; }
+    { nint r = SetWindowLong(hWnd.Handle, nIndex, (nint)dwNewLong.Handle); GC.KeepAlive(hWnd.Wrapper); GC.KeepAlive(dwNewLong.Wrapper); return r; }
 
     public static nint SetWindowLong<T>(T hWnd, WINDOW_LONG_PTR_INDEX nIndex, WNDPROC newProc)
         where T : IHandle<HWND>

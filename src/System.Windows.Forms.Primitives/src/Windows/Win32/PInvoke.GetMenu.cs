@@ -9,8 +9,9 @@ internal static partial class PInvoke
     public static HMENU GetMenu<T>(T hWnd)
         where T : IHandle<HWND>
     {
-        HMENU result = GetMenu(hWnd.Handle);
-        GC.KeepAlive(hWnd.Wrapper);
-        return result;
+        // Impeller: no Win32 menus
+        GC.KeepAlive(hWnd.Wrapper); return HMENU.Null;
     }
 }
+
+

@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.ComponentModel;
@@ -471,6 +471,15 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
                     throw new Win32Exception(lastWin32Error, SR.ErrorCreatingHandle);
                 }
 
+                // In the PAL (Impeller) path, CreateWindowEx does not dispatch
+                // WM_NCCREATE through the OS, so the WindowClass.Callback that
+                // calls AssignHandle was never invoked. Perform the assignment
+                // directly so the NativeWindow is fully wired.
+                if (HWND.IsNull && !createResult.IsNull)
+                {
+                    AssignHandle(createResult, assignUniqueID: true);
+                }
+
 #if DEBUG
                 if (OsVersion.IsWindows10_18030rGreater())
                 {
@@ -563,6 +572,26 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
 
         return null;
     }
+
+    /// <summary>
+    ///  Dispatches a synthetic message to the NativeWindow registered for the given HWND.
+    ///  Used by the PAL (Impeller) <see cref="Platform.ImpellerMessageInterop"/> to simulate
+    ///  Win32's synchronous SendMessage behavior.
+    /// </summary>
+    /// <returns><c>true</c> if the message was dispatched; <c>false</c> if no window was found.</returns>
+    internal static bool DispatchMessageDirect(HWND hWnd, uint msg, WPARAM wParam, LPARAM lParam, out LRESULT result)
+    {
+        NativeWindow? window = GetWindowFromTable(hWnd);
+        if (window is not null)
+        {
+            result = window.Callback(hWnd, (MessageId)msg, wParam, lParam);
+            return true;
+        }
+
+        result = default;
+        return false;
+    }
+
 
     /// <summary>
     ///  Returns the handle from the given <paramref name="id"/> if found, otherwise returns
