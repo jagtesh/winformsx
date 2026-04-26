@@ -65,7 +65,6 @@ internal static class TypographyProvider
         if (_typographyContext == nint.Zero)
             _ = Context;
 
-            _ = Context;
 
         _fontData = IO.File.ReadAllBytes(filePath);
         var pinnedData = GCHandle.Alloc(_fontData, GCHandleType.Pinned);

@@ -2,14 +2,7 @@
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <!-- Switch to true to build against standard Microsoft WinForms -->
-    <UseRealWinForms>false</UseRealWinForms>
-    <!-- Switch to true to build for WebAssembly -->
-    <UseWasm>false</UseWasm>
-
-    <TargetFramework Condition="'$(UseRealWinForms)'=='true'">net9.0-windows</TargetFramework>
-    <TargetFramework Condition="'$(UseRealWinForms)'!='true'">net9.0</TargetFramework>
-
+    <TargetFramework>net9.0</TargetFramework>
     <RootNamespace>WinFormsX.Samples</RootNamespace>
     <IsPackable>false</IsPackable>
     <Nullable>enable</Nullable>
@@ -18,10 +11,6 @@
     <RunAnalyzers>false</RunAnalyzers>
     <EnableNETAnalyzers>false</EnableNETAnalyzers>
     <EnforceCodeStyleInBuild>false</EnforceCodeStyleInBuild>
-  </PropertyGroup>
-
-  <PropertyGroup Condition="'$(UseRealWinForms)'=='true'">
-    <UseWindowsForms>true</UseWindowsForms>
   </PropertyGroup>
 
   <!-- WASM-specific settings -->
@@ -33,7 +22,7 @@
   </PropertyGroup>
 
   <!-- Reference pre-built winforms DLLs from the fork's artifacts -->
-  <ItemGroup Condition="'$(UseRealWinForms)'!='true'">
+  <ItemGroup>
     <Reference Include="System.Windows.Forms">
       <HintPath>..\..\artifacts\bin\System.Windows.Forms\Debug\net9.0\System.Windows.Forms.dll</HintPath>
     </Reference>

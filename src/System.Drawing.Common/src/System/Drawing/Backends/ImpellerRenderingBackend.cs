@@ -315,7 +315,8 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend
                 unsafe
                 { fixed (byte* p = utf8) { NativeMethods.ImpellerParagraphBuilderAddText(builder, (nint)p, (uint)utf8.Length); } }
                 NativeMethods.ImpellerParagraphBuilderPopStyle(builder);
-                var paragraph = NativeMethods.ImpellerParagraphBuilderBuildParagraphNew(builder, bounds.Width);
+                var layoutWidth = bounds.Width > 0 ? bounds.Width : 10000f;
+                var paragraph = NativeMethods.ImpellerParagraphBuilderBuildParagraphNew(builder, layoutWidth);
                 if (paragraph == nint.Zero)
                     return;
                 try

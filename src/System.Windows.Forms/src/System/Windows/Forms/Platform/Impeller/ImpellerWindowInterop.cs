@@ -17,6 +17,43 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
     private HWND _activeWindow;
     private readonly Dictionary<nint, ImpellerWindowState> _windows = [];
 
+    internal IEnumerable<ImpellerWindowState> GetAllWindows() => _windows.Values;
+
+    /// <summary>
+    /// Run Silk.NET's native event loop. This properly handles window
+    /// move, resize, close, and all native OS interactions.
+    /// WinForms synthetic messages are processed from the Update callback.
+    /// </summary>
+    public void RunMainLoop()
+    {
+        // Find the top-level Silk.NET window
+        IWindow? mainWindow = null;
+        foreach (var state in _windows.Values)
+        {
+            if (state.SilkWindow is object)
+            {
+                mainWindow = state.SilkWindow;
+                break;
+            }
+        }
+
+        if (mainWindow is null)
+            return;
+
+        // Process WinForms synthetic messages on each Update tick
+        mainWindow.Update += (delta) =>
+        {
+            if (PlatformApi.Message is ImpellerMessageInterop msgInterop)
+            {
+                msgInterop.ProcessPendingMessages();
+            }
+        };
+
+        // Let Silk.NET own the event loop — handles move, resize, close natively
+        mainWindow.Run();
+    }
+
+    // Legacy pump for any non-main-loop callers (e.g. DoEvents)
     public void PumpEvents()
     {
         foreach (var state in _windows.Values)
@@ -58,9 +95,13 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
         {
             var options = WindowOptions.DefaultVulkan;
             options.Title = lpWindowName ?? string.Empty;
-            options.Position = new Vector2D<int>(x, y);
+            // CW_USEDEFAULT (0x80000000) yields extreme negatives — default to (100,100)
+            int posX = (x < 0 || x > 4000) ? 100 : x;
+            int posY = (y < 0 || y > 4000) ? 100 : y;
+            options.Position = new Vector2D<int>(posX, posY);
             options.Size = new Vector2D<int>(nWidth > 0 ? nWidth : 800, nHeight > 0 ? nHeight : 600);
             options.IsVisible = false;
+            options.WindowBorder = WindowBorder.Resizable;
             
             var silkWindow = Window.Create(options);
             
@@ -78,8 +119,9 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
             
             silkWindow.Closing += () =>
             {
-                NativeWindow.DispatchMessageDirect(
-                    handle, (uint)PInvoke.WM_CLOSE, (WPARAM)0, (LPARAM)0, out _);
+                // Silk.NET's Run() will return naturally when the window closes.
+                // Don't dispatch WM_CLOSE here — it triggers layout/paint cascades
+                // that cause deadlocks with the render loop.
             };
             
             bool renderReady = false;
@@ -122,23 +164,13 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                         var control = Control.FromHandle(handle);
                         if (control is not null)
                         {
-                            if (s_firstPaint)
-                            {
-                                Console.Error.WriteLine($"[Render] Form ClientSize={control.ClientSize} Size={control.Size}");
-                            }
-
-                            // (1) Clear entire frame to magenta — proof the pipeline works
                             g.Clear(System.Drawing.Color.Magenta);
 
-                            // (2) Paint child controls with distinct debug colors
                             var debugColors = new[]
                             {
                                 System.Drawing.Color.DodgerBlue,
                                 System.Drawing.Color.ForestGreen,
                                 System.Drawing.Color.Orange,
-                                System.Drawing.Color.Crimson,
-                                System.Drawing.Color.MediumPurple,
-                                System.Drawing.Color.Teal,
                             };
 
                             int colorIdx = 0;
@@ -155,10 +187,21 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                                 var rect = new System.Drawing.Rectangle(child.Left, child.Top, child.Width, child.Height);
                                 g.FillRectangle(brush, rect);
 
-                                if (s_firstPaint)
+                                // Render control name as text
+                                try
                                 {
-                                    Console.Error.WriteLine($"  [{child.GetType().Name}] {rect} → {color.Name}");
+                                    using var font = new System.Drawing.Font("Segoe UI", 14f);
+                                    using var textBrush = new System.Drawing.SolidBrush(System.Drawing.Color.White);
+                                    g.DrawString(child.GetType().Name, font, textBrush, child.Left + 10, child.Top + 4);
                                 }
+                                catch (Exception ex)
+                                {
+                                    if (s_firstPaint)
+                                        Console.Error.WriteLine($"  [DrawString FAIL] {child.GetType().Name}: {ex.Message}");
+                                }
+
+                                if (s_firstPaint)
+                                    Console.Error.WriteLine($"  [{child.GetType().Name}] {rect}");
                             }
 
                             s_firstPaint = false;
@@ -174,6 +217,17 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
             silkWindow.Initialize();
             _windows[handle].SilkWindow = silkWindow;
 
+            // Store native HWND for Win32 message pumping
+            try
+            {
+                if (silkWindow.Native?.Win32 is { } win32Native)
+                {
+                    _windows[handle].NativeHwnd = (HWND)(nint)win32Native.Hwnd;
+                    Console.Error.WriteLine($"[Window] Native HWND = 0x{win32Native.Hwnd:X}");
+                }
+            }
+            catch { }
+
             // Only allow rendering AFTER the window is fully initialized
             renderReady = true;
         }
@@ -182,14 +236,42 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
     }
 
     /// <summary>
+    /// Recursively find TabControls and make their selected TabPage visible
+    /// with correct bounds. In native WinForms, the Tab common control sends
+    /// TCN_SELCHANGE which shows/sizes the selected page. We do it manually.
+    /// </summary>
+    private static void FixupTabPages(Control root)
+    {
+        foreach (Control c in root.Controls)
+        {
+            if (c is TabControl tc)
+            {
+                if (tc.SelectedIndex >= 0 && tc.SelectedIndex < tc.TabPages.Count)
+                {
+                    var page = tc.TabPages[tc.SelectedIndex];
+                    // Approximate the display rectangle (tab header area ~24px)
+                    const int tabHeaderHeight = 24;
+                    page.SetBounds(0, tabHeaderHeight, tc.Width, tc.Height - tabHeaderHeight);
+                    page.Visible = true;
+                    Console.Error.WriteLine($"[FixupTabPages] Made '{page.Text}' visible: {page.Bounds}");
+                    // Recurse into the now-visible page
+                    FixupTabPages(page);
+                }
+            }
+            else
+            {
+                FixupTabPages(c);
+            }
+        }
+    }
+
+    /// <summary>
     /// Recursively paint a control and all its children using the shared
     /// Impeller-backed Graphics object from the Render event handler.
     /// </summary>
     private static bool s_firstPaint = true;
-    private static void PaintControlTree(Control control, System.Drawing.Graphics g, System.Drawing.Rectangle clipRect)
+    private static void PaintControlTree(Control control, System.Drawing.Graphics g, System.Drawing.Rectangle clipRect, bool isRoot = true)
     {
-        // Paint this control's background and foreground.
-        // Wrap in try-catch so a single control's exception doesn't kill rendering.
         try
         {
             if (s_firstPaint)
@@ -204,24 +286,32 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                 }
             }
 
-            // Direct background fill — bypasses WinForms GDI complexity
-            using var brush = new System.Drawing.SolidBrush(control.BackColor);
-            g.FillRectangle(brush, clipRect);
+            // Skip root form background — magenta clear shows through.
+            // For all child controls, paint their BackColor.
+            if (!isRoot)
+            {
+                using var brush = new System.Drawing.SolidBrush(control.BackColor);
+                g.FillRectangle(brush, clipRect);
+            }
 
-            // Try the standard WinForms paint path too
+            // Try the standard WinForms paint path (OnPaint)
             try
             {
                 using var peArgs = new PaintEventArgs(g, clipRect);
                 control.InvokePaintInternal(peArgs);
             }
-            catch { }
+            catch (Exception ex)
+            {
+                if (s_firstPaint)
+                    Console.Error.WriteLine($"  [OnPaint FAIL] {control.GetType().Name}: {ex.Message}");
+            }
         }
         catch (Exception ex)
         {
             Console.Error.WriteLine($"[Paint ERROR] {control.GetType().Name}: {ex.Message}");
         }
 
-        // Recurse into children (bottom-to-top Z-order: last index = bottom-most = painted first)
+        // Recurse into children (bottom-to-top Z-order)
         for (int i = control.Controls.Count - 1; i >= 0; i--)
         {
             var child = control.Controls[i];
@@ -230,12 +320,11 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
 
             var state = g.Save();
 
-            // Translate to child's position and clip to its bounds
             g.TranslateTransform(child.Left, child.Top);
             var childClip = new System.Drawing.Rectangle(0, 0, child.Width, child.Height);
             g.IntersectClip(childClip);
 
-            PaintControlTree(child, g, childClip);
+            PaintControlTree(child, g, childClip, isRoot: false);
 
             g.Restore(state);
         }
@@ -560,6 +649,5 @@ internal sealed class ImpellerWindowState
     public nint WndProc;
     public nint Id;
     public IWindow? SilkWindow;
+    public HWND NativeHwnd;
 }
-
-

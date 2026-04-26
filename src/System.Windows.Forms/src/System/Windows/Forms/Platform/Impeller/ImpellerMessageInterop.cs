@@ -111,6 +111,43 @@ internal sealed class ImpellerMessageInterop : IMessageInterop
 
         return id;
     }
+
+    /// <summary>
+    /// Drain and dispatch all pending synthetic WinForms messages.
+    /// Called from Silk.NET's Update callback.
+    /// </summary>
+    internal void ProcessPendingMessages()
+    {
+        // Process a bounded batch to avoid blocking the render loop
+        int maxMessages = 64;
+        while (maxMessages-- > 0 && _messageQueue.TryDequeue(out var im))
+        {
+            var msg = im.ToMSG();
+            if (msg.message == PInvoke.WM_QUIT)
+            {
+                // Close the Silk.NET window, which causes Run() to return
+                if (PlatformApi.Window is ImpellerWindowInterop windowInterop)
+                {
+                    foreach (var state in windowInterop.GetAllWindows())
+                    {
+                        state.SilkWindow?.Close();
+                    }
+                }
+
+                return;
+            }
+
+            // Skip paint messages — the Render callback is the sole painter.
+            // Processing WM_PAINT here would race with the GPU surface.
+            if (msg.message is PInvoke.WM_PAINT or PInvoke.WM_ERASEBKGND)
+            {
+                continue;
+            }
+
+            // Dispatch through WinForms NativeWindow WndProc
+            NativeWindow.DispatchMessageDirect(msg.hwnd, msg.message, msg.wParam, msg.lParam, out _);
+        }
+    }
 }
 
 /// <summary>

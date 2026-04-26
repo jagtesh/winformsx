@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using Microsoft.Office;
@@ -75,6 +75,19 @@ public sealed partial class Application
 
         private BOOL FPushMessageLoop(msoloop uReason)
         {
+            // For the main message loop in Impeller mode, delegate to Silk.NET's
+            // native event loop. This properly handles window move, resize, close,
+            // and all OS interactions. WinForms synthetic messages are processed
+            // from the Update callback.
+            if (uReason == msoloop.Main
+                && Platform.PlatformApi.Window is Platform.ImpellerWindowInterop windowInterop)
+            {
+                windowInterop.RunMainLoop();
+                FromCurrent().DisposeThreadWindows();
+                return true;
+            }
+
+            // Fallback: manual loop for DoEvents, modal forms, etc.
             BOOL continueLoop = true;
             MSG msg = default;
 
@@ -117,7 +130,7 @@ public sealed partial class Application
                         break;
                     }
 
-                    // Nothing is on the message queue. Perform idle processing and then do a WaitMessage.
+                    // Nothing is on the message queue. Perform idle processing.
                     _idleHandler?.Invoke(Thread.CurrentThread, EventArgs.Empty);
 
                     // Give the component one more chance to terminate the message loop.
@@ -126,14 +139,9 @@ public sealed partial class Application
                         return true;
                     }
 
-                    // We should call GetMessage here, but we cannot because the component manager requires
-                    // that we notify the active component before we pull the message off the queue. This is
-                    // a bit of a problem, because WaitMessage waits for a NEW message to appear on the
-                    // queue. If a message appeared between processing and now WaitMessage would wait for
-                    // the next message. We minimize this here by calling PeekMessage.
                     if (!PInvoke.PeekMessage(&msg, HWND.Null, 0, 0, PEEK_MESSAGE_REMOVE_TYPE.PM_NOREMOVE))
                     {
-                        PInvoke.WaitMessage();
+                        Thread.Sleep(1);
                     }
                 }
             }
