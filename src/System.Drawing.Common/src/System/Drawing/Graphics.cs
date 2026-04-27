@@ -902,6 +902,13 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     public void DrawEllipse(Pen pen, float x, float y, float width, float height)
     {
         ArgumentNullException.ThrowIfNull(pen);
+        
+        if (_backend is not null)
+        {
+            _backend.StrokeEllipse(x, y, width, height, pen.Color, pen.Width);
+            return;
+        }
+
         CheckErrorStatus(PInvoke.GdipDrawEllipse(NativeGraphics, pen.NativePen, x, y, width, height));
         GC.KeepAlive(pen);
     }
@@ -1519,6 +1526,17 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     public void FillEllipse(Brush brush, float x, float y, float width, float height)
     {
         ArgumentNullException.ThrowIfNull(brush);
+
+        if (_backend is not null)
+        {
+            Color color = Color.Transparent;
+            if (brush is SolidBrush sb)
+            {
+                color = sb.Color;
+            }
+            _backend.FillEllipse(x, y, width, height, color);
+            return;
+        }
 
         CheckErrorStatus(PInvoke.GdipFillEllipse(
             NativeGraphics,

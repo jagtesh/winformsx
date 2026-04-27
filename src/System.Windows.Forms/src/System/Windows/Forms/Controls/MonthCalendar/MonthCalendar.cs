@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.ComponentModel;
@@ -137,9 +137,13 @@ public partial class MonthCalendar : Control
         _focusedDate = _todaysDate;
         SetStyle(ControlStyles.UserPaint, false);
         SetStyle(ControlStyles.StandardClick, false);
-#pragma warning disable WFO5001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
         SetStyle(ControlStyles.ApplyThemingImplicitly, true);
 #pragma warning restore WFO5001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
+
+        if (Graphics.IsBackendActive)
+        {
+            SetStyle(ControlStyles.UserPaint, true);
+        }
 
         TabStop = true;
     }
@@ -1345,6 +1349,18 @@ public partial class MonthCalendar : Control
             Keys.PageUp or Keys.PageDown or Keys.Home or Keys.End => true,
             _ => base.IsInputKey(keyData),
         };
+    }
+
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        base.OnPaint(e);
+        if (Graphics.IsBackendActive)
+        {
+            Rectangle rect = ClientRectangle;
+            e.Graphics.FillRectangle(SystemBrushes.Window, rect);
+            ControlPaint.DrawBorder(e.Graphics, rect, SystemColors.ControlDark, ButtonBorderStyle.Solid);
+            TextRenderer.DrawText(e.Graphics, "(Impeller MonthCalendar)", Font, rect, ForeColor, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+        }
     }
 
     protected override void OnHandleCreated(EventArgs e)

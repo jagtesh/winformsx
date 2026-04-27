@@ -119,6 +119,11 @@ public partial class ComboBox : ListControl
                  ControlStyles.UseTextForAccessibility |
                  ControlStyles.StandardClick, false);
 
+        if (Graphics.IsBackendActive)
+        {
+            SetStyle(ControlStyles.UserPaint, true);
+        }
+
         _requestedHeight = DefaultSimpleStyleHeight;
 
         // this class overrides GetPreferredSizeCore, let Control automatically cache the result
@@ -2837,6 +2842,21 @@ public partial class ComboBox : ListControl
     {
         base.OnForeColorChanged(e);
         UpdateControl(false);
+    }
+
+    [EditorBrowsable(EditorBrowsableState.Advanced)]
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        base.OnPaint(e);
+        if (Graphics.IsBackendActive)
+        {
+            Rectangle rect = ClientRectangle;
+            e.Graphics.FillRectangle(SystemBrushes.Window, rect);
+            ControlPaint.DrawBorder(e.Graphics, rect, SystemColors.ControlDark, ButtonBorderStyle.Solid);
+            Rectangle btnRect = new Rectangle(Width - SystemInformation.VerticalScrollBarWidth, 0, SystemInformation.VerticalScrollBarWidth, Height);
+            ControlPaint.DrawComboButton(e.Graphics, btnRect, ButtonState.Normal);
+            TextRenderer.DrawText(e.Graphics, Text, Font, new Rectangle(2, 0, Width - btnRect.Width - 4, Height), ForeColor, TextFormatFlags.Left | TextFormatFlags.VerticalCenter);
+        }
     }
 
     [EditorBrowsable(EditorBrowsableState.Advanced)]

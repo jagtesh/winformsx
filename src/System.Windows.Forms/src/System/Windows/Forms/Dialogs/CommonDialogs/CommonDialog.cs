@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.ComponentModel;
@@ -208,16 +208,19 @@ public abstract class CommonDialog : Component
 
             try
             {
-                _priorWindowProcedure = PInvoke.SetWindowLong(
-                    ownerHwnd,
-                    WINDOW_LONG_PTR_INDEX.GWL_WNDPROC,
-                    hookedWndProc);
+                if (!Graphics.IsBackendActive)
+                {
+                    _priorWindowProcedure = PInvoke.SetWindowLong(
+                        ownerHwnd,
+                        WINDOW_LONG_PTR_INDEX.GWL_WNDPROC,
+                        hookedWndProc);
+                }
 
                 using ThemingScope scope = new(Application.UseVisualStyles);
                 Application.BeginModalMessageLoop();
                 try
                 {
-                    result = RunDialog(ownerHwnd.Handle) ? DialogResult.OK : DialogResult.Cancel;
+                    result = RunDialog(Graphics.IsBackendActive ? IntPtr.Zero : ownerHwnd.Handle) ? DialogResult.OK : DialogResult.Cancel;
                 }
                 finally
                 {
@@ -226,10 +229,13 @@ public abstract class CommonDialog : Component
             }
             finally
             {
-                nint currentSubClass = PInvoke.GetWindowLong(ownerHwnd.Handle, WINDOW_LONG_PTR_INDEX.GWL_WNDPROC);
-                if (_priorWindowProcedure != 0 || currentSubClass != hookedWndProc)
+                if (!Graphics.IsBackendActive)
                 {
-                    PInvoke.SetWindowLong(ownerHwnd.Handle, WINDOW_LONG_PTR_INDEX.GWL_WNDPROC, _priorWindowProcedure);
+                    nint currentSubClass = PInvoke.GetWindowLong(ownerHwnd.Handle, WINDOW_LONG_PTR_INDEX.GWL_WNDPROC);
+                    if (_priorWindowProcedure != 0 || currentSubClass != hookedWndProc)
+                    {
+                        PInvoke.SetWindowLong(ownerHwnd.Handle, WINDOW_LONG_PTR_INDEX.GWL_WNDPROC, _priorWindowProcedure);
+                    }
                 }
 
                 _priorWindowProcedure = 0;

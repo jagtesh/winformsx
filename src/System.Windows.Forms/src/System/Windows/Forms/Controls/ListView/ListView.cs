@@ -232,6 +232,11 @@ public partial class ListView : Control
 
         _listItemCollection = new ListViewItemCollection(new ListViewNativeItemCollection(this));
         _columnHeaderCollection = new ColumnHeaderCollection(this);
+
+        if (Graphics.IsBackendActive)
+        {
+            SetStyle(ControlStyles.UserPaint, true);
+        }
     }
 
     /// <summary>
@@ -4598,6 +4603,18 @@ public partial class ListView : Control
 
         // If font changes and we have headers, they need to be explicitly invalidated.
         InvalidateColumnHeaders();
+    }
+
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        base.OnPaint(e);
+        if (Graphics.IsBackendActive)
+        {
+            Rectangle rect = ClientRectangle;
+            e.Graphics.FillRectangle(SystemBrushes.Window, rect);
+            ControlPaint.DrawBorder(e.Graphics, rect, SystemColors.ControlDark, ButtonBorderStyle.Solid);
+            TextRenderer.DrawText(e.Graphics, "(Impeller ListView)", Font, rect, ForeColor, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+        }
     }
 
     protected override void OnHandleCreated(EventArgs e)

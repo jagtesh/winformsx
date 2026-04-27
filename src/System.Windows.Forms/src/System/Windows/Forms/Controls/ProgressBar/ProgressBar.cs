@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.ComponentModel;
@@ -38,9 +38,12 @@ public partial class ProgressBar : Control
     public ProgressBar() : base()
     {
         SetStyle(ControlStyles.UserPaint | ControlStyles.UseTextForAccessibility | ControlStyles.Selectable, false);
-#pragma warning disable WFO5001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
-        SetStyle(ControlStyles.ApplyThemingImplicitly, true);
 #pragma warning restore WFO5001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
+
+        if (Graphics.IsBackendActive)
+        {
+            SetStyle(ControlStyles.UserPaint, true);
+        }
 
         ForeColor = s_defaultForeColor;
     }
@@ -593,6 +596,23 @@ public partial class ProgressBar : Control
     /// <summary>
     ///  Overridden to set up our properties.
     /// </summary>
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        base.OnPaint(e);
+        if (Graphics.IsBackendActive)
+        {
+            Rectangle rect = ClientRectangle;
+            e.Graphics.FillRectangle(SystemBrushes.Control, rect);
+            ControlPaint.DrawBorder(e.Graphics, rect, SystemColors.ControlDark, ButtonBorderStyle.Solid);
+            
+            // Draw a fake progress bar fill
+            Rectangle fillRect = rect;
+            fillRect.Inflate(-2, -2);
+            fillRect.Width = (int)(fillRect.Width * ((float)Value / Maximum));
+            e.Graphics.FillRectangle(SystemBrushes.Highlight, fillRect);
+        }
+    }
+
     protected override void OnHandleCreated(EventArgs e)
     {
         base.OnHandleCreated(e);

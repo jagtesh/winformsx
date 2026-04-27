@@ -17060,6 +17060,16 @@ public partial class DataGridView
 
     protected override void OnPaint(PaintEventArgs e)
     {
+        if (Graphics.IsBackendActive)
+        {
+            base.OnPaint(e);
+            Rectangle rect = ClientRectangle;
+            e.Graphics.FillRectangle(SystemBrushes.AppWorkspace, rect);
+            ControlPaint.DrawBorder(e.Graphics, rect, SystemColors.ControlDark, ButtonBorderStyle.Solid);
+            TextRenderer.DrawText(e.Graphics, "(Impeller DataGridView)", Font, rect, ForeColor, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+            return;
+        }
+
         try
         {
             // We can't paint if we are disposed.

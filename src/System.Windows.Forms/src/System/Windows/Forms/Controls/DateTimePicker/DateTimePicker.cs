@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.ComponentModel;
@@ -117,6 +117,11 @@ public partial class DateTimePicker : Control
         // Since DateTimePicker does its own mouse capturing, we do not want to receive standard click events, or
         // we end up with mismatched mouse button up and button down messages.
         SetStyle(ControlStyles.UserPaint | ControlStyles.StandardClick, false);
+
+        if (Graphics.IsBackendActive)
+        {
+            SetStyle(ControlStyles.UserPaint, true);
+        }
 
         _format = DateTimePickerFormat.Long;
 
@@ -1100,6 +1105,20 @@ public partial class DateTimePicker : Control
     /// <summary>
     ///  Add/remove SystemEvents in OnHandleCreated/Destroyed for robustness.
     /// </summary>
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        base.OnPaint(e);
+        if (Graphics.IsBackendActive)
+        {
+            Rectangle rect = ClientRectangle;
+            e.Graphics.FillRectangle(SystemBrushes.Window, rect);
+            ControlPaint.DrawBorder(e.Graphics, rect, SystemColors.ControlDark, ButtonBorderStyle.Solid);
+            Rectangle btnRect = new Rectangle(Width - SystemInformation.VerticalScrollBarWidth, 0, SystemInformation.VerticalScrollBarWidth, Height);
+            ControlPaint.DrawComboButton(e.Graphics, btnRect, ButtonState.Normal);
+            TextRenderer.DrawText(e.Graphics, "(Impeller DateTimePicker)", Font, new Rectangle(2, 0, Width - btnRect.Width - 4, Height), ForeColor, TextFormatFlags.Left | TextFormatFlags.VerticalCenter);
+        }
+    }
+
     protected override void OnHandleCreated(EventArgs e)
     {
         base.OnHandleCreated(e);

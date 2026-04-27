@@ -120,9 +120,13 @@ public partial class ListBox : ListControl
     {
         SetStyle(ControlStyles.UserPaint | ControlStyles.StandardClick | ControlStyles.UseTextForAccessibility, false);
 
-#pragma warning disable WFO5001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
         SetStyle(ControlStyles.ApplyThemingImplicitly, true);
 #pragma warning restore WFO5001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
+
+        if (Graphics.IsBackendActive)
+        {
+            SetStyle(ControlStyles.UserPaint, true);
+        }
 
         // This class overrides GetPreferredSizeCore, let Control automatically cache the result.
         SetExtendedState(ExtendedStates.UserPreferredSizeCache, true);
@@ -1819,6 +1823,18 @@ public partial class ListBox : ListControl
     protected virtual void OnMeasureItem(MeasureItemEventArgs e)
     {
         ((MeasureItemEventHandler?)Events[s_measureItemEvent])?.Invoke(this, e);
+    }
+
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        base.OnPaint(e);
+        if (Graphics.IsBackendActive)
+        {
+            Rectangle rect = ClientRectangle;
+            e.Graphics.FillRectangle(SystemBrushes.Window, rect);
+            ControlPaint.DrawBorder(e.Graphics, rect, SystemColors.ControlDark, ButtonBorderStyle.Solid);
+            TextRenderer.DrawText(e.Graphics, "(Impeller ListBox)", Font, rect, ForeColor, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+        }
     }
 
     protected override void OnFontChanged(EventArgs e)

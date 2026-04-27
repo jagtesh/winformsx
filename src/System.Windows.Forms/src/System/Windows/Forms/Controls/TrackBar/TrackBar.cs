@@ -55,9 +55,12 @@ public partial class TrackBar : Control, ISupportInitialize
         SetStyle(ControlStyles.UserPaint, false);
         SetStyle(ControlStyles.UseTextForAccessibility, false);
 
-#pragma warning disable WFO5001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
-        SetStyle(ControlStyles.ApplyThemingImplicitly, true);
 #pragma warning restore WFO5001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
+
+        if (Graphics.IsBackendActive)
+        {
+            SetStyle(ControlStyles.UserPaint, true);
+        }
         _requestedDim = PreferredDimension;
     }
 
@@ -849,6 +852,18 @@ public partial class TrackBar : Control, ISupportInitialize
             Keys.PageUp or Keys.PageDown or Keys.Home or Keys.End => true,
             _ => base.IsInputKey(keyData),
         };
+    }
+
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        base.OnPaint(e);
+        if (Graphics.IsBackendActive)
+        {
+            Rectangle rect = ClientRectangle;
+            e.Graphics.FillRectangle(SystemBrushes.Control, rect);
+            ControlPaint.DrawBorder(e.Graphics, rect, SystemColors.ControlDark, ButtonBorderStyle.Solid);
+            TextRenderer.DrawText(e.Graphics, "(Impeller TrackBar)", Font, rect, ForeColor, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+        }
     }
 
     protected override void OnHandleCreated(EventArgs e)
