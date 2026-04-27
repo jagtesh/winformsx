@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <!-- Suppress IDE0005 (unnecessary using) which is an error in this repo -->
+    <NoWarn>$(NoWarn);IDE0005;CSIsNull002;SA1500;SA1513</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Share the exact same source as WinFormsX.Samples -->
+    <Compile Include="..\WinFormsX.Samples\Program.cs" Link="Program.cs" />
+  </ItemGroup>
+
+</Project>

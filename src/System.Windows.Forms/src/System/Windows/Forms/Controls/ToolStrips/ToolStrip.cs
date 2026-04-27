@@ -3594,19 +3594,9 @@ public partial class ToolStrip : ScrollableControl, IArrangedElement, ISupportTo
             }
 
             // Preparing for painting the individual items...
-            // using WindowsGraphics here because we want to preserve the clipping information.
-
-            // calling GetHdc by itself does not set up the clipping info.
-            using DeviceContextHdcScope toolStripHDC = new(toolstripGraphics, ApplyGraphicsProperties.Clipping);
-
-            // Get the cached item HDC.
-            HDC itemHDC = ItemHdcInfo.GetCachedItemDC(toolStripHDC, bitmapSize);
-
-            Graphics itemGraphics = itemHDC.CreateGraphics();
-            try
+            if (Graphics.IsBackendActive)
             {
-                // Iterate through all the items, painting them one by one into the compatible offscreen DC,
-                // and then copy them back onto the main toolstrip.
+                // Impeller path: bypass GDI offscreen buffer entirely.
                 for (int i = 0; i < DisplayedItems.Count; i++)
                 {
                     ToolStripItem item = DisplayedItems[i];
@@ -3617,83 +3607,140 @@ public partial class ToolStrip : ScrollableControl, IArrangedElement, ISupportTo
 
                         if (!IsDropDown && item.Owner == this)
                         {
-                            // owned items should not paint outside the client
-                            // area. (this is mainly to prevent obscuring the grip
-                            // and overflowbutton - ToolStripDropDownMenu places items
-                            // outside of the display rectangle - so we need to allow for this
-                            // in dropdowns).
                             clippingRect.Intersect(viewableArea);
                         }
 
-                        // get the intersection of these two.
                         clippingRect.Intersect(bounds);
 
                         if (LayoutUtils.IsZeroWidthOrHeight(clippingRect))
                         {
-                            continue;  // no point newing up a graphics object if there's nothing to paint.
+                            continue;
                         }
 
-                        Size itemSize = item.Size;
+                        Console.WriteLine($"[ToolStrip.OnPaint] Item {item.Text} bounds: {bounds}");
 
-                        // check if our item buffer is large enough to handle.
-                        if (!LayoutUtils.AreWidthAndHeightLarger(bitmapSize, itemSize))
-                        {
-                            // the cached HDC isn't big enough for this item.  make it bigger.
-                            _largestDisplayedItemSize = itemSize;
-                            bitmapSize = itemSize;
-                            // dispose the old graphics - create a new, bigger one.
-                            itemGraphics.Dispose();
-
-                            // calling this should take the existing DC and select in a bigger bitmap.
-                            itemHDC = ItemHdcInfo.GetCachedItemDC(toolStripHDC, bitmapSize);
-
-                            // allocate a new graphics.
-                            itemGraphics = itemHDC.CreateGraphics();
-                        }
-
-                        // since the item graphics object will have 0,0 at the
-                        // corner we need to actually shift the origin of the rect over
-                        // so it will be 0,0 too.
+                        var state = toolstripGraphics.Save();
+                        
+                        // We translate the graphics origin to the item's location
+                        toolstripGraphics.TranslateTransform(bounds.X, bounds.Y);
+                        
+                        // The clippingRect was relative to the ToolStrip, so offset it by the item bounds
                         clippingRect.Offset(-bounds.X, -bounds.Y);
+                        
+                        toolstripGraphics.IntersectClip(clippingRect);
 
-                        // PERF - consider - we only actually need to copy the clipping rect.
-                        // copy the background from the toolstrip onto the offscreen bitmap
-                        PInvoke.BitBlt(
-                            ItemHdcInfo,
-                            0,
-                            0,
-                            item.Size.Width,
-                            item.Size.Height,
-                            toolStripHDC,
-                            item.Bounds.X,
-                            item.Bounds.Y,
-                            ROP_CODE.SRCCOPY);
-
-                        // Paint the item into the offscreen bitmap
-                        using (PaintEventArgs itemPaintEventArgs = new(itemGraphics, clippingRect))
+                        using (PaintEventArgs itemPaintEventArgs = new(toolstripGraphics, clippingRect))
                         {
                             item.FireEvent(itemPaintEventArgs, ToolStripItemEventType.Paint);
                         }
 
-                        // copy the item back onto the toolstrip
-                        PInvoke.BitBlt(
-                            toolStripHDC,
-                            item.Bounds.X,
-                            item.Bounds.Y,
-                            item.Size.Width,
-                            item.Size.Height,
-                            ItemHdcInfo,
-                            0,
-                            0,
-                            ROP_CODE.SRCCOPY);
-
-                        GC.KeepAlive(ItemHdcInfo);
+                        toolstripGraphics.Restore(state);
                     }
                 }
             }
-            finally
+            else
             {
-                itemGraphics?.Dispose();
+                // using WindowsGraphics here because we want to preserve the clipping information.
+
+                // calling GetHdc by itself does not set up the clipping info.
+                using DeviceContextHdcScope toolStripHDC = new(toolstripGraphics, ApplyGraphicsProperties.Clipping);
+
+                // Get the cached item HDC.
+                HDC itemHDC = ItemHdcInfo.GetCachedItemDC(toolStripHDC, bitmapSize);
+
+                Graphics itemGraphics = itemHDC.CreateGraphics();
+                try
+                {
+                    // Iterate through all the items, painting them one by one into the compatible offscreen DC,
+                    // and then copy them back onto the main toolstrip.
+                    for (int i = 0; i < DisplayedItems.Count; i++)
+                    {
+                        ToolStripItem item = DisplayedItems[i];
+                        if (item is not null)
+                        {
+                            Rectangle clippingRect = e.ClipRectangle;
+                            Rectangle bounds = item.Bounds;
+
+                            if (!IsDropDown && item.Owner == this)
+                            {
+                                // owned items should not paint outside the client
+                                // area. (this is mainly to prevent obscuring the grip
+                                // and overflowbutton - ToolStripDropDownMenu places items
+                                // outside of the display rectangle - so we need to allow for this
+                                // in dropdowns).
+                                clippingRect.Intersect(viewableArea);
+                            }
+
+                            // get the intersection of these two.
+                            clippingRect.Intersect(bounds);
+
+                            if (LayoutUtils.IsZeroWidthOrHeight(clippingRect))
+                            {
+                                continue;  // no point newing up a graphics object if there's nothing to paint.
+                            }
+
+                            Size itemSize = item.Size;
+
+                            // check if our item buffer is large enough to handle.
+                            if (!LayoutUtils.AreWidthAndHeightLarger(bitmapSize, itemSize))
+                            {
+                                // the cached HDC isn't big enough for this item.  make it bigger.
+                                _largestDisplayedItemSize = itemSize;
+                                bitmapSize = itemSize;
+                                // dispose the old graphics - create a new, bigger one.
+                                itemGraphics.Dispose();
+
+                                // calling this should take the existing DC and select in a bigger bitmap.
+                                itemHDC = ItemHdcInfo.GetCachedItemDC(toolStripHDC, bitmapSize);
+
+                                // allocate a new graphics.
+                                itemGraphics = itemHDC.CreateGraphics();
+                            }
+
+                            // since the item graphics object will have 0,0 at the
+                            // corner we need to actually shift the origin of the rect over
+                            // so it will be 0,0 too.
+                            clippingRect.Offset(-bounds.X, -bounds.Y);
+
+                            // PERF - consider - we only actually need to copy the clipping rect.
+                            // copy the background from the toolstrip onto the offscreen bitmap
+                            PInvoke.BitBlt(
+                                ItemHdcInfo,
+                                0,
+                                0,
+                                item.Size.Width,
+                                item.Size.Height,
+                                toolStripHDC,
+                                item.Bounds.X,
+                                item.Bounds.Y,
+                                ROP_CODE.SRCCOPY);
+
+                            // Paint the item into the offscreen bitmap
+                            using (PaintEventArgs itemPaintEventArgs = new(itemGraphics, clippingRect))
+                            {
+                                item.FireEvent(itemPaintEventArgs, ToolStripItemEventType.Paint);
+                            }
+
+                            // copy the item back onto the toolstrip
+                            PInvoke.BitBlt(
+                                toolStripHDC,
+                                item.Bounds.X,
+                                item.Bounds.Y,
+                                item.Size.Width,
+                                item.Size.Height,
+                                ItemHdcInfo,
+                                0,
+                                0,
+                                ROP_CODE.SRCCOPY);
+
+                            GC.KeepAlive(ItemHdcInfo);
+                        }
+                    }
+                }
+                finally
+                {
+                    itemGraphics?.Dispose();
+                }
             }
         }
 

@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Collections.Specialized;
@@ -363,22 +363,54 @@ public partial class TabControl : Control
 
             RECT rect = Bounds;
 
-            // We force a handle creation here, because otherwise the DisplayRectangle will be wildly inaccurate
             if (!IsDisposed)
             {
-                // Since this is called thru the OnResize (and Layout) which is triggered by SetExtent if the TabControl is hosted as
-                // a ActiveX control, so check if this is ActiveX and don't force Handle Creation here as the native code breaks in this case.
-                if (!IsActiveX)
+                if (Graphics.IsBackendActive)
                 {
-                    if (!IsHandleCreated)
+                    // Fallback since native TCM_ADJUSTRECT won't work correctly.
+                    int headerHeight = _itemSize.Height > 0 ? _itemSize.Height : 24;
+                    // Add some padding to header height
+                    headerHeight += 8; 
+                    
+                    if (Alignment == TabAlignment.Top)
                     {
-                        CreateHandle();
+                        rect.top += headerHeight;
                     }
+                    else if (Alignment == TabAlignment.Bottom)
+                    {
+                        rect.bottom -= headerHeight;
+                    }
+                    else if (Alignment == TabAlignment.Left)
+                    {
+                        rect.left += headerHeight;
+                    }
+                    else if (Alignment == TabAlignment.Right)
+                    {
+                        rect.right -= headerHeight;
+                    }
+                    
+                    // Add small border padding
+                    rect.left += 2;
+                    rect.right -= 2;
+                    rect.bottom -= 2;
+                    if (Alignment != TabAlignment.Top) rect.top += 2;
                 }
-
-                if (IsHandleCreated)
+                else
                 {
-                    PInvoke.SendMessage(this, PInvoke.TCM_ADJUSTRECT, 0, ref rect);
+                    // Since this is called thru the OnResize (and Layout) which is triggered by SetExtent if the TabControl is hosted as
+                    // a ActiveX control, so check if this is ActiveX and don't force Handle Creation here as the native code breaks in this case.
+                    if (!IsActiveX)
+                    {
+                        if (!IsHandleCreated)
+                        {
+                            CreateHandle();
+                        }
+                    }
+
+                    if (IsHandleCreated)
+                    {
+                        PInvoke.SendMessage(this, PInvoke.TCM_ADJUSTRECT, 0, ref rect);
+                    }
                 }
             }
 
@@ -913,6 +945,59 @@ public partial class TabControl : Control
         remove => base.Paint -= value;
     }
 
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        base.OnPaint(e);
+
+        if (Graphics.IsBackendActive)
+        {
+            Rectangle displayRect = DisplayRectangle;
+
+            // Draw a subtle border around the display area
+            if (TabCount > 0)
+            {
+                Rectangle borderRect = displayRect;
+                borderRect.Inflate(2, 2);
+                using Pen borderPen = new Pen(SystemColors.ControlDark);
+                e.Graphics.DrawRectangle(borderPen, borderRect);
+            }
+
+            for (int i = 0; i < TabCount; i++)
+            {
+                Rectangle bounds = GetTabRect(i);
+                if (bounds.IsEmpty)
+                {
+                    continue;
+                }
+
+                TabPage page = TabPages[i];
+                bool isSelected = (i == SelectedIndex);
+
+                if (DrawMode == TabDrawMode.OwnerDrawFixed)
+                {
+                    DrawItemState state = isSelected ? DrawItemState.Selected : DrawItemState.Default;
+                    DrawItemEventArgs die = new(e.Graphics, Font, bounds, i, state);
+                    OnDrawItem(die);
+                }
+                else
+                {
+                    // Draw the background of the tab
+                    Color tabColor = isSelected ? SystemColors.ControlLightLight : SystemColors.Control;
+                    using SolidBrush tabBrush = new SolidBrush(tabColor);
+                    e.Graphics.FillRectangle(tabBrush, bounds);
+
+                    // Draw tab border
+                    using Pen tabBorder = new Pen(SystemColors.ControlDark);
+                    e.Graphics.DrawRectangle(tabBorder, bounds);
+
+                    // Draw the text
+                    TextFormatFlags flags = TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine;
+                    TextRenderer.DrawText(e.Graphics, page.Text, Font, bounds, ForeColor, flags);
+                }
+            }
+        }
+    }
+
     private int AddTabPage(TabPage tabPage)
     {
         int index = AddNativeTabPage(tabPage);
@@ -1116,6 +1201,32 @@ public partial class TabControl : Control
         if (!IsHandleCreated)
         {
             CreateHandle();
+        }
+
+        if (Graphics.IsBackendActive)
+        {
+            int currentX = 2; // Initial padding
+            int currentY = 2;
+            int height = _itemSize.Height > 0 ? _itemSize.Height : 24;
+
+            for (int i = 0; i <= index; i++)
+            {
+                if (i >= TabPages.Count) break;
+                string text = TabPages[i].Text;
+                // Estimate width: measure text + horizontal padding
+                int width = TextRenderer.MeasureText(text, Font).Width + 16;
+                if (_itemSize.Width > 0 && SizeMode == TabSizeMode.Fixed)
+                {
+                    width = _itemSize.Width;
+                }
+
+                if (i == index)
+                {
+                    return new Rectangle(currentX, currentY, width, height);
+                }
+
+                currentX += width;
+            }
         }
 
         PInvoke.SendMessage(this, PInvoke.TCM_GETITEMRECT, (WPARAM)index, ref rect);

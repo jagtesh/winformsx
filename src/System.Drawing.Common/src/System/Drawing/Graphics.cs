@@ -1326,8 +1326,21 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
 
         if (_backend is not null)
         {
-            Color color = brush is SolidBrush sb ? sb.Color : Color.Black;
-            _backend.FillRect(x, y, width, height, color);
+            Color color = Color.Transparent;
+            if (brush is SolidBrush sb)
+            {
+                color = sb.Color;
+            }
+            else if (brush is System.Drawing.Drawing2D.LinearGradientBrush lgb)
+            {
+                color = lgb.LinearColors[0];
+            }
+            
+            if (color != Color.Transparent)
+            {
+                _backend.FillRect(x, y, width, height, color);
+            }
+
             return;
         }
 
