@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Drawing;
@@ -27,7 +27,7 @@ public partial class Control
 
         internal unsafe MetafileDCWrapper(HDC hOriginalDC, Size size)
         {
-            Debug.Assert((OBJ_TYPE)PInvokeCore.GetObjectType(hOriginalDC) == OBJ_TYPE.OBJ_ENHMETADC,
+            Debug.Assert((OBJ_TYPE)PInvoke.GetObjectType(hOriginalDC) == OBJ_TYPE.OBJ_ENHMETADC,
                 "Why wrap a non-Enhanced MetaFile DC?");
 
             if (size.Width < 0 || size.Height < 0)
@@ -37,11 +37,11 @@ public partial class Control
 
             _hMetafileDC = hOriginalDC;
             _destRect = new(size);
-            HDC = PInvokeCore.CreateCompatibleDC(default);
+            HDC = PInvoke.CreateCompatibleDC(default);
 
-            int planes = PInvokeCore.GetDeviceCaps(HDC, GET_DEVICE_CAPS_INDEX.PLANES);
-            int bitsPixel = PInvokeCore.GetDeviceCaps(HDC, GET_DEVICE_CAPS_INDEX.BITSPIXEL);
-            _hBitmap = PInvokeCore.CreateBitmap(size.Width, size.Height, (uint)planes, (uint)bitsPixel, lpBits: null);
+            int planes = PInvoke.GetDeviceCaps(HDC, GET_DEVICE_CAPS_INDEX.PLANES);
+            int bitsPixel = PInvoke.GetDeviceCaps(HDC, GET_DEVICE_CAPS_INDEX.BITSPIXEL);
+            _hBitmap = PInvoke.CreateBitmap(size.Width, size.Height, (uint)planes, (uint)bitsPixel, lpBits: null);
             _hOriginalBmp = (HBITMAP)PInvoke.SelectObject(HDC, _hBitmap);
         }
 
@@ -64,9 +64,9 @@ public partial class Control
                 success = DICopy(_hMetafileDC, HDC, _destRect, bStretch: true);
                 Debug.Assert(success, "DICopy() failed.");
                 PInvoke.SelectObject(HDC, _hOriginalBmp);
-                success = PInvokeCore.DeleteObject(_hBitmap);
+                success = PInvoke.DeleteObject(_hBitmap);
                 Debug.Assert(success, "DeleteObject() failed.");
-                success = PInvokeCore.DeleteDC(HDC);
+                success = PInvoke.DeleteDC(HDC);
                 Debug.Assert(success, "DeleteObject() failed.");
             }
             finally
@@ -88,7 +88,7 @@ public partial class Control
             long i;
 
             // Get the bitmap from the DC by selecting in a 1x1 pixel temp bitmap
-            HBITMAP hNullBitmap = PInvokeCore.CreateBitmap(1, 1, 1, 1, null);
+            HBITMAP hNullBitmap = PInvoke.CreateBitmap(1, 1, 1, 1, null);
             if (hNullBitmap.IsNull)
             {
                 return false;
@@ -105,7 +105,7 @@ public partial class Control
                 // Restore original bitmap
                 PInvoke.SelectObject(hdcSrc, hBitmap);
 
-                if (!PInvokeCore.GetObject(hBitmap, out BITMAP bmp))
+                if (!PInvoke.GetObject(hBitmap, out BITMAP bmp))
                 {
                     return false;
                 }
@@ -211,7 +211,7 @@ public partial class Control
             }
             finally
             {
-                PInvokeCore.DeleteObject(hNullBitmap);
+                PInvoke.DeleteObject(hNullBitmap);
             }
 
             return true;

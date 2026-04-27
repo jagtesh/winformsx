@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.ComponentModel;
@@ -284,7 +284,7 @@ public sealed class FolderBrowserDialog : CommonDialog
         {
             // Creating the Vista dialog can fail on Windows Server Core, even if the
             // Server Core App Compatibility FOD is installed.
-            PInvokeCore.CoCreateInstance(
+            PInvoke.CoCreateInstance(
                 CLSID.FileOpenDialog,
                 pUnkOuter: null,
                 CLSCTX.CLSCTX_INPROC_SERVER | CLSCTX.CLSCTX_LOCAL_SERVER | CLSCTX.CLSCTX_REMOTE_SERVER,

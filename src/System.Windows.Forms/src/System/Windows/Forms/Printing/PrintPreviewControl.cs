@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.ComponentModel;
@@ -282,7 +282,7 @@ public partial class PrintPreviewControl : Control
     }
 
     [DefaultValue(false)]
-    [DispId(PInvokeCore.DISPID_TABSTOP)]
+    [DispId(PInvoke.DISPID_TABSTOP)]
     public new bool TabStop
     {
         get => base.TabStop;
@@ -475,8 +475,8 @@ public partial class PrintPreviewControl : Control
 
         using GetDcScope hdc = new(HWND);
         _screenDPI = new Point(
-            PInvokeCore.GetDeviceCaps(hdc, GET_DEVICE_CAPS_INDEX.LOGPIXELSX),
-            PInvokeCore.GetDeviceCaps(hdc, GET_DEVICE_CAPS_INDEX.LOGPIXELSY));
+            PInvoke.GetDeviceCaps(hdc, GET_DEVICE_CAPS_INDEX.LOGPIXELSX),
+            PInvoke.GetDeviceCaps(hdc, GET_DEVICE_CAPS_INDEX.LOGPIXELSY));
 
         Size pageSize = _pageInfo[StartPage].PhysicalSize;
         Size controlPhysicalSize = PixelsToPhysical(Size, _screenDPI);

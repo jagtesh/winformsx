@@ -104,15 +104,18 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
             options.WindowBorder = WindowBorder.Resizable;
             
             var silkWindow = Window.Create(options);
+            bool renderReady = false;
             
             silkWindow.Resize += (size) =>
             {
+                if (!renderReady) return;
                 NativeWindow.DispatchMessageDirect(
                     handle, (uint)PInvoke.WM_SIZE, (WPARAM)0, (LPARAM)(nint)((size.Y << 16) | (size.X & 0xFFFF)), out _);
             };
             
             silkWindow.Move += (pos) =>
             {
+                if (!renderReady) return;
                 NativeWindow.DispatchMessageDirect(
                     handle, (uint)PInvoke.WM_MOVE, (WPARAM)0, (LPARAM)(nint)((pos.Y << 16) | (pos.X & 0xFFFF)), out _);
             };
@@ -124,7 +127,6 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                 // that cause deadlocks with the render loop.
             };
             
-            bool renderReady = false;
 
             silkWindow.Render += (delta) =>
             {
@@ -161,50 +163,15 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
 
                     try
                     {
+                        // Dispatch WM_PAINT through the standard WinForms control tree.
+                        // Each control's WmPaint → BeginPaint → PaintEventArgs → OnPaint
+                        // will create a Graphics via Graphics.FromHdcInternal, which uses
+                        // the BackendFactory to produce an Impeller-backed Graphics that
+                        // shares this frame's DisplayListBuilder.
                         var control = Control.FromHandle(handle);
                         if (control is not null)
                         {
-                            g.Clear(System.Drawing.Color.Magenta);
-
-                            var debugColors = new[]
-                            {
-                                System.Drawing.Color.DodgerBlue,
-                                System.Drawing.Color.ForestGreen,
-                                System.Drawing.Color.Orange,
-                            };
-
-                            int colorIdx = 0;
-                            for (int i = control.Controls.Count - 1; i >= 0; i--)
-                            {
-                                var child = control.Controls[i];
-                                if (!child.Visible || child.Width <= 0 || child.Height <= 0)
-                                    continue;
-
-                                var color = debugColors[colorIdx % debugColors.Length];
-                                colorIdx++;
-
-                                using var brush = new System.Drawing.SolidBrush(color);
-                                var rect = new System.Drawing.Rectangle(child.Left, child.Top, child.Width, child.Height);
-                                g.FillRectangle(brush, rect);
-
-                                // Render control name as text
-                                try
-                                {
-                                    using var font = new System.Drawing.Font("Segoe UI", 14f);
-                                    using var textBrush = new System.Drawing.SolidBrush(System.Drawing.Color.White);
-                                    g.DrawString(child.GetType().Name, font, textBrush, child.Left + 10, child.Top + 4);
-                                }
-                                catch (Exception ex)
-                                {
-                                    if (s_firstPaint)
-                                        Console.Error.WriteLine($"  [DrawString FAIL] {child.GetType().Name}: {ex.Message}");
-                                }
-
-                                if (s_firstPaint)
-                                    Console.Error.WriteLine($"  [{child.GetType().Name}] {rect}");
-                            }
-
-                            s_firstPaint = false;
+                            PaintControlTree(control, g);
                         }
                     }
                     finally
@@ -233,6 +200,69 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
         }
 
         return handle;
+    }
+
+    /// <summary>
+    /// Paint the entire control tree using the Impeller-backed Graphics.
+    /// Instead of dispatching WM_PAINT (which creates a new Graphics per control via
+    /// BeginPaint/HDC), we directly invoke OnPaint on each control using the shared
+    /// Impeller Graphics that already has an active frame.
+    /// This is the Impeller equivalent of the Win32 paint cycle.
+    /// </summary>
+    private static void PaintControlTree(Control control, System.Drawing.Graphics g)
+    {
+        // Paint the root control via standard WinForms lifecycle
+        try
+        {
+            var clip = new System.Drawing.Rectangle(0, 0, control.Width, control.Height);
+            using var pevent = new PaintEventArgs(g, clip);
+            control.InvokePaintBackgroundInternal(pevent);
+            control.InvokePaintInternal(pevent);
+        }
+        catch (Exception ex)
+        {
+            if (s_firstPaint)
+                Console.Error.WriteLine($"  [Paint FAIL] {control.GetType().Name}: {ex.Message}");
+        }
+
+        // Paint children in Z-order (back to front)
+        for (int i = control.Controls.Count - 1; i >= 0; i--)
+        {
+            var child = control.Controls[i];
+            if (!child.Visible || child.Width <= 0 || child.Height <= 0)
+                continue;
+
+            // Save graphics state before translating to child origin
+            var state = g.Save();
+            g.TranslateTransform(child.Left, child.Top);
+            g.SetClip(new System.Drawing.Rectangle(0, 0, child.Width, child.Height));
+
+            try
+            {
+                var childClip = new System.Drawing.Rectangle(0, 0, child.Width, child.Height);
+                using var childPevent = new PaintEventArgs(g, childClip);
+                child.InvokePaintBackgroundInternal(childPevent);
+                child.InvokePaintInternal(childPevent);
+
+                if (s_firstPaint)
+                    Console.Error.WriteLine($"  [Paint] {child.GetType().Name} @ ({child.Left},{child.Top}) {child.Width}x{child.Height}");
+            }
+            catch (Exception ex)
+            {
+                if (s_firstPaint)
+                    Console.Error.WriteLine($"  [Paint FAIL] {child.GetType().Name}: {ex.Message}");
+            }
+
+            // Recurse into child's children
+            if (child.Controls.Count > 0)
+            {
+                PaintControlTree(child, g);
+            }
+
+            g.Restore(state);
+        }
+
+        s_firstPaint = false;
     }
 
     /// <summary>

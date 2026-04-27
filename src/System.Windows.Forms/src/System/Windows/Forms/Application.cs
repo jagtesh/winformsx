@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.ComponentModel;
@@ -936,6 +936,21 @@ public sealed partial class Application
     [UnconditionalSuppressMessage("SingleFile", "IL3002", Justification = "Single-file case is handled")]
     public static void EnableVisualStyles()
     {
+        // When running on the Impeller backend, native theming APIs (activation contexts)
+        // don't apply — Impeller handles all visual styling. Skip the ThemingScope call.
+        try
+        {
+            _ = Platform.PlatformApi.Provider;
+            // If we get here, Impeller is initialized — skip native theming
+            UseVisualStyles = true;
+            s_comCtlSupportsVisualStylesInitialized = false;
+            return;
+        }
+        catch (InvalidOperationException)
+        {
+            // PlatformApi not initialized — fall through to native theming path
+        }
+
         // Pull manifest from our resources
         Module module = typeof(Application).Module;
         var moduleHandle = PInvoke.GetModuleHandle(module.Name);

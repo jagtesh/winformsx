@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Drawing;
@@ -31,11 +31,11 @@ internal readonly struct DCMapping : IDisposable
         ArgumentNullException.ThrowIfNull(hdc);
 
         _hdc = hdc;
-        _savedState = PInvokeCore.SaveDC(hdc);
+        _savedState = PInvoke.SaveDC(hdc);
 
         // Retrieve the x-coordinates and y-coordinates of the viewport origin for the specified device context.
         Point viewportOrg = default;
-        bool success = PInvokeCore.GetViewportOrgEx(hdc, &viewportOrg);
+        bool success = PInvoke.GetViewportOrgEx(hdc, &viewportOrg);
         Debug.Assert(success, "GetViewportOrgEx() failed.");
 
         // Create a new rectangular clipping region based off of the bounds specified, shifted over by the x & y specified in the viewport origin.
@@ -72,7 +72,7 @@ internal readonly struct DCMapping : IDisposable
                 {
                     // Find the intersection of our clipping region and the current clipping region (our parent's)
 
-                    GDI_REGION_TYPE combineResult = PInvokeCore.CombineRgn(
+                    GDI_REGION_TYPE combineResult = PInvoke.CombineRgn(
                         clippingRegion,
                         clippingRegion,
                         originalRegion,
@@ -90,7 +90,7 @@ internal readonly struct DCMapping : IDisposable
             }
 
             // Select the new clipping region; make sure it's a SIMPLEREGION or NULLREGION
-            GDI_REGION_TYPE selectResult = PInvokeCore.SelectClipRgn(hdc, clippingRegion);
+            GDI_REGION_TYPE selectResult = PInvoke.SelectClipRgn(hdc, clippingRegion);
             Debug.Assert(
                 selectResult is GDI_REGION_TYPE.SIMPLEREGION or GDI_REGION_TYPE.NULLREGION,
                 "SIMPLEREGION or NULLLREGION expected.");
@@ -104,7 +104,7 @@ internal readonly struct DCMapping : IDisposable
     {
         if (!_hdc.IsNull)
         {
-            PInvokeCore.RestoreDC(_hdc, _savedState);
+            PInvoke.RestoreDC(_hdc, _savedState);
         }
     }
 }

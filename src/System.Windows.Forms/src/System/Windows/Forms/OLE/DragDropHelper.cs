@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.ComponentModel;
@@ -174,12 +174,12 @@ internal static unsafe class DragDropHelper
 
             medium = default;
             dataObject.GetData(ref formatEtc, out medium);
-            void* basePtr = PInvokeCore.GlobalLock((HGLOBAL)medium.unionmember);
+            void* basePtr = PInvoke.GlobalLock((HGLOBAL)medium.unionmember);
             return (basePtr is not null) && (*(BOOL*)basePtr == true);
         }
         finally
         {
-            PInvokeCore.GlobalUnlock((HGLOBAL)medium.unionmember);
+            PInvoke.GlobalUnlock((HGLOBAL)medium.unionmember);
             var comMedium = (STGMEDIUM)medium;
             PInvoke.ReleaseStgMedium(ref comMedium);
         }
@@ -200,12 +200,12 @@ internal static unsafe class DragDropHelper
         {
             try
             {
-                void* basePtr = PInvokeCore.GlobalLock(dragDropFormat.Medium.hGlobal);
+                void* basePtr = PInvoke.GlobalLock(dragDropFormat.Medium.hGlobal);
                 return (basePtr is not null) && (*(BOOL*)basePtr == true);
             }
             finally
             {
-                PInvokeCore.GlobalUnlock(dragDropFormat.Medium.hGlobal);
+                PInvoke.GlobalUnlock(dragDropFormat.Medium.hGlobal);
             }
         }
         else
@@ -276,7 +276,7 @@ internal static unsafe class DragDropHelper
         {
             pUnkForRelease = null,
             tymed = ComTypes.TYMED.TYMED_HGLOBAL,
-            unionmember = PInvokeCore.GlobalAlloc(GMEM_MOVEABLE | GMEM_ZEROINIT, (nuint)sizeof(BOOL))
+            unionmember = PInvoke.GlobalAlloc(GMEM_MOVEABLE | GMEM_ZEROINIT, (nuint)sizeof(BOOL))
         };
 
         if (medium.unionmember == IntPtr.Zero)
@@ -284,16 +284,16 @@ internal static unsafe class DragDropHelper
             throw new Win32Exception(Marshal.GetLastSystemError(), SR.ExternalException);
         }
 
-        void* basePtr = PInvokeCore.GlobalLock((HGLOBAL)medium.unionmember);
+        void* basePtr = PInvoke.GlobalLock((HGLOBAL)medium.unionmember);
         if (basePtr is null)
         {
-            PInvokeCore.GlobalFree((HGLOBAL)medium.unionmember);
+            PInvoke.GlobalFree((HGLOBAL)medium.unionmember);
             medium.unionmember = IntPtr.Zero;
             throw new Win32Exception(Marshal.GetLastSystemError(), SR.ExternalException);
         }
 
         *(BOOL*)basePtr = value;
-        PInvokeCore.GlobalUnlock((HGLOBAL)medium.unionmember);
+        PInvoke.GlobalUnlock((HGLOBAL)medium.unionmember);
         dataObject.SetData(ref formatEtc, ref medium, release: true);
     }
 
@@ -359,7 +359,7 @@ internal static unsafe class DragDropHelper
         // object, then by default, the extra text description of the drag-and-drop operation is not displayed.
         if (dragSourceHelper.Value->SetFlags((uint)DSH_FLAGS.DSH_ALLOWDROPDESCRIPTIONTEXT).Failed)
         {
-            PInvokeCore.DeleteObject(hbmpDragImage);
+            PInvoke.DeleteObject(hbmpDragImage);
             return;
         }
 
@@ -431,7 +431,7 @@ internal static unsafe class DragDropHelper
         {
             pUnkForRelease = null,
             tymed = ComTypes.TYMED.TYMED_HGLOBAL,
-            unionmember = PInvokeCore.GlobalAlloc(GMEM_MOVEABLE | GMEM_ZEROINIT, (uint)sizeof(DROPDESCRIPTION))
+            unionmember = PInvoke.GlobalAlloc(GMEM_MOVEABLE | GMEM_ZEROINIT, (uint)sizeof(DROPDESCRIPTION))
         };
 
         if (medium.unionmember == IntPtr.Zero)
@@ -439,10 +439,10 @@ internal static unsafe class DragDropHelper
             throw new Win32Exception(Marshal.GetLastSystemError(), SR.ExternalException);
         }
 
-        void* basePtr = PInvokeCore.GlobalLock((HGLOBAL)medium.unionmember);
+        void* basePtr = PInvoke.GlobalLock((HGLOBAL)medium.unionmember);
         if (basePtr is null)
         {
-            PInvokeCore.GlobalFree((HGLOBAL)medium.unionmember);
+            PInvoke.GlobalFree((HGLOBAL)medium.unionmember);
             medium.unionmember = IntPtr.Zero;
             throw new Win32Exception(Marshal.GetLastSystemError(), SR.ExternalException);
         }
@@ -451,7 +451,7 @@ internal static unsafe class DragDropHelper
         pDropDescription->type = (DROPIMAGETYPE)dropImageType;
         pDropDescription->szMessage = message;
         pDropDescription->szInsert = messageReplacementToken;
-        PInvokeCore.GlobalUnlock((HGLOBAL)medium.unionmember);
+        PInvoke.GlobalUnlock((HGLOBAL)medium.unionmember);
 
         // Set the InShellDragLoop flag to true to facilitate loading and retrieving arbitrary private formats. The
         // drag-and-drop helper object calls IDataObject::SetData to load private formats--used for cross-process support--into
@@ -520,7 +520,7 @@ internal static unsafe class DragDropHelper
             throw new InvalidOperationException(SR.ThreadMustBeSTA);
         }
 
-        HRESULT hr = PInvokeCore.CoCreateInstance(
+        HRESULT hr = PInvoke.CoCreateInstance(
             CLSID.DragDropHelper,
             pUnkOuter: null,
             CLSCTX.CLSCTX_INPROC_SERVER,

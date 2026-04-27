@@ -165,18 +165,29 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
     {
         get
         {
+            if (s_defaultWindowProc != 0)
+                return s_defaultWindowProc;
+
+            // On the Impeller backend there is no user32.dll —
+            // use a sentinel address that the PAL recognizes as "default WndProc".
+            try
+            {
+                _ = Platform.PlatformApi.Provider;
+                // Impeller is active — use sentinel (matches ImpellerWindowState.WndProc default)
+                s_defaultWindowProc = 0x1;
+                return s_defaultWindowProc;
+            }
+            catch (InvalidOperationException) { }
+
+            // Native path: look up DefWindowProcW from user32
             var hModule = PInvoke.GetModuleHandle(Libraries.User32);
             fixed (byte* ptr = "DefWindowProcW\0"u8)
             {
+                s_defaultWindowProc = PInvoke.GetProcAddress(hModule, (PCSTR)ptr);
+
                 if (s_defaultWindowProc == 0)
                 {
-                    // Cache the default windows procedure address
-                    s_defaultWindowProc = PInvoke.GetProcAddress(hModule, (PCSTR)ptr);
-
-                    if (s_defaultWindowProc == 0)
-                    {
-                        throw new Win32Exception();
-                    }
+                    throw new Win32Exception();
                 }
             }
 

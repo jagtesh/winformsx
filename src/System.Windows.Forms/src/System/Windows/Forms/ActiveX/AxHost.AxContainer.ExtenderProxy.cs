@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using Windows.Win32.System.Com;
@@ -302,7 +302,7 @@ public abstract partial class AxHost
                     return HRESULT.S_OK;
                 }
 
-                *pid = PInvokeCore.DISPID_UNKNOWN;
+                *pid = PInvoke.DISPID_UNKNOWN;
                 return HRESULT.DISP_E_UNKNOWNNAME;
             }
 
@@ -326,7 +326,7 @@ public abstract partial class AxHost
                     return HRESULT.S_OK;
                 }
 
-                *pid = PInvokeCore.DISPID_UNKNOWN;
+                *pid = PInvoke.DISPID_UNKNOWN;
                 return HRESULT.S_FALSE;
             }
 

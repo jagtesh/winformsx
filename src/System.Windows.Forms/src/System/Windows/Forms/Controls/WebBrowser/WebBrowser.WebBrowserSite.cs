@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Drawing;
@@ -190,7 +190,7 @@ public partial class WebBrowser
 
         internal override void OnPropertyChanged(int dispid)
         {
-            if (dispid != PInvokeCore.DISPID_READYSTATE)
+            if (dispid != PInvoke.DISPID_READYSTATE)
             {
                 base.OnPropertyChanged(dispid);
             }

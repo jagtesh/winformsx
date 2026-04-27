@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Collections.Specialized;
@@ -296,7 +296,7 @@ public partial class Form : ContainerControl
     /// <summary>
     ///  Gets the currently active form for this application.
     /// </summary>
-    public static Form? ActiveForm => FromHandle(PInvokeCore.GetForegroundWindow()) as Form;
+    public static Form? ActiveForm => FromHandle(PInvoke.GetForegroundWindow()) as Form;
 
     /// <summary>
     ///
@@ -684,7 +684,7 @@ public partial class Form : ContainerControl
     /// </summary>
     [SRCategory(nameof(SR.CatAppearance))]
     [DefaultValue(FormBorderStyle.Sizable)]
-    [DispId(PInvokeCore.DISPID_BORDERSTYLE)]
+    [DispId(PInvoke.DISPID_BORDERSTYLE)]
     [SRDescription(nameof(SR.FormBorderStyleDescr))]
     public FormBorderStyle FormBorderStyle
     {
@@ -2080,7 +2080,7 @@ public partial class Form : ContainerControl
     [DefaultValue(true)]
     [Browsable(false)]
     [EditorBrowsable(EditorBrowsableState.Never)]
-    [DispId(PInvokeCore.DISPID_TABSTOP)]
+    [DispId(PInvoke.DISPID_TABSTOP)]
     [SRDescription(nameof(SR.ControlTabStopDescr))]
     public new bool TabStop
     {
@@ -3251,7 +3251,7 @@ public partial class Form : ContainerControl
             }
         }
 
-        PInvokeCore.GetClientRect(this, out RECT currentClient);
+        PInvoke.GetClientRect(this, out RECT currentClient);
         Rectangle bounds = Bounds;
 
         // If the width is incorrect, compute the correct size with
@@ -3278,7 +3278,7 @@ public partial class Form : ContainerControl
             bounds.Width = correct.Width;
             bounds.Height = correct.Height;
             Bounds = bounds;
-            PInvokeCore.GetClientRect(this, out currentClient);
+            PInvoke.GetClientRect(this, out currentClient);
         }
 
         // If it still isn't correct, then we assume that the problem is
@@ -4537,7 +4537,7 @@ public partial class Form : ContainerControl
         if (IsHandleCreated
             && Visible
             && (AcceptButton is not null)
-            && PInvokeCore.SystemParametersInfo(SYSTEM_PARAMETERS_INFO_ACTION.SPI_GETSNAPTODEFBUTTON, ref data)
+            && PInvoke.SystemParametersInfo(SYSTEM_PARAMETERS_INFO_ACTION.SPI_GETSNAPTODEFBUTTON, ref data)
             && data)
         {
             Control button = (Control)AcceptButton;

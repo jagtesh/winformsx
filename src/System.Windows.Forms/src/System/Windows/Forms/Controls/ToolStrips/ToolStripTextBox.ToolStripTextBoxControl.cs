@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.ComponentModel;
@@ -37,7 +37,7 @@ public partial class ToolStripTextBox
                 int offsetY = -rect.top;
 
                 // fetch the client rect, then apply the offset.
-                PInvokeCore.GetClientRect(this, out var clientRect);
+                PInvoke.GetClientRect(this, out var clientRect);
 
                 clientRect.left += offsetX;
                 clientRect.right += offsetX;
@@ -122,7 +122,7 @@ public partial class ToolStripTextBox
                 absoluteClientRectangle.bottom);
             using RegionScope hNonClientRegion = new(0, 0, 0, 0);
 
-            PInvokeCore.CombineRgn(hNonClientRegion, hTotalRegion, hClientRegion, RGN_COMBINE_MODE.RGN_XOR);
+            PInvoke.CombineRgn(hNonClientRegion, hTotalRegion, hClientRegion, RGN_COMBINE_MODE.RGN_XOR);
 
             // Call RedrawWindow with the region.
             PInvoke.RedrawWindow(

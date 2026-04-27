@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.ComponentModel;
@@ -137,8 +137,8 @@ public abstract partial class AxHost
             HGLOBAL hglobal = default;
             if (_buffer is not null)
             {
-                hglobal = PInvokeCore.GlobalAlloc(GMEM_MOVEABLE, (uint)_length);
-                void* pointer = PInvokeCore.GlobalLock(hglobal);
+                hglobal = PInvoke.GlobalAlloc(GMEM_MOVEABLE, (uint)_length);
+                void* pointer = PInvoke.GlobalLock(hglobal);
                 try
                 {
                     if (pointer is not null)
@@ -148,14 +148,14 @@ public abstract partial class AxHost
                 }
                 finally
                 {
-                    PInvokeCore.GlobalUnlock(hglobal);
+                    PInvoke.GlobalUnlock(hglobal);
                 }
             }
 
             ILockBytes* lockBytes;
             if (PInvoke.CreateILockBytesOnHGlobal(hglobal, true, &lockBytes).Failed)
             {
-                PInvokeCore.GlobalFree(hglobal);
+                PInvoke.GlobalFree(hglobal);
                 return;
             }
 
@@ -178,7 +178,7 @@ public abstract partial class AxHost
             if (hr.Failed)
             {
                 lockBytes->Release();
-                PInvokeCore.GlobalFree(hglobal);
+                PInvoke.GlobalFree(hglobal);
             }
 
             _lockBytes = new(lockBytes, takeOwnership: true);
@@ -272,7 +272,7 @@ public abstract partial class AxHost
                 _buffer = new byte[_length];
                 HGLOBAL hglobal;
                 PInvoke.GetHGlobalFromILockBytes(lockBytes, &hglobal).ThrowOnFailure();
-                void* pointer = PInvokeCore.GlobalLock(hglobal);
+                void* pointer = PInvoke.GlobalLock(hglobal);
 
                 if (pointer is not null)
                 {
@@ -282,7 +282,7 @@ public abstract partial class AxHost
                     }
                     finally
                     {
-                        PInvokeCore.GlobalUnlock(hglobal);
+                        PInvoke.GlobalUnlock(hglobal);
                     }
                 }
                 else

@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Collections.Specialized;
@@ -528,7 +528,7 @@ public unsafe partial class WebBrowserBase : Control
     protected override void OnFontChanged(EventArgs e)
     {
         base.OnFontChanged(e);
-        AmbientChanged(PInvokeCore.DISPID_AMBIENT_FONT);
+        AmbientChanged(PInvoke.DISPID_AMBIENT_FONT);
     }
 
     //
@@ -538,7 +538,7 @@ public unsafe partial class WebBrowserBase : Control
     protected override void OnForeColorChanged(EventArgs e)
     {
         base.OnForeColorChanged(e);
-        AmbientChanged(PInvokeCore.DISPID_AMBIENT_FORECOLOR);
+        AmbientChanged(PInvoke.DISPID_AMBIENT_FORECOLOR);
     }
 
     //
@@ -548,7 +548,7 @@ public unsafe partial class WebBrowserBase : Control
     protected override void OnBackColorChanged(EventArgs e)
     {
         base.OnBackColorChanged(e);
-        AmbientChanged(PInvokeCore.DISPID_AMBIENT_BACKCOLOR);
+        AmbientChanged(PInvoke.DISPID_AMBIENT_BACKCOLOR);
     }
 
     //
@@ -838,7 +838,7 @@ public unsafe partial class WebBrowserBase : Control
             // First, create the ActiveX control
             Debug.Assert(_activeXInstance is null, "activeXInstance must be null");
 
-            HRESULT hr = PInvokeCore.CoCreateInstance(
+            HRESULT hr = PInvoke.CoCreateInstance(
                 in _clsid,
                 null,
                 CLSCTX.CLSCTX_INPROC_SERVER,

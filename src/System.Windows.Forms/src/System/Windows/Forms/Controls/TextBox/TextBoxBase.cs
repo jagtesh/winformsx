@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Collections.Specialized;
@@ -277,7 +277,7 @@ public abstract partial class TextBoxBase : Control
     ///  Gets or sets the background color of the control.
     /// </summary>
     [SRCategory(nameof(SR.CatAppearance))]
-    [DispId(PInvokeCore.DISPID_BACKCOLOR)]
+    [DispId(PInvoke.DISPID_BACKCOLOR)]
     [SRDescription(nameof(SR.ControlBackColorDescr))]
     public override Color BackColor
     {
@@ -345,7 +345,7 @@ public abstract partial class TextBoxBase : Control
     /// </summary>
     [SRCategory(nameof(SR.CatAppearance))]
     [DefaultValue(BorderStyle.Fixed3D)]
-    [DispId(PInvokeCore.DISPID_BORDERSTYLE)]
+    [DispId(PInvoke.DISPID_BORDERSTYLE)]
     [SRDescription(nameof(SR.TextBoxBorderDescr))]
     public BorderStyle BorderStyle
     {
@@ -491,7 +491,7 @@ public abstract partial class TextBoxBase : Control
     ///  Gets or sets the foreground color of the control.
     /// </summary>
     [SRCategory(nameof(SR.CatAppearance))]
-    [DispId(PInvokeCore.DISPID_FORECOLOR)]
+    [DispId(PInvoke.DISPID_FORECOLOR)]
     [SRDescription(nameof(SR.ControlForeColorDescr))]
     public override Color ForeColor
     {

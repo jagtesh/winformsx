@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Collections;
@@ -1708,9 +1708,9 @@ internal abstract partial class GridEntry : GridItem, ITypeDescriptorContext
                 Color backgroundColor = ColorInversionNeededInHighContrast ? InvertColor(OwnerGrid.LineColor) : OwnerGrid.LineColor;
                 using CreateDcScope compatibleDC = new(default);
 
-                int planes = PInvokeCore.GetDeviceCaps(compatibleDC, GET_DEVICE_CAPS_INDEX.PLANES);
-                int bitsPixel = PInvokeCore.GetDeviceCaps(compatibleDC, GET_DEVICE_CAPS_INDEX.BITSPIXEL);
-                using HBITMAP compatibleBitmap = PInvokeCore.CreateBitmap(rectangle.Width, rectangle.Height, (uint)planes, (uint)bitsPixel, lpBits: null);
+                int planes = PInvoke.GetDeviceCaps(compatibleDC, GET_DEVICE_CAPS_INDEX.PLANES);
+                int bitsPixel = PInvoke.GetDeviceCaps(compatibleDC, GET_DEVICE_CAPS_INDEX.BITSPIXEL);
+                using HBITMAP compatibleBitmap = PInvoke.CreateBitmap(rectangle.Width, rectangle.Height, (uint)planes, (uint)bitsPixel, lpBits: null);
                 using SelectObjectScope targetBitmapSelection = new(compatibleDC, compatibleBitmap);
 
                 using CreateBrushScope brush = new(backgroundColor);

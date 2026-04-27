@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Collections.Specialized;
@@ -581,7 +581,7 @@ public partial class StatusStrip : ToolStrip
                 {
                     // get the client area of the topmost window.  If we're next to the edge then
                     // the sizing grip is valid.
-                    PInvokeCore.GetClientRect(rootHwnd, out RECT rootHwndClientArea);
+                    PInvoke.GetClientRect(rootHwnd, out RECT rootHwndClientArea);
 
                     // map the size grip FROM statusStrip coords TO the toplevel window coords.
                     Point gripLocation;

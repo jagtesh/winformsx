@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.ComponentModel;
@@ -612,7 +612,7 @@ internal unsafe partial class Com2PropertyDescriptor : PropertyDescriptor, IClon
         }
 
         VARIANT nativeValue = default;
-        hr = dispatch.Value->TryGetProperty(DISPID, &nativeValue, PInvokeCore.GetThreadLocale());
+        hr = dispatch.Value->TryGetProperty(DISPID, &nativeValue, PInvoke.GetThreadLocale());
 
         if (hr != HRESULT.S_OK && hr != HRESULT.S_FALSE)
         {
@@ -893,7 +893,7 @@ internal unsafe partial class Com2PropertyDescriptor : PropertyDescriptor, IClon
                     FORMAT_MESSAGE_OPTIONS.FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_OPTIONS.FORMAT_MESSAGE_IGNORE_INSERTS,
                     null,
                     (uint)hr,
-                    PInvokeCore.GetThreadLocale(),
+                    PInvoke.GetThreadLocale(),
                     b,
                     (uint)buffer.Length - 2,
                     null);

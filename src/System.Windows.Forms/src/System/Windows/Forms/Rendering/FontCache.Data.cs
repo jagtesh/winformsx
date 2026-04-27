@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Drawing;
@@ -53,7 +53,7 @@ internal sealed partial class FontCache
         {
             if (!HFONT.IsNull)
             {
-                PInvokeCore.DeleteObject(HFONT);
+                PInvoke.DeleteObject(HFONT);
             }
 
             HFONT = default;
@@ -108,14 +108,14 @@ internal sealed partial class FontCache
                 logFont.FaceName = DefaultFaceName;
             }
 
-            HFONT hfont = PInvokeCore.CreateFontIndirect(&logFont);
+            HFONT hfont = PInvoke.CreateFontIndirect(&logFont);
 
             if (hfont.IsNull)
             {
                 // Get the default font if we couldn't get what we requested.
                 logFont.FaceName = DefaultFaceName;
                 logFont.lfOutPrecision = FONT_OUTPUT_PRECISION.OUT_TT_ONLY_PRECIS;
-                hfont = PInvokeCore.CreateFontIndirect(&logFont);
+                hfont = PInvoke.CreateFontIndirect(&logFont);
 
                 Debug.Assert(!hfont.IsNull);
             }

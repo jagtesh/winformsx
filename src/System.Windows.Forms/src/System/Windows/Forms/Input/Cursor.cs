@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.ComponentModel;
@@ -169,7 +169,7 @@ public sealed class Cursor : IDisposable, ISerializable, IHandle<HICON>, IHandle
     {
         get
         {
-            using ICONINFO info = PInvokeCore.GetIconInfo(this);
+            using ICONINFO info = PInvoke.GetIconInfo(this);
             return new Point((int)info.xHotspot, (int)info.yHotspot);
         }
     }
@@ -222,7 +222,7 @@ public sealed class Cursor : IDisposable, ISerializable, IHandle<HICON>, IHandle
     public IntPtr CopyHandle()
     {
         Size sz = Size;
-        return (nint)PInvokeCore.CopyCursor(this, sz.Width, sz.Height, IMAGE_FLAGS.LR_DEFAULTCOLOR);
+        return (nint)PInvoke.CopyCursor(this, sz.Width, sz.Height, IMAGE_FLAGS.LR_DEFAULTCOLOR);
     }
 
     /// <summary>
@@ -303,7 +303,7 @@ public sealed class Cursor : IDisposable, ISerializable, IHandle<HICON>, IHandle
                 && imageX == 0 && imageY == 0
                 && imageWidth == cursorSize.Width && imageHeight == cursorSize.Height)
             {
-                PInvokeCore.DrawIcon(dc, targetX, targetY, this);
+                PInvoke.DrawIcon(dc, targetX, targetY, this);
                 return;
             }
 
@@ -319,7 +319,7 @@ public sealed class Cursor : IDisposable, ISerializable, IHandle<HICON>, IHandle
                 && cursorSize.Width <= targetWidth && cursorSize.Height <= targetHeight
                 && cursorSize.Width == imageWidth && cursorSize.Height == imageHeight)
             {
-                PInvokeCore.DrawIcon(dc, targetX, targetY, this);
+                PInvoke.DrawIcon(dc, targetX, targetY, this);
                 return;
             }
 
@@ -332,7 +332,7 @@ public sealed class Cursor : IDisposable, ISerializable, IHandle<HICON>, IHandle
         // The ROP is SRCCOPY, so we can be simple here and take advantage of clipping regions.
         // Drawing the cursor is merely a matter of offsetting and clipping.
         PInvoke.IntersectClipRect(dc, targetX, targetY, targetX + clipWidth, targetY + clipHeight);
-        PInvokeCore.DrawIconEx(
+        PInvoke.DrawIconEx(
             (HDC)dc,
             targetX - imageX,
             targetY - imageY,
@@ -376,15 +376,15 @@ public sealed class Cursor : IDisposable, ISerializable, IHandle<HICON>, IHandle
     {
         // this code is adapted from Icon.GetIconSize please take this into account when changing this
 
-        using ICONINFO info = PInvokeCore.GetIconInfo(iconHandle);
+        using ICONINFO info = PInvoke.GetIconInfo(iconHandle);
         if (!info.hbmColor.IsNull)
         {
-            PInvokeCore.GetObject(info.hbmColor, out BITMAP bitmap);
+            PInvoke.GetObject(info.hbmColor, out BITMAP bitmap);
             return new Size(bitmap.bmWidth, bitmap.bmHeight);
         }
         else if (!info.hbmMask.IsNull)
         {
-            PInvokeCore.GetObject(info.hbmMask, out BITMAP bitmap);
+            PInvoke.GetObject(info.hbmMask, out BITMAP bitmap);
             return new Size(bitmap.bmWidth, bitmap.bmHeight / 2);
         }
         else
@@ -403,7 +403,7 @@ public sealed class Cursor : IDisposable, ISerializable, IHandle<HICON>, IHandle
         try
         {
             using ComScope<IPicture> picture = new(null);
-            PInvokeCore.OleCreatePictureIndirect(lpPictDesc: null, IID.Get<IPicture>(), fOwn: true, picture).ThrowOnFailure();
+            PInvoke.OleCreatePictureIndirect(lpPictDesc: null, IID.Get<IPicture>(), fOwn: true, picture).ThrowOnFailure();
 
             using ComScope<IPersistStream> persist = new(null);
             picture.Value->QueryInterface(IID.Get<IPersistStream>(), persist).ThrowOnFailure();
@@ -418,7 +418,7 @@ public sealed class Cursor : IDisposable, ISerializable, IHandle<HICON>, IHandle
                 HICON cursorHandle = (HICON)oleHandle;
                 Size picSize = ScaleHelper.ScaleToDpi(GetIconSize(cursorHandle), ScaleHelper.InitialSystemDpi);
 
-                _handle = (HCURSOR)PInvokeCore.CopyImage(
+                _handle = (HCURSOR)PInvoke.CopyImage(
                     (HANDLE)cursorHandle.Value,
                     GDI_IMAGE_TYPE.IMAGE_CURSOR,
                     picSize.Width,

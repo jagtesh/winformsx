@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Drawing;
@@ -71,26 +71,26 @@ public partial class Screen
             };
 
             // API takes EX, determines which one you pass by size.
-            PInvokeCore.GetMonitorInfo(monitor, (MONITORINFO*)&info);
+            PInvoke.GetMonitorInfo(monitor, (MONITORINFO*)&info);
             _bounds = info.monitorInfo.rcMonitor;
-            _primary = ((info.monitorInfo.dwFlags & PInvokeCore.MONITORINFOF_PRIMARY) != 0);
+            _primary = ((info.monitorInfo.dwFlags & PInvoke.MONITORINFOF_PRIMARY) != 0);
 
             _deviceName = new string(info.szDevice.ToString());
 
             if (hdc.IsNull)
             {
-                screenDC = PInvokeCore.CreateDCW(_deviceName, pwszDevice: null, pszPort: null, pdm: null);
+                screenDC = PInvoke.CreateDCW(_deviceName, pwszDevice: null, pszPort: null, pdm: null);
             }
         }
 
         _hmonitor = monitor;
 
-        _bitDepth = PInvokeCore.GetDeviceCaps(screenDC, GET_DEVICE_CAPS_INDEX.BITSPIXEL);
-        _bitDepth *= PInvokeCore.GetDeviceCaps(screenDC, GET_DEVICE_CAPS_INDEX.PLANES);
+        _bitDepth = PInvoke.GetDeviceCaps(screenDC, GET_DEVICE_CAPS_INDEX.BITSPIXEL);
+        _bitDepth *= PInvoke.GetDeviceCaps(screenDC, GET_DEVICE_CAPS_INDEX.PLANES);
 
         if (hdc != screenDC)
         {
-            PInvokeCore.DeleteDC(screenDC);
+            PInvoke.DeleteDC(screenDC);
         }
     }
 
@@ -202,7 +202,7 @@ public partial class Screen
                     };
 
                     // API takes EX, determines which one you pass by size.
-                    PInvokeCore.GetMonitorInfo(_hmonitor, (MONITORINFO*)&info);
+                    PInvoke.GetMonitorInfo(_hmonitor, (MONITORINFO*)&info);
                     _workingArea = info.monitorInfo.rcWork;
                 }
             }
@@ -248,7 +248,7 @@ public partial class Screen
     /// </summary>
     public static Screen FromPoint(Point point)
         => SystemInformation.MultiMonitorSupport
-        ? new Screen(PInvokeCore.MonitorFromPoint(point, MONITOR_FROM_FLAGS.MONITOR_DEFAULTTONEAREST))
+        ? new Screen(PInvoke.MonitorFromPoint(point, MONITOR_FROM_FLAGS.MONITOR_DEFAULTTONEAREST))
         : new Screen(s_primaryMonitor);
 
     /// <summary>
@@ -256,7 +256,7 @@ public partial class Screen
     /// </summary>
     public static Screen FromRectangle(Rectangle rect)
         => SystemInformation.MultiMonitorSupport
-        ? new Screen(PInvokeCore.MonitorFromRect(rect, MONITOR_FROM_FLAGS.MONITOR_DEFAULTTONEAREST))
+        ? new Screen(PInvoke.MonitorFromRect(rect, MONITOR_FROM_FLAGS.MONITOR_DEFAULTTONEAREST))
         : new Screen(s_primaryMonitor, default);
 
     /// <summary>
@@ -274,7 +274,7 @@ public partial class Screen
     /// </summary>
     public static Screen FromHandle(IntPtr hwnd)
         => SystemInformation.MultiMonitorSupport
-        ? new Screen(PInvokeCore.MonitorFromWindow((HWND)hwnd, MONITOR_FROM_FLAGS.MONITOR_DEFAULTTONEAREST))
+        ? new Screen(PInvoke.MonitorFromWindow((HWND)hwnd, MONITOR_FROM_FLAGS.MONITOR_DEFAULTTONEAREST))
         : new Screen(s_primaryMonitor, default);
 
     /// <summary>

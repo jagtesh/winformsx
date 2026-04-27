@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.ComponentModel;
@@ -1112,9 +1112,9 @@ public partial class ToolStrip : ScrollableControl, IArrangedElement, ISupportTo
     ///  item in the collection - and is cached in OnPaint, and disposed when the toolstrip
     ///  is no longer visible.
     ///
-    ///  [: toolstrip - main hdc       ] ← visible to user
-    ///  [ toolstrip double buffer hdc ] ← onpaint hands us this buffer, after we're done DBuf is copied to "main hdc"/
-    ///  [tsi dc] ← we copy the background from the DBuf, then paint the item into this DC, then BitBlt back up to DBuf
+    ///  [: toolstrip - main hdc       ] ? visible to user
+    ///  [ toolstrip double buffer hdc ] ? onpaint hands us this buffer, after we're done DBuf is copied to "main hdc"/
+    ///  [tsi dc] ? we copy the background from the DBuf, then paint the item into this DC, then BitBlt back up to DBuf
     ///
     ///  This is done because GDI won't honor GDI+ TranslateTransform.  We used to use DCMapping to change the viewport
     ///  origin and clipping rect of the toolstrip double buffer hdc to paint each item, but this proves costly
@@ -1723,7 +1723,7 @@ public partial class ToolStrip : ScrollableControl, IArrangedElement, ISupportTo
     /// </summary>
     [SRCategory(nameof(SR.CatBehavior))]
     [DefaultValue(false)]
-    [DispId(PInvokeCore.DISPID_TABSTOP)]
+    [DispId(PInvoke.DISPID_TABSTOP)]
     [SRDescription(nameof(SR.ControlTabStopDescr))]
     public new bool TabStop
     {
@@ -2759,7 +2759,7 @@ public partial class ToolStrip : ScrollableControl, IArrangedElement, ISupportTo
             (LPARAM)(uint)(PInvoke.PRF_CHILDREN | PInvoke.PRF_CLIENT | PInvoke.PRF_ERASEBKGND | PInvoke.PRF_NONCLIENT));
 
         // Now BLT the result to the destination bitmap.
-        PInvokeCore.BitBlt(
+        PInvoke.BitBlt(
             hDC,
             bounds.X,
             bounds.Y,
@@ -3658,7 +3658,7 @@ public partial class ToolStrip : ScrollableControl, IArrangedElement, ISupportTo
 
                         // PERF - consider - we only actually need to copy the clipping rect.
                         // copy the background from the toolstrip onto the offscreen bitmap
-                        PInvokeCore.BitBlt(
+                        PInvoke.BitBlt(
                             ItemHdcInfo,
                             0,
                             0,
@@ -3676,7 +3676,7 @@ public partial class ToolStrip : ScrollableControl, IArrangedElement, ISupportTo
                         }
 
                         // copy the item back onto the toolstrip
-                        PInvokeCore.BitBlt(
+                        PInvoke.BitBlt(
                             toolStripHDC,
                             item.Bounds.X,
                             item.Bounds.Y,

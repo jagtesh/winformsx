@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Drawing;
@@ -27,17 +27,17 @@ internal class CachedItemHdcInfo : IDisposable, IHandle<HDC>
             if (_cachedItemHDC.IsNull)
             {
                 // Create a new DC - we don't have one yet.
-                _cachedItemHDC = PInvokeCore.CreateCompatibleDC(toolStripHDC);
+                _cachedItemHDC = PInvoke.CreateCompatibleDC(toolStripHDC);
             }
 
             // Create compatible bitmap with the correct size.
-            _cachedItemBitmap = PInvokeCore.CreateCompatibleBitmap(toolStripHDC, bitmapSize.Width, bitmapSize.Height);
+            _cachedItemBitmap = PInvoke.CreateCompatibleBitmap(toolStripHDC, bitmapSize.Width, bitmapSize.Height);
             HGDIOBJ oldBitmap = PInvoke.SelectObject(_cachedItemHDC, _cachedItemBitmap);
 
             // Delete the old bitmap
             if (!oldBitmap.IsNull)
             {
-                PInvokeCore.DeleteObject(oldBitmap);
+                PInvoke.DeleteObject(oldBitmap);
             }
 
             // remember what size we created.
@@ -53,10 +53,10 @@ internal class CachedItemHdcInfo : IDisposable, IHandle<HDC>
         {
             if (!_cachedItemBitmap.IsNull)
             {
-                PInvokeCore.DeleteObject(_cachedItemBitmap);
+                PInvoke.DeleteObject(_cachedItemBitmap);
             }
 
-            PInvokeCore.DeleteDC(_cachedItemHDC);
+            PInvoke.DeleteDC(_cachedItemHDC);
         }
 
         _cachedItemHDC = default;

@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Collections.Specialized;
@@ -66,7 +66,7 @@ internal static partial class WebBrowserHelper
             if (s_logPixelsX == -1)
             {
                 using var dc = GetDcScope.ScreenDC;
-                s_logPixelsX = PInvokeCore.GetDeviceCaps(dc, GET_DEVICE_CAPS_INDEX.LOGPIXELSX);
+                s_logPixelsX = PInvoke.GetDeviceCaps(dc, GET_DEVICE_CAPS_INDEX.LOGPIXELSX);
             }
 
             return s_logPixelsX;
@@ -81,7 +81,7 @@ internal static partial class WebBrowserHelper
             if (s_logPixelsY == -1)
             {
                 using var dc = GetDcScope.ScreenDC;
-                s_logPixelsY = PInvokeCore.GetDeviceCaps(dc, GET_DEVICE_CAPS_INDEX.LOGPIXELSY);
+                s_logPixelsY = PInvoke.GetDeviceCaps(dc, GET_DEVICE_CAPS_INDEX.LOGPIXELSY);
             }
 
             return s_logPixelsY;

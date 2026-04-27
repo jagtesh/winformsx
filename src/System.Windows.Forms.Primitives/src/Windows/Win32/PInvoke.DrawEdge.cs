@@ -6,10 +6,10 @@ namespace Windows.Win32;
 internal static partial class PInvoke
 {
     /// <summary>Stub — DrawEdge is used for 3D border rendering. Returns true (success).</summary>
-    public static unsafe BOOL DrawEdge(HDC hdc, RECT* qrc, uint edge, uint grfFlags)
+    public static unsafe BOOL DrawEdge(HDC hdc, RECT* qrc, DRAWEDGE_FLAGS edge, DRAW_EDGE_FLAGS grfFlags)
         => true;
 
     /// <summary>Managed ref overload.</summary>
-    public static BOOL DrawEdge(HDC hdc, ref RECT qrc, uint edge, uint grfFlags)
+    public static BOOL DrawEdge(HDC hdc, ref RECT qrc, DRAWEDGE_FLAGS edge, DRAW_EDGE_FLAGS grfFlags)
         => true;
 }

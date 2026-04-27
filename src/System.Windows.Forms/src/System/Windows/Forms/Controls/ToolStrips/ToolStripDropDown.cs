@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Collections.Specialized;
@@ -1712,7 +1712,7 @@ public partial class ToolStripDropDown : ToolStrip
                     // Snap the foreground window BEFORE calling any user events so they
                     // don't have a chance to activate something else. This covers the case
                     // where someone handles the opening event and throws up a messagebox.
-                    HWND foregroundWindow = PInvokeCore.GetForegroundWindow();
+                    HWND foregroundWindow = PInvoke.GetForegroundWindow();
 
                     // Fire Opening event
                     // Cancellable event in which default value of e.Cancel depends on

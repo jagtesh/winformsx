@@ -788,7 +788,7 @@ public unsafe partial class Control :
     ///  will always return a non-null value.
     /// </summary>
     [SRCategory(nameof(SR.CatAppearance))]
-    [DispId(PInvokeCore.DISPID_BACKCOLOR)]
+    [DispId(PInvoke.DISPID_BACKCOLOR)]
     [SRDescription(nameof(SR.ControlBackColorDescr))]
     public virtual Color BackColor
     {
@@ -1825,7 +1825,7 @@ public unsafe partial class Control :
     /// </summary>
     [SRCategory(nameof(SR.CatBehavior))]
     [Localizable(true)]
-    [DispId(PInvokeCore.DISPID_ENABLED)]
+    [DispId(PInvoke.DISPID_ENABLED)]
     [SRDescription(nameof(SR.ControlEnabledDescr))]
     public bool Enabled
     {
@@ -1889,7 +1889,7 @@ public unsafe partial class Control :
     /// </summary>
     [SRCategory(nameof(SR.CatAppearance))]
     [Localizable(true)]
-    [DispId(PInvokeCore.DISPID_FONT)]
+    [DispId(PInvoke.DISPID_FONT)]
     [AmbientValue(null)]
     [SRDescription(nameof(SR.ControlFontDescr))]
     [AllowNull]
@@ -2096,7 +2096,7 @@ public unsafe partial class Control :
     ///  The foreground color of the control.
     /// </summary>
     [SRCategory(nameof(SR.CatAppearance))]
-    [DispId(PInvokeCore.DISPID_FORECOLOR)]
+    [DispId(PInvoke.DISPID_FORECOLOR)]
     [SRDescription(nameof(SR.ControlForeColorDescr))]
     public virtual Color ForeColor
     {
@@ -2216,7 +2216,7 @@ public unsafe partial class Control :
     /// </summary>
     [Browsable(false)]
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
-    [DispId(PInvokeCore.DISPID_HWND)]
+    [DispId(PInvoke.DISPID_HWND)]
     [SRDescription(nameof(SR.ControlHandleDescr))]
     public IntPtr Handle
     {
@@ -3213,7 +3213,7 @@ public unsafe partial class Control :
     /// </summary>
     [SRCategory(nameof(SR.CatBehavior))]
     [DefaultValue(true)]
-    [DispId(PInvokeCore.DISPID_TABSTOP)]
+    [DispId(PInvoke.DISPID_TABSTOP)]
     [SRDescription(nameof(SR.ControlTabStopDescr))]
     public bool TabStop
     {
@@ -3272,7 +3272,7 @@ public unsafe partial class Control :
     [SRCategory(nameof(SR.CatAppearance))]
     [Localizable(true)]
     [Bindable(true)]
-    [DispId(PInvokeCore.DISPID_TEXT)]
+    [DispId(PInvoke.DISPID_TEXT)]
     [SRDescription(nameof(SR.ControlTextDescr))]
     [AllowNull]
     public virtual string Text
@@ -4870,7 +4870,7 @@ public unsafe partial class Control :
                 HBRUSH p = (HBRUSH)backBrush;
                 if (!p.IsNull)
                 {
-                    PInvokeCore.DeleteObject(p);
+                    PInvoke.DeleteObject(p);
                 }
 
                 Properties.SetObject(s_backBrushProperty, value: null);
@@ -5073,7 +5073,7 @@ public unsafe partial class Control :
         // Now BLT the result to the destination bitmap.
         using Graphics destGraphics = Graphics.FromImage(bitmap);
         using DeviceContextHdcScope desthDC = new(destGraphics, applyGraphicsState: false);
-        PInvokeCore.BitBlt(
+        PInvoke.BitBlt(
             desthDC,
             targetBounds.X,
             targetBounds.Y,
@@ -5958,7 +5958,7 @@ public unsafe partial class Control :
             return BackColorBrush;
         }
 
-        return (HBRUSH)PInvokeCore.GetStockObject(GET_STOCK_OBJECT_FLAGS.NULL_BRUSH);
+        return (HBRUSH)PInvoke.GetStockObject(GET_STOCK_OBJECT_FLAGS.NULL_BRUSH);
     }
 
     /// <summary>
@@ -6786,7 +6786,7 @@ public unsafe partial class Control :
                 HBRUSH p = (HBRUSH)backBrush;
                 if (!p.IsNull)
                 {
-                    PInvokeCore.DeleteObject(p);
+                    PInvoke.DeleteObject(p);
                 }
             }
 
@@ -7703,7 +7703,7 @@ public unsafe partial class Control :
                     HBRUSH p = (HBRUSH)backBrush;
                     if (!p.IsNull)
                     {
-                        PInvokeCore.DeleteObject(p);
+                        PInvoke.DeleteObject(p);
                     }
                 }
             }
@@ -8159,7 +8159,7 @@ public unsafe partial class Control :
     protected virtual void OnPaintBackground(PaintEventArgs pevent)
     {
         // We need the true client rectangle as clip rectangle causes problems on "Windows Classic" theme.
-        PInvokeCore.GetClientRect(new HandleRef<HWND>(_window, InternalHandle), out RECT rect);
+        PInvoke.GetClientRect(new HandleRef<HWND>(_window, InternalHandle), out RECT rect);
         PaintBackground(pevent, rect);
     }
 
@@ -8503,7 +8503,7 @@ public unsafe partial class Control :
         using DeviceContextHdcScope hdc = new(e);
         using SaveDcScope savedc = new(hdc);
 
-        PInvokeCore.OffsetViewportOrgEx(hdc, -Left, -Top, lppt: null);
+        PInvoke.OffsetViewportOrgEx(hdc, -Left, -Top, lppt: null);
 
         using PaintEventArgs newArgs = new(hdc, newClipRect);
 
@@ -8976,7 +8976,7 @@ public unsafe partial class Control :
 
     private unsafe void PrintToMetaFile(HDC hDC, IntPtr lParam)
     {
-        Debug.Assert((OBJ_TYPE)PInvokeCore.GetObjectType(hDC) == OBJ_TYPE.OBJ_ENHMETADC,
+        Debug.Assert((OBJ_TYPE)PInvoke.GetObjectType(hDC) == OBJ_TYPE.OBJ_ENHMETADC,
             "PrintToMetaFile() called with a non-Enhanced MetaFile DC.");
         Debug.Assert((lParam & (long)PInvoke.PRF_CHILDREN) != 0,
             "PrintToMetaFile() called without PRF_CHILDREN.");
@@ -8987,7 +8987,7 @@ public unsafe partial class Control :
         // We're the root control, so we need to set up our clipping region.  Retrieve the
         // x-coordinates and y-coordinates of the viewport origin for the specified device context.
         Point viewportOrg = default;
-        bool success = PInvokeCore.GetViewportOrgEx(hDC, &viewportOrg);
+        bool success = PInvoke.GetViewportOrgEx(hDC, &viewportOrg);
         Debug.Assert(success, "GetViewportOrgEx() failed.");
 
         using RegionScope hClippingRegion = new(
@@ -8999,7 +8999,7 @@ public unsafe partial class Control :
         Debug.Assert(!hClippingRegion.IsNull, "CreateRectRgn() failed.");
 
         // Select the new clipping region; make sure it's a SIMPLEREGION or NULLREGION
-        GDI_REGION_TYPE selectResult = PInvokeCore.SelectClipRgn(hDC, hClippingRegion);
+        GDI_REGION_TYPE selectResult = PInvoke.SelectClipRgn(hDC, hClippingRegion);
         Debug.Assert(
             selectResult is GDI_REGION_TYPE.SIMPLEREGION or GDI_REGION_TYPE.NULLREGION,
             "SIMPLEREGION or NULLLREGION expected.");
@@ -11496,7 +11496,7 @@ public unsafe partial class Control :
                     return;
                 }
 
-                PInvokeCore.GetClientRect(this, out RECT rc);
+                PInvoke.GetClientRect(this, out RECT rc);
                 using PaintEventArgs pevent = new(dc, rc);
                 PaintWithErrorHandling(pevent, PaintLayerBackground);
             }

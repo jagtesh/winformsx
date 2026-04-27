@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Drawing;
@@ -54,7 +54,7 @@ internal sealed partial class ScreenDcCache : IDisposable
         }
 
         // Didn't find anything in the cache, create a new HDC
-        return new ScreenDcScope(this, PInvokeCore.CreateCompatibleDC(default));
+        return new ScreenDcScope(this, PInvoke.CreateCompatibleDC(default));
     }
 
     /// <summary>
@@ -78,7 +78,7 @@ internal sealed partial class ScreenDcCache : IDisposable
         }
 
         // Too many to store, delete the last item we swapped.
-        PInvokeCore.DeleteDC((HDC)temp);
+        PInvoke.DeleteDC((HDC)temp);
     }
 
     ~ScreenDcCache() => Dispose();
@@ -90,7 +90,7 @@ internal sealed partial class ScreenDcCache : IDisposable
             IntPtr hdc = _itemsCache[i];
             if (hdc != IntPtr.Zero)
             {
-                PInvokeCore.DeleteDC((HDC)hdc);
+                PInvoke.DeleteDC((HDC)hdc);
             }
         }
     }
@@ -102,10 +102,10 @@ internal sealed partial class ScreenDcCache : IDisposable
 
         HRGN hrgn = PInvoke.CreateRectRgn(0, 0, 0, 0);
         Debug.Assert(PInvoke.GetClipRgn(hdc, hrgn) == 0, "Should not have a clipping region");
-        PInvokeCore.DeleteObject(hrgn);
+        PInvoke.DeleteObject(hrgn);
 
         Point point;
-        PInvokeCore.GetViewportOrgEx(hdc, &point);
+        PInvoke.GetViewportOrgEx(hdc, &point);
         Debug.Assert(point.IsEmpty, "Viewport origin shouldn't be shifted");
         Debug.Assert(PInvoke.GetMapMode(hdc) == HDC_MAP_MODE.MM_TEXT);
         Debug.Assert(PInvoke.GetROP2(hdc) == R2_MODE.R2_COPYPEN);

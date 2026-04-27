@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Drawing;
@@ -29,7 +29,7 @@ public partial class Control
         {
             if (!_handle.IsNull)
             {
-                PInvokeCore.DeleteObject(_handle);
+                PInvoke.DeleteObject(_handle);
                 _handle = default;
             }
 

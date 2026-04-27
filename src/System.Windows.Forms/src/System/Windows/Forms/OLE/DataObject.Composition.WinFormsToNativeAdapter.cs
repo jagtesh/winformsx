@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Drawing;
@@ -77,7 +77,7 @@ public unsafe partial class DataObject
                 }
 
                 pmedium->tymed = TYMED.TYMED_HGLOBAL;
-                pmedium->hGlobal = PInvokeCore.GlobalAlloc(GLOBAL_ALLOC_FLAGS.GMEM_MOVEABLE | GLOBAL_ALLOC_FLAGS.GMEM_ZEROINIT, 1);
+                pmedium->hGlobal = PInvoke.GlobalAlloc(GLOBAL_ALLOC_FLAGS.GMEM_MOVEABLE | GLOBAL_ALLOC_FLAGS.GMEM_ZEROINIT, 1);
 
                 if (pmedium->hGlobal.IsNull)
                 {
@@ -87,7 +87,7 @@ public unsafe partial class DataObject
                 HRESULT result = ((Com.IDataObject.Interface)this).GetDataHere(pformatetcIn, pmedium);
                 if (result.Failed)
                 {
-                    PInvokeCore.GlobalFree(pmedium->hGlobal);
+                    PInvoke.GlobalFree(pmedium->hGlobal);
                     pmedium->hGlobal = HGLOBAL.Null;
                 }
 
@@ -162,11 +162,11 @@ public unsafe partial class DataObject
 
                     // Create a compatible DC and a new compatible bitmap.
                     using CreateDcScope destinationDC = new(screenDC);
-                    HBITMAP compatibleBitmap = PInvokeCore.CreateCompatibleBitmap(screenDC, bitmap.Size.Width, bitmap.Size.Height);
+                    HBITMAP compatibleBitmap = PInvoke.CreateCompatibleBitmap(screenDC, bitmap.Size.Width, bitmap.Size.Height);
 
                     // Select the new bitmap into a compatible DC and render the blt the original bitmap.
                     using SelectObjectScope destinationBitmapSelection = new(destinationDC, compatibleBitmap);
-                    PInvokeCore.BitBlt(
+                    PInvoke.BitBlt(
                         destinationDC,
                         0,
                         0,
@@ -361,17 +361,17 @@ public unsafe partial class DataObject
             {
                 if (hglobal != 0)
                 {
-                    PInvokeCore.GlobalFree(hglobal);
+                    PInvoke.GlobalFree(hglobal);
                 }
 
                 int size = checked((int)stream.Length);
-                hglobal = PInvokeCore.GlobalAlloc(GLOBAL_ALLOC_FLAGS.GMEM_MOVEABLE, (uint)size);
+                hglobal = PInvoke.GlobalAlloc(GLOBAL_ALLOC_FLAGS.GMEM_MOVEABLE, (uint)size);
                 if (hglobal == 0)
                 {
                     return HRESULT.E_OUTOFMEMORY;
                 }
 
-                void* buffer = PInvokeCore.GlobalLock(hglobal);
+                void* buffer = PInvoke.GlobalLock(hglobal);
                 if (buffer is null)
                 {
                     return HRESULT.E_OUTOFMEMORY;
@@ -385,7 +385,7 @@ public unsafe partial class DataObject
                 }
                 finally
                 {
-                    PInvokeCore.GlobalUnlock(hglobal);
+                    PInvoke.GlobalUnlock(hglobal);
                 }
 
                 return HRESULT.S_OK;
@@ -422,13 +422,13 @@ public unsafe partial class DataObject
                 sizeInBytes += sizeof(char);
 
                 // Allocate the Win32 memory
-                HGLOBAL newHandle = PInvokeCore.GlobalReAlloc(hglobal, sizeInBytes, (uint)GLOBAL_ALLOC_FLAGS.GMEM_MOVEABLE);
+                HGLOBAL newHandle = PInvoke.GlobalReAlloc(hglobal, sizeInBytes, (uint)GLOBAL_ALLOC_FLAGS.GMEM_MOVEABLE);
                 if (newHandle == 0)
                 {
                     return HRESULT.E_OUTOFMEMORY;
                 }
 
-                void* buffer = PInvokeCore.GlobalLock(newHandle);
+                void* buffer = PInvoke.GlobalLock(newHandle);
                 if (buffer is null)
                 {
                     return HRESULT.E_OUTOFMEMORY;
@@ -458,7 +458,7 @@ public unsafe partial class DataObject
 
                 fileBuffer[0] = '\0';
 
-                PInvokeCore.GlobalUnlock(newHandle);
+                PInvoke.GlobalUnlock(newHandle);
                 return HRESULT.S_OK;
             }
 
@@ -476,13 +476,13 @@ public unsafe partial class DataObject
                 if (unicode)
                 {
                     uint byteSize = (uint)value.Length * sizeof(char) + sizeof(char);
-                    newHandle = PInvokeCore.GlobalReAlloc(hglobal, byteSize, (uint)(GLOBAL_ALLOC_FLAGS.GMEM_MOVEABLE | GLOBAL_ALLOC_FLAGS.GMEM_ZEROINIT));
+                    newHandle = PInvoke.GlobalReAlloc(hglobal, byteSize, (uint)(GLOBAL_ALLOC_FLAGS.GMEM_MOVEABLE | GLOBAL_ALLOC_FLAGS.GMEM_ZEROINIT));
                     if (newHandle == 0)
                     {
                         return HRESULT.E_OUTOFMEMORY;
                     }
 
-                    char* buffer = (char*)PInvokeCore.GlobalLock(newHandle);
+                    char* buffer = (char*)PInvoke.GlobalLock(newHandle);
                     if (buffer is null)
                     {
                         return HRESULT.E_OUTOFMEMORY;
@@ -499,13 +499,13 @@ public unsafe partial class DataObject
                     fixed (char* c = value)
                     {
                         int pinvokeSize = PInvoke.WideCharToMultiByte(PInvoke.CP_ACP, 0, value, value.Length, null, 0, null, null);
-                        newHandle = PInvokeCore.GlobalReAlloc(hglobal, (uint)pinvokeSize + 1, (uint)GLOBAL_ALLOC_FLAGS.GMEM_MOVEABLE | (uint)GLOBAL_ALLOC_FLAGS.GMEM_ZEROINIT);
+                        newHandle = PInvoke.GlobalReAlloc(hglobal, (uint)pinvokeSize + 1, (uint)GLOBAL_ALLOC_FLAGS.GMEM_MOVEABLE | (uint)GLOBAL_ALLOC_FLAGS.GMEM_ZEROINIT);
                         if (newHandle == 0)
                         {
                             return HRESULT.E_OUTOFMEMORY;
                         }
 
-                        byte* buffer = (byte*)PInvokeCore.GlobalLock(newHandle);
+                        byte* buffer = (byte*)PInvoke.GlobalLock(newHandle);
                         if (buffer is null)
                         {
                             return HRESULT.E_OUTOFMEMORY;
@@ -518,7 +518,7 @@ public unsafe partial class DataObject
                     }
                 }
 
-                PInvokeCore.GlobalUnlock(newHandle);
+                PInvoke.GlobalUnlock(newHandle);
                 return HRESULT.S_OK;
             }
 
@@ -530,13 +530,13 @@ public unsafe partial class DataObject
                 }
 
                 int byteLength = Encoding.UTF8.GetByteCount(value);
-                HGLOBAL newHandle = PInvokeCore.GlobalReAlloc(hglobal, (uint)byteLength + 1, (uint)(GLOBAL_ALLOC_FLAGS.GMEM_MOVEABLE | GLOBAL_ALLOC_FLAGS.GMEM_ZEROINIT));
+                HGLOBAL newHandle = PInvoke.GlobalReAlloc(hglobal, (uint)byteLength + 1, (uint)(GLOBAL_ALLOC_FLAGS.GMEM_MOVEABLE | GLOBAL_ALLOC_FLAGS.GMEM_ZEROINIT));
                 if (newHandle == 0)
                 {
                     return HRESULT.E_OUTOFMEMORY;
                 }
 
-                byte* buffer = (byte*)PInvokeCore.GlobalLock(newHandle);
+                byte* buffer = (byte*)PInvoke.GlobalLock(newHandle);
                 if (buffer is null)
                 {
                     return HRESULT.E_OUTOFMEMORY;
@@ -552,7 +552,7 @@ public unsafe partial class DataObject
                 }
                 finally
                 {
-                    PInvokeCore.GlobalUnlock(newHandle);
+                    PInvoke.GlobalUnlock(newHandle);
                 }
 
                 return HRESULT.S_OK;

@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.ComponentModel;
@@ -219,7 +219,7 @@ public sealed partial class ImageList : Component, IHandle<HIMAGELIST>
             // need to get the image bpp
             if (PInvoke.ImageList.GetImageInfo(new HandleRef<HIMAGELIST>(this, _nativeImageList.HIMAGELIST), 0, out IMAGEINFO imageInfo))
             {
-                PInvokeCore.GetObject(imageInfo.hbmImage, out BITMAP bmp);
+                PInvoke.GetObject(imageInfo.hbmImage, out BITMAP bmp);
                 _colorDepth = bmp.bmBitsPixel switch
                 {
                     4 => ColorDepth.Depth4Bit,
@@ -387,8 +387,8 @@ public sealed partial class ImageList : Component, IHandle<HIMAGELIST>
         }
         finally
         {
-            PInvokeCore.DeleteObject(hBitmap);
-            PInvokeCore.DeleteObject(hMask);
+            PInvoke.DeleteObject(hBitmap);
+            PInvoke.DeleteObject(hMask);
         }
 
         if (index == -1)

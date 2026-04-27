@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.ComponentModel;
@@ -157,7 +157,7 @@ public static unsafe partial class ControlPaint
         using CreateDcScope dc = new(screen);
 
         HPALETTE palette = PInvoke.CreateHalftonePalette(dc);
-        PInvokeCore.GetObject(palette, out uint entryCount);
+        PInvoke.GetObject(palette, out uint entryCount);
 
         using BufferScope<byte> bitmapInfoBuffer = new
             (checked((int)(sizeof(BITMAPINFOHEADER) + (sizeof(RGBQUAD) * entryCount))));
@@ -177,7 +177,7 @@ public static unsafe partial class ControlPaint
 
             Span<RGBQUAD> colors = new(bi + sizeof(BITMAPINFOHEADER), (int)entryCount);
             Span<PALETTEENTRY> entries = stackalloc PALETTEENTRY[(int)entryCount];
-            PInvokeCore.GetPaletteEntries(palette, entries);
+            PInvoke.GetPaletteEntries(palette, entries);
 
             // Set up color table
             for (int i = 0; i < entryCount; i++)
@@ -191,10 +191,10 @@ public static unsafe partial class ControlPaint
                 };
             }
 
-            PInvokeCore.DeleteObject(palette);
+            PInvoke.DeleteObject(palette);
 
             void* bitsBuffer;
-            hbitmap = PInvokeCore.CreateDIBSection(
+            hbitmap = PInvoke.CreateDIBSection(
                 screen,
                 (BITMAPINFO*)bi,
                 DIB_USAGE.DIB_RGB_COLORS,
@@ -219,7 +219,7 @@ public static unsafe partial class ControlPaint
                 throw new Win32Exception();
             }
 
-            PInvokeCore.DeleteObject(previousBitmap);
+            PInvoke.DeleteObject(previousBitmap);
 
             using Graphics graphics = dc.CreateGraphics();
             using var brush = background.GetCachedSolidBrushScope();
@@ -229,7 +229,7 @@ public static unsafe partial class ControlPaint
         catch
         {
             // As we're throwing out, we can't return this and need to delete it.
-            PInvokeCore.DeleteObject(hbitmap);
+            PInvoke.DeleteObject(hbitmap);
             throw;
         }
 
@@ -292,7 +292,7 @@ public static unsafe partial class ControlPaint
         // Create 1bpp.
         fixed (byte* pBits = bits)
         {
-            return (IntPtr)PInvokeCore.CreateBitmap(size.Width, size.Height, nPlanes: 1, nBitCount: 1, pBits);
+            return (IntPtr)PInvoke.CreateBitmap(size.Width, size.Height, nPlanes: 1, nBitCount: 1, pBits);
         }
     }
 
@@ -320,7 +320,7 @@ public static unsafe partial class ControlPaint
 
         PInvoke.SetBkColor(targetDC, (COLORREF)0x00ffffff);    // white
         PInvoke.SetTextColor(targetDC, (COLORREF)0x00000000);  // black
-        PInvokeCore.BitBlt(targetDC, x: 0, y: 0, size.Width, size.Height, sourceDC, x1: 0, y1: 0, (ROP_CODE)0x220326);
+        PInvoke.BitBlt(targetDC, x: 0, y: 0, size.Width, size.Height, sourceDC, x1: 0, y1: 0, (ROP_CODE)0x220326);
         // RasterOp.SOURCE.Invert().AndWith(RasterOp.TARGET).GetRop());
 
         return (IntPtr)colorMask;
@@ -1799,7 +1799,7 @@ public static unsafe partial class ControlPaint
         }
 
         using GetDcScope desktopDC = new(
-            PInvokeCore.GetDesktopWindow(),
+            PInvoke.GetDesktopWindow(),
             HRGN.Null,
             GET_DCX_FLAGS.DCX_WINDOW | GET_DCX_FLAGS.DCX_LOCKWINDOWUPDATE | GET_DCX_FLAGS.DCX_CACHE);
 
@@ -1811,7 +1811,7 @@ public static unsafe partial class ControlPaint
         });
 
         using SetRop2Scope rop2Scope = new(desktopDC, rop2);
-        using SelectObjectScope brushSelection = new(desktopDC, PInvokeCore.GetStockObject(GET_STOCK_OBJECT_FLAGS.NULL_BRUSH));
+        using SelectObjectScope brushSelection = new(desktopDC, PInvoke.GetStockObject(GET_STOCK_OBJECT_FLAGS.NULL_BRUSH));
         using SelectObjectScope penSelection = new(desktopDC, pen);
 
         PInvoke.SetBkColor(desktopDC, (COLORREF)(uint)ColorTranslator.ToWin32(graphicsColor));
@@ -1826,13 +1826,13 @@ public static unsafe partial class ControlPaint
         R2_MODE rop2 = (R2_MODE)GetColorRop(backColor, (int)R2_MODE.R2_NOTXORPEN, (int)R2_MODE.R2_XORPEN);
 
         using GetDcScope desktopDC = new(
-            PInvokeCore.GetDesktopWindow(),
+            PInvoke.GetDesktopWindow(),
             HRGN.Null,
             GET_DCX_FLAGS.DCX_WINDOW | GET_DCX_FLAGS.DCX_LOCKWINDOWUPDATE | GET_DCX_FLAGS.DCX_CACHE);
 
         using ObjectScope pen = new(PInvoke.CreatePen(PEN_STYLE.PS_SOLID, cWidth: 1, (COLORREF)(uint)ColorTranslator.ToWin32(backColor)));
         using SetRop2Scope ropScope = new(desktopDC, rop2);
-        using SelectObjectScope brushSelection = new(desktopDC, PInvokeCore.GetStockObject(GET_STOCK_OBJECT_FLAGS.NULL_BRUSH));
+        using SelectObjectScope brushSelection = new(desktopDC, PInvoke.GetStockObject(GET_STOCK_OBJECT_FLAGS.NULL_BRUSH));
         using SelectObjectScope penSelection = new(desktopDC, pen);
 
         PInvoke.MoveToEx(desktopDC, start.X, start.Y, lppt: null);
@@ -2041,7 +2041,7 @@ public static unsafe partial class ControlPaint
         R2_MODE rop2 = R2_MODE.R2_NOT;
 
         using GetDcScope desktopDC = new(
-            PInvokeCore.GetDesktopWindow(),
+            PInvoke.GetDesktopWindow(),
             HRGN.Null,
             GET_DCX_FLAGS.DCX_WINDOW | GET_DCX_FLAGS.DCX_LOCKWINDOWUPDATE | GET_DCX_FLAGS.DCX_CACHE);
 

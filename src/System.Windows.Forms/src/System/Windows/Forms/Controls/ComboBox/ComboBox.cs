@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Collections;
@@ -3584,7 +3584,7 @@ public partial class ComboBox : ListControl
     {
         if ((DropDownStyle == ComboBoxStyle.Simple) && ParentInternal is not null)
         {
-            PInvokeCore.GetClientRect(this, out RECT rect);
+            PInvoke.GetClientRect(this, out RECT rect);
             HDC hdc = (HDC)m.WParamInternal;
             using var hbrush = new CreateBrushScope(ParentInternal?.BackColor ?? SystemColors.Control);
             hdc.FillRectangle(rect, hbrush);
@@ -3873,7 +3873,7 @@ public partial class ComboBox : ListControl
                     // Stash off the region we have to update (the base is going to clear this off in BeginPaint)
                     bool getRegionSucceeded = PInvoke.GetUpdateRgn(HWND, windowRegion, bErase: true) != GDI_REGION_TYPE.RGN_ERROR;
 
-                    PInvokeCore.CombineRgn(dropDownRegion, windowRegion, dropDownRegion, RGN_COMBINE_MODE.RGN_DIFF);
+                    PInvoke.CombineRgn(dropDownRegion, windowRegion, dropDownRegion, RGN_COMBINE_MODE.RGN_DIFF);
                     RECT updateRegionBoundingRect = default;
                     PInvoke.GetRgnBox(windowRegion, &updateRegionBoundingRect);
 
@@ -3887,7 +3887,7 @@ public partial class ComboBox : ListControl
 
                     if (getRegionSucceeded)
                     {
-                        PInvokeCore.SelectClipRgn(dc, dropDownRegion);
+                        PInvoke.SelectClipRgn(dc, dropDownRegion);
                     }
 
                     m.WParamInternal = (WPARAM)dc;
@@ -3895,7 +3895,7 @@ public partial class ComboBox : ListControl
 
                     if (getRegionSucceeded)
                     {
-                        PInvokeCore.SelectClipRgn(dc, windowRegion);
+                        PInvoke.SelectClipRgn(dc, windowRegion);
                     }
 
                     using Graphics g = Graphics.FromHdcInternal((IntPtr)dc);

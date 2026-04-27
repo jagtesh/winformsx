@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.ComponentModel;
@@ -23,9 +23,9 @@ internal partial class Com2AboutBoxPropertyDescriptor
                 EXCEPINFO pExcepInfo = default;
                 DISPPARAMS dispParams = default;
                 hr = dispatch.Value->Invoke(
-                    PInvokeCore.DISPID_ABOUTBOX,
+                    PInvoke.DISPID_ABOUTBOX,
                     IID.NULL(),
-                    PInvokeCore.GetThreadLocale(),
+                    PInvoke.GetThreadLocale(),
                     DISPATCH_FLAGS.DISPATCH_METHOD,
                     &dispParams,
                     pVarResult: null,

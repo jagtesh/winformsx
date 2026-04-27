@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 namespace System.Windows.Forms.ComponentModel.Com2Interop;
@@ -17,7 +17,7 @@ internal static partial class Com2TypeInfoProcessor
 #pragma warning restore SA1206
 #pragma warning restore IDE0036
 
-        public int DispId { get; set; } = PInvokeCore.DISPID_UNKNOWN;
+        public int DispId { get; set; } = PInvoke.DISPID_UNKNOWN;
 
         public Type? ValueType { get; set; }
 

@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.ComponentModel;
@@ -72,7 +72,7 @@ internal sealed class Com2ComponentEditor : WindowsFormsComponentEditor
                         unknown,
                         1,
                         &guid,
-                        PInvokeCore.GetThreadLocale(),
+                        PInvoke.GetThreadLocale(),
                         0,
                         null).ThrowOnFailure();
                 }
@@ -107,7 +107,7 @@ internal sealed class Com2ComponentEditor : WindowsFormsComponentEditor
                             unknown,
                             uuids.cElems,
                             uuids.pElems,
-                            PInvokeCore.GetThreadLocale(),
+                            PInvoke.GetThreadLocale(),
                             0,
                             null).ThrowOnFailure();
 

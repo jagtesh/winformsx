@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.ComponentModel;
@@ -89,7 +89,7 @@ public abstract partial class AxHost
         internal int Dispid
             => _baseDescriptor.TryGetAttribute(out DispIdAttribute? dispid)
                 ? dispid.Value
-                : PInvokeCore.DISPID_UNKNOWN;
+                : PInvoke.DISPID_UNKNOWN;
 
         public override bool IsReadOnly => _baseDescriptor.IsReadOnly;
 

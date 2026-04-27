@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Drawing;
@@ -51,7 +51,7 @@ internal partial class DrawingEventArgs
         ArgumentValidation.ThrowIfNull(dc);
 
 #if DEBUG
-        OBJ_TYPE type = (OBJ_TYPE)PInvokeCore.GetObjectType(dc);
+        OBJ_TYPE type = (OBJ_TYPE)PInvoke.GetObjectType(dc);
         Debug.Assert(type is OBJ_TYPE.OBJ_DC
             or OBJ_TYPE.OBJ_ENHMETADC
             or OBJ_TYPE.OBJ_MEMDC

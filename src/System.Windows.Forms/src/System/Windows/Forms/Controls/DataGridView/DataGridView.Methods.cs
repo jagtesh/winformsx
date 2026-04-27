@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Collections;
@@ -5876,7 +5876,7 @@ public partial class DataGridView
         PInvoke.PatBlt(dc, r.X + r.Width - DATAGRIDVIEW_shadowEdgeThickness, r.Y + DATAGRIDVIEW_shadowEdgeThickness, DATAGRIDVIEW_shadowEdgeThickness, r.Height - 2 * DATAGRIDVIEW_shadowEdgeThickness, ROP_CODE.PATINVERT);
 
         PInvoke.SelectObject(dc, saveBrush);
-        PInvokeCore.DeleteObject(halftone);
+        PInvoke.DeleteObject(halftone);
     }
 
     /// <summary>
@@ -5890,7 +5890,7 @@ public partial class DataGridView
         HGDIOBJ saveBrush = PInvoke.SelectObject(dc, halftone);
         PInvoke.PatBlt(dc, r.X, r.Y, r.Width, r.Height, ROP_CODE.PATINVERT);
         PInvoke.SelectObject(dc, saveBrush);
-        PInvokeCore.DeleteObject(halftone);
+        PInvoke.DeleteObject(halftone);
         GC.KeepAlive(this);
     }
 

@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Collections;
@@ -428,7 +428,7 @@ public partial class ListView : Control
     /// </summary>
     [SRCategory(nameof(SR.CatAppearance))]
     [DefaultValue(BorderStyle.Fixed3D)]
-    [DispId(PInvokeCore.DISPID_BORDERSTYLE)]
+    [DispId(PInvoke.DISPID_BORDERSTYLE)]
     [SRDescription(nameof(SR.borderStyleDescr))]
     public BorderStyle BorderStyle
     {
@@ -4976,7 +4976,7 @@ public partial class ListView : Control
         if (!headerWindow.IsNull)
         {
             WINDOWPOS position = default;
-            PInvokeCore.GetClientRect(this, out RECT clientRect);
+            PInvoke.GetClientRect(this, out RECT clientRect);
             HDLAYOUT hd = new()
             {
                 prc = &clientRect,

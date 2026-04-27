@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Drawing;
@@ -66,7 +66,7 @@ public partial class ComponentEditorForm
                 unchecked(0x5555)
             };
 
-            HBITMAP hbitmapTemp = PInvokeCore.CreateBitmap(8, 8, 1, 1, patternBits);
+            HBITMAP hbitmapTemp = PInvoke.CreateBitmap(8, 8, 1, 1, patternBits);
             Debug.Assert(
                 !hbitmapTemp.IsNull,
                 "could not create dither bitmap. Page selector UI will not be correct");
@@ -79,7 +79,7 @@ public partial class ComponentEditorForm
                     !_hbrushDither.IsNull,
                     "Unable to created dithered brush. Page selector UI will not be correct");
 
-                PInvokeCore.DeleteObject(hbitmapTemp);
+                PInvoke.DeleteObject(hbitmapTemp);
             }
         }
 
@@ -252,7 +252,7 @@ public partial class ComponentEditorForm
 
             if (!RecreatingHandle && !_hbrushDither.IsNull)
             {
-                PInvokeCore.DeleteObject(_hbrushDither);
+                PInvoke.DeleteObject(_hbrushDither);
                 _hbrushDither = default;
             }
         }
