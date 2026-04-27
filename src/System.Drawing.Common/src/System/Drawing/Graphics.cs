@@ -1848,6 +1848,7 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
             Color color = brush is SolidBrush sb ? sb.Color : Color.Black;
             bool bold = font.Style.HasFlag(FontStyle.Bold);
             bool italic = font.Style.HasFlag(FontStyle.Italic);
+            float fontSizePixels = font.SizeInPoints * (this.DpiY / 72.0f);
             
             ContentAlignment alignment = ContentAlignment.TopLeft;
             if (format is not null)
@@ -1856,7 +1857,7 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
                 else if (format.Alignment == StringAlignment.Far) alignment = ContentAlignment.TopRight;
             }
 
-            _backend.DrawStringAligned(s.ToString(), layoutRectangle, alignment, color, font.FontFamily.Name, font.Size, bold, italic);
+            _backend.DrawStringAligned(s.ToString(), layoutRectangle, alignment, color, font.FontFamily.Name, fontSizePixels, bold, italic);
             return;
         }
 
@@ -1916,6 +1917,18 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
         }
 
         ArgumentNullException.ThrowIfNull(font);
+
+        if (_backend is not null)
+        {
+            bool bold = font.Style.HasFlag(FontStyle.Bold);
+            bool italic = font.Style.HasFlag(FontStyle.Italic);
+            float fontSizePixels = font.SizeInPoints * (this.DpiY / 72.0f);
+            
+            var size = _backend.MeasureString(text.ToString(), font.FontFamily.Name, fontSizePixels, bold, italic);
+            charactersFitted = text.Length;
+            linesFilled = 1;
+            return size;
+        }
 
         RectF boundingBox = default;
 
