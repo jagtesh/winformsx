@@ -936,45 +936,8 @@ public sealed partial class Application
     [UnconditionalSuppressMessage("SingleFile", "IL3002", Justification = "Single-file case is handled")]
     public static void EnableVisualStyles()
     {
-        // When running on the Impeller backend, native theming APIs (activation contexts)
-        // don't apply — Impeller handles all visual styling. Skip the ThemingScope call.
-        try
-        {
-            _ = Platform.PlatformApi.Provider;
-            // If we get here, Impeller is initialized — skip native theming
-            UseVisualStyles = true;
-            s_comCtlSupportsVisualStylesInitialized = false;
-            return;
-        }
-        catch (InvalidOperationException)
-        {
-            // PlatformApi not initialized — fall through to native theming path
-        }
-
-        // Pull manifest from our resources
-        Module module = typeof(Application).Module;
-        var moduleHandle = PInvoke.GetModuleHandle(module.Name);
-
-        if (moduleHandle != 0)
-        {
-            // We have a native module, point to our native embedded manifest resource.
-            // CSC embeds DLL manifests as native resource ID 2
-            UseVisualStyles = ThemingScope.CreateActivationContext(moduleHandle, nativeResourceManifestID: 2);
-        }
-        else
-        {
-            // We couldn't grab the module handle, likely we're running from a single file package.
-            // Extract the manifest from managed resources.
-            using Stream? stream = module.Assembly.GetManifestResourceStream(
-                "System.Windows.Forms.XPThemes.manifest");
-            if (stream is not null)
-            {
-                UseVisualStyles = ThemingScope.CreateActivationContext(stream);
-            }
-        }
-
-        Debug.Assert(UseVisualStyles, "Enable Visual Styles failed");
-
+        // Impeller handles all visual styling — native activation contexts don't apply.
+        UseVisualStyles = true;
         s_comCtlSupportsVisualStylesInitialized = false;
     }
 

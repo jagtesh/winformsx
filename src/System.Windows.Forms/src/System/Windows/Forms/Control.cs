@@ -8394,24 +8394,10 @@ public unsafe partial class Control :
 
     private static void PaintBackColor(PaintEventArgs e, Rectangle rectangle, Color backColor)
     {
-        // Common case of just painting the background.  For this, we
-        // use GDI because it is faster for simple things than creating
-        // a graphics object, brush, etc.  Also, we may be able to
-        // use a system brush, avoiding the brush create altogether.
-
         Color color = backColor;
 
-        // Note: PaintEvent.HDC == 0 if GDI+ has used the HDC -- it wouldn't be safe for us
-        // to use it without enough bookkeeping to negate any performance gain of using GDI.
-        if (!color.HasTransparency())
+        if (!color.IsFullyTransparent())
         {
-            using DeviceContextHdcScope hdc = new(e);
-            using CreateBrushScope hbrush = new(hdc.FindNearestColor(color));
-            hdc.FillRectangle(rectangle, hbrush);
-        }
-        else if (!color.IsFullyTransparent())
-        {
-            // Color has some transparency (but not completely transparent) use GDI+.
             using var brush = color.GetCachedSolidBrushScope();
             e.Graphics.FillRectangle(brush, rectangle);
         }
