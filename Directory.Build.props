@@ -26,6 +26,10 @@
                                   >true</IsAnalyzerProject>
   </PropertyGroup>
 
+  <ItemGroup>
+    <AssemblyMetadata Include="RepositoryUrl" Value="https://github.com/jagtesh/winformsx" />
+  </ItemGroup>
+
   <!--
     Set assembly version to align with major and minor version, as for the patches and revisions should be manually
     updated per assembly if it is serviced.

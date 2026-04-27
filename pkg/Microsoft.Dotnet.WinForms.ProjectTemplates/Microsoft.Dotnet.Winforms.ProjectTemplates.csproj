@@ -1,4 +1,4 @@
-﻿<Project InitialTargets="BuildPackage">
+<Project InitialTargets="BuildPackage">
   <Import Sdk="Microsoft.NET.Sdk" Project="Sdk.props" />
   <PropertyGroup>
     <EnableDefaultItems>false</EnableDefaultItems>
@@ -33,7 +33,7 @@
     <PackageId>Microsoft.Dotnet.WinForms.ProjectTemplates</PackageId>
     <Description>Project templates for .NET Core Windows Forms projects</Description>
     <Authors>Microsoft</Authors>
-    <RepositoryUrl>https://github.com/dotnet/winforms</RepositoryUrl>
+    <RepositoryUrl>https://github.com/jagtesh/winformsx</RepositoryUrl>
     <PackageTags>Windows Forms WinForms Project Templates .NET Core</PackageTags>
   </PropertyGroup>
 
