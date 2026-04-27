@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Drawing;
@@ -301,12 +301,79 @@ public static class TextRenderer
         if (text.IsEmpty || foreColor == Color.Transparent)
             return;
 
+        // Impeller path: route text through Graphics.DrawString instead of native GDI.
+        // Graphics.IsBackendActive indicates our Impeller IRenderingBackend is driving rendering.
+        if (dc is Graphics g && Graphics.IsBackendActive)
+        {
+            DrawTextViaGraphics(g, text, font, bounds, foreColor, backColor, flags);
+            return;
+        }
+
         // This MUST come before retrieving the HDC, which locks the Graphics object
         FONT_QUALITY quality = FontQualityFromTextRenderingHint(dc);
 
         using DeviceContextHdcScope hdc = dc.ToHdcScope(GetApplyStateFlags(dc, flags));
 
         DrawTextInternal(hdc, text, font, bounds, foreColor, quality, backColor, flags);
+    }
+
+    /// <summary>
+    ///  Renders text through the managed Graphics pipeline (Impeller) instead of native GDI.
+    ///  Translates TextFormatFlags to StringFormat alignment and draws via Graphics.DrawString.
+    /// </summary>
+    private static void DrawTextViaGraphics(
+        Graphics g,
+        ReadOnlySpan<char> text,
+        Font? font,
+        Rectangle bounds,
+        Color foreColor,
+        Color backColor,
+        TextFormatFlags flags)
+    {
+        font ??= SystemFonts.DefaultFont;
+
+        // Fill background if requested
+        if (!backColor.IsEmpty && backColor != Color.Transparent)
+        {
+            using var bgBrush = new SolidBrush(backColor);
+            g.FillRectangle(bgBrush, bounds);
+        }
+
+        // Map TextFormatFlags to StringFormat
+        using var sf = new StringFormat(StringFormat.GenericTypographic);
+        sf.FormatFlags |= StringFormatFlags.NoWrap;
+
+        // Horizontal alignment
+        if ((flags & TextFormatFlags.HorizontalCenter) != 0)
+            sf.Alignment = StringAlignment.Center;
+        else if ((flags & TextFormatFlags.Right) != 0)
+            sf.Alignment = StringAlignment.Far;
+        else
+            sf.Alignment = StringAlignment.Near;
+
+        // Vertical alignment
+        if ((flags & TextFormatFlags.VerticalCenter) != 0)
+            sf.LineAlignment = StringAlignment.Center;
+        else if ((flags & TextFormatFlags.Bottom) != 0)
+            sf.LineAlignment = StringAlignment.Far;
+        else
+            sf.LineAlignment = StringAlignment.Near;
+
+        // Word wrap
+        if ((flags & TextFormatFlags.WordBreak) != 0)
+            sf.FormatFlags &= ~StringFormatFlags.NoWrap;
+
+        // Ellipsis
+        if ((flags & TextFormatFlags.EndEllipsis) != 0)
+            sf.Trimming = StringTrimming.EllipsisCharacter;
+        else if ((flags & TextFormatFlags.PathEllipsis) != 0)
+            sf.Trimming = StringTrimming.EllipsisPath;
+        else if ((flags & TextFormatFlags.WordEllipsis) != 0)
+            sf.Trimming = StringTrimming.EllipsisWord;
+
+        using var brush = new SolidBrush(foreColor);
+        var rectF = new RectangleF(bounds.X, bounds.Y, bounds.Width, bounds.Height);
+        g.DrawString(text.ToString(), font, brush, rectF, sf);
     }
 
     internal static void DrawTextInternal(
@@ -327,6 +394,15 @@ public static class TextRenderer
         Color backColor,
         TextFormatFlags flags = TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter)
     {
+        // Impeller path: route through Graphics.DrawString
+        if (Graphics.IsBackendActive)
+        {
+            if (string.IsNullOrEmpty(text) || foreColor == Color.Transparent)
+                return;
+            DrawTextViaGraphics(e.Graphics, text, font, bounds, foreColor, backColor, flags);
+            return;
+        }
+
         HDC hdc = e.HDC;
         if (hdc.IsNull)
         {
@@ -517,6 +593,12 @@ public static class TextRenderer
         if (text.IsEmpty)
             return Size.Empty;
 
+        // Impeller path: use Graphics.MeasureString via the backend
+        if (Graphics.IsBackendActive)
+        {
+            return MeasureTextViaGraphics(text, font ?? SystemFonts.DefaultFont, proposedSize);
+        }
+
         using var screen = GdiCache.GetScreenHdc();
         using var hfont = GdiCache.GetHFONT(font, FONT_QUALITY.DEFAULT_QUALITY, screen);
 
@@ -535,6 +617,12 @@ public static class TextRenderer
         if (text.IsEmpty)
             return Size.Empty;
 
+        // Impeller path: use Graphics.MeasureString
+        if (Graphics.IsBackendActive)
+        {
+            return MeasureTextViaGraphics(text, font ?? SystemFonts.DefaultFont, proposedSize);
+        }
+
         // This MUST come before retrieving the HDC, which locks the Graphics object
         FONT_QUALITY quality = FontQualityFromTextRenderingHint(dc);
 
@@ -543,6 +631,22 @@ public static class TextRenderer
         using DeviceContextHdcScope hdc = dc.ToHdcScope(GetApplyStateFlags(dc, flags));
         using var hfont = GdiCache.GetHFONT(font, quality, hdc);
         return hdc.HDC.MeasureText(text, hfont, proposedSize, flags);
+    }
+
+    /// <summary>
+    ///  Measures text using the Impeller backend's Graphics.MeasureString.
+    /// </summary>
+    private static Size MeasureTextViaGraphics(ReadOnlySpan<char> text, Font font, Size proposedSize)
+    {
+        // Use a temporary Graphics backed by the Impeller backend
+        using var g = Graphics.FromHwndInternal(IntPtr.Zero);
+        using var sf = new StringFormat(StringFormat.GenericTypographic);
+        var layoutArea = new SizeF(
+            proposedSize.Width > 0 ? proposedSize.Width : 10000f,
+            proposedSize.Height > 0 ? proposedSize.Height : 10000f);
+        var size = g.MeasureString(text.ToString(), font, layoutArea, sf);
+        // GDI MeasureText adds internal padding; approximate by ceiling
+        return new Size((int)MathF.Ceiling(size.Width) + 4, (int)MathF.Ceiling(size.Height));
     }
 
     internal static Color DisabledTextColor(Color backColor)

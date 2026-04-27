@@ -35,6 +35,11 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     /// </summary>
     internal static Func<IntPtr, IRenderingBackend?>? BackendFactory { get; set; }
 
+    /// <summary>
+    ///  Returns true when a rendering backend (Impeller) is active.
+    /// </summary>
+    public static bool IsBackendActive => BackendFactory is not null;
+
     private static readonly object s_syncObject = new();
 
     // Object reference used for printing; it could point to a PrintPreviewGraphics to obtain the VisibleClipBounds, or

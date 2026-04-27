@@ -61,6 +61,8 @@ public class KitchenSinkForm : Form
         // ─── Main Content — TabControl (Dock.Fill) ──────────────
         var tabControl = new TabControl { Dock = DockStyle.Fill };
 
+        // Add a rendering test tab first so it's visible by default
+        tabControl.TabPages.Add(BuildRenderingTestTab());
         tabControl.TabPages.Add(BuildBasicControlsTab());
         tabControl.TabPages.Add(BuildListsAndCombosTab());
         tabControl.TabPages.Add(BuildLayoutTab());
@@ -78,8 +80,44 @@ public class KitchenSinkForm : Form
     }
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    //  Rendering Test Tab
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    private TabPage BuildRenderingTestTab()
+    {
+        var page = new TabPage("Rendering Test");
+
+        var lblTitle = new Label { Text = "WinFormsX Rendering Test", Font = new Font("Segoe UI", 18, FontStyle.Bold), ForeColor = Color.FromArgb(0, 120, 215), Location = new Point(20, 10), AutoSize = true };
+        var lblSub = new Label { Text = "Controls rendered via Impeller GPU backend", Font = new Font("Segoe UI", 10), ForeColor = Color.Gray, Location = new Point(20, 45), AutoSize = true };
+
+        var btnPrimary = new Button { Text = "Primary", Size = new Size(140, 40), Location = new Point(20, 90), BackColor = Color.FromArgb(0, 120, 215), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+        var btnSuccess = new Button { Text = "Success", Size = new Size(140, 40), Location = new Point(180, 90), BackColor = Color.FromArgb(40, 167, 69), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+        var btnDanger = new Button { Text = "Danger", Size = new Size(140, 40), Location = new Point(340, 90), BackColor = Color.FromArgb(220, 53, 69), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+        var btnWarning = new Button { Text = "Warning", Size = new Size(140, 40), Location = new Point(500, 90), BackColor = Color.FromArgb(255, 193, 7), ForeColor = Color.Black, FlatStyle = FlatStyle.Flat };
+
+        var darkPanel = new Panel { Location = new Point(20, 160), Size = new Size(620, 80), BackColor = Color.FromArgb(24, 24, 32) };
+        darkPanel.Controls.Add(new Label { Text = "Dark Panel — Custom BackColor", ForeColor = Color.FromArgb(0, 188, 212), Font = new Font("Segoe UI", 12), Location = new Point(10, 25), AutoSize = true });
+
+        var orangePanel = new Panel { Location = new Point(20, 260), Size = new Size(300, 60), BackColor = Color.FromArgb(255, 152, 0) };
+        orangePanel.Controls.Add(new Label { Text = "Orange", ForeColor = Color.White, Font = new Font("Segoe UI", 11, FontStyle.Bold), Location = new Point(10, 18), AutoSize = true });
+
+        var greenPanel = new Panel { Location = new Point(340, 260), Size = new Size(300, 60), BackColor = Color.FromArgb(76, 175, 80) };
+        greenPanel.Controls.Add(new Label { Text = "Green", ForeColor = Color.White, Font = new Font("Segoe UI", 11, FontStyle.Bold), Location = new Point(10, 18), AutoSize = true });
+
+        var magentaPanel = new Panel { Location = new Point(20, 340), Size = new Size(300, 60), BackColor = Color.FromArgb(171, 71, 188) };
+        magentaPanel.Controls.Add(new Label { Text = "Magenta", ForeColor = Color.White, Font = new Font("Segoe UI", 11, FontStyle.Bold), Location = new Point(10, 18), AutoSize = true });
+
+        var cyanPanel = new Panel { Location = new Point(340, 340), Size = new Size(300, 60), BackColor = Color.FromArgb(0, 188, 212) };
+        cyanPanel.Controls.Add(new Label { Text = "Cyan", ForeColor = Color.White, Font = new Font("Segoe UI", 11, FontStyle.Bold), Location = new Point(10, 18), AutoSize = true });
+
+        page.Controls.AddRange(new Control[] { lblTitle, lblSub, btnPrimary, btnSuccess, btnDanger, btnWarning, darkPanel, orangePanel, greenPanel, magentaPanel, cyanPanel });
+        return page;
+    }
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     //  Tab 1 — Basic Controls
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 
     private TabPage BuildBasicControlsTab()
     {

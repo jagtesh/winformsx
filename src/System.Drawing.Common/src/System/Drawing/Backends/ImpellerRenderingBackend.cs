@@ -42,6 +42,15 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend
     {
         if (_builder is null)
             return;
+
+        // Guard: surface may have been invalidated by a resize event
+        if (_frameSurface == nint.Zero)
+        {
+            _builder.Dispose();
+            _builder = null;
+            return;
+        }
+
         var displayList = _builder.Build();
         try
         {
@@ -51,6 +60,7 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend
         finally
         {
             NativeMethods.ImpellerDisplayListRelease(displayList);
+            _frameSurface = nint.Zero;
             _builder.Dispose();
             _builder = null;
         }

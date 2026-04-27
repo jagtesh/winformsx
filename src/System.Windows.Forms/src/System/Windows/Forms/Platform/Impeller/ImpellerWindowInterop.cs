@@ -164,19 +164,26 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                     try
                     {
                         // Dispatch WM_PAINT through the standard WinForms control tree.
-                        // Each control's WmPaint → BeginPaint → PaintEventArgs → OnPaint
-                        // will create a Graphics via Graphics.FromHdcInternal, which uses
-                        // the BackendFactory to produce an Impeller-backed Graphics that
-                        // shares this frame's DisplayListBuilder.
                         var control = Control.FromHandle(handle);
                         if (control is not null)
                         {
-                            PaintControlTree(control, g);
+                            FixupTabPages(control);
+                            var rootClip = new System.Drawing.Rectangle(0, 0, w, h);
+                            PaintControlTree(control, g, rootClip, isRoot: true);
                         }
                     }
-                    finally
+                    catch (Exception ex)
+                    {
+                        Console.Error.WriteLine($"[Render] PaintControlTree error: {ex.Message}");
+                    }
+
+                    try
                     {
                         g.EndFrame(w, h);
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.Error.WriteLine($"[Render] EndFrame error: {ex.Message}");
                     }
                 }
             };
@@ -209,61 +216,7 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
     /// Impeller Graphics that already has an active frame.
     /// This is the Impeller equivalent of the Win32 paint cycle.
     /// </summary>
-    private static void PaintControlTree(Control control, System.Drawing.Graphics g)
-    {
-        // Paint the root control via standard WinForms lifecycle
-        try
-        {
-            var clip = new System.Drawing.Rectangle(0, 0, control.Width, control.Height);
-            using var pevent = new PaintEventArgs(g, clip);
-            control.InvokePaintBackgroundInternal(pevent);
-            control.InvokePaintInternal(pevent);
-        }
-        catch (Exception ex)
-        {
-            if (s_firstPaint)
-                Console.Error.WriteLine($"  [Paint FAIL] {control.GetType().Name}: {ex.Message}");
-        }
 
-        // Paint children in Z-order (back to front)
-        for (int i = control.Controls.Count - 1; i >= 0; i--)
-        {
-            var child = control.Controls[i];
-            if (!child.Visible || child.Width <= 0 || child.Height <= 0)
-                continue;
-
-            // Save graphics state before translating to child origin
-            var state = g.Save();
-            g.TranslateTransform(child.Left, child.Top);
-            g.SetClip(new System.Drawing.Rectangle(0, 0, child.Width, child.Height));
-
-            try
-            {
-                var childClip = new System.Drawing.Rectangle(0, 0, child.Width, child.Height);
-                using var childPevent = new PaintEventArgs(g, childClip);
-                child.InvokePaintBackgroundInternal(childPevent);
-                child.InvokePaintInternal(childPevent);
-
-                if (s_firstPaint)
-                    Console.Error.WriteLine($"  [Paint] {child.GetType().Name} @ ({child.Left},{child.Top}) {child.Width}x{child.Height}");
-            }
-            catch (Exception ex)
-            {
-                if (s_firstPaint)
-                    Console.Error.WriteLine($"  [Paint FAIL] {child.GetType().Name}: {ex.Message}");
-            }
-
-            // Recurse into child's children
-            if (child.Controls.Count > 0)
-            {
-                PaintControlTree(child, g);
-            }
-
-            g.Restore(state);
-        }
-
-        s_firstPaint = false;
-    }
 
     /// <summary>
     /// Recursively find TabControls and make their selected TabPage visible
@@ -276,14 +229,22 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
         {
             if (c is TabControl tc)
             {
-                if (tc.SelectedIndex >= 0 && tc.SelectedIndex < tc.TabPages.Count)
+                if (s_firstPaint) Console.Error.WriteLine($"[FixupTabPages] Found TabControl. TabPages.Count={tc.TabPages.Count}");
+                
+                int selectedIndex = tc.SelectedIndex;
+                if (selectedIndex < 0 && tc.TabPages.Count > 0)
                 {
-                    var page = tc.TabPages[tc.SelectedIndex];
+                    selectedIndex = 0; // Default to first tab if native state is uninitialized
+                }
+
+                if (selectedIndex >= 0 && selectedIndex < tc.TabPages.Count)
+                {
+                    var page = tc.TabPages[selectedIndex];
                     // Approximate the display rectangle (tab header area ~24px)
                     const int tabHeaderHeight = 24;
                     page.SetBounds(0, tabHeaderHeight, tc.Width, tc.Height - tabHeaderHeight);
                     page.Visible = true;
-                    Console.Error.WriteLine($"[FixupTabPages] Made '{page.Text}' visible: {page.Bounds}");
+                    if (s_firstPaint) Console.Error.WriteLine($"[FixupTabPages] Made '{page.Text}' visible: {page.Bounds}. Page Controls Count={page.Controls.Count}");
                     // Recurse into the now-visible page
                     FixupTabPages(page);
                 }
@@ -305,35 +266,20 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
         try
         {
             if (s_firstPaint)
-            {
                 Console.Error.WriteLine($"[Paint] {control.GetType().Name} @ ({control.Left},{control.Top}) {control.Width}x{control.Height} children={control.Controls.Count}");
-                if (control.Controls.Count > 0)
-                {
-                    foreach (Control c in control.Controls)
-                    {
-                        Console.Error.WriteLine($"  child: {c.GetType().Name} Visible={c.Visible} {c.Width}x{c.Height} @ ({c.Left},{c.Top})");
-                    }
-                }
-            }
 
-            // Skip root form background — magenta clear shows through.
-            // For all child controls, paint their BackColor.
-            if (!isRoot)
-            {
-                using var brush = new System.Drawing.SolidBrush(control.BackColor);
-                g.FillRectangle(brush, clipRect);
-            }
-
-            // Try the standard WinForms paint path (OnPaint)
-            try
-            {
-                using var peArgs = new PaintEventArgs(g, clipRect);
-                control.InvokePaintInternal(peArgs);
-            }
+            // Full WinForms paint lifecycle: background then foreground
+            using var peArgs = new PaintEventArgs(g, clipRect);
+            try { control.InvokePaintBackgroundInternal(peArgs); }
             catch (Exception ex)
             {
-                if (s_firstPaint)
-                    Console.Error.WriteLine($"  [OnPaint FAIL] {control.GetType().Name}: {ex.Message}");
+                if (s_firstPaint) Console.Error.WriteLine($"  [BG FAIL] {control.GetType().Name}: {ex.Message}");
+            }
+
+            try { control.InvokePaintInternal(peArgs); }
+            catch (Exception ex)
+            {
+                if (s_firstPaint) Console.Error.WriteLine($"  [FG FAIL] {control.GetType().Name}: {ex.Message}");
             }
         }
         catch (Exception ex)
@@ -345,11 +291,14 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
         for (int i = control.Controls.Count - 1; i >= 0; i--)
         {
             var child = control.Controls[i];
+
+            if (s_firstPaint)
+                Console.Error.WriteLine($"  child[{i}] {child.GetType().Name} Visible={child.Visible} Bounds={child.Bounds}");
+
             if (!child.Visible || child.Width <= 0 || child.Height <= 0)
                 continue;
 
             var state = g.Save();
-
             g.TranslateTransform(child.Left, child.Top);
             var childClip = new System.Drawing.Rectangle(0, 0, child.Width, child.Height);
             g.IntersectClip(childClip);
@@ -358,7 +307,11 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
 
             g.Restore(state);
         }
+
+        if (isRoot)
+            s_firstPaint = false;
     }
+
 
     internal Silk.NET.Windowing.IWindow? GetSilkWindow(HWND hWnd)
     {
