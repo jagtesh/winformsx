@@ -1,4 +1,4 @@
-// Licensed to the .NET Foundation under one or more agreements.
+﻿// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Runtime.InteropServices;
@@ -43,7 +43,7 @@ internal sealed class ImpellerPlatformProvider : IPlatformProvider
 
     public ImpellerPlatformProvider()
     {
-        global::System.Drawing.Impeller.ImpellerBackendInitializer.Register((hwnd) =>
+        Drawing.Impeller.ImpellerBackendInitializer.Register((hwnd) =>
         {
             // 1. Create the Impeller Vulkan context with a proper proc address resolver
             s_vkProcCallback = VulkanProcAddressResolver;
@@ -53,8 +53,8 @@ internal sealed class ImpellerPlatformProvider : IPlatformProvider
                 EnableVulkanValidation = 0,
             };
 
-            uint version = global::System.Drawing.Impeller.NativeMethods.ImpellerGetVersion();
-            nint impellerCtx = global::System.Drawing.Impeller.NativeMethods.ImpellerContextCreateVulkanNew(
+            uint version = Drawing.Impeller.NativeMethods.ImpellerGetVersion();
+            nint impellerCtx = Drawing.Impeller.NativeMethods.ImpellerContextCreateVulkanNew(
                 version, ref settings);
             if (impellerCtx == nint.Zero)
             {
@@ -96,10 +96,12 @@ internal sealed class ImpellerPlatformProvider : IPlatformProvider
                 s_vulkanModule = LoadLibraryW("vulkan-1.dll");
             }
 
-            if (s_vulkanModule == nint.Zero) return nint.Zero;
+            if (s_vulkanModule == nint.Zero)
+                return nint.Zero;
 
             var addr = GetProcAddress(s_vulkanModule, "vkGetInstanceProcAddr");
-            if (addr == nint.Zero) return nint.Zero;
+            if (addr == nint.Zero)
+                return nint.Zero;
             s_vkGetInstanceProcAddr = Marshal.GetDelegateForFunctionPointer<VkGetInstanceProcAddrDelegate>(addr);
         }
 

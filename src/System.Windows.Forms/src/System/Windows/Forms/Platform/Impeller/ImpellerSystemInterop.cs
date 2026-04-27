@@ -1,10 +1,10 @@
-// Licensed to the .NET Foundation under one or more agreements.
+﻿// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 namespace System.Windows.Forms.Platform;
 
 /// <summary>
-/// Impeller system interop � timers, metrics, DPI, clipboard, shell, memory.
+/// Impeller system interop — timers, metrics, DPI, clipboard, shell, memory.
 /// </summary>
 internal sealed unsafe class ImpellerSystemInterop : ISystemInterop
 {
@@ -17,7 +17,7 @@ internal sealed unsafe class ImpellerSystemInterop : ISystemInterop
 
     public nint SetTimer(HWND hWnd, nint id, uint elapse, nint proc)
     {
-        var timerId = System.Threading.Interlocked.Increment(ref _nextTimerId);
+        var timerId = Interlocked.Increment(ref _nextTimerId);
         return (nint)timerId;
     }
 
@@ -144,10 +144,10 @@ internal sealed unsafe class ImpellerSystemInterop : ISystemInterop
     // --- Memory ---------------------------------------------------------
 
     public HGLOBAL GlobalAlloc(uint flags, nuint bytes)
-        => (HGLOBAL)System.Runtime.InteropServices.Marshal.AllocHGlobal((int)bytes);
+        => (HGLOBAL)Runtime.InteropServices.Marshal.AllocHGlobal((int)bytes);
     public HGLOBAL GlobalFree(HGLOBAL hMem)
     {
-        System.Runtime.InteropServices.Marshal.FreeHGlobal(hMem);
+        Runtime.InteropServices.Marshal.FreeHGlobal(hMem);
         return HGLOBAL.Null;
     }
 

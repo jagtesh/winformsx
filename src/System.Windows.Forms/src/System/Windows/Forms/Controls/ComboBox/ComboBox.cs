@@ -88,6 +88,7 @@ public partial class ComboBox : ListControl
     private string _currentText = string.Empty;
     private string? _lastTextChangedValue;
     private bool _dropDown;
+    private ListBox? _syntheticListBox;
     private readonly AutoCompleteDropDownFinder _finder = new();
 
     private bool _selectedValueChangedFired;
@@ -519,6 +520,11 @@ public partial class ComboBox : ListControl
     {
         get
         {
+            if (Graphics.IsBackendActive)
+            {
+                return _dropDown;
+            }
+
             if (IsHandleCreated)
             {
                 return (int)PInvoke.SendMessage(this, PInvoke.CB_GETDROPPEDSTATE) != 0;
@@ -528,12 +534,110 @@ public partial class ComboBox : ListControl
         }
         set
         {
+            if (Graphics.IsBackendActive)
+            {
+                if (_dropDown == value)
+                    return;
+                _dropDown = value;
+                if (value)
+                {
+                    ShowSyntheticDropDown();
+                }
+                else
+                {
+                    HideSyntheticDropDown();
+                }
+
+                return;
+            }
+
             if (!IsHandleCreated)
             {
                 CreateHandle();
             }
 
             PInvoke.SendMessage(this, PInvoke.CB_SHOWDROPDOWN, (WPARAM)(value ? -1 : 0));
+        }
+    }
+
+    private void ShowSyntheticDropDown()
+    {
+        var form = TopLevelControl as Control;
+        if (form is null)
+            return;
+
+        if (_syntheticListBox is null)
+        {
+            _syntheticListBox = new ListBox
+            {
+                IntegralHeight = false,
+                BorderStyle = BorderStyle.FixedSingle
+            };
+            _syntheticListBox.SelectedIndexChanged += SyntheticListBox_SelectedIndexChanged;
+            _syntheticListBox.LostFocus += SyntheticListBox_LostFocus;
+            _syntheticListBox.Click += SyntheticListBox_Click;
+        }
+
+        _syntheticListBox.Items.Clear();
+        foreach (var item in Items)
+        {
+            _syntheticListBox.Items.Add(item);
+        }
+
+        _syntheticListBox.SelectedIndex = SelectedIndex;
+
+        Point pt = Parent!.PointToScreen(Location);
+        pt.Y += Height;
+        Point formPt = form.PointToClient(pt);
+
+        _syntheticListBox.Location = formPt;
+        _syntheticListBox.Width = DropDownWidth > Width ? DropDownWidth : Width;
+        _syntheticListBox.Height = DropDownHeight;
+        _syntheticListBox.Font = Font;
+        _syntheticListBox.ForeColor = ForeColor;
+        _syntheticListBox.BackColor = BackColor;
+        _syntheticListBox.DrawMode = DrawMode;
+        if (DrawMode != DrawMode.Normal)
+        {
+            _syntheticListBox.ItemHeight = ItemHeight;
+        }
+
+        form.Controls.Add(_syntheticListBox);
+        _syntheticListBox.BringToFront();
+        _syntheticListBox.Focus();
+    }
+
+    private void HideSyntheticDropDown()
+    {
+        if (_syntheticListBox is not null && _syntheticListBox.Parent is not null)
+        {
+            _syntheticListBox.Parent.Controls.Remove(_syntheticListBox);
+        }
+    }
+
+    private void SyntheticListBox_SelectedIndexChanged(object? sender, EventArgs e)
+    {
+        if (!_dropDown || _syntheticListBox is null)
+            return;
+        SelectedIndex = _syntheticListBox.SelectedIndex;
+        Invalidate();
+    }
+
+    private void SyntheticListBox_Click(object? sender, EventArgs e)
+    {
+        DroppedDown = false;
+    }
+
+    private void SyntheticListBox_LostFocus(object? sender, EventArgs e)
+    {
+        // Only hide if we aren't clicking inside the listbox or the combobox
+        Point mousePos = MousePosition;
+        bool inListBox = _syntheticListBox!.ClientRectangle.Contains(_syntheticListBox.PointToClient(mousePos));
+        bool inComboBox = ClientRectangle.Contains(PointToClient(mousePos));
+
+        if (!inListBox && !inComboBox)
+        {
+            DroppedDown = false;
         }
     }
 
@@ -654,6 +758,11 @@ public partial class ComboBox : ListControl
 
             // Note that the above if clause deals with the case when the handle has not yet been created
             Debug.Assert(IsHandleCreated, "Handle should be created at this point");
+
+            if (Graphics.IsBackendActive)
+            {
+                return FontHeight + 2;
+            }
 
             int h = (int)PInvoke.SendMessage(this, PInvoke.CB_GETITEMHEIGHT);
             if (h == -1)
@@ -948,6 +1057,11 @@ public partial class ComboBox : ListControl
     {
         get
         {
+            if (Graphics.IsBackendActive)
+            {
+                return _selectedIndex;
+            }
+
             if (IsHandleCreated)
             {
                 return (int)PInvoke.SendMessage(this, PInvoke.CB_GETCURSEL);
@@ -965,7 +1079,11 @@ public partial class ComboBox : ListControl
             ArgumentOutOfRangeException.ThrowIfLessThan(value, -1);
             ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(value, _itemsCollection?.Count ?? 0);
 
-            if (IsHandleCreated)
+            if (Graphics.IsBackendActive)
+            {
+                _selectedIndex = value;
+            }
+            else if (IsHandleCreated)
             {
                 PInvoke.SendMessage(this, PInvoke.CB_SETCURSEL, (WPARAM)value);
             }
@@ -1894,6 +2012,15 @@ public partial class ComboBox : ListControl
     {
         base.OnMouseDown(e);
 
+        if (Graphics.IsBackendActive && e.Button == MouseButtons.Left)
+        {
+            Rectangle btnRect = new Rectangle(Width - SystemInformation.VerticalScrollBarWidth, 0, SystemInformation.VerticalScrollBarWidth, Height);
+            if (btnRect.Contains(e.Location) || DropDownStyle == ComboBoxStyle.DropDownList)
+            {
+                DroppedDown = !DroppedDown;
+            }
+        }
+
         if (IsAccessibilityObjectCreated && _childEdit is not null && ChildEditAccessibleObject.Bounds.Contains(PointToScreen(e.Location)))
         {
             ChildEditAccessibleObject.RaiseAutomationEvent(UIA_EVENT_ID.UIA_Text_TextSelectionChangedEventId);
@@ -2069,6 +2196,11 @@ public partial class ComboBox : ListControl
 
         ArgumentOutOfRangeException.ThrowIfNegative(index);
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(index, _itemsCollection?.Count ?? 0);
+
+        if (Graphics.IsBackendActive)
+        {
+            return ItemHeight;
+        }
 
         if (IsHandleCreated)
         {
@@ -2269,6 +2401,11 @@ public partial class ComboBox : ListControl
     /// </summary>
     private int NativeAdd(object item)
     {
+        if (Graphics.IsBackendActive)
+        {
+            return Items.Count - 1;
+        }
+
         Debug.Assert(IsHandleCreated, "Shouldn't be calling Native methods before the handle is created.");
         int insertIndex = (int)PInvoke.SendMessage(this, PInvoke.CB_ADDSTRING, (WPARAM)0, GetItemText(item));
         if (insertIndex < 0)
@@ -2284,6 +2421,11 @@ public partial class ComboBox : ListControl
     /// </summary>
     private void NativeClear()
     {
+        if (Graphics.IsBackendActive)
+        {
+            return;
+        }
+
         Debug.Assert(IsHandleCreated, "Shouldn't be calling Native methods before the handle is created.");
         string? saved = null;
         if (DropDownStyle != ComboBoxStyle.DropDownList)
@@ -2304,6 +2446,11 @@ public partial class ComboBox : ListControl
     [SkipLocalsInit]
     private unsafe string NativeGetItemText(int index)
     {
+        if (Graphics.IsBackendActive)
+        {
+            return GetItemText(Items[index]);
+        }
+
         int maxLength = (int)PInvoke.SendMessage(this, PInvoke.CB_GETLBTEXTLEN, (WPARAM)index);
         if (maxLength == PInvoke.LB_ERR)
         {
@@ -2325,6 +2472,11 @@ public partial class ComboBox : ListControl
     /// </summary>
     private int NativeInsert(int index, object item)
     {
+        if (Graphics.IsBackendActive)
+        {
+            return index;
+        }
+
         Debug.Assert(IsHandleCreated, "Shouldn't be calling Native methods before the handle is created.");
         int insertIndex = (int)PInvoke.SendMessage(this, PInvoke.CB_INSERTSTRING, (WPARAM)index, GetItemText(item));
         if (insertIndex < 0)
@@ -2341,6 +2493,16 @@ public partial class ComboBox : ListControl
     /// </summary>
     private void NativeRemoveAt(int index)
     {
+        if (Graphics.IsBackendActive)
+        {
+            if (DropDownStyle == ComboBoxStyle.DropDownList && SelectedIndex == index)
+            {
+                Invalidate();
+            }
+
+            return;
+        }
+
         Debug.Assert(IsHandleCreated, "Shouldn't be calling Native methods before the handle is created.");
 
         // Windows combo does not invalidate the selected region if you remove the
@@ -2385,6 +2547,11 @@ public partial class ComboBox : ListControl
     protected override unsafe void OnHandleCreated(EventArgs e)
     {
         base.OnHandleCreated(e);
+
+        if (Graphics.IsBackendActive)
+        {
+            return;
+        }
 
         if (MaxLength > 0)
         {
@@ -2854,7 +3021,18 @@ public partial class ComboBox : ListControl
             e.Graphics.FillRectangle(SystemBrushes.Window, rect);
             ControlPaint.DrawBorder(e.Graphics, rect, SystemColors.ControlDark, ButtonBorderStyle.Solid);
             Rectangle btnRect = new Rectangle(Width - SystemInformation.VerticalScrollBarWidth, 0, SystemInformation.VerticalScrollBarWidth, Height);
-            ControlPaint.DrawComboButton(e.Graphics, btnRect, ButtonState.Normal);
+            e.Graphics.FillRectangle(SystemBrushes.Control, btnRect);
+            ControlPaint.DrawBorder(e.Graphics, btnRect, SystemColors.ControlDark, ButtonBorderStyle.Solid);
+
+            Point center = new Point(btnRect.Left + btnRect.Width / 2, btnRect.Top + btnRect.Height / 2);
+            Point[] arrow =
+            [
+                new Point(center.X - 3, center.Y - 2),
+                new Point(center.X + 3, center.Y - 2),
+                new Point(center.X, center.Y + 2)
+            ];
+            e.Graphics.FillPolygon(SystemBrushes.ControlText, arrow);
+
             TextRenderer.DrawText(e.Graphics, Text, Font, new Rectangle(2, 0, Width - btnRect.Width - 4, Height), ForeColor, TextFormatFlags.Left | TextFormatFlags.VerticalCenter);
         }
     }
@@ -3536,6 +3714,11 @@ public partial class ComboBox : ListControl
         {
             // If we don't create control here we report item heights incorrectly later on.
             CreateControl();
+        }
+
+        if (Graphics.IsBackendActive)
+        {
+            return;
         }
 
         if (DrawMode == DrawMode.OwnerDrawFixed)

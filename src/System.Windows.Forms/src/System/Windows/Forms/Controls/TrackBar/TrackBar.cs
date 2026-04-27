@@ -61,6 +61,7 @@ public partial class TrackBar : Control, ISupportInitialize
         {
             SetStyle(ControlStyles.UserPaint, true);
         }
+
         _requestedDim = PreferredDimension;
     }
 

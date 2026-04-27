@@ -1,4 +1,4 @@
-// Licensed to the .NET Foundation under one or more agreements.
+﻿// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Collections;
@@ -779,6 +779,16 @@ public partial class TreeView : Control
             if (_itemHeight != -1)
             {
                 return _itemHeight;
+            }
+
+            if (Graphics.IsBackendActive)
+            {
+                if (CheckBoxes && (DrawMode == TreeViewDrawMode.OwnerDrawAll))
+                {
+                    return Math.Max(16, FontHeight + 3);
+                }
+
+                return FontHeight + 3;
             }
 
             if (IsHandleCreated)

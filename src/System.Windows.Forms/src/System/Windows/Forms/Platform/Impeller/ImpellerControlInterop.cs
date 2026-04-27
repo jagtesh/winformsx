@@ -1,17 +1,17 @@
-// Licensed to the .NET Foundation under one or more agreements.
+ï»¿// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 namespace System.Windows.Forms.Platform;
 
 /// <summary>
-/// Impeller control interop — ImageList, menus, scrollbars, icons, accelerators.
+/// Impeller control interop â€” ImageList, menus, scrollbars, icons, accelerators.
 /// All controls are owner-drawn via Impeller; no comctl32.
 /// </summary>
 internal sealed unsafe class ImpellerControlInterop : IControlInterop
 {
     private static long s_nextHandle = 0x30000;
 
-    private nint NextHandle() => (nint)System.Threading.Interlocked.Increment(ref s_nextHandle);
+    private nint NextHandle() => (nint)Interlocked.Increment(ref s_nextHandle);
 
     // --- ImageList ------------------------------------------------------
 
@@ -65,5 +65,5 @@ internal sealed unsafe class ImpellerControlInterop : IControlInterop
 
     // --- Common Controls Init -------------------------------------------
 
-    public bool InitCommonControlsEx(in INITCOMMONCONTROLSEX icc) => true; // No-op — no comctl32
+    public bool InitCommonControlsEx(in INITCOMMONCONTROLSEX icc) => true; // No-op â€” no comctl32
 }

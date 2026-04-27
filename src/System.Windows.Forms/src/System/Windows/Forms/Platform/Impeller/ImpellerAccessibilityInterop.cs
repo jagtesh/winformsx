@@ -1,10 +1,10 @@
-// Licensed to the .NET Foundation under one or more agreements.
+﻿// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 namespace System.Windows.Forms.Platform;
 
 /// <summary>
-/// Impeller accessibility interop � UIA and MSAA stubs.
+/// Impeller accessibility interop — UIA and MSAA stubs.
 /// Will be replaced with AT-SPI (Linux), NSAccessibility (macOS),
 /// or a custom accessibility tree.
 /// </summary>

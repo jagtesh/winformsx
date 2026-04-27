@@ -1534,6 +1534,7 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
             {
                 color = sb.Color;
             }
+
             _backend.FillEllipse(x, y, width, height, color);
             return;
         }

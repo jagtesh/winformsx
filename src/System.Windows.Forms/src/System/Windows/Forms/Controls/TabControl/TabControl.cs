@@ -370,8 +370,8 @@ public partial class TabControl : Control
                     // Fallback since native TCM_ADJUSTRECT won't work correctly.
                     int headerHeight = _itemSize.Height > 0 ? _itemSize.Height : 24;
                     // Add some padding to header height
-                    headerHeight += 8; 
-                    
+                    headerHeight += 8;
+
                     if (Alignment == TabAlignment.Top)
                     {
                         rect.top += headerHeight;
@@ -388,12 +388,13 @@ public partial class TabControl : Control
                     {
                         rect.right -= headerHeight;
                     }
-                    
+
                     // Add small border padding
                     rect.left += 2;
                     rect.right -= 2;
                     rect.bottom -= 2;
-                    if (Alignment != TabAlignment.Top) rect.top += 2;
+                    if (Alignment != TabAlignment.Top)
+                        rect.top += 2;
                 }
                 else
                 {
@@ -672,8 +673,7 @@ public partial class TabControl : Control
     [Browsable(false)]
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
     [SRDescription(nameof(SR.TabBaseRowCountDescr))]
-    public int RowCount
-        => (int)PInvoke.SendMessage(this, PInvoke.TCM_GETROWCOUNT);
+    public int RowCount => Graphics.IsBackendActive ? 1 : (int)PInvoke.SendMessage(this, PInvoke.TCM_GETROWCOUNT);
 
     /// <summary>
     ///  The index of the currently selected tab in the strip, if there
@@ -971,7 +971,7 @@ public partial class TabControl : Control
             {
                 Rectangle borderRect = displayRect;
                 borderRect.Inflate(2, 2);
-                
+
                 using Pen lightPen = new Pen(SystemColors.ControlLightLight);
                 using Pen shadowPen = new Pen(SystemColors.ControlDark);
                 using Pen darkPen = new Pen(SystemColors.ControlDarkDark);
@@ -980,11 +980,11 @@ public partial class TabControl : Control
                 e.Graphics.DrawLine(lightPen, borderRect.Left, borderRect.Bottom, borderRect.Left, borderRect.Top);
                 // The top line goes from the right edge of the selected tab to the right end, but drawing the whole line is fine since the selected tab will overlap it
                 e.Graphics.DrawLine(lightPen, borderRect.Left, borderRect.Top, borderRect.Right, borderRect.Top);
-                
+
                 // Right and bottom (shadow)
                 e.Graphics.DrawLine(shadowPen, borderRect.Right - 1, borderRect.Top + 1, borderRect.Right - 1, borderRect.Bottom - 1);
                 e.Graphics.DrawLine(shadowPen, borderRect.Left + 1, borderRect.Bottom - 1, borderRect.Right - 1, borderRect.Bottom - 1);
-                
+
                 // Right and bottom (dark edge)
                 e.Graphics.DrawLine(darkPen, borderRect.Right, borderRect.Top, borderRect.Right, borderRect.Bottom);
                 e.Graphics.DrawLine(darkPen, borderRect.Left, borderRect.Bottom, borderRect.Right, borderRect.Bottom);
@@ -1012,14 +1012,14 @@ public partial class TabControl : Control
                     // Draw the background of the tab
                     Color tabColor = isSelected ? SystemColors.ControlLightLight : SystemColors.Control;
                     using SolidBrush tabBrush = new SolidBrush(tabColor);
-                    
+
                     // The selected tab should be slightly taller
                     if (isSelected)
                     {
                         bounds.Y -= 2;
                         bounds.Height += 2;
                     }
-                    
+
                     e.Graphics.FillRectangle(tabBrush, bounds);
 
                     // Draw classic 3D tab borders
@@ -1263,7 +1263,8 @@ public partial class TabControl : Control
 
             for (int i = 0; i <= index; i++)
             {
-                if (i >= TabPages.Count) break;
+                if (i >= TabPages.Count)
+                    break;
                 string text = TabPages[i].Text;
                 // Estimate width: measure text + horizontal padding
                 int width = TextRenderer.MeasureText(text, Font).Width + 16;
@@ -1279,6 +1280,8 @@ public partial class TabControl : Control
 
                 currentX += width;
             }
+
+            return Rectangle.Empty;
         }
 
         PInvoke.SendMessage(this, PInvoke.TCM_GETITEMRECT, (WPARAM)index, ref rect);
@@ -2276,6 +2279,11 @@ public partial class TabControl : Control
 
     private unsafe int SendMessage(uint msg, int wParam, TabPage tabPage)
     {
+        if (Graphics.IsBackendActive)
+        {
+            return 0;
+        }
+
         TCITEMW tcitem = default;
         string text = tabPage.Text;
         PrefixAmpersands(ref text);

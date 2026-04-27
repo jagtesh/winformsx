@@ -120,6 +120,7 @@ public partial class ListBox : ListControl
     {
         SetStyle(ControlStyles.UserPaint | ControlStyles.StandardClick | ControlStyles.UseTextForAccessibility, false);
 
+#pragma warning disable WFO5001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
         SetStyle(ControlStyles.ApplyThemingImplicitly, true);
 #pragma warning restore WFO5001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
 
@@ -424,7 +425,7 @@ public partial class ListBox : ListControl
         }
     }
 
-    internal int FocusedIndex => IsHandleCreated ? (int)PInvoke.SendMessage(this, PInvoke.LB_GETCARETINDEX) : -1;
+    internal int FocusedIndex => Graphics.IsBackendActive ? SelectedIndex : IsHandleCreated ? (int)PInvoke.SendMessage(this, PInvoke.LB_GETCARETINDEX) : -1;
 
     // The scroll bars don't display properly when the IntegralHeight == false
     // and the control is resized before the font size is change and the new font size causes
@@ -599,7 +600,10 @@ public partial class ListBox : ListControl
                 if (_drawMode == DrawMode.OwnerDrawFixed && IsHandleCreated)
                 {
                     BeginUpdate();
-                    PInvoke.SendMessage(this, PInvoke.LB_SETITEMHEIGHT, 0, value);
+                    if (!Graphics.IsBackendActive)
+                    {
+                        PInvoke.SendMessage(this, PInvoke.LB_SETITEMHEIGHT, 0, value);
+                    }
 
                     // Changing the item height might require a resize for IntegralHeight list boxes
                     if (IntegralHeight)
@@ -1118,10 +1122,14 @@ public partial class ListBox : ListControl
     [SRDescription(nameof(SR.ListBoxTopIndexDescr))]
     public int TopIndex
     {
-        get => IsHandleCreated ? (int)PInvoke.SendMessage(this, PInvoke.LB_GETTOPINDEX) : _topIndex;
+        get => Graphics.IsBackendActive ? _topIndex : IsHandleCreated ? (int)PInvoke.SendMessage(this, PInvoke.LB_GETTOPINDEX) : _topIndex;
         set
         {
-            if (IsHandleCreated)
+            if (Graphics.IsBackendActive)
+            {
+                _topIndex = value;
+            }
+            else if (IsHandleCreated)
             {
                 PInvoke.SendMessage(this, PInvoke.LB_SETTOPINDEX, (WPARAM)value);
             }
@@ -1424,6 +1432,11 @@ public partial class ListBox : ListControl
             index = 0;
         }
 
+        if (Graphics.IsBackendActive)
+        {
+            return _itemHeight;
+        }
+
         if (IsHandleCreated)
         {
             int height = (int)PInvoke.SendMessage(this, PInvoke.LB_GETITEMHEIGHT, (WPARAM)index);
@@ -1446,6 +1459,14 @@ public partial class ListBox : ListControl
     public Rectangle GetItemRectangle(int index)
     {
         CheckIndex(index);
+
+        if (Graphics.IsBackendActive)
+        {
+            int itemHeight = ItemHeight > 0 ? ItemHeight : FontHeight;
+            int topIndex = TopIndex;
+            return new Rectangle(1, 1 + (index - topIndex) * itemHeight, Width - 2, itemHeight);
+        }
+
         RECT rect = default;
         if (PInvoke.SendMessage(this, PInvoke.LB_GETITEMRECT, (uint)index, ref rect) == 0)
         {
@@ -1479,6 +1500,11 @@ public partial class ListBox : ListControl
 
     private bool GetSelectedInternal(int index)
     {
+        if (Graphics.IsBackendActive)
+        {
+            return SelectedIndices.Contains(index);
+        }
+
         if (IsHandleCreated)
         {
             int selection = (int)PInvoke.SendMessage(this, PInvoke.LB_GETSEL, (WPARAM)index);
@@ -1513,6 +1539,17 @@ public partial class ListBox : ListControl
     /// </summary>
     public int IndexFromPoint(int x, int y)
     {
+        if (Graphics.IsBackendActive)
+        {
+            if (x < 0 || x >= Width || y < 0 || y >= Height)
+                return NoMatches;
+            int itemHeight = ItemHeight > 0 ? ItemHeight : FontHeight;
+            int index = TopIndex + (y / itemHeight);
+            if (index >= 0 && index < Items.Count)
+                return index;
+            return NoMatches;
+        }
+
         // NT4 SP6A : SendMessage Fails. So First check whether the point is in Client Co-ordinates and then
         // call SendMessage.
         PInvoke.GetClientRect(this, out RECT r);
@@ -1534,6 +1571,11 @@ public partial class ListBox : ListControl
     /// </summary>
     private int NativeAdd(object item)
     {
+        if (Graphics.IsBackendActive)
+        {
+            return Items.Count - 1;
+        }
+
         Debug.Assert(IsHandleCreated, "Shouldn't be calling Native methods before the handle is created.");
         int insertIndex = (int)PInvoke.SendMessage(this, PInvoke.LB_ADDSTRING, 0, GetItemText(item));
         if (insertIndex == PInvoke.LB_ERRSPACE)
@@ -1558,6 +1600,8 @@ public partial class ListBox : ListControl
     /// </summary>
     private void NativeClear()
     {
+        if (Graphics.IsBackendActive)
+            return;
         Debug.Assert(IsHandleCreated, "Shouldn't be calling Native methods before the handle is created.");
         PInvoke.SendMessage(this, PInvoke.LB_RESETCONTENT);
     }
@@ -1568,6 +1612,13 @@ public partial class ListBox : ListControl
     [SkipLocalsInit]
     internal unsafe string NativeGetItemText(int index)
     {
+        if (Graphics.IsBackendActive)
+        {
+            if (index >= 0 && index < Items.Count)
+                return GetItemText(Items[index]) ?? string.Empty;
+            return string.Empty;
+        }
+
         int maxLength = (int)PInvoke.SendMessage(this, PInvoke.LB_GETTEXTLEN, (WPARAM)index);
         if (maxLength == PInvoke.LB_ERR)
         {
@@ -1589,6 +1640,11 @@ public partial class ListBox : ListControl
     /// </summary>
     private int NativeInsert(int index, object item)
     {
+        if (Graphics.IsBackendActive)
+        {
+            return index;
+        }
+
         Debug.Assert(IsHandleCreated, "Shouldn't be calling Native methods before the handle is created.");
         int insertIndex = (int)PInvoke.SendMessage(this, PInvoke.LB_INSERTSTRING, (uint)index, GetItemText(item));
 
@@ -1615,6 +1671,17 @@ public partial class ListBox : ListControl
     /// </summary>
     private void NativeRemoveAt(int index)
     {
+        if (Graphics.IsBackendActive)
+        {
+            bool selectedSynthetic = SelectedIndices.Contains(index);
+            if (selectedSynthetic)
+            {
+                OnSelectedIndexChanged(EventArgs.Empty);
+            }
+
+            return;
+        }
+
         Debug.Assert(IsHandleCreated, "Shouldn't be calling Native methods before the handle is created.");
 
         bool selected = (int)PInvoke.SendMessage(this, PInvoke.LB_GETSEL, (WPARAM)index) > 0;
@@ -1637,6 +1704,11 @@ public partial class ListBox : ListControl
     {
         Debug.Assert(IsHandleCreated, "Should only call Native methods after the handle has been created");
         Debug.Assert(_selectionMode != SelectionMode.None, "Guard against setting selection for None selection mode outside this code.");
+
+        if (Graphics.IsBackendActive)
+        {
+            return;
+        }
 
         if (_selectionMode == SelectionMode.One)
         {
@@ -1667,7 +1739,7 @@ public partial class ListBox : ListControl
         switch (_selectionMode)
         {
             case SelectionMode.One:
-                int index = (int)PInvoke.SendMessage(this, PInvoke.LB_GETCURSEL);
+                int index = Graphics.IsBackendActive ? SelectedIndex : (int)PInvoke.SendMessage(this, PInvoke.LB_GETCURSEL);
                 if (index >= 0)
                 {
                     SelectedItems.SetSelected(index, true);
@@ -1677,6 +1749,12 @@ public partial class ListBox : ListControl
 
             case SelectionMode.MultiSimple:
             case SelectionMode.MultiExtended:
+                if (Graphics.IsBackendActive)
+                {
+                    // For synthetic mode, we assume SelectedItems is already up to date, or we rely on managed events.
+                    break;
+                }
+
                 int count = (int)PInvoke.SendMessage(this, PInvoke.LB_GETSELCOUNT);
                 if (count > 0)
                 {
@@ -1746,6 +1824,11 @@ public partial class ListBox : ListControl
     protected override unsafe void OnHandleCreated(EventArgs e)
     {
         base.OnHandleCreated(e);
+
+        if (Graphics.IsBackendActive)
+        {
+            return;
+        }
 
         // Get the current locale to set the Scrollbars
         PInvoke.SendMessage(this, PInvoke.LB_SETLOCALE, (WPARAM)PInvoke.GetThreadLocale());
@@ -1831,9 +1914,44 @@ public partial class ListBox : ListControl
         if (Graphics.IsBackendActive)
         {
             Rectangle rect = ClientRectangle;
-            e.Graphics.FillRectangle(SystemBrushes.Window, rect);
-            ControlPaint.DrawBorder(e.Graphics, rect, SystemColors.ControlDark, ButtonBorderStyle.Solid);
-            TextRenderer.DrawText(e.Graphics, "(Impeller ListBox)", Font, rect, ForeColor, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+            e.Graphics.FillRectangle(new SolidBrush(BackColor), rect);
+
+            if (BorderStyle != BorderStyle.None)
+            {
+                ControlPaint.DrawBorder(e.Graphics, rect, SystemColors.ControlDark, ButtonBorderStyle.Solid);
+            }
+
+            int itemHeight = ItemHeight > 0 ? ItemHeight : FontHeight;
+            int topIndex = TopIndex;
+            int visibleCount = (Height / itemHeight) + 1;
+
+            for (int i = topIndex; i < Items.Count && i < topIndex + visibleCount; i++)
+            {
+                Rectangle itemRect = new Rectangle(1, 1 + (i - topIndex) * itemHeight, Width - 2, itemHeight);
+                bool isSelected = SelectedIndices.Contains(i);
+
+                if (DrawMode != DrawMode.Normal)
+                {
+                    DrawItemState state = DrawItemState.Default;
+                    if (isSelected)
+                        state |= DrawItemState.Selected;
+
+                    using DrawItemEventArgs die = new DrawItemEventArgs(e.Graphics, Font, itemRect, i, state, ForeColor, BackColor);
+                    OnDrawItem(die);
+                }
+                else
+                {
+                    if (isSelected)
+                    {
+                        e.Graphics.FillRectangle(SystemBrushes.Highlight, itemRect);
+                        TextRenderer.DrawText(e.Graphics, GetItemText(Items[i]), Font, itemRect, SystemColors.HighlightText, TextFormatFlags.Left | TextFormatFlags.VerticalCenter);
+                    }
+                    else
+                    {
+                        TextRenderer.DrawText(e.Graphics, GetItemText(Items[i]), Font, itemRect, ForeColor, TextFormatFlags.Left | TextFormatFlags.VerticalCenter);
+                    }
+                }
+            }
         }
     }
 
@@ -2262,6 +2380,9 @@ public partial class ListBox : ListControl
 
     private void UpdateHorizontalExtent()
     {
+        if (Graphics.IsBackendActive)
+            return;
+
         if (!_multiColumn && _horizontalScrollbar && IsHandleCreated)
         {
             int width = _horizontalExtent;

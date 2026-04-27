@@ -3,9 +3,9 @@
 
 namespace System.Windows.Forms.Platform;
 
-using Silk.NET.Windowing;
-using Silk.NET.Maths;
 using Silk.NET.Input;
+using Silk.NET.Maths;
+using Silk.NET.Windowing;
 
 /// <summary>
 /// Impeller window management — manages virtual windows backed by Impeller surfaces.
@@ -46,7 +46,15 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
         {
             if (PlatformApi.Message is ImpellerMessageInterop msgInterop)
             {
-                msgInterop.ProcessPendingMessages();
+                try
+                {
+                    msgInterop.ProcessPendingMessages();
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[CRASH in ProcessPendingMessages] {ex}");
+                    Application.OnThreadException(ex);
+                }
             }
         };
 
@@ -61,9 +69,16 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
         {
             if (state.SilkWindow is object)
             {
-                state.SilkWindow.DoEvents();
-                state.SilkWindow.DoUpdate();
-                state.SilkWindow.DoRender();
+                try
+                {
+                    state.SilkWindow.DoEvents();
+                    state.SilkWindow.DoUpdate();
+                    state.SilkWindow.DoRender();
+                }
+                catch (Exception ex)
+                {
+                    Application.OnThreadException(ex);
+                }
             }
         }
     }
@@ -73,7 +88,7 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
         WINDOW_STYLE dwStyle, int x, int y, int nWidth, int nHeight,
         HWND hWndParent, HMENU hMenu, HINSTANCE hInstance, object? lpParam)
     {
-        var handle = (HWND)(nint)System.Threading.Interlocked.Increment(ref s_nextHandle);
+        var handle = (HWND)(nint)Interlocked.Increment(ref s_nextHandle);
         _windows[handle] = new ImpellerWindowState
         {
             Handle = handle,
@@ -110,39 +125,43 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
             {
                 options.WindowBorder = WindowBorder.Resizable;
             }
-            
+
             var silkWindow = Window.Create(options);
             bool renderReady = false;
-            
+
             silkWindow.Resize += (size) =>
             {
-                if (!renderReady) return;
+                if (!renderReady)
+                    return;
                 PostMessageToControl(handle, handle, (uint)PInvoke.WM_SIZE, (WPARAM)0, (LPARAM)(nint)((size.Y << 16) | (size.X & 0xFFFF)));
             };
-            
+
             silkWindow.Move += (pos) =>
             {
-                if (!renderReady) return;
+                if (!renderReady)
+                    return;
                 PostMessageToControl(handle, handle, (uint)PInvoke.WM_MOVE, (WPARAM)0, (LPARAM)(nint)((pos.Y << 16) | (pos.X & 0xFFFF)));
             };
-            
+
             silkWindow.Closing += () =>
             {
                 // Silk.NET's Run() will return naturally when the window closes.
                 // Don't dispatch WM_CLOSE here — it triggers layout/paint cascades
                 // that cause deadlocks with the render loop.
             };
-            
+
 
             silkWindow.Render += (delta) =>
             {
-                if (!renderReady) return;
+                if (!renderReady)
+                    return;
 
                 // Flutter/wxWidgets pattern: the Render event is the ONLY place
                 // where the GPU context is current.  We own the frame lifecycle here.
                 int w = silkWindow.Size.X;
                 int h = silkWindow.Size.Y;
-                if (w <= 0 || h <= 0) return;
+                if (w <= 0 || h <= 0)
+                    return;
 
                 // Keep stored dimensions in sync
                 if (_windows.TryGetValue(handle, out var ws))
@@ -155,7 +174,7 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                 System.Drawing.Graphics? g;
                 try
                 {
-                    g = System.Drawing.Graphics.FromHwndInternal((IntPtr)handle);
+                    g = Drawing.Graphics.FromHwndInternal((IntPtr)handle);
                 }
                 catch
                 {
@@ -193,7 +212,7 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                     }
                 }
             };
-            
+
             silkWindow.Initialize();
             _windows[handle].SilkWindow = silkWindow;
 
@@ -205,17 +224,17 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
 
                 foreach (var keyboard in input.Keyboards)
                 {
-                    keyboard.KeyDown += (kb, key, scancode) => 
+                    keyboard.KeyDown += (kb, key, scancode) =>
                     {
                         uint vk = SilkKeyToWin32(key);
                         PostMessageToControl(handle, handle, (uint)PInvoke.WM_KEYDOWN, (WPARAM)(nuint)vk, (LPARAM)(nint)scancode);
                     };
-                    keyboard.KeyUp += (kb, key, scancode) => 
+                    keyboard.KeyUp += (kb, key, scancode) =>
                     {
                         uint vk = SilkKeyToWin32(key);
                         PostMessageToControl(handle, handle, (uint)PInvoke.WM_KEYUP, (WPARAM)(nuint)vk, (LPARAM)(nint)scancode);
                     };
-                    keyboard.KeyChar += (kb, character) => 
+                    keyboard.KeyChar += (kb, character) =>
                     {
                         PostMessageToControl(handle, handle, (uint)PInvoke.WM_CHAR, (WPARAM)(nuint)character, (LPARAM)0);
                     };
@@ -223,15 +242,16 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
 
                 foreach (var mouse in input.Mice)
                 {
-                    mouse.MouseMove += (m, position) => 
+                    mouse.MouseMove += (m, position) =>
                     {
                         var pt = new System.Drawing.Point((int)position.X, (int)position.Y);
                         HWND target = HitTest(handle, pt, out var clientPt);
                         PostMessageToControl(target, handle, (uint)PInvoke.WM_MOUSEMOVE, (WPARAM)0, (LPARAM)(nint)(((int)clientPt.Y << 16) | ((int)clientPt.X & 0xFFFF)));
                     };
-                    mouse.MouseDown += (m, button) => 
+                    mouse.MouseDown += (m, button) =>
                     {
-                        uint msg = button switch {
+                        uint msg = button switch
+                        {
                             MouseButton.Left => (uint)PInvoke.WM_LBUTTONDOWN,
                             MouseButton.Right => (uint)PInvoke.WM_RBUTTONDOWN,
                             MouseButton.Middle => (uint)PInvoke.WM_MBUTTONDOWN,
@@ -265,9 +285,10 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                             PostMessageToControl(target, handle, msg, (WPARAM)0, (LPARAM)(nint)(((int)clientPt.Y << 16) | ((int)clientPt.X & 0xFFFF)));
                         }
                     };
-                    mouse.MouseUp += (m, button) => 
+                    mouse.MouseUp += (m, button) =>
                     {
-                        uint msg = button switch {
+                        uint msg = button switch
+                        {
                             MouseButton.Left => (uint)PInvoke.WM_LBUTTONUP,
                             MouseButton.Right => (uint)PInvoke.WM_RBUTTONUP,
                             MouseButton.Middle => (uint)PInvoke.WM_MBUTTONUP,
@@ -280,7 +301,7 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                             PostMessageToControl(target, handle, msg, (WPARAM)0, (LPARAM)(nint)(((int)clientPt.Y << 16) | ((int)clientPt.X & 0xFFFF)));
                         }
                     };
-                    mouse.Scroll += (m, scrollWheel) => 
+                    mouse.Scroll += (m, scrollWheel) =>
                     {
                         // Vertical scroll
                         if (scrollWheel.Y != 0)
@@ -343,8 +364,9 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
         {
             if (c is TabControl tc)
             {
-                if (s_firstPaint) Console.Error.WriteLine($"[FixupTabPages] Found TabControl. TabPages.Count={tc.TabPages.Count}");
-                
+                if (s_firstPaint)
+                    Console.Error.WriteLine($"[FixupTabPages] Found TabControl. TabPages.Count={tc.TabPages.Count}");
+
                 int selectedIndex = tc.SelectedIndex;
                 if (selectedIndex < 0 && tc.TabPages.Count > 0)
                 {
@@ -358,7 +380,8 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                     const int tabHeaderHeight = 24;
                     page.SetBounds(0, tabHeaderHeight, tc.Width, tc.Height - tabHeaderHeight);
                     page.Visible = true;
-                    if (s_firstPaint) Console.Error.WriteLine($"[FixupTabPages] Made '{page.Text}' visible: {page.Bounds}. Page Controls Count={page.Controls.Count}");
+                    if (s_firstPaint)
+                        Console.Error.WriteLine($"[FixupTabPages] Made '{page.Text}' visible: {page.Bounds}. Page Controls Count={page.Controls.Count}");
                     // Recurse into the now-visible page
                     FixupTabPages(page);
                 }
@@ -384,16 +407,20 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
 
             // Full WinForms paint lifecycle: background then foreground
             using var peArgs = new PaintEventArgs(g, clipRect);
-            try { control.InvokePaintBackgroundInternal(peArgs); }
+            try
+            { control.InvokePaintBackgroundInternal(peArgs); }
             catch (Exception ex)
             {
-                if (s_firstPaint) Console.Error.WriteLine($"  [BG FAIL] {control.GetType().Name}: {ex.Message}");
+                if (s_firstPaint)
+                    Console.Error.WriteLine($"  [BG FAIL] {control.GetType().Name}: {ex.Message}");
             }
 
-            try { control.InvokePaintInternal(peArgs); }
+            try
+            { control.InvokePaintInternal(peArgs); }
             catch (Exception ex)
             {
-                if (s_firstPaint) Console.Error.WriteLine($"  [FG FAIL] {control.GetType().Name}: {ex.Message}");
+                if (s_firstPaint)
+                    Console.Error.WriteLine($"  [FG FAIL] {control.GetType().Name}: {ex.Message}");
             }
         }
         catch (Exception ex)
@@ -516,13 +543,13 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
             s.Y = y;
             s.Width = w;
             s.Height = h;
-            
+
             if (s.SilkWindow is object)
             {
                 s.SilkWindow.Position = new Vector2D<int>(x, y);
                 s.SilkWindow.Size = new Vector2D<int>(w, h);
             }
-            
+
             return true;
         }
 
@@ -537,7 +564,7 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
             { s.X = x; s.Y = y; }
             if (!flags.HasFlag(SET_WINDOW_POS_FLAGS.SWP_NOSIZE))
             { s.Width = cx; s.Height = cy; }
-            
+
             if (s.SilkWindow is object)
             {
                 if (!flags.HasFlag(SET_WINDOW_POS_FLAGS.SWP_NOMOVE))
@@ -763,17 +790,69 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
             Key.PrintScreen => 0x2C, // VK_SNAPSHOT
             Key.Insert => 0x2D, // VK_INSERT
             Key.Delete => 0x2E, // VK_DELETE
-            Key.Number0 => 0x30, Key.Number1 => 0x31, Key.Number2 => 0x32, Key.Number3 => 0x33, Key.Number4 => 0x34,
-            Key.Number5 => 0x35, Key.Number6 => 0x36, Key.Number7 => 0x37, Key.Number8 => 0x38, Key.Number9 => 0x39,
-            Key.A => 0x41, Key.B => 0x42, Key.C => 0x43, Key.D => 0x44, Key.E => 0x45, Key.F => 0x46, Key.G => 0x47,
-            Key.H => 0x48, Key.I => 0x49, Key.J => 0x4A, Key.K => 0x4B, Key.L => 0x4C, Key.M => 0x4D, Key.N => 0x4E,
-            Key.O => 0x4F, Key.P => 0x50, Key.Q => 0x51, Key.R => 0x52, Key.S => 0x53, Key.T => 0x54, Key.U => 0x55,
-            Key.V => 0x56, Key.W => 0x57, Key.X => 0x58, Key.Y => 0x59, Key.Z => 0x5A,
-            Key.F1 => 0x70, Key.F2 => 0x71, Key.F3 => 0x72, Key.F4 => 0x73, Key.F5 => 0x74, Key.F6 => 0x75,
-            Key.F7 => 0x76, Key.F8 => 0x77, Key.F9 => 0x78, Key.F10 => 0x79, Key.F11 => 0x7A, Key.F12 => 0x7B,
-            Key.Keypad0 => 0x60, Key.Keypad1 => 0x61, Key.Keypad2 => 0x62, Key.Keypad3 => 0x63, Key.Keypad4 => 0x64,
-            Key.Keypad5 => 0x65, Key.Keypad6 => 0x66, Key.Keypad7 => 0x67, Key.Keypad8 => 0x68, Key.Keypad9 => 0x69,
-            Key.KeypadMultiply => 0x6A, Key.KeypadAdd => 0x6B, Key.KeypadSubtract => 0x6D, Key.KeypadDecimal => 0x6E, Key.KeypadDivide => 0x6F,
+            Key.Number0 => 0x30,
+            Key.Number1 => 0x31,
+            Key.Number2 => 0x32,
+            Key.Number3 => 0x33,
+            Key.Number4 => 0x34,
+            Key.Number5 => 0x35,
+            Key.Number6 => 0x36,
+            Key.Number7 => 0x37,
+            Key.Number8 => 0x38,
+            Key.Number9 => 0x39,
+            Key.A => 0x41,
+            Key.B => 0x42,
+            Key.C => 0x43,
+            Key.D => 0x44,
+            Key.E => 0x45,
+            Key.F => 0x46,
+            Key.G => 0x47,
+            Key.H => 0x48,
+            Key.I => 0x49,
+            Key.J => 0x4A,
+            Key.K => 0x4B,
+            Key.L => 0x4C,
+            Key.M => 0x4D,
+            Key.N => 0x4E,
+            Key.O => 0x4F,
+            Key.P => 0x50,
+            Key.Q => 0x51,
+            Key.R => 0x52,
+            Key.S => 0x53,
+            Key.T => 0x54,
+            Key.U => 0x55,
+            Key.V => 0x56,
+            Key.W => 0x57,
+            Key.X => 0x58,
+            Key.Y => 0x59,
+            Key.Z => 0x5A,
+            Key.F1 => 0x70,
+            Key.F2 => 0x71,
+            Key.F3 => 0x72,
+            Key.F4 => 0x73,
+            Key.F5 => 0x74,
+            Key.F6 => 0x75,
+            Key.F7 => 0x76,
+            Key.F8 => 0x77,
+            Key.F9 => 0x78,
+            Key.F10 => 0x79,
+            Key.F11 => 0x7A,
+            Key.F12 => 0x7B,
+            Key.Keypad0 => 0x60,
+            Key.Keypad1 => 0x61,
+            Key.Keypad2 => 0x62,
+            Key.Keypad3 => 0x63,
+            Key.Keypad4 => 0x64,
+            Key.Keypad5 => 0x65,
+            Key.Keypad6 => 0x66,
+            Key.Keypad7 => 0x67,
+            Key.Keypad8 => 0x68,
+            Key.Keypad9 => 0x69,
+            Key.KeypadMultiply => 0x6A,
+            Key.KeypadAdd => 0x6B,
+            Key.KeypadSubtract => 0x6D,
+            Key.KeypadDecimal => 0x6E,
+            Key.KeypadDivide => 0x6F,
             _ => (uint)key
         };
     }
@@ -782,7 +861,7 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
     {
         clientPt = pt;
         HWND current = root;
-        
+
         while (true)
         {
             HWND foundChild = HWND.Null;
@@ -793,7 +872,7 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                 for (int i = 0; i < ctrl.Controls.Count; i++)
                 {
                     var child = ctrl.Controls[i];
-                    if (child.Visible && 
+                    if (child.Visible &&
                         clientPt.X >= child.Left && clientPt.X < child.Right &&
                         clientPt.Y >= child.Top && clientPt.Y < child.Bottom)
                     {
@@ -807,7 +886,7 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
 
             if (foundChild == HWND.Null)
                 break;
-            
+
             current = foundChild;
         }
 

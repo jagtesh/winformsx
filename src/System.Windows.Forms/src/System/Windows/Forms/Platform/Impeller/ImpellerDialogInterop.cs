@@ -1,10 +1,10 @@
-// Licensed to the .NET Foundation under one or more agreements.
+﻿// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 namespace System.Windows.Forms.Platform;
 
 /// <summary>
-/// Impeller dialog interop � common dialogs.
+/// Impeller dialog interop — common dialogs.
 /// Will be backed by platform-native dialogs (GTK/KDE on Linux, NSOpenPanel on macOS)
 /// or custom Impeller-rendered dialogs.
 /// </summary>

@@ -130,7 +130,7 @@ internal sealed unsafe class ImpellerGdiInterop : IGdiInterop
 
     private HDC AllocDC(HWND hWnd)
     {
-        var handle = (HDC)(nint)System.Threading.Interlocked.Increment(ref s_nextDC);
+        var handle = (HDC)(nint)Interlocked.Increment(ref s_nextDC);
         _dcs[handle] = new ImpellerDCState { Window = hWnd };
         return handle;
     }

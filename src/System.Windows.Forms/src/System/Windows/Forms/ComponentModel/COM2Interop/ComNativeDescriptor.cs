@@ -1,4 +1,4 @@
-// Licensed to the .NET Foundation under one or more agreements.
+﻿// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.ComponentModel;
@@ -22,7 +22,7 @@ namespace System.Windows.Forms.ComponentModel.Com2Interop;
 ///   <see cref="TypeDescriptor.ComObjectType"/>.
 ///  </para>
 /// </remarks>
-[RequiresUnreferencedCode(ComNativeDescriptor.ComTypeDescriptorsMessage + " Uses Com2IManagedPerPropertyBrowsingHandler which is not trim-compatible.")]
+[RequiresUnreferencedCode(ComTypeDescriptorsMessage + " Uses Com2IManagedPerPropertyBrowsingHandler which is not trim-compatible.")]
 internal sealed unsafe partial class ComNativeDescriptor : TypeDescriptionProvider
 {
     internal const string ComTypeDescriptorsMessage = "COM type descriptors are not trim-compatible.";

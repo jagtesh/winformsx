@@ -1,4 +1,4 @@
-// Licensed to the .NET Foundation under one or more agreements.
+﻿// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.ComponentModel;
@@ -604,7 +604,7 @@ public partial class ProgressBar : Control
             Rectangle rect = ClientRectangle;
             e.Graphics.FillRectangle(SystemBrushes.Control, rect);
             ControlPaint.DrawBorder(e.Graphics, rect, SystemColors.ControlDark, ButtonBorderStyle.Solid);
-            
+
             // Draw a fake progress bar fill
             Rectangle fillRect = rect;
             fillRect.Inflate(-2, -2);

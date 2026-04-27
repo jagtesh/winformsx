@@ -1,4 +1,4 @@
-// Licensed to the .NET Foundation under one or more agreements.
+﻿// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.ComponentModel;
@@ -3620,13 +3620,13 @@ public partial class ToolStrip : ScrollableControl, IArrangedElement, ISupportTo
                         Console.WriteLine($"[ToolStrip.OnPaint] Item {item.Text} bounds: {bounds}");
 
                         var state = toolstripGraphics.Save();
-                        
+
                         // We translate the graphics origin to the item's location
                         toolstripGraphics.TranslateTransform(bounds.X, bounds.Y);
-                        
+
                         // The clippingRect was relative to the ToolStrip, so offset it by the item bounds
                         clippingRect.Offset(-bounds.X, -bounds.Y);
-                        
+
                         toolstripGraphics.IntersectClip(clippingRect);
 
                         using (PaintEventArgs itemPaintEventArgs = new(toolstripGraphics, clippingRect))

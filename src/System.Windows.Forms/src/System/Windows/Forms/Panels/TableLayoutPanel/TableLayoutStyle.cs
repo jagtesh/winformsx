@@ -77,5 +77,5 @@ public abstract class TableLayoutStyle
 
     // Workaround for https://github.com/dotnet/runtime/issues/100786
     [return: DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
-    internal Type GetTypeWithConstructor() => this.GetType();
+    internal Type GetTypeWithConstructor() => GetType();
 }
