@@ -1145,7 +1145,7 @@ public static unsafe partial class ControlPaint
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        if (color.HasTransparency() || style != ButtonBorderStyle.Solid)
+        if (color.HasTransparency() || style != ButtonBorderStyle.Solid || Graphics.IsBackendActive)
         {
             // GDI+ right and bottom DrawRectangle border are 1 greater than GDI
             bounds = new Rectangle(bounds.X, bounds.Y, bounds.Width - 1, bounds.Height - 1);

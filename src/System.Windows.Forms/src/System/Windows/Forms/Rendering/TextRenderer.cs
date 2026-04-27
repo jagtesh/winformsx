@@ -596,7 +596,7 @@ public static class TextRenderer
         // Impeller path: use Graphics.MeasureString via the backend
         if (Graphics.IsBackendActive)
         {
-            return MeasureTextViaGraphics(text, font ?? SystemFonts.DefaultFont, proposedSize);
+            return MeasureTextViaGraphics(text, font ?? SystemFonts.DefaultFont, proposedSize, flags);
         }
 
         using var screen = GdiCache.GetScreenHdc();
@@ -620,7 +620,7 @@ public static class TextRenderer
         // Impeller path: use Graphics.MeasureString
         if (Graphics.IsBackendActive)
         {
-            return MeasureTextViaGraphics(text, font ?? SystemFonts.DefaultFont, proposedSize);
+            return MeasureTextViaGraphics(text, font ?? SystemFonts.DefaultFont, proposedSize, flags);
         }
 
         // This MUST come before retrieving the HDC, which locks the Graphics object
@@ -636,11 +636,17 @@ public static class TextRenderer
     /// <summary>
     ///  Measures text using the Impeller backend's Graphics.MeasureString.
     /// </summary>
-    private static Size MeasureTextViaGraphics(ReadOnlySpan<char> text, Font font, Size proposedSize)
+    private static Size MeasureTextViaGraphics(ReadOnlySpan<char> text, Font font, Size proposedSize, TextFormatFlags flags)
     {
         // Use a temporary Graphics backed by the Impeller backend
         using var g = Graphics.FromHwndInternal(IntPtr.Zero);
         using var sf = new StringFormat(StringFormat.GenericTypographic);
+
+        if (flags.HasFlag(TextFormatFlags.SingleLine) || !flags.HasFlag(TextFormatFlags.WordBreak))
+        {
+            sf.FormatFlags |= StringFormatFlags.NoWrap;
+        }
+
         var layoutArea = new SizeF(
             proposedSize.Width > 0 ? proposedSize.Width : 10000f,
             proposedSize.Height > 0 ? proposedSize.Height : 10000f);

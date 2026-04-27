@@ -1383,6 +1383,17 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     {
         ArgumentNullException.ThrowIfNull(brush);
 
+        var backend = _backend;
+        if (backend is object && brush is SolidBrush solidBrush)
+        {
+            foreach (var rect in rects)
+            {
+                backend.FillRect(rect.X, rect.Y, rect.Width, rect.Height, solidBrush.Color);
+            }
+
+            return;
+        }
+
         fixed (RectangleF* r = rects)
         {
             CheckErrorStatus(PInvoke.GdipFillRectangles(NativeGraphics, brush.NativeBrush, (RectF*)r, rects.Length));
@@ -1404,6 +1415,17 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     void FillRectangles(Brush brush, params ReadOnlySpan<Rectangle> rects)
     {
         ArgumentNullException.ThrowIfNull(brush);
+
+        var backend = _backend;
+        if (backend is object && brush is SolidBrush solidBrush)
+        {
+            foreach (var rect in rects)
+            {
+                backend.FillRect(rect.X, rect.Y, rect.Width, rect.Height, solidBrush.Color);
+            }
+
+            return;
+        }
 
         fixed (Rectangle* r = rects)
         {
@@ -1866,8 +1888,23 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
             ContentAlignment alignment = ContentAlignment.TopLeft;
             if (format is not null)
             {
+                // Map Horizontal Alignment
                 if (format.Alignment == StringAlignment.Center) alignment = ContentAlignment.TopCenter;
                 else if (format.Alignment == StringAlignment.Far) alignment = ContentAlignment.TopRight;
+
+                // Map Vertical Alignment
+                if (format.LineAlignment == StringAlignment.Center)
+                {
+                    if (alignment == ContentAlignment.TopLeft) alignment = ContentAlignment.MiddleLeft;
+                    else if (alignment == ContentAlignment.TopCenter) alignment = ContentAlignment.MiddleCenter;
+                    else if (alignment == ContentAlignment.TopRight) alignment = ContentAlignment.MiddleRight;
+                }
+                else if (format.LineAlignment == StringAlignment.Far)
+                {
+                    if (alignment == ContentAlignment.TopLeft) alignment = ContentAlignment.BottomLeft;
+                    else if (alignment == ContentAlignment.TopCenter) alignment = ContentAlignment.BottomCenter;
+                    else if (alignment == ContentAlignment.TopRight) alignment = ContentAlignment.BottomRight;
+                }
             }
 
             _backend.DrawStringAligned(s.ToString(), layoutRectangle, alignment, color, font.FontFamily.Name, fontSizePixels, bold, italic);
@@ -2923,6 +2960,15 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     public void DrawLine(Pen pen, float x1, float y1, float x2, float y2)
     {
         ArgumentNullException.ThrowIfNull(pen);
+        
+        if (_backend is not null)
+        {
+            Color color = pen.Color;
+            float width = pen.Width > 0 ? pen.Width : 1f;
+            _backend.StrokeLine(x1, y1, x2, y2, color, width);
+            return;
+        }
+
         CheckErrorStatus(PInvoke.GdipDrawLine(NativeGraphics, pen.NativePen, x1, y1, x2, y2));
         GC.KeepAlive(pen);
     }

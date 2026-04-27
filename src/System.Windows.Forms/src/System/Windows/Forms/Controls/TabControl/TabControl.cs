@@ -82,7 +82,7 @@ public partial class TabControl : Control
         _tabControlState = new BitVector32(0x00000000);
 
         _tabCollection = new TabPageCollection(this);
-        SetStyle(ControlStyles.UserPaint, false);
+        SetStyle(ControlStyles.UserPaint, Graphics.IsBackendActive);
 #pragma warning disable WFO5001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
         SetStyle(ControlStyles.ApplyThemingImplicitly, true);
 #pragma warning restore WFO5001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
@@ -951,15 +951,36 @@ public partial class TabControl : Control
 
         if (Graphics.IsBackendActive)
         {
+            // Fill the control's background
+            using (SolidBrush backBrush = new SolidBrush(BackColor))
+            {
+                e.Graphics.FillRectangle(backBrush, ClientRectangle);
+            }
+
             Rectangle displayRect = DisplayRectangle;
 
-            // Draw a subtle border around the display area
+            // Draw a subtle 3D border around the display area
             if (TabCount > 0)
             {
                 Rectangle borderRect = displayRect;
                 borderRect.Inflate(2, 2);
-                using Pen borderPen = new Pen(SystemColors.ControlDark);
-                e.Graphics.DrawRectangle(borderPen, borderRect);
+                
+                using Pen lightPen = new Pen(SystemColors.ControlLightLight);
+                using Pen shadowPen = new Pen(SystemColors.ControlDark);
+                using Pen darkPen = new Pen(SystemColors.ControlDarkDark);
+
+                // Left and top
+                e.Graphics.DrawLine(lightPen, borderRect.Left, borderRect.Bottom, borderRect.Left, borderRect.Top);
+                // The top line goes from the right edge of the selected tab to the right end, but drawing the whole line is fine since the selected tab will overlap it
+                e.Graphics.DrawLine(lightPen, borderRect.Left, borderRect.Top, borderRect.Right, borderRect.Top);
+                
+                // Right and bottom (shadow)
+                e.Graphics.DrawLine(shadowPen, borderRect.Right - 1, borderRect.Top + 1, borderRect.Right - 1, borderRect.Bottom - 1);
+                e.Graphics.DrawLine(shadowPen, borderRect.Left + 1, borderRect.Bottom - 1, borderRect.Right - 1, borderRect.Bottom - 1);
+                
+                // Right and bottom (dark edge)
+                e.Graphics.DrawLine(darkPen, borderRect.Right, borderRect.Top, borderRect.Right, borderRect.Bottom);
+                e.Graphics.DrawLine(darkPen, borderRect.Left, borderRect.Bottom, borderRect.Right, borderRect.Bottom);
             }
 
             for (int i = 0; i < TabCount; i++)
@@ -984,11 +1005,35 @@ public partial class TabControl : Control
                     // Draw the background of the tab
                     Color tabColor = isSelected ? SystemColors.ControlLightLight : SystemColors.Control;
                     using SolidBrush tabBrush = new SolidBrush(tabColor);
+                    
+                    // The selected tab should be slightly taller
+                    if (isSelected)
+                    {
+                        bounds.Y -= 2;
+                        bounds.Height += 2;
+                    }
+                    
                     e.Graphics.FillRectangle(tabBrush, bounds);
 
-                    // Draw tab border
-                    using Pen tabBorder = new Pen(SystemColors.ControlDark);
-                    e.Graphics.DrawRectangle(tabBorder, bounds);
+                    // Draw classic 3D tab borders
+                    using Pen lightPen = new Pen(SystemColors.ControlLightLight);
+                    using Pen shadowPen = new Pen(SystemColors.ControlDark);
+                    using Pen darkPen = new Pen(SystemColors.ControlDarkDark);
+
+                    // Left highlight
+                    e.Graphics.DrawLine(lightPen, bounds.Left, bounds.Bottom, bounds.Left, bounds.Top + 1);
+                    // Top highlight
+                    e.Graphics.DrawLine(lightPen, bounds.Left + 1, bounds.Top, bounds.Right - 1, bounds.Top);
+                    // Right shadow
+                    e.Graphics.DrawLine(shadowPen, bounds.Right - 1, bounds.Top + 1, bounds.Right - 1, bounds.Bottom);
+                    // Right dark edge
+                    e.Graphics.DrawLine(darkPen, bounds.Right, bounds.Top + 1, bounds.Right, bounds.Bottom);
+
+                    // If not selected, close the bottom so it sits "behind" the main display area
+                    if (!isSelected)
+                    {
+                        e.Graphics.DrawLine(shadowPen, bounds.Left, bounds.Bottom, bounds.Right, bounds.Bottom);
+                    }
 
                     // Draw the text
                     TextFormatFlags flags = TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine;

@@ -448,4 +448,7 @@ public static partial class NativeMethods
 
     [LibraryImport(ImpellerLib, EntryPoint = "ImpellerParagraphGetLongestLineWidth")]
     public static partial float ImpellerParagraphGetLongestLineWidth(nint paragraph);
+
+    [LibraryImport(ImpellerLib, EntryPoint = "ImpellerParagraphGetMaxIntrinsicWidth")]
+    public static partial float ImpellerParagraphGetMaxIntrinsicWidth(nint paragraph);
 }

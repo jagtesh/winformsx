@@ -389,7 +389,7 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend
                     return SizeF.Empty;
                 try
                 {
-                    float width = NativeMethods.ImpellerParagraphGetLongestLineWidth(paragraph);
+                    float width = NativeMethods.ImpellerParagraphGetMaxIntrinsicWidth(paragraph);
                     float height = NativeMethods.ImpellerParagraphGetHeight(paragraph);
                     return new SizeF(width, height);
                 }
