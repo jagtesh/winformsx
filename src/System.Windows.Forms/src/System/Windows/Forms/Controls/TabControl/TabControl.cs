@@ -687,7 +687,7 @@ public partial class TabControl : Control
     [SRDescription(nameof(SR.selectedIndexDescr))]
     public int SelectedIndex
     {
-        get => IsHandleCreated ? (int)PInvoke.SendMessage(this, PInvoke.TCM_GETCURSEL) : _selectedIndex;
+        get => (IsHandleCreated && !Graphics.IsBackendActive) ? (int)PInvoke.SendMessage(this, PInvoke.TCM_GETCURSEL) : _selectedIndex;
         set
         {
             ArgumentOutOfRangeException.ThrowIfLessThan(value, -1);
@@ -715,7 +715,14 @@ public partial class TabControl : Control
                         }
                     }
 
-                    PInvoke.SendMessage(this, PInvoke.TCM_SETCURSEL, (WPARAM)value);
+                    if (Graphics.IsBackendActive)
+                    {
+                        _selectedIndex = value;
+                    }
+                    else
+                    {
+                        PInvoke.SendMessage(this, PInvoke.TCM_SETCURSEL, (WPARAM)value);
+                    }
 
                     if (!GetState(State.FromCreateHandles) && !GetState(State.SelectFirstControl))
                     {
