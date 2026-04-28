@@ -4,8 +4,7 @@
 namespace Windows.Win32.Graphics.Gdi;
 
 /// <summary>
-///  Helper to scope lifetime of an HDC retrieved via CreateDC/CreateCompatibleDC.
-///  Deletes the HDC (if any) when disposed.
+///  Helper to scope lifetime of a PAL-managed HDC placeholder.
 /// </summary>
 /// <remarks>
 ///  <para>
@@ -22,7 +21,7 @@ internal readonly ref struct CreateDcScope
     public HDC HDC { get; }
 
     /// <summary>
-    ///  Creates a compatible HDC for <paramref name="hdc"/> using <see cref="PInvokeCore.CreateCompatibleDC(HDC)"/>.
+    ///  Creates a PAL-managed compatible HDC placeholder for <paramref name="hdc"/>.
     /// </summary>
     /// <remarks>
     ///  <para>
@@ -31,7 +30,7 @@ internal readonly ref struct CreateDcScope
     /// </remarks>
     public CreateDcScope(HDC hdc)
     {
-        HDC = PInvokeCore.CreateCompatibleDC(hdc);
+        HDC = CreateSyntheticHdc();
     }
 
     public unsafe CreateDcScope(
@@ -40,13 +39,7 @@ internal readonly ref struct CreateDcScope
         DEVMODEW* lpInitData = default,
         bool informationOnly = true)
     {
-        fixed (char* driver = driverName)
-        fixed (char* device = deviceName)
-        {
-            HDC = informationOnly
-                ? PInvokeCore.CreateICW(driver, device, null, lpInitData)
-                : PInvokeCore.CreateDCW(driver, device, null, lpInitData);
-        }
+        HDC = CreateSyntheticHdc();
     }
 
     public static implicit operator HDC(in CreateDcScope scope) => scope.HDC;
@@ -56,13 +49,10 @@ internal readonly ref struct CreateDcScope
 
     public bool IsNull => HDC.IsNull;
 
+    private static HDC CreateSyntheticHdc() => (HDC)(nint)1;
+
     public void Dispose()
     {
-        if (!HDC.IsNull)
-        {
-            PInvokeCore.DeleteDC(HDC);
-        }
-
 #if DEBUG
         GC.SuppressFinalize(this);
 #endif

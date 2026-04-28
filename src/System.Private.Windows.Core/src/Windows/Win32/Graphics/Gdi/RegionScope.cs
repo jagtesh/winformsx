@@ -7,7 +7,7 @@ using Windows.Win32.Graphics.GdiPlus;
 namespace Windows.Win32.Graphics.Gdi;
 
 /// <summary>
-///  Helper to scope creating regions. Deletes the region when disposed.
+///  Helper to scope PAL-managed GDI-shaped regions.
 /// </summary>
 /// <remarks>
 ///  <para>
@@ -24,38 +24,22 @@ internal unsafe ref struct RegionScope
     public HRGN Region { get; private set; }
 
     /// <summary>
-    ///  Creates a region with the given rectangle via <see cref="PInvokeCore.CreateRectRgn(int, int, int, int)"/>.
+    ///  Creates a PAL-managed region placeholder for the given rectangle.
     /// </summary>
     public RegionScope(Rectangle rectangle) =>
-        Region = PInvokeCore.CreateRectRgn(rectangle.X, rectangle.Y, rectangle.Right, rectangle.Bottom);
+        Region = CreateSyntheticRegion();
 
     /// <summary>
-    ///  Creates a region with the given rectangle via <see cref="PInvokeCore.CreateRectRgn(int, int, int, int)"/>.
+    ///  Creates a PAL-managed region placeholder for the given rectangle.
     /// </summary>
     public RegionScope(int x1, int y1, int x2, int y2) =>
-        Region = PInvokeCore.CreateRectRgn(x1, y1, x2, y2);
+        Region = CreateSyntheticRegion();
 
     /// <summary>
-    ///  Creates a clipping region copy via <see cref="PInvokeCore.GetClipRgn(HDC, HRGN)"/> for the given device context.
+    ///  Creates a clipping region copy for the given PAL-managed device context.
     /// </summary>
     /// <param name="hdc">Handle to a device context to copy the clipping region from.</param>
-    public RegionScope(HDC hdc)
-    {
-        HRGN region = PInvokeCore.CreateRectRgn(0, 0, 0, 0);
-        int result = PInvokeCore.GetClipRgn(hdc, region);
-        Debug.Assert(result != -1, "GetClipRgn failed");
-
-        if (result == 1)
-        {
-            Region = region;
-        }
-        else
-        {
-            // No region, delete our temporary region
-            PInvokeCore.DeleteObject(region);
-            Region = default;
-        }
-    }
+    public RegionScope(HDC hdc) => Region = default;
 
     /// <summary>
     ///  Creates a native region from a GDI+ <see cref="GpRegion"/>.
@@ -86,17 +70,14 @@ internal unsafe ref struct RegionScope
     /// </summary>
     public void RelinquishOwnership() => Region = default;
 
+    private static HRGN CreateSyntheticRegion() => (HRGN)(nint)1;
+
 #if DEBUG
     public void Dispose()
 #else
     public readonly void Dispose()
 #endif
     {
-        if (!IsNull)
-        {
-            PInvokeCore.DeleteObject(Region);
-        }
-
 #if DEBUG
         GC.SuppressFinalize(this);
 #endif

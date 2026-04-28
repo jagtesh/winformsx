@@ -4,7 +4,7 @@
 namespace Windows.Win32;
 
 /// <summary>
-///  Helper to scope lifetime of a GDI object. Deletes the given object (if any) when disposed.
+///  Helper to scope lifetime of a PAL-managed GDI-shaped object.
 /// </summary>
 /// <remarks>
 ///  <para>
@@ -27,11 +27,6 @@ internal readonly ref struct ObjectScope
 
     public void Dispose()
     {
-        if (!HGDIOBJ.IsNull)
-        {
-            PInvokeCore.DeleteObject(HGDIOBJ);
-        }
-
         DisposalTracking.SuppressFinalize(this!);
     }
 }

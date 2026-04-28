@@ -4,8 +4,7 @@
 namespace Windows.Win32.Graphics.Gdi;
 
 /// <summary>
-///  Helper to scope lifetime of a <see cref="Gdi.HBITMAP"/> created via <see cref="PInvokeCore.CreateBitmap"/>
-///  Deletes the <see cref="Gdi.HBITMAP"/> (if any) when disposed.
+///  Helper to scope lifetime of a PAL-managed <see cref="Gdi.HBITMAP"/> placeholder.
 /// </summary>
 /// <remarks>
 ///  <para>
@@ -22,15 +21,15 @@ internal readonly ref struct CreateBitmapScope
     public HBITMAP HBITMAP { get; }
 
     /// <summary>
-    ///  Creates a bitmap using <see cref="PInvokeCore.CreateBitmap"/>
+    ///  Creates a PAL-managed bitmap placeholder.
     /// </summary>
     public unsafe CreateBitmapScope(int nWidth, int nHeight, uint nPlanes, uint nBitCount, void* lpvBits) =>
-        HBITMAP = PInvokeCore.CreateBitmap(nWidth, nHeight, nPlanes, nBitCount, lpvBits);
+        HBITMAP = CreateSyntheticBitmap();
 
     /// <summary>
-    ///  Creates a bitmap compatible with the given <see cref="HDC"/> via <see cref="PInvokeCore.CreateCompatibleBitmap(HDC, int, int)"/>
+    ///  Creates a PAL-managed bitmap placeholder compatible with the given <see cref="HDC"/>.
     /// </summary>
-    public CreateBitmapScope(HDC hdc, int cx, int cy) => HBITMAP = PInvokeCore.CreateCompatibleBitmap(hdc, cx, cy);
+    public CreateBitmapScope(HDC hdc, int cx, int cy) => HBITMAP = CreateSyntheticBitmap();
 
     public static implicit operator HBITMAP(in CreateBitmapScope scope) => scope.HBITMAP;
     public static implicit operator HGDIOBJ(in CreateBitmapScope scope) => scope.HBITMAP;
@@ -38,13 +37,10 @@ internal readonly ref struct CreateBitmapScope
 
     public bool IsNull => HBITMAP.IsNull;
 
+    private static HBITMAP CreateSyntheticBitmap() => (HBITMAP)(nint)1;
+
     public void Dispose()
     {
-        if (!HBITMAP.IsNull)
-        {
-            PInvokeCore.DeleteObject(HBITMAP);
-        }
-
 #if DEBUG
         GC.SuppressFinalize(this);
 #endif

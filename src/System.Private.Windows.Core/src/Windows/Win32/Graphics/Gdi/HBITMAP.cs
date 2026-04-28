@@ -7,9 +7,5 @@ internal readonly partial struct HBITMAP : IDisposable
 {
     public void Dispose()
     {
-        if (!IsNull)
-        {
-            PInvokeCore.DeleteObject(this);
-        }
     }
 }

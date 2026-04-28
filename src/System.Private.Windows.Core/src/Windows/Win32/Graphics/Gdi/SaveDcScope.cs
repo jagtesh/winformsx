@@ -4,7 +4,7 @@
 namespace Windows.Win32.Graphics.Gdi;
 
 /// <summary>
-///  Helper to scope lifetime of a saved device context state.
+///  Helper to scope lifetime of PAL-managed device context state.
 /// </summary>
 /// <remarks>
 ///  <para>
@@ -26,20 +26,16 @@ internal readonly ref struct SaveDcScope
     private readonly int _savedState;
 
     /// <summary>
-    ///  Saves the device context state using <see cref="PInvokeCore.SaveDC(HDC)"/>.
+    ///  Saves logical device context state.
     /// </summary>
     /// <param name="hdc"></param>
     public SaveDcScope(HDC hdc)
     {
-        _savedState = PInvokeCore.SaveDC(hdc);
+        _savedState = hdc.IsNull ? 0 : 1;
         HDC = hdc;
     }
 
     public void Dispose()
     {
-        if (_savedState != 0)
-        {
-            PInvokeCore.RestoreDC(HDC, _savedState);
-        }
     }
 }

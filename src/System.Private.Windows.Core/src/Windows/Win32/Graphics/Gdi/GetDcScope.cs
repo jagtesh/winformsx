@@ -4,9 +4,8 @@
 namespace Windows.Win32.Graphics.Gdi;
 
 /// <summary>
-///  Helper to scope lifetime of an <see cref="Gdi.HDC"/> retrieved via <see cref="PInvokeCore.GetDC(HWND)"/> and
-///  <see cref="PInvokeCore.GetDCEx(HWND, HRGN, GET_DCX_FLAGS)"/>. Releases the <see cref="Gdi.HDC"/> (if any)
-///  when disposed.
+///  Helper to scope lifetime of a PAL-managed <see cref="Gdi.HDC"/>. Releases the <see cref="Gdi.HDC"/> (if any)
+///  through the PAL callback when disposed.
 /// </summary>
 /// <remarks>
 ///  <para>
@@ -26,11 +25,11 @@ internal readonly ref struct GetDcScope
     public GetDcScope(HWND hwnd)
     {
         HWND = hwnd;
-        HDC = GetDCCallback is object ? GetDCCallback(hwnd) : PInvokeCore.GetDC(hwnd);
+        HDC = GetDCCallback is object ? GetDCCallback(hwnd) : CreateSyntheticHdc();
     }
 
     /// <summary>
-    ///  Creates a <see cref="Gdi.HDC"/> using <see cref="PInvokeCore.GetDCEx(HWND, HRGN, GET_DCX_FLAGS)"/>.
+    ///  Creates a PAL-managed <see cref="Gdi.HDC"/>.
     /// </summary>
     /// <remarks>
     ///  <para>
@@ -44,7 +43,7 @@ internal readonly ref struct GetDcScope
     public GetDcScope(HWND hwnd, HRGN hrgnClip, GET_DCX_FLAGS flags)
     {
         HWND = hwnd;
-        HDC = GetDCExCallback is object ? GetDCExCallback(hwnd, hrgnClip, flags) : PInvokeCore.GetDCEx(hwnd, hrgnClip, flags);
+        HDC = GetDCExCallback is object ? GetDCExCallback(hwnd, hrgnClip, flags) : CreateSyntheticHdc();
     }
 
     /// <summary>
@@ -52,8 +51,7 @@ internal readonly ref struct GetDcScope
     /// </summary>
     /// <remarks>
     ///   <para>
-    ///    <see cref="PInvokeCore.CreateDCW(PCWSTR, PCWSTR, PCWSTR, DEVMODEW*)" /> is the
-    ///    API to get the DC for the entire desktop.
+    ///    The screen DC is a synthetic compatibility handle in WinFormsX.
     ///   </para>
     /// </remarks>
     public static GetDcScope ScreenDC => new(HWND.Null);
@@ -62,6 +60,8 @@ internal readonly ref struct GetDcScope
 
     public static implicit operator nint(in GetDcScope scope) => scope.HDC;
     public static implicit operator HDC(in GetDcScope scope) => scope.HDC;
+
+    private static HDC CreateSyntheticHdc() => (HDC)(nint)1;
 
     public void Dispose()
     {
@@ -73,7 +73,7 @@ internal readonly ref struct GetDcScope
             }
             else
             {
-                PInvokeCore.ReleaseDC(HWND, HDC);
+                // PAL-managed synthetic HDCs have no native lifetime.
             }
         }
     }

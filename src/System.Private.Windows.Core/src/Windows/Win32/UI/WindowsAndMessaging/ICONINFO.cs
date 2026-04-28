@@ -9,13 +9,11 @@ internal partial struct ICONINFO : IDisposable
     {
         if (!hbmMask.IsNull)
         {
-            PInvokeCore.DeleteObject((HGDIOBJ)hbmMask.Value);
             hbmMask = default;
         }
 
         if (!hbmColor.IsNull)
         {
-            PInvokeCore.DeleteObject((HGDIOBJ)hbmColor.Value);
             hbmColor = default;
         }
     }

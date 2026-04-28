@@ -4,7 +4,7 @@
 namespace Windows.Win32.Graphics.Gdi;
 
 /// <summary>
-///  Helper to scope selecting a GDI object into an <see cref="HDC"/>. Restores the original
+///  Helper to scope selecting a GDI-shaped object into an <see cref="HDC"/>. Restores the original
 ///  object into the <see cref="HDC"/> when disposed.
 /// </summary>
 /// <remarks>
@@ -23,8 +23,7 @@ internal readonly ref struct SelectObjectScope
     public HGDIOBJ PreviousObject { get; }
 
     /// <summary>
-    ///  Selects <paramref name="object"/> into the given <paramref name="hdc"/> using
-    ///  <see cref="PInvokeCore.SelectObject(HDC, HGDIOBJ)"/>.
+    ///  Selects <paramref name="object"/> into the given PAL-managed <paramref name="hdc"/>.
     /// </summary>
     public SelectObjectScope(HDC hdc, HGDIOBJ @object)
     {
@@ -38,17 +37,12 @@ internal readonly ref struct SelectObjectScope
         else
         {
             _hdc = hdc;
-            PreviousObject = PInvokeCore.SelectObject(hdc, @object);
+            PreviousObject = default;
         }
     }
 
     public void Dispose()
     {
-        if (!_hdc.IsNull)
-        {
-            PInvokeCore.SelectObject(_hdc, PreviousObject);
-        }
-
 #if DEBUG
         GC.SuppressFinalize(this);
 #endif

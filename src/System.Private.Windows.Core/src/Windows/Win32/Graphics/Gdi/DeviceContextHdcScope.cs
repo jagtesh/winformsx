@@ -11,7 +11,7 @@ namespace Windows.Win32.Graphics.Gdi;
 ///   the <see cref="HDC"/> when disposed, unlocking the parent <see cref="IHdcContext"/> object.
 ///  </para>
 ///  <para>
-///   Also saves and restores the state of the HDC.
+///   Also scopes logical HDC state for PAL-backed drawing.
 ///  </para>
 /// </summary>
 /// <remarks>
@@ -29,20 +29,12 @@ internal readonly ref struct DeviceContextHdcScope
     public IHdcContext DeviceContext { get; }
     public HDC HDC { get; }
 
-    private readonly int _savedHdcState;
-
     /// <summary>
     ///  Gets the <see cref="HDC"/> from the given <paramref name="deviceContext"/>.
     /// </summary>
     /// <remarks>
     ///  <para>
-    ///   When a <see cref="T:System.Drawing.Graphics"/> object is created from a <see cref="Gdi.HDC"/> the clipping region and
-    ///   the viewport origin are applied (<see cref="PInvokeCore.GetViewportExtEx(HDC, SIZE*)"/>). The clipping
-    ///   region isn't reflected in <see cref="P:System.Drawing.Graphics.Clip"/>, which is combined with the HDC HRegion.
-    ///  </para>
-    ///  <para>
-    ///   The Graphics object saves and restores DC state when performing operations that would modify the DC to
-    ///   maintain the DC in its original or returned state after <see cref="M:System.Drawing.Graphics.ReleaseHdc()"/>.
+    ///   PAL-backed HDCs are synthetic compatibility handles. State lives in the managed drawing objects.
     ///  </para>
     /// </remarks>
     /// <param name="applyGraphicsState">
@@ -89,8 +81,6 @@ internal readonly ref struct DeviceContextHdcScope
 #endif
 
         DeviceContext = deviceContext;
-        _savedHdcState = 0;
-
         HDC = default;
 
         IGraphicsHdcProvider? provider = deviceContext as IGraphicsHdcProvider;
@@ -145,14 +135,13 @@ internal readonly ref struct DeviceContextHdcScope
         {
             HDC = HDC.IsNull ? DeviceContext.GetHdc() : HDC;
             ValidateHDC();
-            _savedHdcState = saveHdcState ? PInvokeCore.SaveDC(HDC) : 0;
             return;
         }
 
         // We have a Graphics object (either directly passed in or given to us by IGraphicsHdcProvider)
         // that needs properties applied.
 
-        (HDC, _savedHdcState) = graphics.GetHdc(applyGraphicsState, saveHdcState);
+        (HDC, _) = graphics.GetHdc(applyGraphicsState, saveHdcState);
     }
 
     public static implicit operator HDC(in DeviceContextHdcScope scope) => scope.HDC;
@@ -170,30 +159,10 @@ internal readonly ref struct DeviceContextHdcScope
 #endif
             throw new InvalidOperationException("Null HDC");
         }
-
-        OBJ_TYPE type = (OBJ_TYPE)PInvokeCore.GetObjectType(HDC);
-        switch (type)
-        {
-            case OBJ_TYPE.OBJ_DC:
-            case OBJ_TYPE.OBJ_MEMDC:
-            case OBJ_TYPE.OBJ_METADC:
-            case OBJ_TYPE.OBJ_ENHMETADC:
-                break;
-            default:
-#if DEBUG
-                DisposalTracking.SuppressFinalize(this!);
-#endif
-                throw new InvalidOperationException($"Invalid handle ({type})");
-        }
     }
 
     public void Dispose()
     {
-        if (_savedHdcState != 0)
-        {
-            PInvokeCore.RestoreDC(HDC, _savedHdcState);
-        }
-
         // Note that Graphics keeps track of the HDC it passes back, so we don't need to pass it back in
         if (DeviceContext is not IGraphicsHdcProvider)
         {

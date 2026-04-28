@@ -30,7 +30,6 @@ internal sealed class HdcHandle : IDisposable, IHandle<HDC>
     {
         if (!Handle.IsNull)
         {
-            PInvokeCore.DeleteDC(Handle);
             Handle = default;
         }
 
