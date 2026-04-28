@@ -19,6 +19,7 @@ namespace System.Drawing;
 public sealed unsafe class Bitmap : Image, IPointer<GpBitmap>
 {
     private static readonly Color s_defaultTransparentColor = Color.LightGray;
+    private int[]? _pixels;
 
     private Bitmap() { }
 
@@ -87,25 +88,23 @@ public sealed unsafe class Bitmap : Image, IPointer<GpBitmap>
     public Bitmap(int width, int height, Graphics g)
     {
         ArgumentNullException.ThrowIfNull(g);
-
-        GpBitmap* bitmap;
-        PInvoke.GdipCreateBitmapFromGraphics(width, height, g.NativeGraphics, &bitmap).ThrowIfFailed();
-        SetNativeImage((GpImage*)bitmap);
+        InitializeManagedBitmap(width, height, PixelFormat.Format32bppArgb);
         GC.KeepAlive(g);
     }
 
     public Bitmap(int width, int height, int stride, PixelFormat format, IntPtr scan0)
     {
-        GpBitmap* bitmap;
-        PInvoke.GdipCreateBitmapFromScan0(width, height, stride, (int)format, (byte*)scan0, &bitmap).ThrowIfFailed();
-        SetNativeImage((GpImage*)bitmap);
+        InitializeManagedBitmap(width, height, format);
+
+        if (scan0 != IntPtr.Zero && _pixels is not null)
+        {
+            CopyScan0(width, height, stride, scan0);
+        }
     }
 
     public Bitmap(int width, int height, PixelFormat format)
     {
-        GpBitmap* bitmap;
-        PInvoke.GdipCreateBitmapFromScan0(width, height, 0, (int)format, null, &bitmap).ThrowIfFailed();
-        SetNativeImage((GpImage*)bitmap);
+        InitializeManagedBitmap(width, height, format);
     }
 
     public Bitmap(Image original) : this(original, original.Width, original.Height)
@@ -129,6 +128,34 @@ public sealed unsafe class Bitmap : Image, IPointer<GpBitmap>
     }
 
     nint IPointer<GpBitmap>.Pointer => (nint)((Image)this).Pointer();
+
+    private void InitializeManagedBitmap(int width, int height, PixelFormat format)
+    {
+        SetManagedImage(width, height, format);
+        _pixels = new int[checked(width * height)];
+        Array.Fill(_pixels, Color.Black.ToArgb());
+    }
+
+    private void CopyScan0(int width, int height, int stride, IntPtr scan0)
+    {
+        int bytesPerPixel = Image.GetPixelFormatSize(PixelFormat) / 8;
+        if (bytesPerPixel < 3)
+        {
+            return;
+        }
+
+        byte* source = (byte*)scan0;
+        for (int y = 0; y < height; y++)
+        {
+            byte* row = source + (y * stride);
+            for (int x = 0; x < width; x++)
+            {
+                byte* pixel = row + (x * bytesPerPixel);
+                int alpha = bytesPerPixel >= 4 ? pixel[3] : 255;
+                _pixels![y * width + x] = Color.FromArgb(alpha, pixel[2], pixel[1], pixel[0]).ToArgb();
+            }
+        }
+    }
 
     public static Bitmap FromHicon(IntPtr hicon)
     {
@@ -293,6 +320,9 @@ public sealed unsafe class Bitmap : Image, IPointer<GpBitmap>
 
     public Color GetPixel(int x, int y)
     {
+        ThrowIfDisposed();
+        ThrowIfGetSetPixelUnsupported();
+
         if (x < 0 || x >= Width)
         {
             throw new ArgumentOutOfRangeException(nameof(x), SR.ValidRangeX);
@@ -303,14 +333,16 @@ public sealed unsafe class Bitmap : Image, IPointer<GpBitmap>
             throw new ArgumentOutOfRangeException(nameof(y), SR.ValidRangeY);
         }
 
-        uint color;
-        PInvoke.GdipBitmapGetPixel(this.Pointer(), x, y, &color).ThrowIfFailed();
-        GC.KeepAlive(this);
-        return Color.FromArgb((int)color);
+        return _pixels is null
+            ? throw new NotSupportedException($"{nameof(GetPixel)} requires a managed bitmap backing store.")
+            : Color.FromArgb(_pixels[(y * Width) + x]);
     }
 
     public void SetPixel(int x, int y, Color color)
     {
+        ThrowIfDisposed();
+        ThrowIfGetSetPixelUnsupported();
+
         if ((PixelFormat & PixelFormat.Indexed) != 0)
         {
             throw new InvalidOperationException(SR.GdiplusCannotSetPixelFromIndexedPixelFormat);
@@ -326,14 +358,26 @@ public sealed unsafe class Bitmap : Image, IPointer<GpBitmap>
             throw new ArgumentOutOfRangeException(nameof(y), SR.ValidRangeY);
         }
 
-        PInvoke.GdipBitmapSetPixel(this.Pointer(), x, y, (uint)color.ToArgb()).ThrowIfFailed();
-        GC.KeepAlive(this);
+        if (_pixels is null)
+        {
+            throw new NotSupportedException($"{nameof(SetPixel)} requires a managed bitmap backing store.");
+        }
+
+        _pixels[(y * Width) + x] = color.ToArgb();
     }
 
     public void SetResolution(float xDpi, float yDpi)
     {
-        PInvoke.GdipBitmapSetResolution(this.Pointer(), xDpi, yDpi).ThrowIfFailed();
-        GC.KeepAlive(this);
+        ThrowIfDisposed();
+        SetManagedImage(Width, Height, PixelFormat, xDpi, yDpi);
+    }
+
+    private void ThrowIfGetSetPixelUnsupported()
+    {
+        if (PixelFormat == PixelFormat.Format16bppGrayScale)
+        {
+            throw new ArgumentException(SR.GdiplusInvalidParameter);
+        }
     }
 
     public Bitmap Clone(Rectangle rect, PixelFormat format)

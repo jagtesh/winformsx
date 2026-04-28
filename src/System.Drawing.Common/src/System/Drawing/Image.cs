@@ -36,6 +36,13 @@ public abstract unsafe class Image : MarshalByRefObject, IImage, IDisposable, IC
 
     [NonSerialized]
     private GpImage* _nativeImage;
+    private int _width;
+    private int _height;
+    private float _horizontalResolution = 96;
+    private float _verticalResolution = 96;
+    private Imaging.PixelFormat _pixelFormat = Imaging.PixelFormat.Format32bppArgb;
+    private Imaging.ImageFormat _rawFormat = Imaging.ImageFormat.MemoryBmp;
+    private bool _disposed;
 
     private object? _userData;
 
@@ -198,6 +205,11 @@ public abstract unsafe class Image : MarshalByRefObject, IImage, IDisposable, IC
     /// </summary>
     public object Clone()
     {
+        if (_nativeImage is null)
+        {
+            return MemberwiseClone();
+        }
+
         GpImage* cloneImage;
         PInvoke.GdipCloneImage(_nativeImage, &cloneImage).ThrowIfFailed();
         ValidateImage(cloneImage);
@@ -207,6 +219,8 @@ public abstract unsafe class Image : MarshalByRefObject, IImage, IDisposable, IC
 
     protected virtual void Dispose(bool disposing)
     {
+        _disposed = true;
+
         if (_nativeImage is null)
         {
             return;
@@ -408,6 +422,11 @@ public abstract unsafe class Image : MarshalByRefObject, IImage, IDisposable, IC
     {
         get
         {
+            if (_nativeImage is null)
+            {
+                return new SizeF(_width, _height);
+            }
+
             float width;
             float height;
 
@@ -432,6 +451,11 @@ public abstract unsafe class Image : MarshalByRefObject, IImage, IDisposable, IC
     {
         get
         {
+            if (_nativeImage is null)
+            {
+                return _width;
+            }
+
             uint width;
             PInvoke.GdipGetImageWidth(_nativeImage, &width).ThrowIfFailed();
             GC.KeepAlive(this);
@@ -449,6 +473,11 @@ public abstract unsafe class Image : MarshalByRefObject, IImage, IDisposable, IC
     {
         get
         {
+            if (_nativeImage is null)
+            {
+                return _height;
+            }
+
             uint height;
             PInvoke.GdipGetImageHeight(_nativeImage, &height).ThrowIfFailed();
             GC.KeepAlive(this);
@@ -463,6 +492,11 @@ public abstract unsafe class Image : MarshalByRefObject, IImage, IDisposable, IC
     {
         get
         {
+            if (_nativeImage is null)
+            {
+                return _horizontalResolution;
+            }
+
             float horzRes;
             PInvoke.GdipGetImageHorizontalResolution(_nativeImage, &horzRes).ThrowIfFailed();
             GC.KeepAlive(this);
@@ -477,6 +511,11 @@ public abstract unsafe class Image : MarshalByRefObject, IImage, IDisposable, IC
     {
         get
         {
+            if (_nativeImage is null)
+            {
+                return _verticalResolution;
+            }
+
             float vertRes;
             PInvoke.GdipGetImageVerticalResolution(_nativeImage, &vertRes).ThrowIfFailed();
             GC.KeepAlive(this);
@@ -492,6 +531,11 @@ public abstract unsafe class Image : MarshalByRefObject, IImage, IDisposable, IC
     {
         get
         {
+            if (_nativeImage is null)
+            {
+                return 0;
+            }
+
             uint flags;
             PInvoke.GdipGetImageFlags(_nativeImage, &flags).ThrowIfFailed();
             GC.KeepAlive(this);
@@ -506,6 +550,11 @@ public abstract unsafe class Image : MarshalByRefObject, IImage, IDisposable, IC
     {
         get
         {
+            if (_nativeImage is null)
+            {
+                return _rawFormat;
+            }
+
             Guid guid = default;
             PInvoke.GdipGetImageRawFormat(_nativeImage, &guid).ThrowIfFailed();
             GC.KeepAlive(this);
@@ -516,7 +565,15 @@ public abstract unsafe class Image : MarshalByRefObject, IImage, IDisposable, IC
     /// <summary>
     ///  Gets the pixel format for this <see cref='Image'/>.
     /// </summary>
-    public PixelFormat PixelFormat => (PixelFormat)this.GetPixelFormat();
+    public PixelFormat PixelFormat => _nativeImage is null ? _pixelFormat : (PixelFormat)this.GetPixelFormat();
+
+    internal void ThrowIfDisposed()
+    {
+        if (_disposed)
+        {
+            throw new ArgumentException(SR.GdiplusInvalidParameter);
+        }
+    }
 
     /// <summary>
     ///  Gets an array of the property IDs stored in this <see cref='Image'/>.
@@ -584,7 +641,7 @@ public abstract unsafe class Image : MarshalByRefObject, IImage, IDisposable, IC
     public RectangleF GetBounds(ref GraphicsUnit pageUnit)
     {
         // The Unit is hard coded to GraphicsUnit.Pixel in GDI+.
-        RectangleF bounds = this.GetImageBounds();
+        RectangleF bounds = _nativeImage is null ? new RectangleF(0, 0, _width, _height) : this.GetImageBounds();
         pageUnit = GraphicsUnit.Pixel;
         return bounds;
     }
@@ -810,7 +867,25 @@ public abstract unsafe class Image : MarshalByRefObject, IImage, IDisposable, IC
         if (handle is null)
             throw new ArgumentException(SR.NativeHandle0, nameof(handle));
 
+        _disposed = false;
         _nativeImage = handle;
+    }
+
+    internal void SetManagedImage(int width, int height, PixelFormat pixelFormat, float horizontalResolution = 96, float verticalResolution = 96)
+    {
+        if (width <= 0 || height <= 0)
+        {
+            throw new ArgumentException(SR.GdiplusInvalidSize);
+        }
+
+        _disposed = false;
+        _nativeImage = null;
+        _width = width;
+        _height = height;
+        _pixelFormat = pixelFormat;
+        _horizontalResolution = horizontalResolution;
+        _verticalResolution = verticalResolution;
+        _rawFormat = ImageFormat.MemoryBmp;
     }
 
     // Multi-frame support
