@@ -1,7 +1,6 @@
 ﻿// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-using System.Runtime.InteropServices;
 using Windows.Win32.UI.Shell;
 
 namespace Windows.Win32;
@@ -28,7 +27,16 @@ internal partial class PInvoke
     /// <para>Type: <b>HRESULT</b> If this function succeeds, it returns <b>S_OK</b>. Otherwise, it returns an <b>HRESULT</b> error code.</para>
     /// </returns>
     /// <remarks><para>If this function returns an icon handle in the <b>hIcon</b> member of the <a href="https://learn.microsoft.com/windows/desktop/api/shellapi/ns-shellapi-shstockiconinfo">SHSTOCKICONINFO</a>  structure pointed to by <i>psii</i>, you are responsible for freeing the icon with <a href="https://learn.microsoft.com/windows/desktop/api/winuser/nf-winuser-destroyicon">DestroyIcon</a> when you no longer need it.</para></remarks>
-    [DllImport(Libraries.Shell32, ExactSpelling = true)]
-    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
-    public static extern unsafe HRESULT SHGetStockIconInfo(SHSTOCKICONID siid, SHGSI_FLAGS uFlags, SHSTOCKICONINFO* psii);
+    public static unsafe HRESULT SHGetStockIconInfo(SHSTOCKICONID siid, SHGSI_FLAGS uFlags, SHSTOCKICONINFO* psii)
+    {
+        if (psii is not null)
+        {
+            psii->hIcon = default;
+            psii->iSysImageIndex = 0;
+            psii->iIcon = 0;
+            psii->szPath[0] = '\0';
+        }
+
+        return HRESULT.E_NOTIMPL;
+    }
 }
