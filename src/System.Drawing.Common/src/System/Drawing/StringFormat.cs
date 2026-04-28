@@ -13,7 +13,6 @@ namespace System.Drawing;
 public sealed unsafe class StringFormat : MarshalByRefObject, ICloneable, IDisposable
 {
     internal GpStringFormat* _nativeFormat;
-    private readonly bool _backendOnly = Graphics.IsBackendActive;
     private StringFormatFlags _managedFormatFlags;
     private StringAlignment _managedAlignment = StringAlignment.Near;
     private StringAlignment _managedLineAlignment = StringAlignment.Near;
@@ -23,6 +22,7 @@ public sealed unsafe class StringFormat : MarshalByRefObject, ICloneable, IDispo
     private float[] _managedTabStops = [];
     private StringDigitSubstitute _managedDigitSubstitute = StringDigitSubstitute.User;
     private int _managedDigitLanguage;
+    private CharacterRange[] _managedMeasurableCharacterRanges = [];
 
     private StringFormat(GpStringFormat* format) => _nativeFormat = format;
 
@@ -47,12 +47,7 @@ public sealed unsafe class StringFormat : MarshalByRefObject, ICloneable, IDispo
     public StringFormat(StringFormatFlags options, int language)
     {
         _managedFormatFlags = options;
-        if (!_backendOnly)
-        {
-            GpStringFormat* format;
-            PInvoke.GdipCreateStringFormat((int)options, (ushort)language, &format).ThrowIfFailed();
-            _nativeFormat = format;
-        }
+        _managedDigitLanguage = language;
     }
 
     /// <summary>
@@ -71,13 +66,7 @@ public sealed unsafe class StringFormat : MarshalByRefObject, ICloneable, IDispo
         _managedTabStops = (float[])format._managedTabStops.Clone();
         _managedDigitSubstitute = format._managedDigitSubstitute;
         _managedDigitLanguage = format._managedDigitLanguage;
-        if (!format._backendOnly && format._nativeFormat is not null)
-        {
-            GpStringFormat* newFormat;
-            PInvoke.GdipCloneStringFormat(format._nativeFormat, &newFormat).ThrowIfFailed();
-            _nativeFormat = newFormat;
-            GC.KeepAlive(format);
-        }
+        _managedMeasurableCharacterRanges = (CharacterRange[])format._managedMeasurableCharacterRanges.Clone();
     }
 
     /// <summary>
@@ -91,32 +80,7 @@ public sealed unsafe class StringFormat : MarshalByRefObject, ICloneable, IDispo
 
     private void Dispose(bool disposing)
     {
-        if (_nativeFormat is not null)
-        {
-            try
-            {
-#if DEBUG
-                Status status = !Gdip.Initialized ? Status.Ok :
-#endif
-                PInvoke.GdipDeleteStringFormat(_nativeFormat);
-#if DEBUG
-                Debug.Assert(status == Status.Ok, $"GDI+ returned an error status: {status}");
-#endif
-            }
-            catch (Exception ex)
-            {
-                if (ClientUtils.IsCriticalException(ex))
-                {
-                    throw;
-                }
-
-                Debug.Fail($"Exception thrown during Dispose: {ex}");
-            }
-            finally
-            {
-                _nativeFormat = null;
-            }
-        }
+        _nativeFormat = null;
     }
 
     /// <summary>
@@ -131,26 +95,11 @@ public sealed unsafe class StringFormat : MarshalByRefObject, ICloneable, IDispo
     {
         get
         {
-            if (_backendOnly || _nativeFormat is null)
-            {
-                return _managedFormatFlags;
-            }
-
-            StringFormatFlags format;
-            PInvoke.GdipGetStringFormatFlags(_nativeFormat, (int*)&format).ThrowIfFailed();
-            GC.KeepAlive(this);
-            return format;
+            return _managedFormatFlags;
         }
         set
         {
             _managedFormatFlags = value;
-            if (_backendOnly || _nativeFormat is null)
-            {
-                return;
-            }
-
-            PInvoke.GdipSetStringFormatFlags(_nativeFormat, (int)value).ThrowIfFailed();
-            GC.KeepAlive(this);
         }
     }
 
@@ -160,23 +109,7 @@ public sealed unsafe class StringFormat : MarshalByRefObject, ICloneable, IDispo
     public void SetMeasurableCharacterRanges(CharacterRange[] ranges)
     {
         ArgumentNullException.ThrowIfNull(ranges);
-        if (_backendOnly || _nativeFormat is null)
-        {
-            return;
-        }
-
-        // Passing no count will clear the ranges, but it still requires a valid pointer. Taking the address of an
-        // empty array gives a null pointer, so we need to pass a dummy value.
-        GdiPlus.CharacterRange stub;
-        fixed (void* r = ranges)
-        {
-            PInvoke.GdipSetStringFormatMeasurableCharacterRanges(
-                _nativeFormat,
-                ranges.Length,
-                r is null ? &stub : (GdiPlus.CharacterRange*)r).ThrowIfFailed();
-        }
-
-        GC.KeepAlive(this);
+        _managedMeasurableCharacterRanges = (CharacterRange[])ranges.Clone();
     }
 
     /// <summary>
@@ -186,15 +119,7 @@ public sealed unsafe class StringFormat : MarshalByRefObject, ICloneable, IDispo
     {
         get
         {
-            if (_backendOnly || _nativeFormat is null)
-            {
-                return _managedAlignment;
-            }
-
-            StringAlignment alignment;
-            PInvoke.GdipGetStringFormatAlign(_nativeFormat, (GdiPlus.StringAlignment*)&alignment).ThrowIfFailed();
-            GC.KeepAlive(this);
-            return alignment;
+            return _managedAlignment;
         }
         set
         {
@@ -204,13 +129,6 @@ public sealed unsafe class StringFormat : MarshalByRefObject, ICloneable, IDispo
             }
 
             _managedAlignment = value;
-            if (_backendOnly || _nativeFormat is null)
-            {
-                return;
-            }
-
-            PInvoke.GdipSetStringFormatAlign(_nativeFormat, (GdiPlus.StringAlignment)value).ThrowIfFailed();
-            GC.KeepAlive(this);
         }
     }
 
@@ -221,15 +139,7 @@ public sealed unsafe class StringFormat : MarshalByRefObject, ICloneable, IDispo
     {
         get
         {
-            if (_backendOnly || _nativeFormat is null)
-            {
-                return _managedLineAlignment;
-            }
-
-            StringAlignment alignment;
-            PInvoke.GdipGetStringFormatLineAlign(_nativeFormat, (GdiPlus.StringAlignment*)&alignment).ThrowIfFailed();
-            GC.KeepAlive(this);
-            return alignment;
+            return _managedLineAlignment;
         }
         set
         {
@@ -239,13 +149,6 @@ public sealed unsafe class StringFormat : MarshalByRefObject, ICloneable, IDispo
             }
 
             _managedLineAlignment = value;
-            if (_backendOnly || _nativeFormat is null)
-            {
-                return;
-            }
-
-            PInvoke.GdipSetStringFormatLineAlign(_nativeFormat, (GdiPlus.StringAlignment)value).ThrowIfFailed();
-            GC.KeepAlive(this);
         }
     }
 
@@ -256,15 +159,7 @@ public sealed unsafe class StringFormat : MarshalByRefObject, ICloneable, IDispo
     {
         get
         {
-            if (_backendOnly || _nativeFormat is null)
-            {
-                return _managedHotkeyPrefix;
-            }
-
-            HotkeyPrefix hotkeyPrefix;
-            PInvoke.GdipGetStringFormatHotkeyPrefix(_nativeFormat, (int*)&hotkeyPrefix).ThrowIfFailed();
-            GC.KeepAlive(this);
-            return hotkeyPrefix;
+            return _managedHotkeyPrefix;
         }
         set
         {
@@ -274,13 +169,6 @@ public sealed unsafe class StringFormat : MarshalByRefObject, ICloneable, IDispo
             }
 
             _managedHotkeyPrefix = value;
-            if (_backendOnly || _nativeFormat is null)
-            {
-                return;
-            }
-
-            PInvoke.GdipSetStringFormatHotkeyPrefix(_nativeFormat, (int)value).ThrowIfFailed();
-            GC.KeepAlive(this);
         }
     }
 
@@ -298,23 +186,6 @@ public sealed unsafe class StringFormat : MarshalByRefObject, ICloneable, IDispo
 
         _managedFirstTabOffset = firstTabOffset;
         _managedTabStops = (float[])tabStops.Clone();
-        if (_backendOnly || _nativeFormat is null)
-        {
-            return;
-        }
-
-        // To clear the tab stops you need to pass a count of 0 with a valid pointer. Taking the address of an
-        // empty array gives a null pointer, so we need to pass a dummy value.
-        float stub;
-        fixed (float* ts = tabStops)
-        {
-            PInvoke.GdipSetStringFormatTabStops(
-                _nativeFormat,
-                firstTabOffset,
-                tabStops.Length,
-                ts is null ? &stub : ts).ThrowIfFailed();
-            GC.KeepAlive(this);
-        }
     }
 
     /// <summary>
@@ -322,30 +193,8 @@ public sealed unsafe class StringFormat : MarshalByRefObject, ICloneable, IDispo
     /// </summary>
     public float[] GetTabStops(out float firstTabOffset)
     {
-        if (_backendOnly || _nativeFormat is null)
-        {
-            firstTabOffset = _managedFirstTabOffset;
-            return (float[])_managedTabStops.Clone();
-        }
-
-        int count;
-        PInvoke.GdipGetStringFormatTabStopCount(_nativeFormat, &count).ThrowIfFailed();
-
-        if (count == 0)
-        {
-            firstTabOffset = 0;
-            return [];
-        }
-
-        float[] tabStops = new float[count];
-
-        fixed (float* fto = &firstTabOffset)
-        fixed (float* ts = tabStops)
-        {
-            PInvoke.GdipGetStringFormatTabStops(_nativeFormat, count, fto, ts).ThrowIfFailed();
-            GC.KeepAlive(this);
-            return tabStops;
-        }
+        firstTabOffset = _managedFirstTabOffset;
+        return (float[])_managedTabStops.Clone();
     }
 
     // String trimming. How to handle more text than can be displayed
@@ -358,15 +207,7 @@ public sealed unsafe class StringFormat : MarshalByRefObject, ICloneable, IDispo
     {
         get
         {
-            if (_backendOnly || _nativeFormat is null)
-            {
-                return _managedTrimming;
-            }
-
-            StringTrimming trimming;
-            PInvoke.GdipGetStringFormatTrimming(_nativeFormat, (GdiPlus.StringTrimming*)&trimming).ThrowIfFailed();
-            GC.KeepAlive(this);
-            return trimming;
+            return _managedTrimming;
         }
         set
         {
@@ -376,13 +217,6 @@ public sealed unsafe class StringFormat : MarshalByRefObject, ICloneable, IDispo
             }
 
             _managedTrimming = value;
-            if (_backendOnly || _nativeFormat is null)
-            {
-                return;
-            }
-
-            PInvoke.GdipSetStringFormatTrimming(_nativeFormat, (GdiPlus.StringTrimming)value).ThrowIfFailed();
-            GC.KeepAlive(this);
         }
     }
 
@@ -404,14 +238,7 @@ public sealed unsafe class StringFormat : MarshalByRefObject, ICloneable, IDispo
     {
         get
         {
-            if (Graphics.IsBackendActive)
-            {
-                return new StringFormat();
-            }
-
-            GpStringFormat* format;
-            PInvoke.GdipStringFormatGetGenericDefault(&format).ThrowIfFailed();
-            return new StringFormat(format);
+            return new StringFormat();
         }
     }
 
@@ -433,16 +260,9 @@ public sealed unsafe class StringFormat : MarshalByRefObject, ICloneable, IDispo
     {
         get
         {
-            if (Graphics.IsBackendActive)
-            {
-                StringFormat f = new(StringFormatFlags.LineLimit | StringFormatFlags.NoClip | StringFormatFlags.FitBlackBox);
-                f.Trimming = StringTrimming.None;
-                return f;
-            }
-
-            GpStringFormat* format;
-            PInvoke.GdipStringFormatGetGenericTypographic(&format).ThrowIfFailed();
-            return new StringFormat(format);
+            StringFormat f = new(StringFormatFlags.LineLimit | StringFormatFlags.NoClip | StringFormatFlags.FitBlackBox);
+            f.Trimming = StringTrimming.None;
+            return f;
         }
     }
 
@@ -450,17 +270,6 @@ public sealed unsafe class StringFormat : MarshalByRefObject, ICloneable, IDispo
     {
         _managedDigitLanguage = language;
         _managedDigitSubstitute = substitute;
-        if (_backendOnly || _nativeFormat is null)
-        {
-            return;
-        }
-
-        PInvoke.GdipSetStringFormatDigitSubstitution(
-            _nativeFormat,
-            (ushort)language,
-            (GdiPlus.StringDigitSubstitute)substitute).ThrowIfFailed();
-
-        GC.KeepAlive(this);
     }
 
     /// <summary>
@@ -470,19 +279,7 @@ public sealed unsafe class StringFormat : MarshalByRefObject, ICloneable, IDispo
     {
         get
         {
-            if (_backendOnly || _nativeFormat is null)
-            {
-                return _managedDigitSubstitute;
-            }
-
-            StringDigitSubstitute digitSubstitute;
-            PInvoke.GdipGetStringFormatDigitSubstitution(
-                _nativeFormat,
-                null,
-                (GdiPlus.StringDigitSubstitute*)&digitSubstitute).ThrowIfFailed();
-
-            GC.KeepAlive(this);
-            return digitSubstitute;
+            return _managedDigitSubstitute;
         }
     }
 
@@ -493,29 +290,13 @@ public sealed unsafe class StringFormat : MarshalByRefObject, ICloneable, IDispo
     {
         get
         {
-            if (_backendOnly || _nativeFormat is null)
-            {
-                return _managedDigitLanguage;
-            }
-
-            ushort language;
-            PInvoke.GdipGetStringFormatDigitSubstitution(_nativeFormat, &language, null).ThrowIfFailed();
-            GC.KeepAlive(this);
-            return language;
+            return _managedDigitLanguage;
         }
     }
 
     internal int GetMeasurableCharacterRangeCount()
     {
-        if (_backendOnly || _nativeFormat is null)
-        {
-            return 0;
-        }
-
-        int count;
-        PInvoke.GdipGetStringFormatMeasurableCharacterRangeCount(_nativeFormat, &count).ThrowIfFailed();
-        GC.KeepAlive(this);
-        return count;
+        return _managedMeasurableCharacterRanges.Length;
     }
 
     /// <summary>
