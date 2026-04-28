@@ -31,9 +31,8 @@ internal static class DpiHelper
             return;
         }
 
-        using var hdc = GetDcScope.ScreenDC;
-        s_deviceDpiX = PInvokeCore.GetDeviceCaps(hdc, GET_DEVICE_CAPS_INDEX.LOGPIXELSX);
-        s_deviceDpiY = PInvokeCore.GetDeviceCaps(hdc, GET_DEVICE_CAPS_INDEX.LOGPIXELSY);
+        s_deviceDpiX = LogicalDpi;
+        s_deviceDpiY = LogicalDpi;
 
         s_isInitialized = true;
     }

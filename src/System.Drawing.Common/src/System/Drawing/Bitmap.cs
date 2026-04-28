@@ -121,6 +121,11 @@ public sealed unsafe class Bitmap : Image, IPointer<GpBitmap>
 
     internal ReadOnlySpan<int> ManagedPixels => _pixels;
 
+    internal Span<int> ManagedPixelBuffer =>
+        _pixels is null
+            ? throw new NotSupportedException("Bitmap requires a managed pixel backing store.")
+            : _pixels;
+
     internal Bitmap CloneManagedBitmap()
     {
         ThrowIfDisposed();

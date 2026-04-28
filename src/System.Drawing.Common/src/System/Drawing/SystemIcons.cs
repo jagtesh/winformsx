@@ -1,9 +1,6 @@
 ﻿// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-using System.Runtime.InteropServices;
-using Windows.Win32.UI.Shell;
-
 namespace System.Drawing;
 
 public static class SystemIcons
@@ -52,7 +49,19 @@ public static class SystemIcons
     }
 
     private static Icon GetIcon(ref Icon? icon, PCWSTR iconId) =>
-        icon ??= new Icon(PInvokeCore.LoadIcon(HINSTANCE.Null, iconId));
+        icon ??= CreateManagedIcon(Color.SteelBlue);
+
+    private static Icon CreateManagedIcon(Color accent)
+    {
+        Bitmap bitmap = new(32, 32, PixelFormat.Format32bppArgb);
+        using Graphics graphics = Graphics.FromImage(bitmap);
+        graphics.Clear(Color.Transparent);
+        using SolidBrush brush = new(accent);
+        graphics.FillEllipse(brush, 4, 4, 24, 24);
+        using Pen pen = new(Color.White, 2);
+        graphics.DrawEllipse(pen, 4, 4, 24, 24);
+        return new Icon(bitmap);
+    }
 
 #if NET8_0_OR_GREATER
     /// <summary>
@@ -69,62 +78,15 @@ public static class SystemIcons
     ///  </para>
     /// </remarks>
     /// <exception cref="ArgumentException"><paramref name="stockIcon"/> is an invalid <see cref="StockIconId"/>.</exception>
-    public static unsafe Icon GetStockIcon(StockIconId stockIcon, StockIconOptions options = StockIconOptions.Default)
-    {
-        // Note that we don't explicitly check for invalid StockIconId to allow for accessing newer ids introduced
-        // in later OSes. The HRESULT returned for undefined ids gets converted to an ArgumentException.
-
-        SHSTOCKICONINFO info = new()
-        {
-            cbSize = (uint)sizeof(SHSTOCKICONINFO),
-        };
-
-        HRESULT result = PInvoke.SHGetStockIconInfo(
-            (SHSTOCKICONID)stockIcon,
-            (SHGSI_FLAGS)options | SHGSI_FLAGS.SHGSI_ICON,
-            &info);
-
-        // This only throws if there is an error.
-        Marshal.ThrowExceptionForHR((int)result);
-
-        return new Icon(info.hIcon, takeOwnership: true);
-    }
+    public static Icon GetStockIcon(StockIconId stockIcon, StockIconOptions options = StockIconOptions.Default) =>
+        CreateManagedIcon(Color.FromArgb(unchecked((int)(0xFF336699u + ((uint)stockIcon * 7919u)))));
 
     /// <inheritdoc cref="GetStockIcon(StockIconId, StockIconOptions)"/>
     /// <param name="size">
     ///  The desired size. If the specified size does not exist, an existing size will be resampled to give the
     ///  requested size.
     /// </param>
-    public static unsafe Icon GetStockIcon(StockIconId stockIcon, int size)
-    {
-        // Note that we don't explicitly check for invalid StockIconId to allow for accessing newer ids introduced
-        // in later OSes. The HRESULT returned for undefined ids gets converted to an ArgumentException.
-
-        SHSTOCKICONINFO info = new()
-        {
-            cbSize = (uint)sizeof(SHSTOCKICONINFO),
-        };
-
-        HRESULT result = PInvoke.SHGetStockIconInfo(
-            (SHSTOCKICONID)stockIcon,
-            SHGSI_FLAGS.SHGSI_ICONLOCATION,
-            &info);
-
-        // This only throws if there is an error.
-        Marshal.ThrowExceptionForHR((int)result);
-
-        HICON hicon;
-        result = PInvoke.SHDefExtractIcon(
-            info.szPath,
-            info.iIcon,
-            0,
-            &hicon,
-            null,
-            (uint)(ushort)size << 16 | (ushort)size);
-
-        Marshal.ThrowExceptionForHR((int)result);
-
-        return new Icon(hicon, takeOwnership: true);
-    }
+    public static Icon GetStockIcon(StockIconId stockIcon, int size) =>
+        CreateManagedIcon(Color.FromArgb(unchecked((int)(0xFF669933u + ((uint)stockIcon * 3571u)))));
 #endif
 }

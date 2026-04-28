@@ -15,6 +15,7 @@ public sealed class BufferedGraphics : IDisposable
 {
     private readonly Graphics? _targetGraphics;
     private readonly IntPtr _targetDC;
+    private readonly Image? _bufferImage;
     private Graphics _bufferedGraphicsSurface;
     private BufferedGraphicsContext _context;
     private readonly Point _targetLoc;
@@ -23,10 +24,11 @@ public sealed class BufferedGraphics : IDisposable
     /// <summary>
     /// Internal constructor, this class is created by BufferedGraphicsContext.
     /// </summary>
-    internal BufferedGraphics(Graphics bufferedGraphicsSurface, BufferedGraphicsContext context, Graphics? targetGraphics,
+    internal BufferedGraphics(Image? bufferImage, Graphics bufferedGraphicsSurface, BufferedGraphicsContext context, Graphics? targetGraphics,
                               IntPtr targetDC, Point targetLoc, Size virtualSize)
     {
         _context = context;
+        _bufferImage = bufferImage;
         _bufferedGraphicsSurface = bufferedGraphicsSurface;
         _targetDC = targetDC;
         _targetGraphics = targetGraphics;
@@ -66,16 +68,7 @@ public sealed class BufferedGraphics : IDisposable
     {
         if (target is not null)
         {
-            IntPtr targetDC = target.GetHdc();
-
-            try
-            {
-                RenderInternal(new HandleRef(target, targetDC));
-            }
-            finally
-            {
-                target.ReleaseHdcInternal(targetDC);
-            }
+            RenderToGraphics(target);
         }
     }
 
@@ -84,27 +77,24 @@ public sealed class BufferedGraphics : IDisposable
     /// </summary>
     private void RenderInternal(HandleRef refTargetDC)
     {
-        IntPtr sourceDC = Graphics.GetHdc();
-
-        try
+        if (refTargetDC.Handle == IntPtr.Zero || refTargetDC.Handle == -1 || !Graphics.IsBackendActive)
         {
-            PInvokeCore.BitBlt(
-                (HDC)refTargetDC.Handle,
-                _targetLoc.X,
-                _targetLoc.Y,
-                _virtualSize.Width,
-                _virtualSize.Height,
-                (HDC)sourceDC,
-                0,
-                0,
-                ROP_CODE.SRCCOPY);
+            return;
+        }
 
-            GC.KeepAlive(refTargetDC.Wrapper);
-        }
-        finally
+        using Graphics target = Graphics.FromHdcInternal(refTargetDC.Handle);
+        RenderToGraphics(target);
+        GC.KeepAlive(refTargetDC.Wrapper);
+    }
+
+    private void RenderToGraphics(Graphics target)
+    {
+        if (_bufferImage is null)
         {
-            Graphics.ReleaseHdcInternal(sourceDC);
+            return;
         }
+
+        target.DrawImage(_bufferImage, _targetLoc.X, _targetLoc.Y, _virtualSize.Width, _virtualSize.Height);
     }
 
     /// <summary>

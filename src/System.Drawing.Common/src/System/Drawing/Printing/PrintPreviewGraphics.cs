@@ -34,11 +34,10 @@ internal sealed class PrintPreviewGraphics
             if (_printDocument.OriginAtMargins)
             {
                 // Adjust the origin of the graphics object to be at the user-specified margin location
-                // Note: Graphics.FromHdc internally calls SaveDC(hdc), we can still use the saved hdc to get the resolution.
-                int dpiX = PInvokeCore.GetDeviceCaps(hdc, GET_DEVICE_CAPS_INDEX.LOGPIXELSX);
-                int dpiY = PInvokeCore.GetDeviceCaps(hdc, GET_DEVICE_CAPS_INDEX.LOGPIXELSY);
-                int hardMarginX_DU = PInvokeCore.GetDeviceCaps(hdc, GET_DEVICE_CAPS_INDEX.PHYSICALOFFSETX);
-                int hardMarginY_DU = PInvokeCore.GetDeviceCaps(hdc, GET_DEVICE_CAPS_INDEX.PHYSICALOFFSETY);
+                const int dpiX = 96;
+                const int dpiY = 96;
+                const int hardMarginX_DU = 0;
+                const int hardMarginY_DU = 0;
                 float hardMarginX = hardMarginX_DU * 100 / dpiX;
                 float hardMarginY = hardMarginY_DU * 100 / dpiY;
 

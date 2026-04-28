@@ -65,11 +65,7 @@ public unsafe class PageSettings : ICloneable
     {
         get
         {
-            using var hdc = _printerSettings.CreateDeviceContext(this);
-
-            int dpiX = PInvokeCore.GetDeviceCaps(hdc, GET_DEVICE_CAPS_INDEX.LOGPIXELSX);
-            int hardMarginX_DU = PInvokeCore.GetDeviceCaps(hdc, GET_DEVICE_CAPS_INDEX.PHYSICALOFFSETX);
-            return hardMarginX_DU * 100 / dpiX;
+            return 0;
         }
     }
 
@@ -80,11 +76,7 @@ public unsafe class PageSettings : ICloneable
     {
         get
         {
-            using var hdc = _printerSettings.CreateDeviceContext(this);
-
-            int dpiY = PInvokeCore.GetDeviceCaps(hdc, GET_DEVICE_CAPS_INDEX.LOGPIXELSY);
-            int hardMarginY_DU = PInvokeCore.GetDeviceCaps(hdc, GET_DEVICE_CAPS_INDEX.PHYSICALOFFSETY);
-            return hardMarginY_DU * 100 / dpiY;
+            return 0;
         }
     }
 
@@ -149,29 +141,8 @@ public unsafe class PageSettings : ICloneable
     {
         get
         {
-            RectangleF printableArea = default;
-            using var hdc = _printerSettings.CreateInformationContext(this);
-
-            int dpiX = PInvokeCore.GetDeviceCaps(hdc, GET_DEVICE_CAPS_INDEX.LOGPIXELSX);
-            int dpiY = PInvokeCore.GetDeviceCaps(hdc, GET_DEVICE_CAPS_INDEX.LOGPIXELSY);
-            if (!Landscape)
-            {
-                // Need to convert the printable area to 100th of an inch from the device units
-                printableArea.X = (float)PInvokeCore.GetDeviceCaps(hdc, GET_DEVICE_CAPS_INDEX.PHYSICALOFFSETX) * 100 / dpiX;
-                printableArea.Y = (float)PInvokeCore.GetDeviceCaps(hdc, GET_DEVICE_CAPS_INDEX.PHYSICALOFFSETY) * 100 / dpiY;
-                printableArea.Width = (float)PInvokeCore.GetDeviceCaps(hdc, GET_DEVICE_CAPS_INDEX.HORZRES) * 100 / dpiX;
-                printableArea.Height = (float)PInvokeCore.GetDeviceCaps(hdc, GET_DEVICE_CAPS_INDEX.VERTRES) * 100 / dpiY;
-            }
-            else
-            {
-                // Need to convert the printable area to 100th of an inch from the device units
-                printableArea.Y = (float)PInvokeCore.GetDeviceCaps(hdc, GET_DEVICE_CAPS_INDEX.PHYSICALOFFSETX) * 100 / dpiX;
-                printableArea.X = (float)PInvokeCore.GetDeviceCaps(hdc, GET_DEVICE_CAPS_INDEX.PHYSICALOFFSETY) * 100 / dpiY;
-                printableArea.Height = (float)PInvokeCore.GetDeviceCaps(hdc, GET_DEVICE_CAPS_INDEX.HORZRES) * 100 / dpiX;
-                printableArea.Width = (float)PInvokeCore.GetDeviceCaps(hdc, GET_DEVICE_CAPS_INDEX.VERTRES) * 100 / dpiY;
-            }
-
-            return printableArea;
+            Rectangle bounds = Bounds;
+            return new RectangleF(0, 0, bounds.Width, bounds.Height);
         }
     }
 

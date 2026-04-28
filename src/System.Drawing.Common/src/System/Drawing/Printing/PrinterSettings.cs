@@ -586,8 +586,14 @@ public unsafe partial class PrinterSettings : ICloneable
 
     private int GetDeviceCaps(GET_DEVICE_CAPS_INDEX capability)
     {
-        using var hdc = CreateInformationContext(DefaultPageSettings);
-        return PInvokeCore.GetDeviceCaps(hdc, capability);
+        return capability switch
+        {
+            GET_DEVICE_CAPS_INDEX.LOGPIXELSX or GET_DEVICE_CAPS_INDEX.LOGPIXELSY => 96,
+            GET_DEVICE_CAPS_INDEX.PHYSICALOFFSETX or GET_DEVICE_CAPS_INDEX.PHYSICALOFFSETY => 0,
+            GET_DEVICE_CAPS_INDEX.HORZRES => DefaultPageSettings.Bounds.Width,
+            GET_DEVICE_CAPS_INDEX.VERTRES => DefaultPageSettings.Bounds.Height,
+            _ => 0
+        };
     }
 
     /// <summary>

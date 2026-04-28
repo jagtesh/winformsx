@@ -51,12 +51,7 @@ public static class SystemFonts
     private static unsafe bool GetNonClientMetrics(out NONCLIENTMETRICSW metrics)
     {
         metrics = new NONCLIENTMETRICSW { cbSize = (uint)sizeof(NONCLIENTMETRICSW) };
-        if (!OperatingSystem.IsWindows())
-        {
-            return false;
-        }
-
-        return PInvokeCore.SystemParametersInfo(ref metrics);
+        return false;
     }
 
     public static Font? CaptionFont
@@ -149,19 +144,12 @@ public static class SystemFonts
             or NotImplementedException
             or FileNotFoundException);
 
-    public static unsafe Font? IconTitleFont
+    public static Font? IconTitleFont
     {
         get
         {
-            Font? iconTitleFont = null;
-
-            LOGFONT itfont = default;
-            if (PInvokeCore.SystemParametersInfo(SYSTEM_PARAMETERS_INFO_ACTION.SPI_GETICONTITLELOGFONT, (uint)sizeof(LOGFONT), &itfont, 0))
-            {
-                iconTitleFont = GetFontFromData(in itfont);
-                iconTitleFont.SetSystemFontName(nameof(IconTitleFont));
-            }
-
+            Font iconTitleFont = FontInPoints(DefaultFont);
+            iconTitleFont.SetSystemFontName(nameof(IconTitleFont));
             return iconTitleFont;
         }
     }
@@ -172,52 +160,7 @@ public static class SystemFonts
         {
             Font? defaultFont = null;
 
-            if (!OperatingSystem.IsWindows())
-            {
-                defaultFont = new Font(FontFamily.GenericSansSerif, 8);
-                defaultFont.SetSystemFontName(nameof(DefaultFont));
-                return defaultFont;
-            }
-
-            // For Arabic systems, always return Tahoma 8.
-            if (PInvokeCore.GetSystemDefaultLCID() == PInvoke.LANG_ARABIC)
-            {
-                try
-                {
-                    defaultFont = new Font("Tahoma", 8);
-                }
-                catch (Exception ex) when (!IsCriticalFontException(ex)) { }
-            }
-
-            // First try DEFAULT_GUI.
-            if (defaultFont is null)
-            {
-                HFONT handle = (HFONT)PInvokeCore.GetStockObject(GET_STOCK_OBJECT_FLAGS.DEFAULT_GUI_FONT);
-                try
-                {
-                    using Font fontInWorldUnits = Font.FromHfont(handle);
-                    defaultFont = FontInPoints(fontInWorldUnits);
-                }
-                catch (ArgumentException)
-                {
-                    // This can happen in theory if we end up pulling a non-TrueType font
-                }
-            }
-
-            // If DEFAULT_GUI didn't work, try Tahoma.
-            if (defaultFont is null)
-            {
-                try
-                {
-                    defaultFont = new Font("Tahoma", 8);
-                }
-                catch (ArgumentException)
-                {
-                }
-            }
-
-            // Use GenericSansSerif as a last resort - this will always work.
-            defaultFont ??= new Font(FontFamily.GenericSansSerif, 8);
+            defaultFont = new Font(FontFamily.GenericSansSerif, 8);
 
             if (defaultFont.Unit != GraphicsUnit.Point)
             {
@@ -237,22 +180,13 @@ public static class SystemFonts
         {
             Font? dialogFont = null;
 
-            if (PInvokeCore.GetSystemDefaultLCID() == PInvoke.LANG_JAPANESE)
+            try
             {
-                // Always return DefaultFont for Japanese cultures.
-                dialogFont = DefaultFont;
+                // Preserve WinForms' logical dialog font contract without querying host Windows APIs.
+                dialogFont = new Font("MS Shell Dlg 2", 8);
             }
-            else
+            catch (ArgumentException)
             {
-                try
-                {
-                    // Use MS Shell Dlg 2, 8pt for anything other than Japanese.
-                    dialogFont = new Font("MS Shell Dlg 2", 8);
-                }
-                catch (ArgumentException)
-                {
-                    // This can happen in theory if we end up pulling a non-TrueType font
-                }
             }
 
             if (dialogFont is null)

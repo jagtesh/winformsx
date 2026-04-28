@@ -66,6 +66,7 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     private Matrix _transform = new();
     private Matrix3x2 _transformElements = Matrix3x2.Identity;
     private int _nextContextState = 1;
+    private bool _disposed;
 
     /// <summary>
     ///  Handle to native DC - obtained from the GDI+ graphics object. We need to cache it to implement
@@ -234,6 +235,13 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
         if ((image.PixelFormat & PixelFormat.Indexed) != 0)
             throw new ArgumentException(SR.GdiplusCannotCreateGraphicsFromIndexedPixelFormat, nameof(image));
 
+        if (image is Bitmap bitmap)
+        {
+            Graphics graphics = CreateBackendBacked(new ManagedBitmapRenderingBackend(bitmap));
+            graphics._backingImage = image;
+            return graphics;
+        }
+
         if (BackendFactory is not null)
         {
             IRenderingBackend? backend = BackendFactory(IntPtr.Zero);
@@ -289,6 +297,7 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
         }
 
         NativeGraphics = null;
+        _disposed = true;
     }
 
     ~Graphics() => Dispose(disposing: false);
@@ -297,6 +306,10 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     ///  Handle to native GDI+ graphics object. This object is created on demand.
     /// </summary>
     internal GpGraphics* NativeGraphics { get; private set; }
+
+    internal bool IsDisposed => _disposed;
+
+    internal bool IsHdcBusy => !_nativeHdc.IsNull;
 
     nint IPointer<GpGraphics>.Pointer => (nint)NativeGraphics;
 
@@ -482,6 +495,11 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
 
     public IntPtr GetHdc()
     {
+        if (_disposed)
+        {
+            throw new ArgumentException(null, nameof(GetHdc));
+        }
+
         _nativeHdc = new HDC(unchecked((nint)0x1DCC1DCC));
         return _nativeHdc;
     }
