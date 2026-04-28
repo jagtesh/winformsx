@@ -760,6 +760,21 @@ public sealed unsafe class GraphicsPath : MarshalByRefObject, ICloneable, IDispo
         return count;
     }
 
+    internal void ReplaceData(ReadOnlySpan<PointF> points, ReadOnlySpan<byte> types)
+    {
+        ThrowIfDisposed();
+        if (points.Length != types.Length)
+        {
+            throw Status.InvalidParameter.GetException();
+        }
+
+        _points.Clear();
+        _types.Clear();
+        _points.AddRange(points.ToArray());
+        _types.AddRange(types.ToArray());
+        _newFigure = _points.Count == 0 || IsClosed(_types[^1]);
+    }
+
     private static ReadOnlySpan<T> AsSpan<T>(T[]? values)
     {
         ArgumentNullException.ThrowIfNull(values);

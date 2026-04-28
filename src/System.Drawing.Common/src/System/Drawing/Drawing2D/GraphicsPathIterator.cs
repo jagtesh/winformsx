@@ -5,120 +5,103 @@ namespace System.Drawing.Drawing2D;
 
 public sealed unsafe class GraphicsPathIterator : MarshalByRefObject, IDisposable
 {
-    // handle to native path iterator object
-    internal GpPathIterator* _nativeIterator;
+    private GraphicsPath _path = null!;
+    private int _position;
+    private bool _disposed;
 
     public GraphicsPathIterator(GraphicsPath? path)
     {
-        GpPathIterator* iterator;
-        PInvoke.GdipCreatePathIter(&iterator, path.Pointer()).ThrowIfFailed();
-        GC.KeepAlive(path);
-        _nativeIterator = iterator;
+        _path = path.OrThrowIfNull();
     }
 
     public void Dispose()
     {
-        Dispose(disposing: true);
+        _disposed = true;
+        _path = null!;
         GC.SuppressFinalize(this);
     }
 
-    private void Dispose(bool disposing)
-    {
-        if (_nativeIterator is not null)
-        {
-            try
-            {
-#if DEBUG
-                Status status = !Gdip.Initialized ? Status.Ok :
-#endif
-                PInvoke.GdipDeletePathIter(_nativeIterator);
-#if DEBUG
-                Debug.Assert(status == Status.Ok, $"GDI+ returned an error status: {status}");
-#endif
-            }
-            catch (Exception ex)
-            {
-                if (ClientUtils.IsSecurityOrCriticalException(ex))
-                {
-                    throw;
-                }
-
-                Debug.Fail($"Exception thrown during Dispose: {ex}");
-            }
-            finally
-            {
-                _nativeIterator = null;
-            }
-        }
-    }
-
-    ~GraphicsPathIterator() => Dispose(false);
+    ~GraphicsPathIterator() => Dispose();
 
     public int NextSubpath(out int startIndex, out int endIndex, out bool isClosed)
     {
-        int resultCount;
-        BOOL tempIsClosed;
-
-        fixed (int* s = &startIndex, e = &endIndex)
+        EnsurePath();
+        byte[] types = _path.PathTypes;
+        if (_position >= types.Length)
         {
-            PInvoke.GdipPathIterNextSubpath(_nativeIterator, &resultCount, s, e, &tempIsClosed).ThrowIfFailed();
-            isClosed = tempIsClosed;
-            GC.KeepAlive(this);
-            return resultCount;
+            startIndex = endIndex = 0;
+            isClosed = false;
+            return 0;
         }
+
+        startIndex = _position;
+        endIndex = FindSubpathEnd(types, startIndex);
+        isClosed = IsClosed(types[endIndex]);
+        _position = endIndex + 1;
+        return endIndex - startIndex + 1;
     }
 
     public int NextSubpath(GraphicsPath path, out bool isClosed)
     {
-        int resultCount;
-        BOOL tempIsClosed;
-        PInvoke.GdipPathIterNextSubpathPath(_nativeIterator, &resultCount, path.Pointer(), &tempIsClosed).ThrowIfFailed();
-        isClosed = tempIsClosed;
-        GC.KeepAlive(this);
-        return resultCount;
+        int count = NextSubpath(out int startIndex, out int endIndex, out isClosed);
+        CopyRangeToPath(path, startIndex, endIndex, count);
+        return count;
     }
 
     public int NextPathType(out byte pathType, out int startIndex, out int endIndex)
     {
-        int resultCount;
-
-        fixed (byte* pt = &pathType)
-        fixed (int* s = &startIndex, e = &endIndex)
+        EnsurePath();
+        byte[] types = _path.PathTypes;
+        if (_position >= types.Length)
         {
-            PInvoke.GdipPathIterNextPathType(_nativeIterator, &resultCount, pt, s, e).ThrowIfFailed();
-            GC.KeepAlive(this);
-            return resultCount;
+            pathType = 0;
+            startIndex = endIndex = 0;
+            return 0;
         }
+
+        startIndex = _position;
+        pathType = BaseType(types[_position]);
+        int i = _position + 1;
+        while (i < types.Length && BaseType(types[i]) == pathType)
+        {
+            i++;
+        }
+
+        endIndex = i - 1;
+        _position = i;
+        return endIndex - startIndex + 1;
     }
 
     public int NextMarker(out int startIndex, out int endIndex)
     {
-        int resultCount;
-
-        fixed (int* s = &startIndex, e = &endIndex)
+        EnsurePath();
+        byte[] types = _path.PathTypes;
+        if (_position >= types.Length)
         {
-            PInvoke.GdipPathIterNextMarker(_nativeIterator, &resultCount, s, e).ThrowIfFailed();
-            GC.KeepAlive(this);
-            return resultCount;
+            startIndex = endIndex = 0;
+            return 0;
         }
+
+        startIndex = _position;
+        int marker = Array.FindIndex(types, _position, static t => (t & (byte)PathPointType.PathMarker) != 0);
+        endIndex = marker >= 0 ? marker : types.Length - 1;
+        _position = endIndex + 1;
+        return endIndex - startIndex + 1;
     }
 
     public int NextMarker(GraphicsPath path)
     {
-        int resultCount;
-        PInvoke.GdipPathIterNextMarkerPath(_nativeIterator, &resultCount, path.Pointer()).ThrowIfFailed();
-        GC.KeepAlive(this);
-        return resultCount;
+        int count = NextMarker(out int startIndex, out int endIndex);
+        CopyRangeToPath(path, startIndex, endIndex, count);
+        return count;
     }
 
     public int Count
     {
         get
         {
-            int resultCount;
-            PInvoke.GdipPathIterGetCount(_nativeIterator, &resultCount).ThrowIfFailed();
-            GC.KeepAlive(this);
-            return resultCount;
+            EnsurePath();
+            return _path.PointCount;
         }
     }
 
@@ -126,25 +109,44 @@ public sealed unsafe class GraphicsPathIterator : MarshalByRefObject, IDisposabl
     {
         get
         {
-            int resultCount;
-            PInvoke.GdipPathIterGetSubpathCount(_nativeIterator, &resultCount).ThrowIfFailed();
-            GC.KeepAlive(this);
-            return resultCount;
+            EnsurePath();
+            byte[] types = _path.PathTypes;
+            if (types.Length == 0)
+            {
+                return 0;
+            }
+
+            int count = 1;
+            for (int i = 1; i < types.Length; i++)
+            {
+                if (BaseType(types[i]) == (byte)PathPointType.Start)
+                {
+                    count++;
+                }
+            }
+
+            return count;
         }
     }
 
     public bool HasCurve()
     {
-        BOOL hasCurve;
-        PInvoke.GdipPathIterHasCurve(_nativeIterator, &hasCurve).ThrowIfFailed();
-        GC.KeepAlive(this);
-        return hasCurve;
+        EnsurePath();
+        foreach (byte type in _path.PathTypes)
+        {
+            if (BaseType(type) == (byte)PathPointType.Bezier)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public void Rewind()
     {
-        PInvoke.GdipPathIterRewind(_nativeIterator).ThrowIfFailed();
-        GC.KeepAlive(this);
+        EnsurePath();
+        _position = 0;
     }
 
     /// <inheritdoc cref="CopyData(ref PointF[], ref byte[], int, int)"/>
@@ -159,31 +161,19 @@ public sealed unsafe class GraphicsPathIterator : MarshalByRefObject, IDisposabl
 #endif
     unsafe int Enumerate(Span<PointF> points, Span<byte> types)
     {
-        if (points.Length != types.Length
-            || points.Length < Count)
+        EnsurePath();
+        int count = Count;
+        if (points.Length != types.Length || points.Length < count)
         {
             throw Status.InvalidParameter.GetException();
         }
 
-        if (points.Length == 0)
+        if (count == 0)
         {
             return 0;
         }
 
-        fixed (PointF* p = points)
-        fixed (byte* t = types)
-        {
-            int resultCount;
-            PInvoke.GdipPathIterEnumerate(
-                _nativeIterator,
-                &resultCount,
-                (GdiPlus.PointF*)p,
-                t,
-                points.Length).ThrowIfFailed();
-
-            GC.KeepAlive(this);
-            return resultCount;
-        }
+        return CopyData(points, types, 0, count - 1);
     }
 
     /// <summary>
@@ -206,32 +196,56 @@ public sealed unsafe class GraphicsPathIterator : MarshalByRefObject, IDisposabl
 #endif
     unsafe int CopyData(Span<PointF> points, Span<byte> types, int startIndex, int endIndex)
     {
+        EnsurePath();
         int count = endIndex - startIndex + 1;
-
-        if ((points.Length != types.Length)
-            || endIndex < 0
+        if (points.Length != types.Length
             || startIndex < 0
             || endIndex < startIndex
-            || count > points.Length
-            || endIndex >= Count)
+            || endIndex >= Count
+            || count > points.Length)
         {
             throw Status.InvalidParameter.GetException();
         }
 
-        fixed (PointF* p = points)
-        fixed (byte* t = types)
-        {
-            int resultCount;
-            PInvoke.GdipPathIterCopyData(
-                _nativeIterator,
-                &resultCount,
-                (GdiPlus.PointF*)p,
-                t,
-                startIndex,
-                endIndex).ThrowIfFailed();
-
-            GC.KeepAlive(this);
-            return resultCount;
-        }
+        PointF[] sourcePoints = _path.PathPoints;
+        byte[] sourceTypes = _path.PathTypes;
+        sourcePoints.AsSpan(startIndex, count).CopyTo(points);
+        sourceTypes.AsSpan(startIndex, count).CopyTo(types);
+        return count;
     }
+
+    private void CopyRangeToPath(GraphicsPath path, int startIndex, int endIndex, int count)
+    {
+        path.OrThrowIfNull();
+        if (count == 0)
+        {
+            path.Reset();
+            return;
+        }
+
+        PointF[] points = new PointF[count];
+        byte[] types = new byte[count];
+        CopyData(points, types, startIndex, endIndex);
+        path.ReplaceData(points, types);
+    }
+
+    private void EnsurePath()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+    }
+
+    private static int FindSubpathEnd(byte[] types, int startIndex)
+    {
+        int i = startIndex + 1;
+        while (i < types.Length && BaseType(types[i]) != (byte)PathPointType.Start)
+        {
+            i++;
+        }
+
+        return i - 1;
+    }
+
+    private static byte BaseType(byte type) => (byte)(type & (byte)PathPointType.PathTypeMask);
+
+    private static bool IsClosed(byte type) => (type & (byte)PathPointType.CloseSubpath) != 0;
 }

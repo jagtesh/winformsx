@@ -27,6 +27,27 @@
   </Suppression>
   <Suppression>
     <DiagnosticId>CP0014</DiagnosticId>
+    <Target>M:System.Drawing.Drawing2D.CustomLineCap.#ctor(System.Drawing.Drawing2D.GraphicsPath,System.Drawing.Drawing2D.GraphicsPath,System.Drawing.Drawing2D.LineCap,System.Single):[T:System.Runtime.CompilerServices.NullableContextAttribute]</Target>
+    <Left>lib/net8.0/System.Drawing.Common.dll</Left>
+    <Right>lib/net8.0/System.Drawing.Common.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0014</DiagnosticId>
+    <Target>M:System.Drawing.Drawing2D.CustomLineCap.#ctor(System.Drawing.Drawing2D.GraphicsPath,System.Drawing.Drawing2D.GraphicsPath,System.Drawing.Drawing2D.LineCap):[T:System.Runtime.CompilerServices.NullableContextAttribute]</Target>
+    <Left>lib/net8.0/System.Drawing.Common.dll</Left>
+    <Right>lib/net8.0/System.Drawing.Common.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0014</DiagnosticId>
+    <Target>M:System.Drawing.Drawing2D.CustomLineCap.#ctor(System.Drawing.Drawing2D.GraphicsPath,System.Drawing.Drawing2D.GraphicsPath):[T:System.Runtime.CompilerServices.NullableContextAttribute]</Target>
+    <Left>lib/net8.0/System.Drawing.Common.dll</Left>
+    <Right>lib/net8.0/System.Drawing.Common.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0014</DiagnosticId>
     <Target>M:System.Drawing.Printing.PrintPageEventArgs.get_Graphics:[T:System.Runtime.CompilerServices.NullableContextAttribute]</Target>
     <Left>lib/net8.0/System.Drawing.Common.dll</Left>
     <Right>lib/net8.0/System.Drawing.Common.dll</Right>
@@ -35,34 +56,6 @@
   <Suppression>
     <DiagnosticId>CP0014</DiagnosticId>
     <Target>P:System.Drawing.Printing.PrintPageEventArgs.Graphics:[T:System.Runtime.CompilerServices.NullableAttribute]</Target>
-    <Left>lib/net8.0/System.Drawing.Common.dll</Left>
-    <Right>lib/net8.0/System.Drawing.Common.dll</Right>
-    <IsBaselineSuppression>true</IsBaselineSuppression>
-  </Suppression>
-  <Suppression>
-    <DiagnosticId>CP0014</DiagnosticId>
-    <Target>T:System.Drawing.Drawing2D.CustomLineCap:[T:System.Runtime.CompilerServices.NullableAttribute]</Target>
-    <Left>lib/net8.0/System.Drawing.Common.dll</Left>
-    <Right>lib/net8.0/System.Drawing.Common.dll</Right>
-    <IsBaselineSuppression>true</IsBaselineSuppression>
-  </Suppression>
-  <Suppression>
-    <DiagnosticId>CP0014</DiagnosticId>
-    <Target>T:System.Drawing.Drawing2D.CustomLineCap:[T:System.Runtime.CompilerServices.NullableContextAttribute]</Target>
-    <Left>lib/net8.0/System.Drawing.Common.dll</Left>
-    <Right>lib/net8.0/System.Drawing.Common.dll</Right>
-    <IsBaselineSuppression>true</IsBaselineSuppression>
-  </Suppression>
-  <Suppression>
-    <DiagnosticId>CP0014</DiagnosticId>
-    <Target>T:System.Drawing.Drawing2D.GraphicsPathIterator:[T:System.Runtime.CompilerServices.NullableAttribute]</Target>
-    <Left>lib/net8.0/System.Drawing.Common.dll</Left>
-    <Right>lib/net8.0/System.Drawing.Common.dll</Right>
-    <IsBaselineSuppression>true</IsBaselineSuppression>
-  </Suppression>
-  <Suppression>
-    <DiagnosticId>CP0014</DiagnosticId>
-    <Target>T:System.Drawing.Drawing2D.GraphicsPathIterator:[T:System.Runtime.CompilerServices.NullableContextAttribute]</Target>
     <Left>lib/net8.0/System.Drawing.Common.dll</Left>
     <Right>lib/net8.0/System.Drawing.Common.dll</Right>
     <IsBaselineSuppression>true</IsBaselineSuppression>
@@ -105,6 +98,13 @@
   <Suppression>
     <DiagnosticId>CP0014</DiagnosticId>
     <Target>T:System.Drawing.Imaging.EncoderParameters:[T:System.Runtime.CompilerServices.NullableContextAttribute]</Target>
+    <Left>lib/net8.0/System.Drawing.Common.dll</Left>
+    <Right>lib/net8.0/System.Drawing.Common.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0015</DiagnosticId>
+    <Target>T:System.Drawing.Drawing2D.CustomLineCap:[T:System.Runtime.CompilerServices.NullableContextAttribute]</Target>
     <Left>lib/net8.0/System.Drawing.Common.dll</Left>
     <Right>lib/net8.0/System.Drawing.Common.dll</Right>
     <IsBaselineSuppression>true</IsBaselineSuppression>
