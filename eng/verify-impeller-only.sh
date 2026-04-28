@@ -20,6 +20,20 @@ check() {
   fi
 }
 
+check_disallowed_imports() {
+  local matches
+  matches="$(rg -n '\[(DllImport|LibraryImport)\(' "${runtime_paths[@]}" \
+    | rg -v 'src/System.Drawing.Common/src/System/Drawing/Impeller/NativeMethods.cs' \
+    | rg -v 'src/System.Drawing.Common/src/System/Drawing/Backends/Text/HarfBuzzNative.cs' \
+    || true)"
+
+  if [[ -n "$matches" ]]; then
+    echo "[IMP_ONLY_ERROR] Runtime native imports must be limited to Impeller and HarfBuzz bindings."
+    echo "$matches"
+    failures=$((failures + 1))
+  fi
+}
+
 runtime_paths=(
   "src/System.Windows.Forms/src"
   "src/System.Windows.Forms.Primitives/src"
@@ -27,9 +41,11 @@ runtime_paths=(
   "src/System.Private.Windows.Core/src"
 )
 
+check_disallowed_imports
+
 check \
   "Real Windows DLL imports are not allowed in WinFormsX runtime code." \
-  '\[(DllImport|LibraryImport)\("(USER32|user32|GDI32|gdi32|gdiplus|gdiplus\.dll|COMCTL32|comctl32|COMDLG32|comdlg32|KERNEL32|kernel32)\.dll"' \
+  '\[(DllImport|LibraryImport)\((Libraries\.)?(USER32|user32|User32|GDI32|gdi32|Gdi32|gdiplus|Gdiplus|COMCTL32|comctl32|Comctl32|COMDLG32|comdlg32|Comdlg32|KERNEL32|kernel32|Kernel32|SHELL32|shell32|Shell32|OLE32|ole32|Ole32)' \
   "${runtime_paths[@]}"
 
 check \
