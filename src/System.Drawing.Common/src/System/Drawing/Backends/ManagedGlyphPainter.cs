@@ -1,122 +1,26 @@
 namespace System.Drawing;
 
-internal sealed class ManagedVectorTextEngine
+internal sealed class ManagedGlyphPainter
 {
     private const int GlyphHeight = 7;
-    private const int GlyphAdvance = 6;
+    private const int GlyphWidth = 5;
 
-    public void DrawString(IRenderingBackend backend, string text, float x, float y, Color color, float fontSize)
-    {
-        if (string.IsNullOrEmpty(text))
-        {
-            return;
-        }
-
-        float scale = ResolveScale(fontSize);
-        float cursorX = x;
-        float cursorY = y;
-        float lineHeight = (GlyphHeight + 3) * scale;
-
-        foreach (char raw in text)
-        {
-            if (raw == '\r')
-            {
-                continue;
-            }
-
-            if (raw == '\n')
-            {
-                cursorX = x;
-                cursorY += lineHeight;
-                continue;
-            }
-
-            DrawGlyph(backend, raw, cursorX, cursorY, scale, color);
-            cursorX += GlyphAdvance * scale;
-        }
-    }
-
-    public void DrawGlyph(IRenderingBackend backend, char raw, float x, float y, Color color, float fontSize)
-    {
-        DrawGlyph(backend, raw, x, y, ResolveScale(fontSize), color);
-    }
-
-    public void DrawStringAligned(
+    public void DrawGlyph(
         IRenderingBackend backend,
-        string text,
-        RectangleF bounds,
-        ContentAlignment alignment,
-        Color color,
-        float fontSize)
+        char raw,
+        float x,
+        float y,
+        float advance,
+        float lineHeight,
+        Color color)
     {
-        SizeF measured = MeasureString(text, fontSize);
-        float x = bounds.X;
-        float y = bounds.Y;
-
-        if (alignment is ContentAlignment.TopCenter or ContentAlignment.MiddleCenter or ContentAlignment.BottomCenter)
-        {
-            x += MathF.Max(0f, (bounds.Width - measured.Width) / 2f);
-        }
-        else if (alignment is ContentAlignment.TopRight or ContentAlignment.MiddleRight or ContentAlignment.BottomRight)
-        {
-            x += MathF.Max(0f, bounds.Width - measured.Width);
-        }
-
-        if (alignment is ContentAlignment.MiddleLeft or ContentAlignment.MiddleCenter or ContentAlignment.MiddleRight)
-        {
-            y += MathF.Max(0f, (bounds.Height - measured.Height) / 2f);
-        }
-        else if (alignment is ContentAlignment.BottomLeft or ContentAlignment.BottomCenter or ContentAlignment.BottomRight)
-        {
-            y += MathF.Max(0f, bounds.Height - measured.Height);
-        }
-
-        DrawString(backend, text, x, y, color, fontSize);
-    }
-
-    public SizeF MeasureString(string text, float fontSize)
-    {
-        if (string.IsNullOrEmpty(text))
-        {
-            return SizeF.Empty;
-        }
-
-        float scale = ResolveScale(fontSize);
-        int lineChars = 0;
-        int maxChars = 0;
-        int lines = 1;
-
-        foreach (char c in text)
-        {
-            if (c == '\r')
-            {
-                continue;
-            }
-
-            if (c == '\n')
-            {
-                maxChars = Math.Max(maxChars, lineChars);
-                lineChars = 0;
-                lines++;
-                continue;
-            }
-
-            lineChars++;
-        }
-
-        maxChars = Math.Max(maxChars, lineChars);
-        return new SizeF(maxChars * GlyphAdvance * scale, lines * (GlyphHeight + 3) * scale);
-    }
-
-    public float GetLineHeight(float fontSize)
-        => (GlyphHeight + 3) * ResolveScale(fontSize);
-
-    private static float ResolveScale(float fontSize)
-        => MathF.Max(1f, fontSize / GlyphHeight);
-
-    private static void DrawGlyph(IRenderingBackend backend, char raw, float x, float y, float scale, Color color)
-    {
+        float scale = ResolveScale(advance, lineHeight);
+        float glyphWidth = GlyphWidth * scale;
+        float glyphHeight = GlyphHeight * scale;
+        float originX = x + MathF.Max(0f, (advance - glyphWidth) / 2f);
+        float originY = y + MathF.Max(0f, (lineHeight - glyphHeight) / 2f);
         string[] pattern = GetPattern(raw);
+
         for (int row = 0; row < pattern.Length; row++)
         {
             string line = pattern[row];
@@ -124,10 +28,17 @@ internal sealed class ManagedVectorTextEngine
             {
                 if (line[col] == '1')
                 {
-                    backend.FillRect(x + (col * scale), y + (row * scale), scale, scale, color);
+                    backend.FillRect(originX + (col * scale), originY + (row * scale), scale, scale, color);
                 }
             }
         }
+    }
+
+    private static float ResolveScale(float advance, float lineHeight)
+    {
+        float widthScale = MathF.Max(1f, advance * 0.72f / GlyphWidth);
+        float heightScale = MathF.Max(1f, lineHeight * 0.72f / GlyphHeight);
+        return MathF.Min(widthScale, heightScale);
     }
 
     private static string[] GetPattern(char raw)

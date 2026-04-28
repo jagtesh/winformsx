@@ -1,14 +1,12 @@
 using System.Collections.Concurrent;
-using System.IO;
 
 namespace System.Drawing;
 
 internal sealed class HarfBuzzTextEngine : ITextEngine
 {
-    private static readonly ConcurrentDictionary<TextShapeKey, Lazy<HarfBuzzTextShaper?>> s_shapers = new();
+    private static readonly ConcurrentDictionary<TextShapeKey, Lazy<HarfBuzzTextShaper>> s_shapers = new();
 
-    private readonly ManagedVectorTextEngine _primitivePainter = new();
-    private volatile bool _harfBuzzUnavailable;
+    private readonly ManagedGlyphPainter _glyphPainter = new();
 
     public void DrawString(
         IRenderingBackend backend,
@@ -21,21 +19,7 @@ internal sealed class HarfBuzzTextEngine : ITextEngine
         bool bold,
         bool italic)
     {
-        HarfBuzzTextShaper? shaper = GetShaper(fontFamily, fontSize, bold, italic);
-        if (shaper is not null)
-        {
-            try
-            {
-                DrawShapedString(backend, shaper, text, x, y, color, fontSize);
-                return;
-            }
-            catch (Exception ex) when (IsHarfBuzzLoadFailure(ex))
-            {
-                _harfBuzzUnavailable = true;
-            }
-        }
-
-        _primitivePainter.DrawString(backend, text, x, y, color, fontSize);
+        DrawShapedString(backend, GetShaper(fontFamily, fontSize, bold, italic), text, x, y, color);
     }
 
     public void DrawStringAligned(
@@ -81,45 +65,21 @@ internal sealed class HarfBuzzTextEngine : ITextEngine
             return SizeF.Empty;
         }
 
-        HarfBuzzTextShaper? shaper = GetShaper(fontFamily, fontSize, bold, italic);
-        if (shaper is not null)
-        {
-            try
-            {
-                return shaper.Measure(text);
-            }
-            catch (Exception ex) when (IsHarfBuzzLoadFailure(ex))
-            {
-                _harfBuzzUnavailable = true;
-            }
-        }
-
-        return _primitivePainter.MeasureString(text, fontSize);
+        return GetShaper(fontFamily, fontSize, bold, italic).Measure(text);
     }
 
-    private HarfBuzzTextShaper? GetShaper(string fontFamily, float fontSize, bool bold, bool italic)
+    private static HarfBuzzTextShaper GetShaper(string fontFamily, float fontSize, bool bold, bool italic)
     {
-        if (_harfBuzzUnavailable)
-        {
-            return null;
-        }
-
         TextShapeKey key = new(fontFamily, MathF.Max(1f, fontSize), bold, italic);
-        try
-        {
-            return s_shapers.GetOrAdd(key, static value => new Lazy<HarfBuzzTextShaper?>(() => CreateShaper(value))).Value;
-        }
-        catch (Exception ex) when (IsHarfBuzzLoadFailure(ex))
-        {
-            _harfBuzzUnavailable = true;
-            return null;
-        }
+        return s_shapers.GetOrAdd(key, static value => new Lazy<HarfBuzzTextShaper>(() => CreateShaper(value))).Value;
     }
 
-    private static HarfBuzzTextShaper? CreateShaper(TextShapeKey key)
+    private static HarfBuzzTextShaper CreateShaper(TextShapeKey key)
     {
         string? fontPath = FontFileResolver.FindFontFile(key.FontFamily, key.Bold, key.Italic);
-        return fontPath is null ? null : new HarfBuzzTextShaper(fontPath, key.FontSize);
+        return fontPath is null
+            ? throw new InvalidOperationException($"No font file could be resolved for '{key.FontFamily}'.")
+            : new HarfBuzzTextShaper(fontPath, key.FontSize);
     }
 
     private void DrawShapedString(
@@ -128,12 +88,11 @@ internal sealed class HarfBuzzTextEngine : ITextEngine
         string text,
         float x,
         float y,
-        Color color,
-        float fontSize)
+        Color color)
     {
         string normalized = text.Replace("\r", string.Empty, StringComparison.Ordinal);
         string[] lines = normalized.Split('\n');
-        float lineHeight = MathF.Max(_primitivePainter.GetLineHeight(fontSize), shaper.GetMetrics().LineHeight);
+        float lineHeight = MathF.Max(1f, shaper.GetMetrics().LineHeight);
         float currentY = y;
 
         foreach (string line in lines)
@@ -143,13 +102,14 @@ internal sealed class HarfBuzzTextEngine : ITextEngine
             {
                 if (glyph.Cluster < line.Length)
                 {
-                    _primitivePainter.DrawGlyph(
+                    _glyphPainter.DrawGlyph(
                         backend,
                         line[(int)glyph.Cluster],
                         cursorX + glyph.XOffset,
                         currentY + glyph.YOffset,
-                        color,
-                        fontSize);
+                        MathF.Max(1f, glyph.XAdvance),
+                        lineHeight,
+                        color);
                 }
 
                 cursorX += glyph.XAdvance;
@@ -157,14 +117,6 @@ internal sealed class HarfBuzzTextEngine : ITextEngine
 
             currentY += lineHeight;
         }
-    }
-
-    private static bool IsHarfBuzzLoadFailure(Exception ex)
-    {
-        return ex is DllNotFoundException
-            or EntryPointNotFoundException
-            or BadImageFormatException
-            or FileNotFoundException;
     }
 
     private readonly record struct TextShapeKey(string FontFamily, float FontSize, bool Bold, bool Italic);
