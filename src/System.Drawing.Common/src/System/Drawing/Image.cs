@@ -43,6 +43,8 @@ public abstract unsafe class Image : MarshalByRefObject, IImage, IDisposable, IC
     private Imaging.PixelFormat _pixelFormat = Imaging.PixelFormat.Format32bppArgb;
     private Imaging.ImageFormat _rawFormat = Imaging.ImageFormat.MemoryBmp;
     private bool _disposed;
+    private Dictionary<int, Imaging.PropertyItem>? _propertyItems;
+    private ColorPalette? _palette;
 
     private object? _userData;
 
@@ -205,9 +207,14 @@ public abstract unsafe class Image : MarshalByRefObject, IImage, IDisposable, IC
     /// </summary>
     public object Clone()
     {
+        ThrowIfDisposed();
+
         if (_nativeImage is null)
         {
-            return MemberwiseClone();
+            Image clone = (Image)MemberwiseClone();
+            clone._propertyItems = ClonePropertyItems();
+            clone._palette = ClonePalette(_palette);
+            return clone;
         }
 
         GpImage* cloneImage;
@@ -453,6 +460,7 @@ public abstract unsafe class Image : MarshalByRefObject, IImage, IDisposable, IC
         {
             if (_nativeImage is null)
             {
+                ThrowIfDisposed();
                 return _width;
             }
 
@@ -475,6 +483,7 @@ public abstract unsafe class Image : MarshalByRefObject, IImage, IDisposable, IC
         {
             if (_nativeImage is null)
             {
+                ThrowIfDisposed();
                 return _height;
             }
 
@@ -584,6 +593,18 @@ public abstract unsafe class Image : MarshalByRefObject, IImage, IDisposable, IC
         get
         {
             uint count;
+            if (_nativeImage is null)
+            {
+                if (_propertyItems is null || _propertyItems.Count == 0)
+                {
+                    return [];
+                }
+
+                int[] ids = new int[_propertyItems.Count];
+                _propertyItems.Keys.CopyTo(ids, 0);
+                return ids;
+            }
+
             PInvoke.GdipGetPropertyCount(_nativeImage, &count).ThrowIfFailed();
             if (count == 0)
             {
@@ -610,6 +631,23 @@ public abstract unsafe class Image : MarshalByRefObject, IImage, IDisposable, IC
         get
         {
             uint size, count;
+            if (_nativeImage is null)
+            {
+                if (_propertyItems is null || _propertyItems.Count == 0)
+                {
+                    return [];
+                }
+
+                Imaging.PropertyItem[] items = new Imaging.PropertyItem[_propertyItems.Count];
+                int index = 0;
+                foreach (Imaging.PropertyItem item in _propertyItems.Values)
+                {
+                    items[index++] = ClonePropertyItem(item);
+                }
+
+                return items;
+            }
+
             PInvoke.GdipGetPropertySize(_nativeImage, &size, &count).ThrowIfFailed();
 
             if (size == 0 || count == 0)
@@ -654,6 +692,12 @@ public abstract unsafe class Image : MarshalByRefObject, IImage, IDisposable, IC
     {
         get
         {
+            ThrowIfDisposed();
+            if (_nativeImage is null)
+            {
+                return _palette ??= CreateDefaultPalette(_pixelFormat);
+            }
+
             // "size" is total byte size:
             // sizeof(ColorPalette) + (pal->Count-1)*sizeof(ARGB)
 
@@ -670,6 +714,14 @@ public abstract unsafe class Image : MarshalByRefObject, IImage, IDisposable, IC
         }
         set
         {
+            ThrowIfDisposed();
+            if (_nativeImage is null)
+            {
+                _ = value.Flags;
+                _palette = ClonePalette(value);
+                return;
+            }
+
             using BufferScope<uint> buffer = value.ConvertToBuffer();
             fixed (uint* b = buffer)
             {
@@ -720,6 +772,14 @@ public abstract unsafe class Image : MarshalByRefObject, IImage, IDisposable, IC
     /// </summary>
     public int GetFrameCount(FrameDimension dimension)
     {
+        ThrowIfDisposed();
+        ArgumentNullException.ThrowIfNull(dimension);
+
+        if (_nativeImage is null)
+        {
+            return 1;
+        }
+
         Guid dimensionID = dimension.Guid;
         uint count;
         PInvoke.GdipImageGetFrameCount(_nativeImage, &dimensionID, &count).ThrowIfFailed();
@@ -732,6 +792,16 @@ public abstract unsafe class Image : MarshalByRefObject, IImage, IDisposable, IC
     /// </summary>
     public Imaging.PropertyItem? GetPropertyItem(int propid)
     {
+        if (_nativeImage is null)
+        {
+            if (_propertyItems is not null && _propertyItems.TryGetValue(propid, out Imaging.PropertyItem? item))
+            {
+                return ClonePropertyItem(item);
+            }
+
+            throw new ArgumentException(SR.GdiplusPropertyNotFoundError);
+        }
+
         uint size;
         PInvoke.GdipGetPropertyItemSize(_nativeImage, (uint)propid, &size).ThrowIfFailed();
 
@@ -755,6 +825,14 @@ public abstract unsafe class Image : MarshalByRefObject, IImage, IDisposable, IC
     /// </summary>
     public int SelectActiveFrame(FrameDimension dimension, int frameIndex)
     {
+        ThrowIfDisposed();
+        ArgumentNullException.ThrowIfNull(dimension);
+
+        if (_nativeImage is null)
+        {
+            return 0;
+        }
+
         Guid dimensionID = dimension.Guid;
         PInvoke.GdipImageSelectActiveFrame(_nativeImage, &dimensionID, (uint)frameIndex).ThrowIfFailed();
         GC.KeepAlive(this);
@@ -766,6 +844,15 @@ public abstract unsafe class Image : MarshalByRefObject, IImage, IDisposable, IC
     /// </summary>
     public unsafe void SetPropertyItem(Imaging.PropertyItem propitem)
     {
+        ArgumentNullException.ThrowIfNull(propitem);
+
+        if (_nativeImage is null)
+        {
+            _propertyItems ??= [];
+            _propertyItems[propitem.Id] = ClonePropertyItem(propitem);
+            return;
+        }
+
         fixed (byte* propItemValue = propitem.Value)
         {
             GdiPlus.PropertyItem native = new()
@@ -783,6 +870,13 @@ public abstract unsafe class Image : MarshalByRefObject, IImage, IDisposable, IC
 
     public void RotateFlip(RotateFlipType rotateFlipType)
     {
+        ThrowIfDisposed();
+
+        if (_nativeImage is null)
+        {
+            return;
+        }
+
         PInvoke.GdipImageRotateFlip(_nativeImage, (GdiPlus.RotateFlipType)rotateFlipType).ThrowIfFailed();
         GC.KeepAlive(this);
     }
@@ -792,6 +886,21 @@ public abstract unsafe class Image : MarshalByRefObject, IImage, IDisposable, IC
     /// </summary>
     public void RemovePropertyItem(int propid)
     {
+        if (_nativeImage is null)
+        {
+            if (_propertyItems is null || _propertyItems.Count == 0)
+            {
+                throw Gdip.StatusException(Status.GenericError);
+            }
+
+            if (!_propertyItems.Remove(propid))
+            {
+                throw new ArgumentException(SR.GdiplusPropertyNotFoundError);
+            }
+
+            return;
+        }
+
         PInvoke.GdipRemovePropertyItem(_nativeImage, (uint)propid).ThrowIfFailed();
         GC.KeepAlive(this);
     }
@@ -871,7 +980,13 @@ public abstract unsafe class Image : MarshalByRefObject, IImage, IDisposable, IC
         _nativeImage = handle;
     }
 
-    internal void SetManagedImage(int width, int height, PixelFormat pixelFormat, float horizontalResolution = 96, float verticalResolution = 96)
+    internal void SetManagedImage(
+        int width,
+        int height,
+        PixelFormat pixelFormat,
+        float horizontalResolution = 96,
+        float verticalResolution = 96,
+        ImageFormat? rawFormat = null)
     {
         if (width <= 0 || height <= 0)
         {
@@ -885,7 +1000,13 @@ public abstract unsafe class Image : MarshalByRefObject, IImage, IDisposable, IC
         _pixelFormat = pixelFormat;
         _horizontalResolution = horizontalResolution;
         _verticalResolution = verticalResolution;
-        _rawFormat = ImageFormat.MemoryBmp;
+        _rawFormat = rawFormat ?? ImageFormat.MemoryBmp;
+    }
+
+    internal void SetManagedPropertyItem(Imaging.PropertyItem item)
+    {
+        _propertyItems ??= [];
+        _propertyItems[item.Id] = ClonePropertyItem(item);
     }
 
     // Multi-frame support
@@ -899,6 +1020,11 @@ public abstract unsafe class Image : MarshalByRefObject, IImage, IDisposable, IC
         get
         {
             uint count;
+            if (_nativeImage is null)
+            {
+                return [FrameDimension.Page.Guid];
+            }
+
             PInvoke.GdipImageGetFrameDimensionsCount(_nativeImage, &count).ThrowIfFailed();
 
             Debug.Assert(count >= 0, "FrameDimensionsList returns bad count");
@@ -938,6 +1064,95 @@ public abstract unsafe class Image : MarshalByRefObject, IImage, IDisposable, IC
             GdiPlus.ImageType.ImageTypeMetafile => new Metafile((nint)nativeImage),
             _ => throw new ArgumentException(SR.InvalidImage),
         };
+    }
+
+    private Dictionary<int, Imaging.PropertyItem>? ClonePropertyItems()
+    {
+        if (_propertyItems is null)
+        {
+            return null;
+        }
+
+        Dictionary<int, Imaging.PropertyItem> clone = [];
+        foreach (KeyValuePair<int, Imaging.PropertyItem> item in _propertyItems)
+        {
+            clone.Add(item.Key, ClonePropertyItem(item.Value));
+        }
+
+        return clone;
+    }
+
+    private static Imaging.PropertyItem ClonePropertyItem(Imaging.PropertyItem item) =>
+        new()
+        {
+            Id = item.Id,
+            Len = item.Len,
+            Type = item.Type,
+            Value = item.Value is null ? null : (byte[])item.Value.Clone()
+        };
+
+    private static ColorPalette? ClonePalette(ColorPalette? palette) =>
+        palette is null ? null : ColorPalette.Create(palette.Flags, (Color[])palette.Entries.Clone());
+
+    private static ColorPalette CreateDefaultPalette(PixelFormat format)
+    {
+        if (format == PixelFormat.Format1bppIndexed)
+        {
+            return ColorPalette.Create(0, [Color.Black, Color.White]);
+        }
+
+        if (format == PixelFormat.Format4bppIndexed)
+        {
+            return ColorPalette.Create(0, CreateDefault8BitPalette(16));
+        }
+
+        if (format == PixelFormat.Format8bppIndexed)
+        {
+            return ColorPalette.Create(0, CreateDefault8BitPalette(256));
+        }
+
+        return ColorPalette.Create(0, []);
+    }
+
+    private static Color[] CreateDefault8BitPalette(int count)
+    {
+        Color[] colors = new Color[count];
+        int[] systemColors =
+        [
+            unchecked((int)0xFF000000), unchecked((int)0xFF800000), unchecked((int)0xFF008000), unchecked((int)0xFF808000),
+            unchecked((int)0xFF000080), unchecked((int)0xFF800080), unchecked((int)0xFF008080), unchecked((int)0xFF808080),
+            unchecked((int)0xFFC0C0C0), unchecked((int)0xFFFF0000), unchecked((int)0xFF00FF00), unchecked((int)0xFFFFFF00),
+            unchecked((int)0xFF0000FF), unchecked((int)0xFFFF00FF), unchecked((int)0xFF00FFFF), unchecked((int)0xFFFFFFFF)
+        ];
+
+        for (int i = 0; i < Math.Min(count, systemColors.Length); i++)
+        {
+            colors[i] = Color.FromArgb(systemColors[i]);
+        }
+
+        if (count <= 16)
+        {
+            return colors;
+        }
+
+        int index = 40;
+        for (int red = 0; red < 256; red += 51)
+        {
+            for (int green = 0; green < 256; green += 51)
+            {
+                for (int blue = 0; blue < 256; blue += 51)
+                {
+                    colors[index++] = Color.FromArgb(255, red, green, blue);
+                }
+            }
+        }
+
+        for (int value = 0; index < colors.Length; value += 17)
+        {
+            colors[index++] = Color.FromArgb(255, value, value, value);
+        }
+
+        return colors;
     }
 
     /// <summary>

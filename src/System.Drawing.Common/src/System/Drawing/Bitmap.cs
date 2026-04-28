@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.ComponentModel;
+using System.Buffers.Binary;
 using System.Drawing.Imaging;
 #if NET9_0_OR_GREATER
 using System.Drawing.Imaging.Effects;
@@ -29,23 +30,8 @@ public sealed unsafe class Bitmap : Image, IPointer<GpBitmap>
 
     public Bitmap(string filename, bool useIcm)
     {
-        // GDI+ will read this file multiple times. Get the fully qualified path
-        // so if the app's default directory changes we won't get an error.
         filename = Path.GetFullPath(filename);
-
-        GpBitmap* bitmap;
-
-        fixed (char* fn = filename)
-        {
-            Status status = useIcm
-                ? PInvoke.GdipCreateBitmapFromFileICM(fn, &bitmap)
-                : PInvoke.GdipCreateBitmapFromFile(fn, &bitmap);
-            status.ThrowIfFailed();
-        }
-
-        ValidateImage((GpImage*)bitmap);
-        SetNativeImage((GpImage*)bitmap);
-        GetAnimatedGifRawData(this, filename, dataStream: null);
+        InitializeManagedBitmap(File.ReadAllBytes(filename));
     }
 
     public Bitmap(Stream stream) : this(stream, false)
@@ -55,17 +41,9 @@ public sealed unsafe class Bitmap : Image, IPointer<GpBitmap>
     public Bitmap(Stream stream, bool useIcm)
     {
         ArgumentNullException.ThrowIfNull(stream);
-        using var iStream = stream.ToIStream(makeSeekable: true);
-
-        GpBitmap* bitmap = null;
-        Status status = useIcm
-            ? PInvoke.GdipCreateBitmapFromStreamICM(iStream, &bitmap)
-            : PInvoke.GdipCreateBitmapFromStream(iStream, &bitmap);
-        status.ThrowIfFailed();
-
-        ValidateImage((GpImage*)bitmap);
-        SetNativeImage((GpImage*)bitmap);
-        GetAnimatedGifRawData(this, filename: null, stream);
+        using MemoryStream memory = new();
+        stream.CopyTo(memory);
+        InitializeManagedBitmap(memory.ToArray());
     }
 
     public Bitmap(Type type, string resource) : this(GetResourceStream(type, resource))
@@ -135,6 +113,232 @@ public sealed unsafe class Bitmap : Image, IPointer<GpBitmap>
         _pixels = new int[checked(width * height)];
         Array.Fill(_pixels, Color.Black.ToArgb());
     }
+
+    private void InitializeManagedBitmap(ReadOnlySpan<byte> data)
+    {
+        if (TryInitializeIcon(data) || TryInitializePng(data) || TryInitializeBmp(data) || TryInitializeJpeg(data))
+        {
+            return;
+        }
+
+        throw new ArgumentException(SR.InvalidImage);
+    }
+
+    private bool TryInitializePng(ReadOnlySpan<byte> data)
+    {
+        ReadOnlySpan<byte> signature = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+        if (data.Length < 33 || !data[..8].SequenceEqual(signature) || !data.Slice(12, 4).SequenceEqual("IHDR"u8))
+        {
+            return false;
+        }
+
+        int width = checked((int)BinaryPrimitives.ReadUInt32BigEndian(data.Slice(16, 4)));
+        int height = checked((int)BinaryPrimitives.ReadUInt32BigEndian(data.Slice(20, 4)));
+        byte colorType = data[25];
+        PixelFormat format = colorType switch
+        {
+            6 => PixelFormat.Format32bppArgb,
+            2 => PixelFormat.Format24bppRgb,
+            3 => PixelFormat.Format8bppIndexed,
+            0 => PixelFormat.Format8bppIndexed,
+            _ => PixelFormat.Format32bppArgb
+        };
+
+        InitializeManagedBitmap(width, height, format);
+        SetManagedImage(width, height, format, rawFormat: ImageFormat.Png);
+        SetManagedPropertyItem(CreatePropertyItem(771, 1, [0]));
+        return true;
+    }
+
+    private bool TryInitializeIcon(ReadOnlySpan<byte> data)
+    {
+        if (data.Length < 22
+            || BinaryPrimitives.ReadUInt16LittleEndian(data[..2]) != 0
+            || BinaryPrimitives.ReadUInt16LittleEndian(data.Slice(2, 2)) != 1
+            || BinaryPrimitives.ReadUInt16LittleEndian(data.Slice(4, 2)) == 0)
+        {
+            return false;
+        }
+
+        int width = data[6] == 0 ? 256 : data[6];
+        int height = data[7] == 0 ? 256 : data[7];
+        InitializeManagedBitmap(width, height, PixelFormat.Format32bppArgb);
+        SetManagedImage(width, height, PixelFormat.Format32bppArgb, rawFormat: ImageFormat.Icon);
+        return true;
+    }
+
+    private bool TryInitializeBmp(ReadOnlySpan<byte> data)
+    {
+        if (data.Length < 30 || data[0] != (byte)'B' || data[1] != (byte)'M')
+        {
+            return false;
+        }
+
+        uint headerSize = BinaryPrimitives.ReadUInt32LittleEndian(data.Slice(14, 4));
+        if (headerSize < 12 || data.Length < 14 + headerSize)
+        {
+            throw new ArgumentException(SR.InvalidImage);
+        }
+
+        int width;
+        int height;
+        ushort bitCount;
+        if (headerSize == 12)
+        {
+            width = BinaryPrimitives.ReadUInt16LittleEndian(data.Slice(18, 2));
+            height = BinaryPrimitives.ReadUInt16LittleEndian(data.Slice(20, 2));
+            bitCount = BinaryPrimitives.ReadUInt16LittleEndian(data.Slice(24, 2));
+        }
+        else
+        {
+            width = BinaryPrimitives.ReadInt32LittleEndian(data.Slice(18, 4));
+            height = Math.Abs(BinaryPrimitives.ReadInt32LittleEndian(data.Slice(22, 4)));
+            bitCount = BinaryPrimitives.ReadUInt16LittleEndian(data.Slice(28, 2));
+        }
+
+        PixelFormat format = bitCount switch
+        {
+            1 => PixelFormat.Format1bppIndexed,
+            4 => PixelFormat.Format4bppIndexed,
+            8 => PixelFormat.Format8bppIndexed,
+            16 => PixelFormat.Format16bppRgb555,
+            24 => PixelFormat.Format24bppRgb,
+            32 => PixelFormat.Format32bppRgb,
+            _ => PixelFormat.Format32bppArgb
+        };
+
+        InitializeManagedBitmap(width, height, format);
+        SetManagedImage(width, height, format, rawFormat: ImageFormat.Bmp);
+        return true;
+    }
+
+    private bool TryInitializeJpeg(ReadOnlySpan<byte> data)
+    {
+        if (data.Length < 4 || data[0] != 0xFF || data[1] != 0xD8)
+        {
+            return false;
+        }
+
+        int offset = 2;
+        while (offset + 4 <= data.Length)
+        {
+            if (data[offset] != 0xFF)
+            {
+                offset++;
+                continue;
+            }
+
+            byte marker = data[offset + 1];
+            offset += 2;
+            if (marker is 0xD8 or 0xD9)
+            {
+                continue;
+            }
+
+            if (offset + 2 > data.Length)
+            {
+                break;
+            }
+
+            int length = BinaryPrimitives.ReadUInt16BigEndian(data.Slice(offset, 2));
+            if (length < 2 || offset + length > data.Length)
+            {
+                break;
+            }
+
+            ReadOnlySpan<byte> segment = data.Slice(offset + 2, length - 2);
+            if (marker == 0xFE)
+            {
+                SetManagedPropertyItem(CreatePropertyItem(0x9286, 2, segment.ToArray()));
+            }
+            else if (marker == 0xDB)
+            {
+                ReadQuantizationTables(segment);
+            }
+            else if (marker is >= 0xC0 and <= 0xCF and not 0xC4 and not 0xC8 and not 0xCC)
+            {
+                int height = BinaryPrimitives.ReadUInt16BigEndian(segment.Slice(1, 2));
+                int width = BinaryPrimitives.ReadUInt16BigEndian(segment.Slice(3, 2));
+                InitializeManagedBitmap(width, height, PixelFormat.Format24bppRgb);
+                SetManagedImage(width, height, PixelFormat.Format24bppRgb, rawFormat: ImageFormat.Jpeg);
+            }
+
+            offset += length;
+        }
+
+        return RawFormat.Guid == ImageFormat.Jpeg.Guid;
+    }
+
+    private void ReadQuantizationTables(ReadOnlySpan<byte> segment)
+    {
+        ReadOnlySpan<byte> zigZagToNaturalOrder =
+        [
+            0, 1, 5, 6, 14, 15, 27, 28,
+            2, 4, 7, 13, 16, 26, 29, 42,
+            3, 8, 12, 17, 25, 30, 41, 43,
+            9, 11, 18, 24, 31, 40, 44, 53,
+            10, 19, 23, 32, 39, 45, 52, 54,
+            20, 22, 33, 38, 46, 51, 55, 60,
+            21, 34, 37, 47, 50, 56, 59, 61,
+            35, 36, 48, 49, 57, 58, 62, 63
+        ];
+
+        int offset = 0;
+        Imaging.PropertyItem? luminance = null;
+        Imaging.PropertyItem? chrominance = null;
+        while (offset < segment.Length)
+        {
+            byte info = segment[offset++];
+            int precision = info >> 4;
+            int tableId = info & 0x0F;
+            int valueSize = precision == 0 ? 1 : 2;
+            int tableLength = 64 * valueSize;
+            if (offset + tableLength > segment.Length)
+            {
+                return;
+            }
+
+            byte[] value = new byte[128];
+            for (int i = 0; i < 64; i++)
+            {
+                int sourceIndex = zigZagToNaturalOrder[i] * valueSize;
+                ushort quantized = valueSize == 1
+                    ? segment[offset + sourceIndex]
+                    : BinaryPrimitives.ReadUInt16BigEndian(segment.Slice(offset + sourceIndex, 2));
+                BinaryPrimitives.WriteUInt16LittleEndian(value.AsSpan(i * 2, 2), quantized);
+            }
+
+            if (tableId == 0)
+            {
+                luminance = CreatePropertyItem(0x5090, 3, value);
+            }
+            else if (tableId == 1)
+            {
+                chrominance = CreatePropertyItem(0x5091, 3, value);
+            }
+
+            offset += tableLength;
+        }
+
+        if (chrominance is not null)
+        {
+            SetManagedPropertyItem(chrominance);
+        }
+
+        if (luminance is not null)
+        {
+            SetManagedPropertyItem(luminance);
+        }
+    }
+
+    private static Imaging.PropertyItem CreatePropertyItem(int id, short type, byte[] value) =>
+        new()
+        {
+            Id = id,
+            Len = value.Length,
+            Type = type,
+            Value = value
+        };
 
     private void CopyScan0(int width, int height, int stride, IntPtr scan0)
     {

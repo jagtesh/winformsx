@@ -30,6 +30,8 @@ public sealed unsafe class ColorPalette
         _entries = entries;
     }
 
+    internal static ColorPalette Create(int flags, Color[] entries) => new(flags, entries);
+
 #if NET9_0_OR_GREATER
     /// <summary>
     ///  Create a custom color palette.
