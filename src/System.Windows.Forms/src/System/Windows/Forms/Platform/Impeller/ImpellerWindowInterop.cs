@@ -402,7 +402,7 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                                         {
                                             if (tabControl.GetTabRect(i).Contains(clientPt))
                                             {
-                                                tabControl.SelectedIndex = i;
+                                                SelectTabSafe(tabControl, i);
                                                 break;
                                             }
                                         }
@@ -675,7 +675,7 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
         g.FillRectangle(stripBg, 0, 0, width, headerHeight);
 
         int x = 8;
-        int selected = tabControl.SelectedIndex;
+        int selected = GetSelectedTabIndexSafe(tabControl);
         for (int i = 0; i < tabControl.TabPages.Count; i++)
         {
             var tab = tabControl.TabPages[i];
@@ -705,6 +705,64 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                 break;
             }
         }
+    }
+
+    private static int GetSelectedTabIndexSafe(TabControl tabControl)
+    {
+        try
+        {
+            int index = tabControl.SelectedIndex;
+            if (index >= 0 && index < tabControl.TabPages.Count)
+            {
+                return index;
+            }
+        }
+        catch
+        {
+        }
+
+        for (int i = 0; i < tabControl.TabPages.Count; i++)
+        {
+            if (tabControl.TabPages[i].Visible)
+            {
+                return i;
+            }
+        }
+
+        return tabControl.TabPages.Count > 0 ? 0 : -1;
+    }
+
+    private static void SelectTabSafe(TabControl tabControl, int index)
+    {
+        if (index < 0 || index >= tabControl.TabPages.Count)
+        {
+            return;
+        }
+
+        // Always keep visual state correct through PAL-managed visibility.
+        for (int i = 0; i < tabControl.TabPages.Count; i++)
+        {
+            var page = tabControl.TabPages[i];
+            bool visible = i == index;
+            page.Visible = visible;
+            if (visible)
+            {
+                const int tabHeaderHeight = 24;
+                page.SetBounds(0, tabHeaderHeight, tabControl.Width, Math.Max(1, tabControl.Height - tabHeaderHeight));
+            }
+        }
+
+        // Try to update framework selection state, but never allow this to throw.
+        try
+        {
+            tabControl.SelectedIndex = index;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"[TabSelectSafe] SelectedIndex failed: {ex.Message}");
+        }
+
+        tabControl.Invalidate();
     }
 
     private static void TracePaint(string message)
