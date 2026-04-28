@@ -19,8 +19,11 @@ internal static class DisplayInformation
 
     static DisplayInformation()
     {
-        SystemEvents.UserPreferenceChanging += new UserPreferenceChangingEventHandler(UserPreferenceChanging);
-        SystemEvents.DisplaySettingsChanging += new EventHandler(DisplaySettingsChanging);
+        if (OperatingSystem.IsWindows())
+        {
+            SystemEvents.UserPreferenceChanging += new UserPreferenceChangingEventHandler(UserPreferenceChanging);
+            SystemEvents.DisplaySettingsChanging += new EventHandler(DisplaySettingsChanging);
+        }
     }
 
     public static short BitsPerPixel

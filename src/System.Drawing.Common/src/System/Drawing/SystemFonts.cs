@@ -51,6 +51,11 @@ public static class SystemFonts
     private static unsafe bool GetNonClientMetrics(out NONCLIENTMETRICSW metrics)
     {
         metrics = new NONCLIENTMETRICSW { cbSize = (uint)sizeof(NONCLIENTMETRICSW) };
+        if (!OperatingSystem.IsWindows())
+        {
+            return false;
+        }
+
         return PInvokeCore.SystemParametersInfo(ref metrics);
     }
 
@@ -130,7 +135,7 @@ public static class SystemFonts
                 messageBoxFont.SetSystemFontName(nameof(MessageBoxFont));
             }
 
-            return messageBoxFont;
+            return messageBoxFont ?? DefaultFont;
         }
     }
 
@@ -166,6 +171,13 @@ public static class SystemFonts
         get
         {
             Font? defaultFont = null;
+
+            if (!OperatingSystem.IsWindows())
+            {
+                defaultFont = new Font(FontFamily.GenericSansSerif, 8);
+                defaultFont.SetSystemFontName(nameof(DefaultFont));
+                return defaultFont;
+            }
 
             // For Arabic systems, always return Tahoma 8.
             if (PInvokeCore.GetSystemDefaultLCID() == PInvoke.LANG_ARABIC)

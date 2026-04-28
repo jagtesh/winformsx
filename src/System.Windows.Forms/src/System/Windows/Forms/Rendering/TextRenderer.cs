@@ -638,6 +638,11 @@ public static class TextRenderer
     /// </summary>
     private static Size MeasureTextViaGraphics(ReadOnlySpan<char> text, Font font, Size proposedSize, TextFormatFlags flags)
     {
+        if (!OperatingSystem.IsWindows())
+        {
+            return MeasureTextManaged(text, font, proposedSize, flags);
+        }
+
         // Use a temporary Graphics backed by the Impeller backend
         using var g = Graphics.FromHwndInternal(IntPtr.Zero);
         using var sf = new StringFormat(StringFormat.GenericTypographic);
@@ -653,6 +658,61 @@ public static class TextRenderer
         var size = g.MeasureString(text.ToString(), font, layoutArea, sf);
         // GDI MeasureText adds internal padding; approximate by ceiling
         return new Size((int)MathF.Ceiling(size.Width) + 4, (int)MathF.Ceiling(size.Height));
+    }
+
+    private static Size MeasureTextManaged(ReadOnlySpan<char> text, Font font, Size proposedSize, TextFormatFlags flags)
+    {
+        float lineHeight = MathF.Max(1, font.GetHeight(96));
+        float averageGlyphWidth = MathF.Max(1, font.SizeInPoints * 96f / 72f * 0.55f);
+        int lineCount = 1;
+        int longestLineLength = 0;
+        int currentLineLength = 0;
+
+        foreach (char c in text)
+        {
+            if (c == '\r')
+            {
+                continue;
+            }
+
+            if (c == '\n')
+            {
+                longestLineLength = Math.Max(longestLineLength, currentLineLength);
+                currentLineLength = 0;
+                lineCount++;
+                continue;
+            }
+
+            currentLineLength++;
+        }
+
+        longestLineLength = Math.Max(longestLineLength, currentLineLength);
+        bool canWrap = flags.HasFlag(TextFormatFlags.WordBreak)
+            && !flags.HasFlag(TextFormatFlags.SingleLine)
+            && proposedSize.Width > 0;
+
+        if (canWrap)
+        {
+            int charactersPerLine = Math.Max(1, (int)MathF.Floor(proposedSize.Width / averageGlyphWidth));
+            int wrappedLineCount = (int)MathF.Ceiling((float)Math.Max(1, longestLineLength) / charactersPerLine);
+            lineCount = Math.Max(lineCount, wrappedLineCount);
+            longestLineLength = Math.Min(longestLineLength, charactersPerLine);
+        }
+
+        int width = (int)MathF.Ceiling(longestLineLength * averageGlyphWidth) + 4;
+        int height = (int)MathF.Ceiling(lineCount * lineHeight);
+
+        if (proposedSize.Width > 0 && (canWrap || flags.HasFlag(TextFormatFlags.EndEllipsis)))
+        {
+            width = Math.Min(width, proposedSize.Width);
+        }
+
+        if (proposedSize.Height > 0 && flags.HasFlag(TextFormatFlags.SingleLine))
+        {
+            height = Math.Min(height, proposedSize.Height);
+        }
+
+        return new Size(Math.Max(1, width), Math.Max(1, height));
     }
 
     internal static Color DisabledTextColor(Color backColor)

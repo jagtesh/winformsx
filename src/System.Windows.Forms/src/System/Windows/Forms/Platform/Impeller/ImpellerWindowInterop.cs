@@ -13,8 +13,28 @@ using Silk.NET.Windowing;
 /// </summary>
 internal sealed class ImpellerWindowInterop : IWindowInterop
 {
+    // Managed Win32 message IDs used by the Impeller PAL path.
+    // Keep these local so this interop never touches Windows.Win32.PInvoke.
+    private const uint WM_MOVE = 0x0003;
+    private const uint WM_SIZE = 0x0005;
+    private const uint WM_SHOWWINDOW = 0x0018;
+    private const uint WM_WINDOWPOSCHANGED = 0x0047;
+    private const uint WM_KEYDOWN = 0x0100;
+    private const uint WM_KEYUP = 0x0101;
+    private const uint WM_CHAR = 0x0102;
+    private const uint WM_MOUSEMOVE = 0x0200;
+    private const uint WM_LBUTTONDOWN = 0x0201;
+    private const uint WM_LBUTTONUP = 0x0202;
+    private const uint WM_RBUTTONDOWN = 0x0204;
+    private const uint WM_RBUTTONUP = 0x0205;
+    private const uint WM_MBUTTONDOWN = 0x0207;
+    private const uint WM_MBUTTONUP = 0x0208;
+    private const uint WM_MOUSEWHEEL = 0x020A;
+    private const uint WM_MOUSEHWHEEL = 0x020E;
+
     // Internal window registry: HWND -> ImpellerSurface mapping
     private static long s_nextHandle = 0x10000;
+    private static readonly string? s_traceFile = Environment.GetEnvironmentVariable("WINFORMSX_TRACE_FILE");
     private HWND _activeWindow;
     private readonly Dictionary<nint, ImpellerWindowState> _windows = [];
 
@@ -88,6 +108,24 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
         WINDOW_STYLE dwStyle, int x, int y, int nWidth, int nHeight,
         HWND hWndParent, HMENU hMenu, HINSTANCE hInstance, object? lpParam)
     {
+        int effectiveWidth = nWidth > 0 ? nWidth : 800;
+        int effectiveHeight = nHeight > 0 ? nHeight : 600;
+
+        // Some create paths hand us title-bar-sized bounds (e.g., 136x39) for top-level
+        // forms. Clamp to a sane minimum so the render surface is usable.
+        if (hWndParent == HWND.Null)
+        {
+            if (effectiveWidth < 640)
+            {
+                effectiveWidth = 900;
+            }
+
+            if (effectiveHeight < 360)
+            {
+                effectiveHeight = 600;
+            }
+        }
+
         var handle = (HWND)(nint)Interlocked.Increment(ref s_nextHandle);
         _windows[handle] = new ImpellerWindowState
         {
@@ -98,8 +136,8 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
             ExStyle = dwExStyle,
             X = x,
             Y = y,
-            Width = nWidth,
-            Height = nHeight,
+            Width = effectiveWidth,
+            Height = effectiveHeight,
             Parent = hWndParent,
             Visible = false,
             // Sentinel default WndProc — the framework expects a non-null prior
@@ -115,7 +153,7 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
             int posX = (x < 0 || x > 4000) ? 100 : x;
             int posY = (y < 0 || y > 4000) ? 100 : y;
             options.Position = new Vector2D<int>(posX, posY);
-            options.Size = new Vector2D<int>(nWidth > 0 ? nWidth : 800, nHeight > 0 ? nHeight : 600);
+            options.Size = new Vector2D<int>(effectiveWidth, effectiveHeight);
             options.IsVisible = false;
             if (((WINDOW_STYLE)dwStyle).HasFlag(WINDOW_STYLE.WS_POPUP))
             {
@@ -133,14 +171,14 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
             {
                 if (!renderReady)
                     return;
-                PostMessageToControl(handle, handle, (uint)PInvoke.WM_SIZE, (WPARAM)0, (LPARAM)(nint)((size.Y << 16) | (size.X & 0xFFFF)));
+                PostMessageToControl(handle, handle, WM_SIZE, (WPARAM)0, (LPARAM)(nint)((size.Y << 16) | (size.X & 0xFFFF)));
             };
 
             silkWindow.Move += (pos) =>
             {
                 if (!renderReady)
                     return;
-                PostMessageToControl(handle, handle, (uint)PInvoke.WM_MOVE, (WPARAM)0, (LPARAM)(nint)((pos.Y << 16) | (pos.X & 0xFFFF)));
+                PostMessageToControl(handle, handle, WM_MOVE, (WPARAM)0, (LPARAM)(nint)((pos.Y << 16) | (pos.X & 0xFFFF)));
             };
 
             silkWindow.Closing += () =>
@@ -170,36 +208,37 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                     ws.Height = h;
                 }
 
+                TracePaint($"[Render] hwnd=0x{(nint)handle:X} size={w}x{h}");
+
                 // Guard: catch managed exceptions during backend init
                 System.Drawing.Graphics? g;
                 try
                 {
                     g = Drawing.Graphics.FromHwndInternal((IntPtr)handle);
                 }
-                catch
+                catch (Exception ex)
                 {
+                    TracePaint($"[Render] Graphics.FromHwndInternal failed: {ex.GetType().Name}: {ex.Message}");
                     return; // Backend not ready yet
                 }
 
                 using (g)
                 {
-                    if (!g.BeginFrame(w, h))
+                    bool beganFrame = g.BeginFrame(w, h);
+                    TracePaint($"[Render] BeginFrame={beganFrame} size={w}x{h}");
+                    if (!beganFrame)
                         return;
 
                     try
                     {
-                        // Dispatch WM_PAINT through the standard WinForms control tree.
-                        var control = Control.FromHandle(handle);
-                        if (control is not null)
-                        {
-                            FixupTabPages(control);
-                            var rootClip = new System.Drawing.Rectangle(0, 0, w, h);
-                            PaintControlTree(control, g, rootClip, isRoot: true);
-                        }
+                        // Strict Impeller-only bootstrap mode:
+                        // Render a deterministic solid color and avoid all Win32/GDI-style
+                        // control paint dispatch until the frame pipeline is validated.
+                        g.Clear(System.Drawing.Color.FromArgb(34, 120, 255));
                     }
                     catch (Exception ex)
                     {
-                        Console.Error.WriteLine($"[Render] PaintControlTree error: {ex.Message}");
+                        Console.Error.WriteLine($"[Render] Clear error: {ex}");
                     }
 
                     try
@@ -208,13 +247,30 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                     }
                     catch (Exception ex)
                     {
-                        Console.Error.WriteLine($"[Render] EndFrame error: {ex.Message}");
+                        Console.Error.WriteLine($"[Render] EndFrame error: {ex}");
                     }
                 }
             };
 
             silkWindow.Initialize();
             _windows[handle].SilkWindow = silkWindow;
+
+            // Prime WinForms layout with an initial geometry sync. Silk.NET resize/move
+            // callbacks are not guaranteed to fire on first show.
+            var initialSize = silkWindow.Size;
+            var initialPos = silkWindow.Position;
+            PostMessageToControl(
+                handle,
+                handle,
+                WM_MOVE,
+                (WPARAM)0,
+                (LPARAM)(nint)((initialPos.Y << 16) | (initialPos.X & 0xFFFF)));
+            PostMessageToControl(
+                handle,
+                handle,
+                WM_SIZE,
+                (WPARAM)0,
+                (LPARAM)(nint)((initialSize.Y << 16) | (initialSize.X & 0xFFFF)));
 
             // --- Wire up Silk.NET input to WinForms synthetic messages ---
             try
@@ -227,16 +283,16 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                     keyboard.KeyDown += (kb, key, scancode) =>
                     {
                         uint vk = SilkKeyToWin32(key);
-                        PostMessageToControl(handle, handle, (uint)PInvoke.WM_KEYDOWN, (WPARAM)(nuint)vk, (LPARAM)(nint)scancode);
+                        PostMessageToControl(handle, handle, WM_KEYDOWN, (WPARAM)(nuint)vk, (LPARAM)(nint)scancode);
                     };
                     keyboard.KeyUp += (kb, key, scancode) =>
                     {
                         uint vk = SilkKeyToWin32(key);
-                        PostMessageToControl(handle, handle, (uint)PInvoke.WM_KEYUP, (WPARAM)(nuint)vk, (LPARAM)(nint)scancode);
+                        PostMessageToControl(handle, handle, WM_KEYUP, (WPARAM)(nuint)vk, (LPARAM)(nint)scancode);
                     };
                     keyboard.KeyChar += (kb, character) =>
                     {
-                        PostMessageToControl(handle, handle, (uint)PInvoke.WM_CHAR, (WPARAM)(nuint)character, (LPARAM)0);
+                        PostMessageToControl(handle, handle, WM_CHAR, (WPARAM)(nuint)character, (LPARAM)0);
                     };
                 }
 
@@ -246,15 +302,15 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                     {
                         var pt = new System.Drawing.Point((int)position.X, (int)position.Y);
                         HWND target = HitTest(handle, pt, out var clientPt);
-                        PostMessageToControl(target, handle, (uint)PInvoke.WM_MOUSEMOVE, (WPARAM)0, (LPARAM)(nint)(((int)clientPt.Y << 16) | ((int)clientPt.X & 0xFFFF)));
+                        PostMessageToControl(target, handle, WM_MOUSEMOVE, (WPARAM)0, (LPARAM)(nint)(((int)clientPt.Y << 16) | ((int)clientPt.X & 0xFFFF)));
                     };
                     mouse.MouseDown += (m, button) =>
                     {
                         uint msg = button switch
                         {
-                            MouseButton.Left => (uint)PInvoke.WM_LBUTTONDOWN,
-                            MouseButton.Right => (uint)PInvoke.WM_RBUTTONDOWN,
-                            MouseButton.Middle => (uint)PInvoke.WM_MBUTTONDOWN,
+                            MouseButton.Left => WM_LBUTTONDOWN,
+                            MouseButton.Right => WM_RBUTTONDOWN,
+                            MouseButton.Middle => WM_MBUTTONDOWN,
                             _ => 0
                         };
                         if (msg != 0)
@@ -263,7 +319,7 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                             HWND target = HitTest(handle, pt, out var clientPt);
 
                             // Intercept TabControl click because we don't have native SysTabControl32 to process it
-                            if (msg == (uint)PInvoke.WM_LBUTTONDOWN)
+                            if (msg == WM_LBUTTONDOWN)
                             {
                                 var ctrl = Control.FromHandle(target);
                                 if (ctrl is TabControl tabControl)
@@ -289,9 +345,9 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                     {
                         uint msg = button switch
                         {
-                            MouseButton.Left => (uint)PInvoke.WM_LBUTTONUP,
-                            MouseButton.Right => (uint)PInvoke.WM_RBUTTONUP,
-                            MouseButton.Middle => (uint)PInvoke.WM_MBUTTONUP,
+                            MouseButton.Left => WM_LBUTTONUP,
+                            MouseButton.Right => WM_RBUTTONUP,
+                            MouseButton.Middle => WM_MBUTTONUP,
                             _ => 0
                         };
                         if (msg != 0)
@@ -308,7 +364,7 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                         {
                             var pt = new System.Drawing.Point((int)m.Position.X, (int)m.Position.Y);
                             HWND target = HitTest(handle, pt, out var clientPt);
-                            PostMessageToControl(target, handle, (uint)PInvoke.WM_MOUSEWHEEL, (WPARAM)(nuint)((int)(scrollWheel.Y * 120) << 16), (LPARAM)(nint)(((int)clientPt.Y << 16) | ((int)clientPt.X & 0xFFFF)));
+                            PostMessageToControl(target, handle, WM_MOUSEWHEEL, (WPARAM)(nuint)((int)(scrollWheel.Y * 120) << 16), (LPARAM)(nint)(((int)clientPt.Y << 16) | ((int)clientPt.X & 0xFFFF)));
                         }
 
                         // Horizontal scroll
@@ -316,7 +372,7 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                         {
                             var pt = new System.Drawing.Point((int)m.Position.X, (int)m.Position.Y);
                             HWND target = HitTest(handle, pt, out var clientPt);
-                            PostMessageToControl(target, handle, (uint)PInvoke.WM_MOUSEHWHEEL, (WPARAM)(nuint)((int)(scrollWheel.X * 120) << 16), (LPARAM)(nint)(((int)clientPt.Y << 16) | ((int)clientPt.X & 0xFFFF)));
+                            PostMessageToControl(target, handle, WM_MOUSEHWHEEL, (WPARAM)(nuint)((int)(scrollWheel.X * 120) << 16), (LPARAM)(nint)(((int)clientPt.Y << 16) | ((int)clientPt.X & 0xFFFF)));
                         }
                     };
                 }
@@ -402,26 +458,20 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
     {
         try
         {
+            TracePaint($"[Paint] {control.GetType().Name} visible={control.Visible} bounds={control.Bounds} children={control.Controls.Count}");
             if (s_firstPaint)
                 Console.Error.WriteLine($"[Paint] {control.GetType().Name} @ ({control.Left},{control.Top}) {control.Width}x{control.Height} children={control.Controls.Count}");
 
-            // Full WinForms paint lifecycle: background then foreground
-            using var peArgs = new PaintEventArgs(g, clipRect);
-            try
-            { control.InvokePaintBackgroundInternal(peArgs); }
-            catch (Exception ex)
+            // PAL fallback paint: always draw control background via backend so controls
+            // remain visible even when Win32/GDI-dependent paint paths throw on macOS.
+            var bg = control.BackColor;
+            if (bg.A > 0)
             {
-                if (s_firstPaint)
-                    Console.Error.WriteLine($"  [BG FAIL] {control.GetType().Name}: {ex.Message}");
+                g.Clear(bg);
             }
 
-            try
-            { control.InvokePaintInternal(peArgs); }
-            catch (Exception ex)
-            {
-                if (s_firstPaint)
-                    Console.Error.WriteLine($"  [FG FAIL] {control.GetType().Name}: {ex.Message}");
-            }
+            // Impeller-first clean-room mode: do not call Win32/GDI-dependent paint
+            // dispatch for now. We recurse and paint primitive surfaces through backend.
         }
         catch (Exception ex)
         {
@@ -437,7 +487,10 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                 Console.Error.WriteLine($"  child[{i}] {child.GetType().Name} Visible={child.Visible} Bounds={child.Bounds}");
 
             if (!child.Visible || child.Width <= 0 || child.Height <= 0)
+            {
+                TracePaint($"[PaintChildSkip] {child.GetType().Name} visible={child.Visible} bounds={child.Bounds}");
                 continue;
+            }
 
             var state = g.Save();
             g.TranslateTransform(child.Left, child.Top);
@@ -451,6 +504,22 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
 
         if (isRoot)
             s_firstPaint = false;
+    }
+
+    private static void TracePaint(string message)
+    {
+        if (string.IsNullOrWhiteSpace(s_traceFile))
+        {
+            return;
+        }
+
+        try
+        {
+            File.AppendAllText(s_traceFile, $"{DateTime.UtcNow:O} {message}{Environment.NewLine}");
+        }
+        catch
+        {
+        }
     }
 
 
@@ -514,7 +583,7 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
             // Form.CreateHandle sets Visible = true.
             NativeWindow.DispatchMessageDirect(
                 hWnd,
-                (uint)PInvoke.WM_SHOWWINDOW,
+                WM_SHOWWINDOW,
                 (WPARAM)(nuint)(show ? 1u : 0u),
                 (LPARAM)0,
                 out _);
@@ -597,7 +666,7 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
             WINDOWPOS* pWp = &wp;
             LPARAM lParam = (LPARAM)(nint)pWp;
             NativeWindow.DispatchMessageDirect(
-                hWnd, PInvoke.WM_WINDOWPOSCHANGED, (WPARAM)0, lParam, out _);
+                hWnd, WM_WINDOWPOSCHANGED, (WPARAM)0, lParam, out _);
 
             return true;
         }
@@ -678,6 +747,12 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
         }
 
         return old;
+    }
+
+    public nint SetClassLong(HWND hWnd, GET_CLASS_LONG_INDEX index, nint value)
+    {
+        // Impeller backend has no Win32 class proc/table; treat as a successful no-op.
+        return value;
     }
 
     public bool SetWindowText(HWND hWnd, string text)
@@ -895,14 +970,37 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
 
     private void PostMessageToControl(HWND targetWindow, HWND fallbackTopLevel, uint msg, WPARAM wParam, LPARAM lParam)
     {
-        var ctrl = Control.FromHandle(targetWindow) ?? Control.FromHandle(fallbackTopLevel);
+        var ctrl = Control.FromHandle(targetWindow) ?? Control.FromHandle(fallbackTopLevel) ?? ResolveTopLevelControl(fallbackTopLevel);
+
         if (ctrl is object)
         {
+            HWND dispatchTarget = Control.FromHandle(targetWindow) is null
+                ? (HWND)(nint)ctrl.Handle
+                : targetWindow;
             ctrl.BeginInvoke(new Action(() =>
             {
-                NativeWindow.DispatchMessageDirect(targetWindow, msg, wParam, lParam, out _);
+                NativeWindow.DispatchMessageDirect(dispatchTarget, msg, wParam, lParam, out _);
             }));
         }
+    }
+
+    private static Control? ResolveTopLevelControl(HWND preferredHandle)
+    {
+        Control? resolved = Control.FromHandle(preferredHandle);
+        if (resolved is not null)
+        {
+            return resolved;
+        }
+
+        foreach (Form form in Application.OpenForms)
+        {
+            if (form.Visible)
+            {
+                return form;
+            }
+        }
+
+        return Application.OpenForms.Count > 0 ? Application.OpenForms[0] : null;
     }
 }
 

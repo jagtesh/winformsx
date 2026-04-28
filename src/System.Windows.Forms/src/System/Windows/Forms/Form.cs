@@ -1063,6 +1063,11 @@ public partial class Form : ContainerControl
     {
         get
         {
+            if (!OperatingSystem.IsWindows())
+            {
+                return null;
+            }
+
             if (_formState[s_formStateIconSet] == 0)
             {
                 return DefaultIcon;
@@ -3100,6 +3105,11 @@ public partial class Form : ContainerControl
 
     private void AdjustSystemMenu(HMENU hmenu)
     {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
         UpdateWindowState();
         FormWindowState winState = WindowState;
         FormBorderStyle borderStyle = FormBorderStyle;
@@ -3167,7 +3177,7 @@ public partial class Form : ContainerControl
     /// </summary>
     private void AdjustSystemMenu()
     {
-        if (IsHandleCreated)
+        if (OperatingSystem.IsWindows() && IsHandleCreated)
         {
             HMENU hmenu = PInvoke.GetSystemMenu(this, bRevert: false);
             AdjustSystemMenu(hmenu);
@@ -6276,7 +6286,7 @@ public partial class Form : ContainerControl
 
     private void UpdateMenuHandles(bool recreateMenu = false)
     {
-        if (!IsHandleCreated)
+        if (!OperatingSystem.IsWindows() || !IsHandleCreated)
         {
             return;
         }
@@ -6601,7 +6611,7 @@ public partial class Form : ContainerControl
         // WM_ERASEBKGRND.  Seems that's one of the first messages we get when a user clicks the min/max
         // button, even before WM_WINDOWPOSCHANGED.
 
-        if (!IsHandleCreated)
+        if (!OperatingSystem.IsWindows() || !IsHandleCreated)
         {
             return;
         }
@@ -7329,5 +7339,3 @@ public partial class Form : ContainerControl
         }
     }
 }
-
-

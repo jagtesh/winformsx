@@ -72,20 +72,28 @@ public sealed partial class Application
         /// </summary>
         protected ThreadContext()
         {
-            HANDLE target;
+            if (OperatingSystem.IsWindows())
+            {
+                HANDLE target;
 
-            PInvoke.DuplicateHandle(
-                PInvoke.GetCurrentProcess(),
-                PInvoke.GetCurrentThread(),
-                PInvoke.GetCurrentProcess(),
-                &target,
-                0,
-                false,
-                DUPLICATE_HANDLE_OPTIONS.DUPLICATE_SAME_ACCESS);
+                PInvoke.DuplicateHandle(
+                    PInvoke.GetCurrentProcess(),
+                    PInvoke.GetCurrentThread(),
+                    PInvoke.GetCurrentProcess(),
+                    &target,
+                    0,
+                    false,
+                    DUPLICATE_HANDLE_OPTIONS.DUPLICATE_SAME_ACCESS);
 
-            _handle = target;
+                _handle = target;
+                _id = PInvoke.GetCurrentThreadId();
+            }
+            else
+            {
+                _handle = HANDLE.Null;
+                _id = Platform.PlatformApi.System.GetCurrentThreadId();
+            }
 
-            _id = PInvoke.GetCurrentThreadId();
             _messageLoopCount = 0;
             t_currentThreadContext = this;
 
@@ -612,6 +620,12 @@ public sealed partial class Application
                     if (LocalAppContextSwitches.DoNotCatchUnhandledExceptions)
                     {
                         ExceptionDispatchInfo.Capture(ex).Throw();
+                    }
+
+                    if (!OperatingSystem.IsWindows() || System.Drawing.Graphics.IsBackendActive)
+                    {
+                        Console.Error.WriteLine($"[ThreadException] {ex}");
+                        return;
                     }
 
                     if (SystemInformation.UserInteractive)

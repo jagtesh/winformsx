@@ -1712,7 +1712,7 @@ public partial class ToolStripDropDown : ToolStrip
                     // Snap the foreground window BEFORE calling any user events so they
                     // don't have a chance to activate something else. This covers the case
                     // where someone handles the opening event and throws up a messagebox.
-                    HWND foregroundWindow = PInvoke.GetForegroundWindow();
+                    HWND foregroundWindow = Platform.PlatformApi.Input.GetForegroundWindow();
 
                     // Fire Opening event
                     // Cancellable event in which default value of e.Cancel depends on

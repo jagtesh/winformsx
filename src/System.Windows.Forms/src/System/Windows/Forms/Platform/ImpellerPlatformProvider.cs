@@ -1,9 +1,10 @@
 ﻿// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-using System.Runtime.InteropServices;
 
 namespace System.Windows.Forms.Platform;
+
+using System.Runtime.InteropServices;
 
 /// <summary>
 /// Impeller platform provider — the sole rendering/windowing backend.
@@ -30,22 +31,35 @@ internal sealed class ImpellerPlatformProvider : IPlatformProvider
     public IControlInterop Control { get; } = new ImpellerControlInterop();
     public IAccessibilityInterop Accessibility { get; } = new ImpellerAccessibilityInterop();
 
-    // Prevent GC of the proc address callback while Impeller holds it
+    private static readonly string? s_traceFile = Environment.GetEnvironmentVariable("WINFORMSX_TRACE_FILE");
     private static VulkanProcAddressCallback? s_vkProcCallback;
-    private static nint s_vulkanModule;
+    private static VkGetInstanceProcAddrDelegate? s_vkGetInstanceProcAddr;
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     private delegate nint VulkanProcAddressCallback(nint vkInstance, nint procName, nint userData);
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-    private delegate nint VkGetInstanceProcAddrDelegate(nint instance, nint procName);
-    private static VkGetInstanceProcAddrDelegate? s_vkGetInstanceProcAddr;
+    private delegate nint VkGetInstanceProcAddrDelegate(nint vkInstance, nint procName);
 
     public ImpellerPlatformProvider()
     {
+        GetDcScope.GetDCCallback = Gdi.GetDC;
+        GetDcScope.GetDCExCallback = Gdi.GetDCEx;
+        GetDcScope.ReleaseDCCallback = (hWnd, hdc) => Gdi.ReleaseDC(hWnd, hdc);
+
         Drawing.Impeller.ImpellerBackendInitializer.Register((hwnd) =>
         {
-            // 1. Create the Impeller Vulkan context with a proper proc address resolver
+            Trace($"[BackendInit] start hwnd=0x{hwnd:X}");
+            // 1. Create the Impeller Vulkan context with an explicit loader-backed proc resolver.
+            uint version = Drawing.Impeller.NativeMethods.ImpellerGetVersion();
+            Trace($"[BackendInit] impeller version={version}");
+            s_vkGetInstanceProcAddr ??= LoadVkGetInstanceProcAddr();
+            if (s_vkGetInstanceProcAddr is null)
+            {
+                Trace("[BackendInit] failed to resolve vkGetInstanceProcAddr");
+                return null;
+            }
+
             s_vkProcCallback = VulkanProcAddressResolver;
             var settings = new global::System.Drawing.Impeller.ImpellerContextVulkanSettings
             {
@@ -53,13 +67,14 @@ internal sealed class ImpellerPlatformProvider : IPlatformProvider
                 EnableVulkanValidation = 0,
             };
 
-            uint version = Drawing.Impeller.NativeMethods.ImpellerGetVersion();
-            nint impellerCtx = Drawing.Impeller.NativeMethods.ImpellerContextCreateVulkanNew(
-                version, ref settings);
+            nint impellerCtx = Drawing.Impeller.NativeMethods.ImpellerContextCreateVulkanNew(version, ref settings);
             if (impellerCtx == nint.Zero)
             {
+                Trace("[BackendInit] Vulkan context create failed");
                 return null;
             }
+
+            Trace($"[BackendInit] Vulkan context=0x{impellerCtx:X}");
 
             // 2. Find the Silk.NET window for this HWND
             var windowInterop = (ImpellerWindowInterop)Window;
@@ -75,36 +90,79 @@ internal sealed class ImpellerPlatformProvider : IPlatformProvider
                 }
             }
 
+            Trace($"[BackendInit] silkWindow null? {silkWindow is null}");
+
             // 3. Create the platform backend (swapchain)
             var backend = new Platform.Impeller.SilkPlatformBackend(silkWindow, impellerCtx);
+            Trace("[BackendInit] backend created");
             return ((nint impellerContext, global::System.Drawing.IPlatformBackend backend)?)(impellerCtx, backend);
         });
     }
 
-    [DllImport("kernel32.dll", EntryPoint = "LoadLibraryW", SetLastError = true, CharSet = CharSet.Unicode)]
-    private static extern nint LoadLibraryW(string lpFileName);
+    private static VkGetInstanceProcAddrDelegate? LoadVkGetInstanceProcAddr()
+    {
+        string[] candidates =
+        [
+            "libvulkan.1.dylib",
+            "libvulkan.dylib",
+            "libvulkan.so.1",
+            "libvulkan.so",
+            "vulkan-1.dll",
+        ];
 
-    [DllImport("kernel32.dll", EntryPoint = "GetProcAddress", SetLastError = true, CharSet = CharSet.Ansi)]
-    private static extern nint GetProcAddress(nint hModule, string lpProcName);
+        foreach (string lib in candidates)
+        {
+            if (!NativeLibrary.TryLoad(lib, out nint handle) || handle == nint.Zero)
+            {
+                continue;
+            }
+
+            if (!NativeLibrary.TryGetExport(handle, "vkGetInstanceProcAddr", out nint fn) || fn == nint.Zero)
+            {
+                continue;
+            }
+
+            Trace($"[BackendInit] loaded vkGetInstanceProcAddr from {lib}");
+            return Marshal.GetDelegateForFunctionPointer<VkGetInstanceProcAddrDelegate>(fn);
+        }
+
+        return null;
+    }
 
     private static nint VulkanProcAddressResolver(nint vkInstance, nint procNamePtr, nint userData)
     {
-        if (s_vkGetInstanceProcAddr is null)
+        if (procNamePtr == nint.Zero || s_vkGetInstanceProcAddr is null)
         {
-            if (s_vulkanModule == nint.Zero)
-            {
-                s_vulkanModule = LoadLibraryW("vulkan-1.dll");
-            }
-
-            if (s_vulkanModule == nint.Zero)
-                return nint.Zero;
-
-            var addr = GetProcAddress(s_vulkanModule, "vkGetInstanceProcAddr");
-            if (addr == nint.Zero)
-                return nint.Zero;
-            s_vkGetInstanceProcAddr = Marshal.GetDelegateForFunctionPointer<VkGetInstanceProcAddrDelegate>(addr);
+            return nint.Zero;
         }
 
-        return s_vkGetInstanceProcAddr(vkInstance, procNamePtr);
+        nint proc = s_vkGetInstanceProcAddr(vkInstance, procNamePtr);
+        if (proc != nint.Zero)
+        {
+            return proc;
+        }
+
+        if (vkInstance != nint.Zero)
+        {
+            return s_vkGetInstanceProcAddr(nint.Zero, procNamePtr);
+        }
+
+        return nint.Zero;
+    }
+
+    private static void Trace(string message)
+    {
+        if (string.IsNullOrWhiteSpace(s_traceFile))
+        {
+            return;
+        }
+
+        try
+        {
+            File.AppendAllText(s_traceFile, $"{DateTime.UtcNow:O} {message}{Environment.NewLine}");
+        }
+        catch
+        {
+        }
     }
 }

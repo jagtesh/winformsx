@@ -11,6 +11,10 @@ namespace System.Windows.Forms.Platform;
 /// </summary>
 internal sealed class ImpellerMessageInterop : IMessageInterop
 {
+    private const uint WM_QUIT = 0x0012;
+    private const uint WM_PAINT = 0x000F;
+    private const uint WM_ERASEBKGND = 0x0014;
+
     private readonly ConcurrentQueue<ImpellerMessage> _messageQueue = new();
     private readonly Dictionary<string, uint> _registeredMessages = [];
     private uint _nextRegisteredMessage = 0xC000; // WM_APP range
@@ -79,7 +83,7 @@ internal sealed class ImpellerMessageInterop : IMessageInterop
         }
 
         lpMsg = im.ToMSG();
-        return lpMsg.message != PInvoke.WM_QUIT;
+        return lpMsg.message != WM_QUIT;
     }
 
     public bool TranslateMessage(in MSG lpMsg) => true; // No-op in Impeller
@@ -123,7 +127,7 @@ internal sealed class ImpellerMessageInterop : IMessageInterop
         while (maxMessages-- > 0 && _messageQueue.TryDequeue(out var im))
         {
             var msg = im.ToMSG();
-            if (msg.message == PInvoke.WM_QUIT)
+            if (msg.message == WM_QUIT)
             {
                 // Close the Silk.NET window, which causes Run() to return
                 if (PlatformApi.Window is ImpellerWindowInterop windowInterop)
@@ -139,7 +143,7 @@ internal sealed class ImpellerMessageInterop : IMessageInterop
 
             // Skip paint messages — the Render callback is the sole painter.
             // Processing WM_PAINT here would race with the GPU surface.
-            if (msg.message is PInvoke.WM_PAINT or PInvoke.WM_ERASEBKGND)
+            if (msg.message is WM_PAINT or WM_ERASEBKGND)
             {
                 continue;
             }
@@ -163,4 +167,3 @@ internal readonly record struct ImpellerMessage(HWND HWnd, uint Msg, WPARAM WPar
         lParam = LParam,
     };
 }
-

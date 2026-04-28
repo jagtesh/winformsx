@@ -710,6 +710,11 @@ public class ContainerControl : ScrollableControl, IContainerControl
     /// </summary>
     private unsafe SizeF GetFontAutoScaleDimensions(HFONT fontHandle)
     {
+        if (!OperatingSystem.IsWindows())
+        {
+            return new SizeF(7F, 15F);
+        }
+
         SizeF retval = SizeF.Empty;
 
         // Windows uses CreateCompatibleDC(NULL) to get a memory DC for

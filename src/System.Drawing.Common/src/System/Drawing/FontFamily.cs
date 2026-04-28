@@ -10,10 +10,11 @@ namespace System.Drawing;
 ///  Abstracts a group of type faces having a similar basic design but having certain variation in styles.
 /// </summary>
 public sealed unsafe class FontFamily : MarshalByRefObject, IDisposable
-{
-    private const int NeutralLanguage = 0;
-    private GpFontFamily* _nativeFamily;
-    private readonly bool _createDefaultOnFail;
+    {
+        private const int NeutralLanguage = 0;
+        private GpFontFamily* _nativeFamily;
+        private readonly bool _createDefaultOnFail;
+        private string? _name;
 
 #if DEBUG
     private static readonly object s_lockObj = new();
@@ -47,19 +48,43 @@ public sealed unsafe class FontFamily : MarshalByRefObject, IDisposable
     internal FontFamily(string name, bool createDefaultOnFail)
     {
         _createDefaultOnFail = createDefaultOnFail;
+        if (!OperatingSystem.IsWindows())
+        {
+            _name = name;
+            return;
+        }
+
         CreateFontFamily(name, null);
     }
 
     /// <summary>
     ///  Initializes a new instance of the <see cref='FontFamily'/> class with the specified name.
     /// </summary>
-    public FontFamily(string name) => CreateFontFamily(name, null);
+    public FontFamily(string name)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            _name = name;
+            return;
+        }
+
+        CreateFontFamily(name, null);
+    }
 
     /// <summary>
     ///  Initializes a new instance of the <see cref='FontFamily'/> class in the specified
     ///  <see cref='FontCollection'/> and with the specified name.
     /// </summary>
-    public FontFamily(string name, FontCollection? fontCollection) => CreateFontFamily(name, fontCollection);
+    public FontFamily(string name, FontCollection? fontCollection)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            _name = name;
+            return;
+        }
+
+        CreateFontFamily(name, fontCollection);
+    }
 
     // Creates the native font family object.
     // Note: GDI+ creates singleton font family objects (from the corresponding font file) and reference count them.
@@ -107,6 +132,18 @@ public sealed unsafe class FontFamily : MarshalByRefObject, IDisposable
     /// </summary>
     public FontFamily(GenericFontFamilies genericFamily)
     {
+        if (!OperatingSystem.IsWindows())
+        {
+            _name = genericFamily switch
+            {
+                GenericFontFamilies.Serif => "Serif",
+                GenericFontFamilies.Monospace => "Monospace",
+                _ => "SansSerif",
+            };
+
+            return;
+        }
+
         GpFontFamily* nativeFamily;
 
         switch (genericFamily)
@@ -150,7 +187,9 @@ public sealed unsafe class FontFamily : MarshalByRefObject, IDisposable
 
         // We can safely use the ptr to the native GDI+ FontFamily because in windows it is common to
         // all objects of the same family (singleton RO object).
-        return otherFamily.NativeFamily == NativeFamily;
+        return OperatingSystem.IsWindows()
+            ? otherFamily.NativeFamily == NativeFamily
+            : string.Equals(otherFamily.Name, Name, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>
@@ -196,7 +235,7 @@ public sealed unsafe class FontFamily : MarshalByRefObject, IDisposable
     /// <summary>
     ///  Gets the name of this <see cref='FontFamily'/>.
     /// </summary>
-    public string Name => GetName(CurrentLanguage);
+    public string Name => OperatingSystem.IsWindows() ? GetName(CurrentLanguage) : _name ?? "SansSerif";
 
     /// <summary>
     ///  Returns the name of this <see cref='FontFamily'/> in the specified language.
@@ -217,7 +256,9 @@ public sealed unsafe class FontFamily : MarshalByRefObject, IDisposable
     /// <summary>
     ///  Gets a generic SansSerif <see cref='FontFamily'/>.
     /// </summary>
-    public static FontFamily GenericSansSerif => new(GetGdipGenericSansSerif());
+    public static FontFamily GenericSansSerif => OperatingSystem.IsWindows()
+        ? new(GetGdipGenericSansSerif())
+        : new(GenericFontFamilies.SansSerif);
 
     private static GpFontFamily* GetGdipGenericSansSerif()
     {
@@ -252,6 +293,11 @@ public sealed unsafe class FontFamily : MarshalByRefObject, IDisposable
     /// </summary>
     public bool IsStyleAvailable(FontStyle style)
     {
+        if (!OperatingSystem.IsWindows())
+        {
+            return true;
+        }
+
         BOOL isStyleAvailable;
         PInvoke.GdipIsStyleAvailable(NativeFamily, (int)style, &isStyleAvailable).ThrowIfFailed();
         GC.KeepAlive(this);
@@ -263,6 +309,11 @@ public sealed unsafe class FontFamily : MarshalByRefObject, IDisposable
     /// </summary>
     public int GetEmHeight(FontStyle style)
     {
+        if (!OperatingSystem.IsWindows())
+        {
+            return 2048;
+        }
+
         ushort emHeight;
         PInvoke.GdipGetEmHeight(NativeFamily, (int)style, &emHeight).ThrowIfFailed();
         GC.KeepAlive(this);
@@ -274,6 +325,11 @@ public sealed unsafe class FontFamily : MarshalByRefObject, IDisposable
     /// </summary>
     public int GetCellAscent(FontStyle style)
     {
+        if (!OperatingSystem.IsWindows())
+        {
+            return 1854;
+        }
+
         ushort cellAscent;
         PInvoke.GdipGetCellAscent(NativeFamily, (int)style, &cellAscent).ThrowIfFailed();
         GC.KeepAlive(this);
@@ -285,6 +341,11 @@ public sealed unsafe class FontFamily : MarshalByRefObject, IDisposable
     /// </summary>
     public int GetCellDescent(FontStyle style)
     {
+        if (!OperatingSystem.IsWindows())
+        {
+            return 434;
+        }
+
         ushort cellDescent;
         PInvoke.GdipGetCellDescent(NativeFamily, (int)style, &cellDescent).ThrowIfFailed();
         GC.KeepAlive(this);
@@ -297,6 +358,11 @@ public sealed unsafe class FontFamily : MarshalByRefObject, IDisposable
     /// </summary>
     public int GetLineSpacing(FontStyle style)
     {
+        if (!OperatingSystem.IsWindows())
+        {
+            return 2355;
+        }
+
         ushort lineSpacing;
         PInvoke.GdipGetLineSpacing(NativeFamily, (int)style, &lineSpacing).ThrowIfFailed();
         GC.KeepAlive(this);

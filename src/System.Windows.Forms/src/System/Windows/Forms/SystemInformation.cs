@@ -6,6 +6,7 @@ using System.Drawing;
 using System.Drawing.Interop;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Windows.Forms.Platform;
 using Windows.Win32.System.StationsAndDesktops;
 using Windows.Win32.UI.Accessibility;
 using static Windows.Win32.UI.WindowsAndMessaging.SYSTEM_METRICS_INDEX;
@@ -30,7 +31,7 @@ public static class SystemInformation
     ///  Gets a value indicating whether the user has enabled full window drag.
     /// </summary>
     public static bool DragFullWindows
-        => PInvoke.SystemParametersInfoBool(SPI_GETDRAGFULLWINDOWS);
+        => SystemParametersInfoBool(SPI_GETDRAGFULLWINDOWS);
 
     /// <summary>
     ///  Gets a value indicating whether the user has selected to run in high contrast.
@@ -39,6 +40,11 @@ public static class SystemInformation
     {
         get
         {
+            if (!OperatingSystem.IsWindows())
+            {
+                return false;
+            }
+
             HIGHCONTRASTW data = default;
             return PInvoke.SystemParametersInfo(ref data)
                 && data.dwFlags.HasFlag(HIGHCONTRASTW_FLAGS.HCF_HIGHCONTRASTON);
@@ -49,7 +55,7 @@ public static class SystemInformation
     ///  Gets the number of lines to scroll when the mouse wheel is rotated.
     /// </summary>
     public static int MouseWheelScrollLines
-        => PInvoke.SystemParametersInfoInt(SPI_GETWHEELSCROLLLINES);
+        => SystemParametersInfoInt(SPI_GETWHEELSCROLLLINES, fallback: 3);
 
     /// <summary>
     ///  Gets the dimensions of the primary display monitor in pixels.
@@ -59,33 +65,33 @@ public static class SystemInformation
     /// <summary>
     ///  Gets the width of the vertical scroll bar in pixels.
     /// </summary>
-    public static int VerticalScrollBarWidth => PInvoke.GetSystemMetrics(SM_CXVSCROLL);
+    public static int VerticalScrollBarWidth => GetSystemMetrics(SM_CXVSCROLL);
 
     /// <summary>
     ///  Gets the width of the vertical scroll bar in pixels.
     /// </summary>
     public static int GetVerticalScrollBarWidthForDpi(int dpi)
         => ScaleHelper.IsThreadPerMonitorV2Aware
-            ? PInvoke.GetCurrentSystemMetrics(SM_CXVSCROLL, (uint)dpi)
-            : PInvoke.GetSystemMetrics(SM_CXVSCROLL);
+            ? GetCurrentSystemMetrics(SM_CXVSCROLL, (uint)dpi)
+            : GetSystemMetrics(SM_CXVSCROLL);
 
     /// <summary>
     ///  Gets the height of the horizontal scroll bar in pixels.
     /// </summary>
-    public static int HorizontalScrollBarHeight => PInvoke.GetSystemMetrics(SM_CYHSCROLL);
+    public static int HorizontalScrollBarHeight => GetSystemMetrics(SM_CYHSCROLL);
 
     /// <summary>
     ///  Gets the height of the horizontal scroll bar in pixels.
     /// </summary>
     public static int GetHorizontalScrollBarHeightForDpi(int dpi)
         => ScaleHelper.IsThreadPerMonitorV2Aware
-            ? PInvoke.GetCurrentSystemMetrics(SM_CYHSCROLL, (uint)dpi)
-            : PInvoke.GetSystemMetrics(SM_CYHSCROLL);
+            ? GetCurrentSystemMetrics(SM_CYHSCROLL, (uint)dpi)
+            : GetSystemMetrics(SM_CYHSCROLL);
 
     /// <summary>
     ///  Gets the height of the normal caption area of a window in pixels.
     /// </summary>
-    public static int CaptionHeight => PInvoke.GetSystemMetrics(SM_CYCAPTION);
+    public static int CaptionHeight => GetSystemMetrics(SM_CYCAPTION);
 
     /// <summary>
     ///  Gets the width and height of a window border in pixels.
@@ -98,8 +104,8 @@ public static class SystemInformation
     public static Size GetBorderSizeForDpi(int dpi)
     {
         return ScaleHelper.IsThreadPerMonitorV2Aware
-            ? new(PInvoke.GetCurrentSystemMetrics(SM_CXBORDER, (uint)dpi),
-                PInvoke.GetCurrentSystemMetrics(SM_CYBORDER, (uint)dpi))
+            ? new(GetCurrentSystemMetrics(SM_CXBORDER, (uint)dpi),
+                GetCurrentSystemMetrics(SM_CYBORDER, (uint)dpi))
             : BorderSize;
     }
 
@@ -111,12 +117,12 @@ public static class SystemInformation
     /// <summary>
     ///  Gets the height of the scroll box in a vertical scroll bar in pixels.
     /// </summary>
-    public static int VerticalScrollBarThumbHeight => PInvoke.GetSystemMetrics(SM_CYVTHUMB);
+    public static int VerticalScrollBarThumbHeight => GetSystemMetrics(SM_CYVTHUMB);
 
     /// <summary>
     ///  Gets the width of the scroll box in a horizontal scroll bar in pixels.
     /// </summary>
-    public static int HorizontalScrollBarThumbWidth => PInvoke.GetSystemMetrics(SM_CXHTHUMB);
+    public static int HorizontalScrollBarThumbWidth => GetSystemMetrics(SM_CXHTHUMB);
 
     /// <summary>
     ///  Gets the default dimensions of an icon in pixels.
@@ -141,6 +147,11 @@ public static class SystemInformation
 
     private static unsafe Font GetMenuFontHelper(uint dpi, bool useDpi)
     {
+        if (!OperatingSystem.IsWindows())
+        {
+            return Control.DefaultFont;
+        }
+
         // We can get the system's menu font through the NONCLIENTMETRICS structure
         // via SystemParametersInfo
         NONCLIENTMETRICSW data = default;
@@ -168,7 +179,7 @@ public static class SystemInformation
     /// <summary>
     ///  Gets the height of a one line of a menu in pixels.
     /// </summary>
-    public static int MenuHeight => PInvoke.GetSystemMetrics(SM_CYMENU);
+    public static int MenuHeight => GetSystemMetrics(SM_CYMENU);
 
     /// <summary>
     ///  Returns the current system power status.
@@ -182,6 +193,12 @@ public static class SystemInformation
     {
         get
         {
+            if (!OperatingSystem.IsWindows())
+            {
+                Size primaryMonitorSize = PrimaryMonitorSize;
+                return new Rectangle(0, 0, primaryMonitorSize.Width, primaryMonitorSize.Height);
+            }
+
             RECT workingArea = default;
             PInvoke.SystemParametersInfo(SPI_GETWORKAREA, ref workingArea);
             return workingArea;
@@ -192,48 +209,48 @@ public static class SystemInformation
     ///  Gets the height, in pixels, of the Kanji window at the bottom of the screen
     ///  for double-byte (DBCS) character set versions of Windows.
     /// </summary>
-    public static int KanjiWindowHeight => PInvoke.GetSystemMetrics(SM_CYKANJIWINDOW);
+    public static int KanjiWindowHeight => GetSystemMetrics(SM_CYKANJIWINDOW);
 
     /// <summary>
     ///  Gets a value indicating whether the system has a mouse installed.
     /// </summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public static bool MousePresent => PInvoke.GetSystemMetrics(SM_MOUSEPRESENT) != 0;
+    public static bool MousePresent => GetSystemMetrics(SM_MOUSEPRESENT) != 0;
 
     /// <summary>
     ///  Gets the height in pixels, of the arrow bitmap on the vertical scroll bar.
     /// </summary>
-    public static int VerticalScrollBarArrowHeight => PInvoke.GetSystemMetrics(SM_CYVSCROLL);
+    public static int VerticalScrollBarArrowHeight => GetSystemMetrics(SM_CYVSCROLL);
 
     /// <summary>
     ///  Gets the height of the vertical scroll bar arrow bitmap in pixels.
     /// </summary>
     public static int VerticalScrollBarArrowHeightForDpi(int dpi)
-        => PInvoke.GetCurrentSystemMetrics(SM_CYVSCROLL, (uint)dpi);
+        => GetCurrentSystemMetrics(SM_CYVSCROLL, (uint)dpi);
 
     /// <summary>
     ///  Gets the width, in pixels, of the arrow bitmap on the horizontal scrollbar.
     /// </summary>
-    public static int HorizontalScrollBarArrowWidth => PInvoke.GetSystemMetrics(SM_CXHSCROLL);
+    public static int HorizontalScrollBarArrowWidth => GetSystemMetrics(SM_CXHSCROLL);
 
     /// <summary>
     ///  Gets the width of the horizontal scroll bar arrow bitmap in pixels.
     /// </summary>
     public static int GetHorizontalScrollBarArrowWidthForDpi(int dpi)
         => ScaleHelper.IsThreadPerMonitorV2Aware
-            ? PInvoke.GetCurrentSystemMetrics(SM_CXHSCROLL, (uint)dpi)
-            : PInvoke.GetSystemMetrics(SM_CXHSCROLL);
+            ? GetCurrentSystemMetrics(SM_CXHSCROLL, (uint)dpi)
+            : GetSystemMetrics(SM_CXHSCROLL);
 
     /// <summary>
     ///  Gets a value indicating whether this is a debug version of the operating system.
     /// </summary>
-    public static bool DebugOS => PInvoke.GetSystemMetrics(SM_DEBUG) != 0;
+    public static bool DebugOS => GetSystemMetrics(SM_DEBUG) != 0;
 
     /// <summary>
     ///  Gets a value indicating whether the functions of the left and right mouse
     ///  buttons have been swapped.
     /// </summary>
-    public static bool MouseButtonsSwapped => PInvoke.GetSystemMetrics(SM_SWAPBUTTON) != 0;
+    public static bool MouseButtonsSwapped => GetSystemMetrics(SM_SWAPBUTTON) != 0;
 
     /// <summary>
     ///  Gets the minimum allowable dimensions of a window in pixels.
@@ -265,7 +282,7 @@ public static class SystemInformation
     /// <summary>
     ///  Gets the maximum number of milliseconds allowed between mouse clicks for a double-click.
     /// </summary>
-    public static int DoubleClickTime => (int)PInvoke.GetDoubleClickTime();
+    public static int DoubleClickTime => OperatingSystem.IsWindows() ? (int)PInvoke.GetDoubleClickTime() : 500;
 
     /// <summary>
     ///  Gets the dimensions in pixels, of the grid used to arrange icons in a large icon view.
@@ -276,28 +293,28 @@ public static class SystemInformation
     ///  Gets a value indicating whether drop down menus should be right-aligned with the corresponding menu
     ///  bar item.
     /// </summary>
-    public static bool RightAlignedMenus => PInvoke.GetSystemMetrics(SM_MENUDROPALIGNMENT) != 0;
+    public static bool RightAlignedMenus => GetSystemMetrics(SM_MENUDROPALIGNMENT) != 0;
 
     /// <summary>
     ///  Gets a value indicating whether the Microsoft Windows for Pen computing extensions are installed.
     /// </summary>
-    public static bool PenWindows => PInvoke.GetSystemMetrics(SM_PENWINDOWS) != 0;
+    public static bool PenWindows => GetSystemMetrics(SM_PENWINDOWS) != 0;
 
     /// <summary>
     ///  Gets a value indicating whether the operating system is capable of handling
     ///  double-byte (DBCS) characters.
     /// </summary>
-    public static bool DbcsEnabled => PInvoke.GetSystemMetrics(SM_DBCSENABLED) != 0;
+    public static bool DbcsEnabled => GetSystemMetrics(SM_DBCSENABLED) != 0;
 
     /// <summary>
     ///  Gets the number of buttons on mouse.
     /// </summary>
-    public static int MouseButtons => PInvoke.GetSystemMetrics(SM_CMOUSEBUTTONS);
+    public static int MouseButtons => GetSystemMetrics(SM_CMOUSEBUTTONS);
 
     /// <summary>
     ///  Gets a value indicating whether security is present on this operating system.
     /// </summary>
-    public static bool Secure => PInvoke.GetSystemMetrics(SM_SECURE) != 0;
+    public static bool Secure => GetSystemMetrics(SM_SECURE) != 0;
 
     /// <summary>
     ///  Gets the dimensions in pixels, of a 3-D border.
@@ -317,7 +334,7 @@ public static class SystemInformation
     /// <summary>
     ///  Gets the height of a small caption in pixels.
     /// </summary>
-    public static int ToolWindowCaptionHeight => PInvoke.GetSystemMetrics(SM_CYSMCAPTION);
+    public static int ToolWindowCaptionHeight => GetSystemMetrics(SM_CYSMCAPTION);
 
     /// <summary>
     ///  Gets the dimensions of small caption buttons in pixels.
@@ -341,7 +358,7 @@ public static class SystemInformation
                 | ArrangeStartingPosition.Hide
                 | ArrangeStartingPosition.TopLeft
                 | ArrangeStartingPosition.TopRight;
-            int compoundValue = PInvoke.GetSystemMetrics(SM_ARRANGE);
+            int compoundValue = GetSystemMetrics(SM_ARRANGE);
             return mask & (ArrangeStartingPosition)compoundValue;
         }
     }
@@ -355,7 +372,7 @@ public static class SystemInformation
         {
             ArrangeDirection mask = ArrangeDirection.Down
                 | ArrangeDirection.Left | ArrangeDirection.Right | ArrangeDirection.Up;
-            int compoundValue = PInvoke.GetSystemMetrics(SM_ARRANGE);
+            int compoundValue = GetSystemMetrics(SM_ARRANGE);
             return mask & (ArrangeDirection)compoundValue;
         }
     }
@@ -380,14 +397,14 @@ public static class SystemInformation
     /// <summary>
     ///  Gets a value indicating whether this computer is connected to a network.
     /// </summary>
-    public static bool Network => (PInvoke.GetSystemMetrics(SM_NETWORK) & 0x00000001) != 0;
+    public static bool Network => (GetSystemMetrics(SM_NETWORK) & 0x00000001) != 0;
 
-    public static bool TerminalServerSession => (PInvoke.GetSystemMetrics(SM_REMOTESESSION) & 0x00000001) != 0;
+    public static bool TerminalServerSession => (GetSystemMetrics(SM_REMOTESESSION) & 0x00000001) != 0;
 
     /// <summary>
     ///  Gets a value that specifies how the system was started.
     /// </summary>
-    public static BootMode BootMode => (BootMode)PInvoke.GetSystemMetrics(SM_CLEANBOOT);
+    public static BootMode BootMode => (BootMode)GetSystemMetrics(SM_CLEANBOOT);
 
     /// <summary>
     ///  Gets the dimensions in pixels, of the rectangle that a drag operation must
@@ -400,7 +417,7 @@ public static class SystemInformation
     ///  information visually in situations where it would otherwise present the
     ///  information in audible form.
     /// </summary>
-    public static bool ShowSounds => PInvoke.GetSystemMetrics(SM_SHOWSOUNDS) != 0;
+    public static bool ShowSounds => GetSystemMetrics(SM_SHOWSOUNDS) != 0;
 
     /// <summary>
     ///  Gets the dimensions of the default size of a menu checkmark in pixels.
@@ -410,7 +427,7 @@ public static class SystemInformation
     /// <summary>
     ///  Gets a value indicating whether the system is enabled for Hebrew and Arabic languages.
     /// </summary>
-    public static bool MidEastEnabled => PInvoke.GetSystemMetrics(SM_MIDEASTENABLED) != 0;
+    public static bool MidEastEnabled => GetSystemMetrics(SM_MIDEASTENABLED) != 0;
 
     internal static bool MultiMonitorSupport
     {
@@ -418,7 +435,7 @@ public static class SystemInformation
         {
             if (!s_checkMultiMonitorSupport)
             {
-                s_multiMonitorSupport = PInvoke.GetSystemMetrics(SM_CMONITORS) != 0;
+                s_multiMonitorSupport = GetSystemMetrics(SM_CMONITORS) != 0;
                 s_checkMultiMonitorSupport = true;
             }
 
@@ -436,7 +453,7 @@ public static class SystemInformation
     ///   keep it equivalent to <see cref="MouseWheelPresent"/>.
     ///  </para>
     /// </remarks>
-    public static bool NativeMouseWheelSupport => PInvoke.GetSystemMetrics(SM_MOUSEWHEELPRESENT) != 0;
+    public static bool NativeMouseWheelSupport => GetSystemMetrics(SM_MOUSEWHEELPRESENT) != 0;
 
     /// <summary>
     ///  Gets a value indicating whether a mouse with a mouse wheel is installed.
@@ -452,10 +469,10 @@ public static class SystemInformation
         {
             if (MultiMonitorSupport)
             {
-                return new(PInvoke.GetSystemMetrics(SM_XVIRTUALSCREEN),
-                    PInvoke.GetSystemMetrics(SM_YVIRTUALSCREEN),
-                    PInvoke.GetSystemMetrics(SM_CXVIRTUALSCREEN),
-                    PInvoke.GetSystemMetrics(SM_CYVIRTUALSCREEN));
+                return new(GetSystemMetrics(SM_XVIRTUALSCREEN),
+                    GetSystemMetrics(SM_YVIRTUALSCREEN),
+                    GetSystemMetrics(SM_CXVIRTUALSCREEN),
+                    GetSystemMetrics(SM_CYVIRTUALSCREEN));
             }
 
             Size size = PrimaryMonitorSize;
@@ -466,13 +483,13 @@ public static class SystemInformation
     /// <summary>
     ///  Gets the number of display monitors on the desktop.
     /// </summary>
-    public static int MonitorCount => MultiMonitorSupport ? PInvoke.GetSystemMetrics(SM_CMONITORS) : 1;
+    public static int MonitorCount => MultiMonitorSupport ? GetSystemMetrics(SM_CMONITORS) : 1;
 
     /// <summary>
     ///  Gets a value indicating whether all the display monitors have the same color format.
     /// </summary>
     public static bool MonitorsSameDisplayFormat
-        => !MultiMonitorSupport || PInvoke.GetSystemMetrics(SM_SAMEDISPLAYFORMAT) != 0;
+        => !MultiMonitorSupport || GetSystemMetrics(SM_SAMEDISPLAYFORMAT) != 0;
 
     /// <summary>
     ///  Gets the computer name of the current system.
@@ -491,6 +508,11 @@ public static class SystemInformation
     {
         get
         {
+            if (!OperatingSystem.IsWindows())
+            {
+                return true;
+            }
+
             HWINSTA hwinsta = PInvoke.GetProcessWindowStation();
             if (!hwinsta.IsNull && s_processWinStation != hwinsta)
             {
@@ -526,200 +548,200 @@ public static class SystemInformation
     /// <summary>
     ///  Gets whether the drop shadow effect in enabled.
     /// </summary>
-    public static bool IsDropShadowEnabled => PInvoke.SystemParametersInfoBool(SPI_GETDROPSHADOW);
+    public static bool IsDropShadowEnabled => SystemParametersInfoBool(SPI_GETDROPSHADOW);
 
     /// <summary>
     ///  Gets whether the native user menus have a flat menu appearance.
     /// </summary>
-    public static bool IsFlatMenuEnabled => PInvoke.SystemParametersInfoBool(SPI_GETFLATMENU);
+    public static bool IsFlatMenuEnabled => SystemParametersInfoBool(SPI_GETFLATMENU);
 
     /// <summary>
     ///  Gets whether font smoothing is enabled.
     /// </summary>
-    public static bool IsFontSmoothingEnabled => PInvoke.SystemParametersInfoBool(SPI_GETFONTSMOOTHING);
+    public static bool IsFontSmoothingEnabled => SystemParametersInfoBool(SPI_GETFONTSMOOTHING);
 
     /// <summary>
     ///  Returns the ClearType smoothing contrast value.
     /// </summary>
-    public static int FontSmoothingContrast => PInvoke.SystemParametersInfoInt(SPI_GETFONTSMOOTHINGCONTRAST);
+    public static int FontSmoothingContrast => SystemParametersInfoInt(SPI_GETFONTSMOOTHINGCONTRAST);
 
     /// <summary>
     ///  Returns a type of Font smoothing.
     /// </summary>
-    public static int FontSmoothingType => PInvoke.SystemParametersInfoInt(SPI_GETFONTSMOOTHINGTYPE);
+    public static int FontSmoothingType => SystemParametersInfoInt(SPI_GETFONTSMOOTHINGTYPE);
 
     /// <summary>
     ///  Retrieves the width in pixels of an icon cell.
     /// </summary>
-    public static int IconHorizontalSpacing => PInvoke.SystemParametersInfoInt(SPI_ICONHORIZONTALSPACING);
+    public static int IconHorizontalSpacing => SystemParametersInfoInt(SPI_ICONHORIZONTALSPACING, fallback: 75);
 
     /// <summary>
     ///  Retrieves the height in pixels of an icon cell.
     /// </summary>
-    public static int IconVerticalSpacing => PInvoke.SystemParametersInfoInt(SPI_ICONVERTICALSPACING);
+    public static int IconVerticalSpacing => SystemParametersInfoInt(SPI_ICONVERTICALSPACING, fallback: 75);
 
     /// <summary>
     ///  Gets whether icon title wrapping is enabled.
     /// </summary>
-    public static bool IsIconTitleWrappingEnabled => PInvoke.SystemParametersInfoBool(SPI_GETICONTITLEWRAP);
+    public static bool IsIconTitleWrappingEnabled => SystemParametersInfoBool(SPI_GETICONTITLEWRAP);
 
     /// <summary>
     ///  Gets whether menu access keys are underlined.
     /// </summary>
-    public static bool MenuAccessKeysUnderlined => PInvoke.SystemParametersInfoBool(SPI_GETKEYBOARDCUES);
+    public static bool MenuAccessKeysUnderlined => SystemParametersInfoBool(SPI_GETKEYBOARDCUES);
 
     /// <summary>
     ///  Retrieves the Keyboard repeat delay setting, which is a value in the range
     ///  from 0 through 3. The actual delay associated with each value may vary
     ///  depending on the hardware.
     /// </summary>
-    public static int KeyboardDelay => PInvoke.SystemParametersInfoInt(SPI_GETKEYBOARDDELAY);
+    public static int KeyboardDelay => SystemParametersInfoInt(SPI_GETKEYBOARDDELAY);
 
     /// <summary>
     ///  Gets whether the user relies on keyboard instead of mouse and wants
     ///  applications to display keyboard interfaces that would be otherwise hidden.
     /// </summary>
-    public static bool IsKeyboardPreferred => PInvoke.SystemParametersInfoBool(SPI_GETKEYBOARDPREF);
+    public static bool IsKeyboardPreferred => SystemParametersInfoBool(SPI_GETKEYBOARDPREF);
 
     /// <summary>
     ///  Retrieves the Keyboard repeat speed setting, which is a value in the range
     ///  from 0 through 31. The actual rate may vary depending on the hardware.
     /// </summary>
-    public static int KeyboardSpeed => PInvoke.SystemParametersInfoInt(SPI_GETKEYBOARDSPEED);
+    public static int KeyboardSpeed => SystemParametersInfoInt(SPI_GETKEYBOARDSPEED, fallback: 31);
 
     /// <summary>
     ///  Gets the <see cref="Size"/> in pixels of the rectangle within which the mouse
     ///  pointer has to stay to be considered hovering.
     /// </summary>
     public static Size MouseHoverSize
-        => new(PInvoke.SystemParametersInfoInt(SPI_GETMOUSEHOVERWIDTH),
-            PInvoke.SystemParametersInfoInt(SPI_GETMOUSEHOVERHEIGHT));
+        => new(SystemParametersInfoInt(SPI_GETMOUSEHOVERWIDTH, fallback: 4),
+            SystemParametersInfoInt(SPI_GETMOUSEHOVERHEIGHT, fallback: 4));
 
     /// <summary>
     ///  Gets the time, in milliseconds, that the mouse pointer has to stay in the hover
     ///  rectangle to be considered hovering.
     /// </summary>
-    public static int MouseHoverTime => PInvoke.SystemParametersInfoInt(SPI_GETMOUSEHOVERTIME);
+    public static int MouseHoverTime => SystemParametersInfoInt(SPI_GETMOUSEHOVERTIME, fallback: 400);
 
     /// <summary>
     ///  Gets the current mouse speed.
     /// </summary>
-    public static int MouseSpeed => PInvoke.SystemParametersInfoInt(SPI_GETMOUSESPEED);
+    public static int MouseSpeed => SystemParametersInfoInt(SPI_GETMOUSESPEED, fallback: 10);
 
     /// <summary>
     ///  Determines whether the snap-to-default-button feature is enabled.
     /// </summary>
-    public static bool IsSnapToDefaultEnabled => PInvoke.SystemParametersInfoBool(SPI_GETSNAPTODEFBUTTON);
+    public static bool IsSnapToDefaultEnabled => SystemParametersInfoBool(SPI_GETSNAPTODEFBUTTON);
 
     /// <summary>
     ///  Determines whether the popup menus are left aligned or right aligned.
     /// </summary>
     public static LeftRightAlignment PopupMenuAlignment
-        => PInvoke.SystemParametersInfoBool(SPI_GETMENUDROPALIGNMENT)
+        => SystemParametersInfoBool(SPI_GETMENUDROPALIGNMENT)
             ? LeftRightAlignment.Left : LeftRightAlignment.Right;
 
     /// <summary>
     ///  Determines whether the menu fade animation feature is enabled.
     /// </summary>
-    public static bool IsMenuFadeEnabled => PInvoke.SystemParametersInfoBool(SPI_GETMENUFADE);
+    public static bool IsMenuFadeEnabled => SystemParametersInfoBool(SPI_GETMENUFADE);
 
     /// <summary>
     ///  Indicates the time, in milliseconds, that the system waits before displaying
     ///  a shortcut menu.
     /// </summary>
-    public static int MenuShowDelay => PInvoke.SystemParametersInfoInt(SPI_GETMENUSHOWDELAY);
+    public static int MenuShowDelay => SystemParametersInfoInt(SPI_GETMENUSHOWDELAY, fallback: 400);
 
     /// <summary>
     ///  Indicates whether the slide open effect for combo boxes is enabled.
     /// </summary>
-    public static bool IsComboBoxAnimationEnabled => PInvoke.SystemParametersInfoBool(SPI_GETCOMBOBOXANIMATION);
+    public static bool IsComboBoxAnimationEnabled => SystemParametersInfoBool(SPI_GETCOMBOBOXANIMATION);
 
     /// <summary>
     ///  Indicates whether the gradient effect for windows title bars is enabled.
     /// </summary>
-    public static bool IsTitleBarGradientEnabled => PInvoke.SystemParametersInfoBool(SPI_GETGRADIENTCAPTIONS);
+    public static bool IsTitleBarGradientEnabled => SystemParametersInfoBool(SPI_GETGRADIENTCAPTIONS);
 
     /// <summary>
     ///  Indicates whether the hot tracking of user interface elements is enabled.
     /// </summary>
-    public static bool IsHotTrackingEnabled => PInvoke.SystemParametersInfoBool(SPI_GETHOTTRACKING);
+    public static bool IsHotTrackingEnabled => SystemParametersInfoBool(SPI_GETHOTTRACKING);
 
     /// <summary>
     ///  Indicates whether the smooth scrolling effect for listbox is enabled.
     /// </summary>
-    public static bool IsListBoxSmoothScrollingEnabled => PInvoke.SystemParametersInfoBool(SPI_GETLISTBOXSMOOTHSCROLLING);
+    public static bool IsListBoxSmoothScrollingEnabled => SystemParametersInfoBool(SPI_GETLISTBOXSMOOTHSCROLLING);
 
     /// <summary>
     ///  Indicates whether the menu animation feature is enabled.
     /// </summary>
-    public static bool IsMenuAnimationEnabled => PInvoke.SystemParametersInfoBool(SPI_GETMENUANIMATION);
+    public static bool IsMenuAnimationEnabled => SystemParametersInfoBool(SPI_GETMENUANIMATION);
 
     /// <summary>
     ///  Indicates whether the selection fade effect is enabled.
     /// </summary>
-    public static bool IsSelectionFadeEnabled => PInvoke.SystemParametersInfoBool(SPI_GETSELECTIONFADE);
+    public static bool IsSelectionFadeEnabled => SystemParametersInfoBool(SPI_GETSELECTIONFADE);
 
     /// <summary>
     ///  Indicates whether tool tip animation is enabled.
     /// </summary>
-    public static bool IsToolTipAnimationEnabled => PInvoke.SystemParametersInfoBool(SPI_GETTOOLTIPANIMATION);
+    public static bool IsToolTipAnimationEnabled => SystemParametersInfoBool(SPI_GETTOOLTIPANIMATION);
 
     /// <summary>
     ///  Indicates whether UI effects are enabled.
     /// </summary>
-    public static bool UIEffectsEnabled => PInvoke.SystemParametersInfoBool(SPI_GETUIEFFECTS);
+    public static bool UIEffectsEnabled => SystemParametersInfoBool(SPI_GETUIEFFECTS);
 
     /// <summary>
     ///  Indicates whether the windows tracking (activating the window the mouse in on) is ON or OFF.
     /// </summary>
-    public static bool IsActiveWindowTrackingEnabled => PInvoke.SystemParametersInfoBool(SPI_GETACTIVEWINDOWTRACKING);
+    public static bool IsActiveWindowTrackingEnabled => SystemParametersInfoBool(SPI_GETACTIVEWINDOWTRACKING);
 
     /// <summary>
     ///  Retrieves the active window tracking delay in milliseconds.
     /// </summary>
-    public static int ActiveWindowTrackingDelay => PInvoke.SystemParametersInfoInt(SPI_GETACTIVEWNDTRKTIMEOUT);
+    public static int ActiveWindowTrackingDelay => SystemParametersInfoInt(SPI_GETACTIVEWNDTRKTIMEOUT);
 
     /// <summary>
     ///  Indicates whether windows minimize/restore animation is enabled.
     /// </summary>
-    public static bool IsMinimizeRestoreAnimationEnabled => PInvoke.SystemParametersInfoBool(SPI_GETANIMATION);
+    public static bool IsMinimizeRestoreAnimationEnabled => SystemParametersInfoBool(SPI_GETANIMATION);
 
     /// <summary>
     ///  Retrieves the border multiplier factor that determines the width of a window's sizing border.
     /// </summary>
-    public static int BorderMultiplierFactor => PInvoke.SystemParametersInfoInt(SPI_GETBORDER);
+    public static int BorderMultiplierFactor => SystemParametersInfoInt(SPI_GETBORDER);
 
     /// <summary>
     ///  Indicates the caret blink time.
     /// </summary>
-    public static int CaretBlinkTime => (int)PInvoke.GetCaretBlinkTime();
+    public static int CaretBlinkTime => OperatingSystem.IsWindows() ? (int)PInvoke.GetCaretBlinkTime() : 500;
 
     /// <summary>
     ///  Indicates the caret width in edit controls.
     /// </summary>
-    public static int CaretWidth => PInvoke.SystemParametersInfoInt(SPI_GETCARETWIDTH);
+    public static int CaretWidth => SystemParametersInfoInt(SPI_GETCARETWIDTH, fallback: 1);
 
     public static int MouseWheelScrollDelta => (int)PInvoke.WHEEL_DELTA;
 
     /// <summary>
     ///  The width of the left and right edges of the focus rectangle.
     /// </summary>
-    public static int VerticalFocusThickness => PInvoke.GetSystemMetrics(SM_CYFOCUSBORDER);
+    public static int VerticalFocusThickness => GetSystemMetrics(SM_CYFOCUSBORDER);
 
     /// <summary>
     ///  The width of the top and bottom edges of the focus rectangle.
     /// </summary>
-    public static int HorizontalFocusThickness => PInvoke.GetSystemMetrics(SM_CXFOCUSBORDER);
+    public static int HorizontalFocusThickness => GetSystemMetrics(SM_CXFOCUSBORDER);
 
     /// <summary>
     ///  The height of the vertical sizing border around the perimeter of the window that can be resized.
     /// </summary>
-    public static int VerticalResizeBorderThickness => PInvoke.GetSystemMetrics(SM_CYSIZEFRAME);
+    public static int VerticalResizeBorderThickness => GetSystemMetrics(SM_CYSIZEFRAME);
 
     /// <summary>
     ///  The width of the horizontal sizing border around the perimeter of the window that can be resized.
     /// </summary>
-    public static int HorizontalResizeBorderThickness => PInvoke.GetSystemMetrics(SM_CXSIZEFRAME);
+    public static int HorizontalResizeBorderThickness => GetSystemMetrics(SM_CXSIZEFRAME);
 
     /// <summary>
     ///  The orientation of the screen in degrees.
@@ -728,6 +750,11 @@ public static class SystemInformation
     {
         get
         {
+            if (!OperatingSystem.IsWindows())
+            {
+                return ScreenOrientation.Angle0;
+            }
+
             ScreenOrientation so = ScreenOrientation.Angle0;
             DEVMODEW dm = new()
             {
@@ -751,6 +778,11 @@ public static class SystemInformation
     {
         get
         {
+            if (!OperatingSystem.IsWindows())
+            {
+                return 0;
+            }
+
             NONCLIENTMETRICSW data = default;
             return PInvoke.SystemParametersInfo(ref data)
                 && data.iBorderWidth > 0 ? data.iBorderWidth : 0;
@@ -764,6 +796,11 @@ public static class SystemInformation
     {
         get
         {
+            if (!OperatingSystem.IsWindows())
+            {
+                return Size.Empty;
+            }
+
             NONCLIENTMETRICSW data = default;
             return PInvoke.SystemParametersInfo(ref data)
                 && data.iSmCaptionHeight > 0 && data.iSmCaptionWidth > 0
@@ -779,6 +816,11 @@ public static class SystemInformation
     {
         get
         {
+            if (!OperatingSystem.IsWindows())
+            {
+                return Size.Empty;
+            }
+
             NONCLIENTMETRICSW data = default;
             return PInvoke.SystemParametersInfo(ref data)
                 && data.iMenuHeight > 0 && data.iMenuWidth > 0
@@ -795,6 +837,11 @@ public static class SystemInformation
     /// </summary>
     internal static bool InLockedTerminalSession()
     {
+        if (!OperatingSystem.IsWindows())
+        {
+            return false;
+        }
+
         if (TerminalServerSession)
         {
             // Try to open the input desktop. If it fails with access denied assume
@@ -811,6 +858,22 @@ public static class SystemInformation
         return false;
     }
 
+    private static int GetSystemMetrics(SYSTEM_METRICS_INDEX index)
+        => OperatingSystem.IsWindows()
+            ? PInvoke.GetSystemMetrics(index)
+            : PlatformApi.System.GetSystemMetrics(index);
+
+    private static int GetCurrentSystemMetrics(SYSTEM_METRICS_INDEX index, uint dpi)
+        => OperatingSystem.IsWindows()
+            ? PInvoke.GetCurrentSystemMetrics(index, dpi)
+            : GetSystemMetrics(index);
+
+    private static bool SystemParametersInfoBool(SYSTEM_PARAMETERS_INFO_ACTION action, bool fallback = false)
+        => OperatingSystem.IsWindows() ? PInvoke.SystemParametersInfoBool(action) : fallback;
+
+    private static int SystemParametersInfoInt(SYSTEM_PARAMETERS_INFO_ACTION action, int fallback = 0)
+        => OperatingSystem.IsWindows() ? PInvoke.SystemParametersInfoInt(action) : fallback;
+
     private static Size GetSize(SYSTEM_METRICS_INDEX x, SYSTEM_METRICS_INDEX y)
-        => new(PInvoke.GetSystemMetrics(x), PInvoke.GetSystemMetrics(y));
+        => new(GetSystemMetrics(x), GetSystemMetrics(y));
 }

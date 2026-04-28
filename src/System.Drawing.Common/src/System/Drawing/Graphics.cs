@@ -18,6 +18,7 @@ namespace System.Drawing;
 /// </summary>
 public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, IDeviceContext, IGraphics
 {
+    private bool IsBackendOnly => _backend is not null && NativeGraphics is null;
     /// <summary>
     ///  The context state previous to the current Graphics context (the head of the stack).
     ///  We don't keep a GraphicsContext for the current context since it is available at any time from GDI+ and
@@ -89,6 +90,16 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     }
 
     /// <summary>
+    ///  Backend-only constructor. No GDI+ surface is created; rendering is fully delegated
+    ///  to <see cref="_backend"/>.
+    /// </summary>
+    private Graphics(IRenderingBackend backend)
+    {
+        _backend = backend;
+        NativeGraphics = null;
+    }
+
+    /// <summary>
     ///  Creates a new instance of the <see cref='Graphics'/> class from the specified handle to a device context.
     /// </summary>
     [EditorBrowsable(EditorBrowsableState.Advanced)]
@@ -131,15 +142,7 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     /// </summary>
     private static Graphics CreateBackendBacked(IRenderingBackend backend)
     {
-        // Allocate a tiny in-memory bitmap to satisfy GDI+'s requirement for a
-        // non-null GpGraphics pointer.  All draw calls are intercepted by _backend
-        // before they ever touch this stub surface.
-        GpGraphics* stubGraphics;
-        using var bmp = new Bitmap(1, 1);
-        Gdip.CheckStatus(PInvoke.GdipGetImageGraphicsContext((GpImage*)bmp.Pointer(), &stubGraphics));
-
-        var g = new Graphics(stubGraphics) { _backend = backend };
-        return g;
+        return new Graphics(backend);
     }
 
     /// <summary>
@@ -609,6 +612,11 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
              _backend?.ClipRect(rect.X, rect.Y, rect.Width, rect.Height);
         }
 
+        if (IsBackendOnly)
+        {
+            return;
+        }
+
         CheckStatus(PInvoke.GdipSetClipRect(NativeGraphics, rect.X, rect.Y, rect.Width, rect.Height, (GdiPlus.CombineMode)combineMode));
     }
 
@@ -633,6 +641,11 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     public void IntersectClip(RectangleF rect)
     {
         _backend?.ClipRect(rect.X, rect.Y, rect.Width, rect.Height);
+        if (IsBackendOnly)
+        {
+            return;
+        }
+
         CheckStatus(PInvoke.GdipSetClipRect(
             NativeGraphics,
             rect.X, rect.Y, rect.Width, rect.Height,
@@ -716,6 +729,11 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     public void TranslateTransform(float dx, float dy, MatrixOrder order)
     {
         _backend?.Translate(dx, dy);
+        if (IsBackendOnly)
+        {
+            return;
+        }
+
         CheckStatus(PInvoke.GdipTranslateWorldTransform(NativeGraphics, dx, dy, (GdiPlus.MatrixOrder)order));
     }
 
@@ -3645,6 +3663,11 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     public GraphicsState Save()
     {
         _backend?.Save();
+        if (IsBackendOnly)
+        {
+            return new GraphicsState(0);
+        }
+
         GraphicsContext context = new(this);
         uint state;
         Status status = PInvoke.GdipSaveGraphics(NativeGraphics, &state);
@@ -3666,6 +3689,11 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     public void Restore(GraphicsState gstate)
     {
         _backend?.Restore(); // WinForms usually restores in order, so Restore() is typically enough. If it's a deep restore, this might need RestoreToCount, but Impeller backend does not have a 1:1 mapping of state IDs.
+        if (IsBackendOnly)
+        {
+            return;
+        }
+
         CheckStatus(PInvoke.GdipRestoreGraphics(NativeGraphics, (uint)gstate._nativeState));
         PopContext(gstate._nativeState);
     }

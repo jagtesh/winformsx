@@ -49,3 +49,29 @@ Once the `SendMessage` shim is securely established, all `Graphics.IsBackendActi
 
 ### Step C: Secure Exception Handling
 - Ensure `Application.OnThreadException` in the Impeller loop does not trigger native UI Dialogs. If the backend is active, exceptions must be routed exclusively to `Console.Error` or a pure-managed synthetic dialog to prevent cascading unmanaged crashes.
+
+## 5. 2026-04-27 Bootstrap Repair Notes
+
+### Managed Build
+- `dotnet build src/System.Windows.Forms/src/System.Windows.Forms.csproj -v:minimal` succeeds.
+- `dotnet build src/WinFormsX.Samples/WinFormsX.Samples.csproj -t:Rebuild -v:minimal` succeeds.
+- The sample must currently be rebuilt with `-t:Rebuild` after the core project so the local fork assemblies are refreshed in `artifacts/bin/WinFormsX.Samples/Debug/net9.0`.
+
+### Impeller SDK Fetch
+- `eng/fetch-impeller-sdk.sh` fetches Flutter Impeller SDK SHA `3452d735bd38224ef2db85ca763d862d6326b17f`.
+- On macOS arm64 it maps `osx-arm64` to `darwin-arm64`, extracts to `artifacts/impeller/darwin-arm64/3452d735bd38224ef2db85ca763d862d6326b17f/`, and copies `libimpeller.dylib` into `artifacts/bin/WinFormsX.Samples/Debug/net9.0/runtimes/osx-arm64/native/`.
+
+### Pre-Impeller Native API Blockers Cleared
+- `ScaleHelper` now routes screen DC and DPI reads through `PlatformApi.Gdi` on non-Windows so DPI bootstrap no longer loads `USER32.dll` or `GDI32.dll`.
+- Early window/class/thread/bootstrap paths now use PAL or safe non-Windows fallbacks instead of direct `USER32.dll`, `GDI32.dll`, or `KERNEL32.dll` calls.
+- System settings, menu focus cues, display information, UIA notifications, screen bounds, font descriptors, and text measurement now avoid native Windows DLLs during sample startup on non-Windows.
+- These are bootstrap shims, not a complete replacement for text shaping, accessibility, or GDI drawing behavior.
+
+### Vulkan Runtime Remediation
+- The initial renderer failure was environment level:
+  `System.InvalidOperationException: Attempted to initialize a Vulkan window using GLFW, which doesn't support Vulkan on this computer.`
+- Installed Homebrew `vulkan-loader`, `molten-vk`, and `vulkan-tools`; `vulkaninfo --summary` now reports MoltenVK on Apple M1 Max.
+- On this host, the sample must be launched with the Homebrew Vulkan loader visible:
+  `DYLD_LIBRARY_PATH=/opt/homebrew/lib:$DYLD_LIBRARY_PATH dotnet run --project src/WinFormsX.Samples/WinFormsX.Samples.csproj --no-build`
+- With that environment, the sample reaches and stays in the Vulkan/Impeller window loop. The remaining renderer warning is missing Vulkan validation layers, which is nonfatal.
+- Vulkan remains viable on macOS through MoltenVK; do not switch to Metal unless Vulkan proves unreliable after the PAL cleanup work.

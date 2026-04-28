@@ -47,6 +47,18 @@ internal abstract partial class ButtonBaseAdapter
 
     internal virtual Size GetPreferredSizeCore(Size proposedSize)
     {
+        if (!OperatingSystem.IsWindows())
+        {
+            Size textSize = string.IsNullOrEmpty(Control.Text)
+                ? Size.Empty
+                : TextRenderer.MeasureText(Control.Text, Control.Font, proposedSize, TextFormatFlags.WordBreak);
+            Size imageSize = Control.Image?.Size ?? Size.Empty;
+            int width = Math.Max(textSize.Width, imageSize.Width) + Control.Padding.Horizontal + ButtonBorderSize * 2;
+            int height = textSize.Height + imageSize.Height + Control.Padding.Vertical + ButtonBorderSize * 2;
+
+            return new Size(Math.Max(width, 1), Math.Max(height, 1));
+        }
+
         LayoutOptions? options = default;
         using (var screen = GdiCache.GetScreenHdc())
         using (PaintEventArgs e = new(screen, default))

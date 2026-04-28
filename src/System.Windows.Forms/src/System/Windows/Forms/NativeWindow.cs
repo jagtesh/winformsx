@@ -413,7 +413,9 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
                     // parented to this parking window. Otherwise, reparenting of control will fail.
                     using (ScaleHelper.EnterDpiAwarenessScope(DpiAwarenessContext, DPI_HOSTING_BEHAVIOR.DPI_HOSTING_BEHAVIOR_MIXED))
                     {
-                        HINSTANCE modHandle = PInvoke.GetModuleHandle((PCWSTR)null);
+                        HINSTANCE modHandle = OperatingSystem.IsWindows()
+                            ? PInvoke.GetModuleHandle((PCWSTR)null)
+                            : PlatformApi.System.GetModuleHandle(null);
                         // Older versions of Windows AV rather than returning E_OUTOFMEMORY.
                         // Catch this and then we re-throw an out of memory error.
                         try

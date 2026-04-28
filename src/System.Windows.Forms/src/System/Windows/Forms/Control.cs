@@ -5924,7 +5924,10 @@ public unsafe partial class Control :
                 dwHoverTime = 100
             };
 
-            PInvoke.TrackMouseEvent(ref _trackMouseEvent);
+            Platform.PlatformApi.Input.TrackMouseEvent(
+                _trackMouseEvent.hwndTrack,
+                (uint)_trackMouseEvent.dwFlags,
+                _trackMouseEvent.dwHoverTime);
         }
     }
 
@@ -6574,6 +6577,12 @@ public unsafe partial class Control :
 
     private static void AdjustWindowRectExForDpi(ref RECT rect, WINDOW_STYLE style, bool bMenu, WINDOW_EX_STYLE exStyle, int dpi)
     {
+        if (!OperatingSystem.IsWindows())
+        {
+            Platform.PlatformApi.Window.AdjustWindowRectEx(ref rect, style, bMenu, exStyle);
+            return;
+        }
+
         if ((ScaleHelper.IsThreadPerMonitorV2Aware || ScaleHelper.IsScalingRequired) && OsVersion.IsWindows10_1703OrGreater())
         {
             PInvoke.AdjustWindowRectExForDpi(ref rect, style, bMenu, exStyle, (uint)dpi);

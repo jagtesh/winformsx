@@ -2570,7 +2570,10 @@ public partial class ToolStrip : ScrollableControl, IArrangedElement, ISupportTo
                 try
                 {
                     ToolStripManager.RendererChanged += new EventHandler(OnDefaultRendererChanged);
-                    SystemEvents.UserPreferenceChanged += new UserPreferenceChangedEventHandler(OnUserPreferenceChanged);
+                    if (OperatingSystem.IsWindows())
+                    {
+                        SystemEvents.UserPreferenceChanged += new UserPreferenceChangedEventHandler(OnUserPreferenceChanged);
+                    }
                 }
                 finally
                 {
@@ -2583,7 +2586,10 @@ public partial class ToolStrip : ScrollableControl, IArrangedElement, ISupportTo
             try
             {
                 ToolStripManager.RendererChanged -= new EventHandler(OnDefaultRendererChanged);
-                SystemEvents.UserPreferenceChanged -= new UserPreferenceChangedEventHandler(OnUserPreferenceChanged);
+                if (OperatingSystem.IsWindows())
+                {
+                    SystemEvents.UserPreferenceChanged -= new UserPreferenceChangedEventHandler(OnUserPreferenceChanged);
+                }
             }
             finally
             {

@@ -25,7 +25,10 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
 
     static VisualStyleRenderer()
     {
-        SystemEvents.UserPreferenceChanging += new UserPreferenceChangingEventHandler(OnUserPreferenceChanging);
+        if (OperatingSystem.IsWindows())
+        {
+            SystemEvents.UserPreferenceChanging += new UserPreferenceChangingEventHandler(OnUserPreferenceChanging);
+        }
     }
 
     /// <summary>
@@ -50,6 +53,11 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
     {
         get
         {
+            if (!OperatingSystem.IsWindows())
+            {
+                return false;
+            }
+
             bool supported = AreClientAreaVisualStylesSupported;
 
             if (supported)

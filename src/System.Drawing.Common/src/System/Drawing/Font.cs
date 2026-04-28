@@ -200,6 +200,11 @@ public sealed unsafe class Font : MarshalByRefObject, ICloneable, IDisposable, I
     public float GetHeight(Graphics graphics)
     {
         ArgumentNullException.ThrowIfNull(graphics);
+        if (!OperatingSystem.IsWindows())
+        {
+            return GetHeight(graphics.DpiY);
+        }
+
         if (graphics.NativeGraphics is null)
         {
             throw new ArgumentException(message: null, nameof(graphics));
@@ -214,6 +219,13 @@ public sealed unsafe class Font : MarshalByRefObject, ICloneable, IDisposable, I
 
     public float GetHeight(float dpi)
     {
+        if (!OperatingSystem.IsWindows())
+        {
+            float pixelsPerPoint = dpi / 72.0f;
+            float sizeInPoints = Unit == GraphicsUnit.Point ? Size : SizeInPoints;
+            return sizeInPoints * pixelsPerPoint * 1.2f;
+        }
+
         float height;
         PInvoke.GdipGetFontHeightGivenDPI(NativeFont, dpi, &height).ThrowIfFailed();
         GC.KeepAlive(this);
@@ -523,7 +535,12 @@ public sealed unsafe class Font : MarshalByRefObject, ICloneable, IDisposable, I
         if (_fontFamily is null)
         {
             // GDI+ FontFamily is a singleton object.
-            SetFontFamily(new FontFamily(family.NativeFamily));
+            SetFontFamily(OperatingSystem.IsWindows() ? new FontFamily(family.NativeFamily) : family);
+        }
+
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
         }
 
         if (_nativeFont is null)
@@ -720,6 +737,11 @@ public sealed unsafe class Font : MarshalByRefObject, ICloneable, IDisposable, I
     /// </summary>
     public IntPtr ToHfont()
     {
+        if (!OperatingSystem.IsWindows())
+        {
+            return (nint)HashCode.Combine(Name, Size, Style, Unit, GdiCharSet, GdiVerticalFont);
+        }
+
         using var hdc = GetDcScope.ScreenDC;
         using Graphics graphics = Graphics.FromHdcInternal(hdc);
         ToLogFont(out LOGFONT lf, graphics);
@@ -729,6 +751,11 @@ public sealed unsafe class Font : MarshalByRefObject, ICloneable, IDisposable, I
 
     public float GetHeight()
     {
+        if (!OperatingSystem.IsWindows())
+        {
+            return GetHeight(96);
+        }
+
         using var hdc = GetDcScope.ScreenDC;
         using Graphics graphics = Graphics.FromHdcInternal(hdc);
         return GetHeight(graphics);

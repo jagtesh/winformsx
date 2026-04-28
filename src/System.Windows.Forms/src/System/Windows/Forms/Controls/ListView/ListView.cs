@@ -6065,7 +6065,7 @@ public partial class ListView : Control
         }
 #pragma warning restore WFO5001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
 
-        if (nmhdr->code == PInvoke.NM_CUSTOMDRAW && PInvoke.UiaClientsAreListening())
+        if (nmhdr->code == PInvoke.NM_CUSTOMDRAW && OperatingSystem.IsWindows() && PInvoke.UiaClientsAreListening())
         {
             // Checking that mouse buttons are not pressed is necessary to avoid
             // multiple annotation of the column header when resizing the column with the mouse

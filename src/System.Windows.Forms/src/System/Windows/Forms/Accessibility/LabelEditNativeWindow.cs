@@ -36,7 +36,7 @@ internal class LabelEditNativeWindow : NativeWindow
 
     private unsafe void InstallWinEventHooks()
     {
-        if (!PInvoke.UiaClientsAreListening())
+        if (!OperatingSystem.IsWindows() || !PInvoke.UiaClientsAreListening())
         {
             return;
         }

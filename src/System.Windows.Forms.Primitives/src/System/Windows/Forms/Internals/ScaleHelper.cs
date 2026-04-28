@@ -62,7 +62,7 @@ internal static partial class ScaleHelper
             if (!OsVersion.IsWindows10_1607OrGreater())
             {
                 using var dc = GetDcScope.ScreenDC;
-                return PInvokeCore.GetDeviceCaps(dc, GET_DEVICE_CAPS_INDEX.LOGPIXELSX);
+                return Platform.PlatformApi.Gdi.GetDeviceCaps(dc, GET_DEVICE_CAPS_INDEX.LOGPIXELSX);
             }
 
             // This avoids needing to create a DC
@@ -436,6 +436,11 @@ internal static partial class ScaleHelper
     /// <returns><see langword="true"/> if the mode was successfully set.</returns>
     internal static bool SetProcessHighDpiMode(HighDpiMode highDpiMode)
     {
+        if (!OperatingSystem.IsWindows())
+        {
+            return true;
+        }
+
         bool success = false;
 
         if (OsVersion.IsWindows10_1703OrGreater())

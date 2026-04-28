@@ -795,7 +795,7 @@ public partial class ErrorProvider : Component, IExtenderProvider, ISupportIniti
         }
 
         Debug.Assert(_errorCount >= 0, "Error count should not be less than zero");
-        if (PInvoke.UiaClientsAreListening())
+        if (OperatingSystem.IsWindows() && PInvoke.UiaClientsAreListening())
         {
             control.AccessibilityObject.RaiseAutomationNotification(
                 Automation.AutomationNotificationKind.ActionAborted,

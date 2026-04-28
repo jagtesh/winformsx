@@ -52,6 +52,7 @@ internal unsafe interface IWindowInterop : IUser32Interop
 
     nint GetWindowLong(HWND hWnd, WINDOW_LONG_PTR_INDEX nIndex);
     nint SetWindowLong(HWND hWnd, WINDOW_LONG_PTR_INDEX nIndex, nint dwNewLong);
+    nint SetClassLong(HWND hWnd, GET_CLASS_LONG_INDEX nIndex, nint dwNewLong);
     bool SetWindowText(HWND hWnd, string lpString);
     int GetWindowText(HWND hWnd, Span<char> lpString);
     int GetWindowTextLength(HWND hWnd);
