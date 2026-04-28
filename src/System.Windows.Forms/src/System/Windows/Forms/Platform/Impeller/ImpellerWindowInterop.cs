@@ -371,7 +371,7 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                 {
                     mouse.MouseMove += (m, position) =>
                     {
-                        var pt = new System.Drawing.Point((int)position.X, (int)position.Y);
+                        var pt = GetLogicalMousePoint(handle, m);
                         HWND target = HitTest(handle, pt, out var clientPt);
                         PostMessageToControl(target, handle, WM_MOUSEMOVE, (WPARAM)0, (LPARAM)(nint)(((int)clientPt.Y << 16) | ((int)clientPt.X & 0xFFFF)));
                     };
@@ -387,7 +387,7 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                         };
                         if (msg != 0)
                         {
-                            var pt = new System.Drawing.Point((int)m.Position.X, (int)m.Position.Y);
+                            var pt = GetLogicalMousePoint(handle, m);
                             HWND target = HitTest(handle, pt, out var clientPt);
 
                             // Intercept TabControl click because we don't have native SysTabControl32 to process it
@@ -447,7 +447,7 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                         };
                         if (msg != 0)
                         {
-                            var pt = new System.Drawing.Point((int)m.Position.X, (int)m.Position.Y);
+                            var pt = GetLogicalMousePoint(handle, m);
                             HWND target = HitTest(handle, pt, out var clientPt);
                             PostMessageToControl(target, handle, msg, (WPARAM)0, (LPARAM)(nint)(((int)clientPt.Y << 16) | ((int)clientPt.X & 0xFFFF)));
                         }
@@ -458,7 +458,7 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                         // Vertical scroll
                         if (scrollWheel.Y != 0)
                         {
-                            var pt = new System.Drawing.Point((int)m.Position.X, (int)m.Position.Y);
+                            var pt = GetLogicalMousePoint(handle, m);
                             HWND target = HitTest(handle, pt, out var clientPt);
                             PostMessageToControl(target, handle, WM_MOUSEWHEEL, (WPARAM)(nuint)((int)(scrollWheel.Y * 120) << 16), (LPARAM)(nint)(((int)clientPt.Y << 16) | ((int)clientPt.X & 0xFFFF)));
                         }
@@ -466,7 +466,7 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                         // Horizontal scroll
                         if (scrollWheel.X != 0)
                         {
-                            var pt = new System.Drawing.Point((int)m.Position.X, (int)m.Position.Y);
+                            var pt = GetLogicalMousePoint(handle, m);
                             HWND target = HitTest(handle, pt, out var clientPt);
                             PostMessageToControl(target, handle, WM_MOUSEHWHEEL, (WPARAM)(nuint)((int)(scrollWheel.X * 120) << 16), (LPARAM)(nint)(((int)clientPt.Y << 16) | ((int)clientPt.X & 0xFFFF)));
                         }
@@ -819,6 +819,38 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
         }
 
         return (sx <= 0f ? 1f : sx, sy <= 0f ? 1f : sy);
+    }
+
+    private System.Drawing.Point GetLogicalMousePoint(HWND handle, IMouse mouse)
+    {
+        float x = mouse.Position.X;
+        float y = mouse.Position.Y;
+
+        if (_windows.TryGetValue(handle, out var state) && state.SilkWindow is not null)
+        {
+            int logicalW = state.Width > 0 ? state.Width : state.LastLogicalWidth;
+            int logicalH = state.Height > 0 ? state.Height : state.LastLogicalHeight;
+            if (logicalW > 0 && logicalH > 0)
+            {
+                var (fbW, fbH) = ResolveFramebufferSize(state.SilkWindow, logicalW, logicalH);
+                if (fbW > 0 && fbH > 0)
+                {
+                    float sx = fbW / (float)logicalW;
+                    float sy = fbH / (float)logicalH;
+                    if (sx > 0f)
+                    {
+                        x /= sx;
+                    }
+
+                    if (sy > 0f)
+                    {
+                        y /= sy;
+                    }
+                }
+            }
+        }
+
+        return new System.Drawing.Point((int)Math.Round(x), (int)Math.Round(y));
     }
 
     private static float ParseHiDpiScaleOverride()
