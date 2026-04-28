@@ -13,6 +13,16 @@ namespace System.Drawing;
 public sealed unsafe class StringFormat : MarshalByRefObject, ICloneable, IDisposable
 {
     internal GpStringFormat* _nativeFormat;
+    private readonly bool _backendOnly = Graphics.IsBackendActive;
+    private StringFormatFlags _managedFormatFlags;
+    private StringAlignment _managedAlignment = StringAlignment.Near;
+    private StringAlignment _managedLineAlignment = StringAlignment.Near;
+    private HotkeyPrefix _managedHotkeyPrefix = HotkeyPrefix.None;
+    private StringTrimming _managedTrimming = StringTrimming.Character;
+    private float _managedFirstTabOffset;
+    private float[] _managedTabStops = [];
+    private StringDigitSubstitute _managedDigitSubstitute = StringDigitSubstitute.User;
+    private int _managedDigitLanguage;
 
     private StringFormat(GpStringFormat* format) => _nativeFormat = format;
 
@@ -36,9 +46,13 @@ public sealed unsafe class StringFormat : MarshalByRefObject, ICloneable, IDispo
     /// </summary>
     public StringFormat(StringFormatFlags options, int language)
     {
-        GpStringFormat* format;
-        PInvoke.GdipCreateStringFormat((int)options, (ushort)language, &format).ThrowIfFailed();
-        _nativeFormat = format;
+        _managedFormatFlags = options;
+        if (!_backendOnly)
+        {
+            GpStringFormat* format;
+            PInvoke.GdipCreateStringFormat((int)options, (ushort)language, &format).ThrowIfFailed();
+            _nativeFormat = format;
+        }
     }
 
     /// <summary>
@@ -48,10 +62,22 @@ public sealed unsafe class StringFormat : MarshalByRefObject, ICloneable, IDispo
     public StringFormat(StringFormat format)
     {
         ArgumentNullException.ThrowIfNull(format);
-        GpStringFormat* newFormat;
-        PInvoke.GdipCloneStringFormat(format._nativeFormat, &newFormat).ThrowIfFailed();
-        _nativeFormat = newFormat;
-        GC.KeepAlive(format);
+        _managedFormatFlags = format._managedFormatFlags;
+        _managedAlignment = format._managedAlignment;
+        _managedLineAlignment = format._managedLineAlignment;
+        _managedHotkeyPrefix = format._managedHotkeyPrefix;
+        _managedTrimming = format._managedTrimming;
+        _managedFirstTabOffset = format._managedFirstTabOffset;
+        _managedTabStops = (float[])format._managedTabStops.Clone();
+        _managedDigitSubstitute = format._managedDigitSubstitute;
+        _managedDigitLanguage = format._managedDigitLanguage;
+        if (!format._backendOnly && format._nativeFormat is not null)
+        {
+            GpStringFormat* newFormat;
+            PInvoke.GdipCloneStringFormat(format._nativeFormat, &newFormat).ThrowIfFailed();
+            _nativeFormat = newFormat;
+            GC.KeepAlive(format);
+        }
     }
 
     /// <summary>
@@ -105,6 +131,11 @@ public sealed unsafe class StringFormat : MarshalByRefObject, ICloneable, IDispo
     {
         get
         {
+            if (_backendOnly || _nativeFormat is null)
+            {
+                return _managedFormatFlags;
+            }
+
             StringFormatFlags format;
             PInvoke.GdipGetStringFormatFlags(_nativeFormat, (int*)&format).ThrowIfFailed();
             GC.KeepAlive(this);
@@ -112,6 +143,12 @@ public sealed unsafe class StringFormat : MarshalByRefObject, ICloneable, IDispo
         }
         set
         {
+            _managedFormatFlags = value;
+            if (_backendOnly || _nativeFormat is null)
+            {
+                return;
+            }
+
             PInvoke.GdipSetStringFormatFlags(_nativeFormat, (int)value).ThrowIfFailed();
             GC.KeepAlive(this);
         }
@@ -123,6 +160,10 @@ public sealed unsafe class StringFormat : MarshalByRefObject, ICloneable, IDispo
     public void SetMeasurableCharacterRanges(CharacterRange[] ranges)
     {
         ArgumentNullException.ThrowIfNull(ranges);
+        if (_backendOnly || _nativeFormat is null)
+        {
+            return;
+        }
 
         // Passing no count will clear the ranges, but it still requires a valid pointer. Taking the address of an
         // empty array gives a null pointer, so we need to pass a dummy value.
@@ -145,6 +186,11 @@ public sealed unsafe class StringFormat : MarshalByRefObject, ICloneable, IDispo
     {
         get
         {
+            if (_backendOnly || _nativeFormat is null)
+            {
+                return _managedAlignment;
+            }
+
             StringAlignment alignment;
             PInvoke.GdipGetStringFormatAlign(_nativeFormat, (GdiPlus.StringAlignment*)&alignment).ThrowIfFailed();
             GC.KeepAlive(this);
@@ -155,6 +201,12 @@ public sealed unsafe class StringFormat : MarshalByRefObject, ICloneable, IDispo
             if (value is < StringAlignment.Near or > StringAlignment.Far)
             {
                 throw new InvalidEnumArgumentException(nameof(value), (int)value, typeof(StringAlignment));
+            }
+
+            _managedAlignment = value;
+            if (_backendOnly || _nativeFormat is null)
+            {
+                return;
             }
 
             PInvoke.GdipSetStringFormatAlign(_nativeFormat, (GdiPlus.StringAlignment)value).ThrowIfFailed();
@@ -169,6 +221,11 @@ public sealed unsafe class StringFormat : MarshalByRefObject, ICloneable, IDispo
     {
         get
         {
+            if (_backendOnly || _nativeFormat is null)
+            {
+                return _managedLineAlignment;
+            }
+
             StringAlignment alignment;
             PInvoke.GdipGetStringFormatLineAlign(_nativeFormat, (GdiPlus.StringAlignment*)&alignment).ThrowIfFailed();
             GC.KeepAlive(this);
@@ -179,6 +236,12 @@ public sealed unsafe class StringFormat : MarshalByRefObject, ICloneable, IDispo
             if (value is < 0 or > StringAlignment.Far)
             {
                 throw new InvalidEnumArgumentException(nameof(value), (int)value, typeof(StringAlignment));
+            }
+
+            _managedLineAlignment = value;
+            if (_backendOnly || _nativeFormat is null)
+            {
+                return;
             }
 
             PInvoke.GdipSetStringFormatLineAlign(_nativeFormat, (GdiPlus.StringAlignment)value).ThrowIfFailed();
@@ -193,6 +256,11 @@ public sealed unsafe class StringFormat : MarshalByRefObject, ICloneable, IDispo
     {
         get
         {
+            if (_backendOnly || _nativeFormat is null)
+            {
+                return _managedHotkeyPrefix;
+            }
+
             HotkeyPrefix hotkeyPrefix;
             PInvoke.GdipGetStringFormatHotkeyPrefix(_nativeFormat, (int*)&hotkeyPrefix).ThrowIfFailed();
             GC.KeepAlive(this);
@@ -203,6 +271,12 @@ public sealed unsafe class StringFormat : MarshalByRefObject, ICloneable, IDispo
             if (value is < HotkeyPrefix.None or > HotkeyPrefix.Hide)
             {
                 throw new InvalidEnumArgumentException(nameof(value), (int)value, typeof(HotkeyPrefix));
+            }
+
+            _managedHotkeyPrefix = value;
+            if (_backendOnly || _nativeFormat is null)
+            {
+                return;
             }
 
             PInvoke.GdipSetStringFormatHotkeyPrefix(_nativeFormat, (int)value).ThrowIfFailed();
@@ -220,6 +294,13 @@ public sealed unsafe class StringFormat : MarshalByRefObject, ICloneable, IDispo
         if (firstTabOffset < 0)
         {
             throw new ArgumentException(SR.Format(SR.InvalidArgumentValue, nameof(firstTabOffset), firstTabOffset));
+        }
+
+        _managedFirstTabOffset = firstTabOffset;
+        _managedTabStops = (float[])tabStops.Clone();
+        if (_backendOnly || _nativeFormat is null)
+        {
+            return;
         }
 
         // To clear the tab stops you need to pass a count of 0 with a valid pointer. Taking the address of an
@@ -241,6 +322,12 @@ public sealed unsafe class StringFormat : MarshalByRefObject, ICloneable, IDispo
     /// </summary>
     public float[] GetTabStops(out float firstTabOffset)
     {
+        if (_backendOnly || _nativeFormat is null)
+        {
+            firstTabOffset = _managedFirstTabOffset;
+            return (float[])_managedTabStops.Clone();
+        }
+
         int count;
         PInvoke.GdipGetStringFormatTabStopCount(_nativeFormat, &count).ThrowIfFailed();
 
@@ -271,6 +358,11 @@ public sealed unsafe class StringFormat : MarshalByRefObject, ICloneable, IDispo
     {
         get
         {
+            if (_backendOnly || _nativeFormat is null)
+            {
+                return _managedTrimming;
+            }
+
             StringTrimming trimming;
             PInvoke.GdipGetStringFormatTrimming(_nativeFormat, (GdiPlus.StringTrimming*)&trimming).ThrowIfFailed();
             GC.KeepAlive(this);
@@ -281,6 +373,12 @@ public sealed unsafe class StringFormat : MarshalByRefObject, ICloneable, IDispo
             if (value is < StringTrimming.None or > StringTrimming.EllipsisPath)
             {
                 throw new InvalidEnumArgumentException(nameof(value), (int)value, typeof(StringTrimming));
+            }
+
+            _managedTrimming = value;
+            if (_backendOnly || _nativeFormat is null)
+            {
+                return;
             }
 
             PInvoke.GdipSetStringFormatTrimming(_nativeFormat, (GdiPlus.StringTrimming)value).ThrowIfFailed();
@@ -306,6 +404,11 @@ public sealed unsafe class StringFormat : MarshalByRefObject, ICloneable, IDispo
     {
         get
         {
+            if (Graphics.IsBackendActive)
+            {
+                return new StringFormat();
+            }
+
             GpStringFormat* format;
             PInvoke.GdipStringFormatGetGenericDefault(&format).ThrowIfFailed();
             return new StringFormat(format);
@@ -330,6 +433,13 @@ public sealed unsafe class StringFormat : MarshalByRefObject, ICloneable, IDispo
     {
         get
         {
+            if (Graphics.IsBackendActive)
+            {
+                StringFormat f = new(StringFormatFlags.LineLimit | StringFormatFlags.NoClip | StringFormatFlags.FitBlackBox);
+                f.Trimming = StringTrimming.None;
+                return f;
+            }
+
             GpStringFormat* format;
             PInvoke.GdipStringFormatGetGenericTypographic(&format).ThrowIfFailed();
             return new StringFormat(format);
@@ -338,6 +448,13 @@ public sealed unsafe class StringFormat : MarshalByRefObject, ICloneable, IDispo
 
     public void SetDigitSubstitution(int language, StringDigitSubstitute substitute)
     {
+        _managedDigitLanguage = language;
+        _managedDigitSubstitute = substitute;
+        if (_backendOnly || _nativeFormat is null)
+        {
+            return;
+        }
+
         PInvoke.GdipSetStringFormatDigitSubstitution(
             _nativeFormat,
             (ushort)language,
@@ -353,6 +470,11 @@ public sealed unsafe class StringFormat : MarshalByRefObject, ICloneable, IDispo
     {
         get
         {
+            if (_backendOnly || _nativeFormat is null)
+            {
+                return _managedDigitSubstitute;
+            }
+
             StringDigitSubstitute digitSubstitute;
             PInvoke.GdipGetStringFormatDigitSubstitution(
                 _nativeFormat,
@@ -371,6 +493,11 @@ public sealed unsafe class StringFormat : MarshalByRefObject, ICloneable, IDispo
     {
         get
         {
+            if (_backendOnly || _nativeFormat is null)
+            {
+                return _managedDigitLanguage;
+            }
+
             ushort language;
             PInvoke.GdipGetStringFormatDigitSubstitution(_nativeFormat, &language, null).ThrowIfFailed();
             GC.KeepAlive(this);
@@ -380,6 +507,11 @@ public sealed unsafe class StringFormat : MarshalByRefObject, ICloneable, IDispo
 
     internal int GetMeasurableCharacterRangeCount()
     {
+        if (_backendOnly || _nativeFormat is null)
+        {
+            return 0;
+        }
+
         int count;
         PInvoke.GdipGetStringFormatMeasurableCharacterRangeCount(_nativeFormat, &count).ThrowIfFailed();
         GC.KeepAlive(this);

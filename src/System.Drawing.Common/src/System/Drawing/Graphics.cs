@@ -334,6 +334,11 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     {
         get
         {
+            if (IsBackendOnly)
+            {
+                return 96f;
+            }
+
             float dpi;
             CheckStatus(PInvoke.GdipGetDpiX(NativeGraphics, &dpi));
             return dpi;
@@ -344,6 +349,11 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     {
         get
         {
+            if (IsBackendOnly)
+            {
+                return 96f;
+            }
+
             float dpi;
             CheckStatus(PInvoke.GdipGetDpiY(NativeGraphics, &dpi));
             return dpi;
@@ -739,8 +749,16 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
 
     public void ScaleTransform(float sx, float sy) => ScaleTransform(sx, sy, MatrixOrder.Prepend);
 
-    public void ScaleTransform(float sx, float sy, MatrixOrder order) =>
+    public void ScaleTransform(float sx, float sy, MatrixOrder order)
+    {
+        _backend?.Scale(sx, sy);
+        if (IsBackendOnly)
+        {
+            return;
+        }
+
         CheckStatus(PInvoke.GdipScaleWorldTransform(NativeGraphics, sx, sy, (GdiPlus.MatrixOrder)order));
+    }
 
     public void RotateTransform(float angle) => RotateTransform(angle, MatrixOrder.Prepend);
 

@@ -17,6 +17,8 @@ public sealed unsafe class Pen : MarshalByRefObject, ICloneable, IDisposable, IS
 
     // GDI+ doesn't understand system colors, so we need to cache the value here.
     private Color _color;
+    private float _width = 1.0f;
+    private readonly bool _backendOnly = Graphics.IsBackendActive;
     private bool _immutable;
 
     // Tracks whether the dash style has been changed to something else than Solid during the lifetime of this object.
@@ -43,10 +45,14 @@ public sealed unsafe class Pen : MarshalByRefObject, ICloneable, IDisposable, IS
     public Pen(Color color, float width)
     {
         _color = color;
+        _width = width;
 
-        GpPen* pen;
-        PInvoke.GdipCreatePen1((uint)color.ToArgb(), width, (int)GraphicsUnit.World, &pen).ThrowIfFailed();
-        SetNativePen(pen);
+        if (!_backendOnly)
+        {
+            GpPen* pen;
+            PInvoke.GdipCreatePen1((uint)color.ToArgb(), width, (int)GraphicsUnit.World, &pen).ThrowIfFailed();
+            SetNativePen(pen);
+        }
 
         if (_color.IsSystemColor)
         {
@@ -67,6 +73,13 @@ public sealed unsafe class Pen : MarshalByRefObject, ICloneable, IDisposable, IS
     public Pen(Brush brush, float width)
     {
         ArgumentNullException.ThrowIfNull(brush);
+        _width = width;
+        if (_backendOnly)
+        {
+            _color = brush is SolidBrush sb ? sb.Color : Color.Black;
+            return;
+        }
+
         GpPen* pen;
         PInvoke.GdipCreatePen2(brush.NativeBrush, width, (int)GraphicsUnit.World, &pen).ThrowIfFailed();
         GC.KeepAlive(brush);
@@ -87,6 +100,11 @@ public sealed unsafe class Pen : MarshalByRefObject, ICloneable, IDisposable, IS
     /// </summary>
     public object Clone()
     {
+        if (_backendOnly)
+        {
+            return new Pen(_color, _width);
+        }
+
         GpPen* clonedPen;
         PInvoke.GdipClonePen(NativePen, &clonedPen).ThrowIfFailed();
         GC.KeepAlive(this);
@@ -136,6 +154,11 @@ public sealed unsafe class Pen : MarshalByRefObject, ICloneable, IDisposable, IS
     {
         get
         {
+            if (_backendOnly || NativePen is null)
+            {
+                return _width;
+            }
+
             float width;
             PInvoke.GdipGetPenWidth(NativePen, &width).ThrowIfFailed();
             GC.KeepAlive(this);
@@ -146,6 +169,12 @@ public sealed unsafe class Pen : MarshalByRefObject, ICloneable, IDisposable, IS
             if (_immutable)
             {
                 throw new ArgumentException(SR.Format(SR.CantChangeImmutableObjects, nameof(Pen)));
+            }
+
+            if (_backendOnly || NativePen is null)
+            {
+                _width = value;
+                return;
             }
 
             PInvoke.GdipSetPenWidth(NativePen, value).ThrowIfFailed();
@@ -521,8 +550,12 @@ public sealed unsafe class Pen : MarshalByRefObject, ICloneable, IDisposable, IS
 
     private void InternalSetColor(Color value)
     {
-        PInvoke.GdipSetPenColor(NativePen, (uint)_color.ToArgb()).ThrowIfFailed();
-        GC.KeepAlive(this);
+        if (!_backendOnly && NativePen is not null)
+        {
+            PInvoke.GdipSetPenColor(NativePen, (uint)_color.ToArgb()).ThrowIfFailed();
+            GC.KeepAlive(this);
+        }
+
         _color = value;
     }
 
@@ -547,6 +580,11 @@ public sealed unsafe class Pen : MarshalByRefObject, ICloneable, IDisposable, IS
     {
         get
         {
+            if (_backendOnly || NativePen is null)
+            {
+                return _color;
+            }
+
             if (_color == Color.Empty)
             {
                 if (PenType != Drawing2D.PenType.SolidColor)

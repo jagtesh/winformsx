@@ -171,6 +171,7 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
             {
                 if (!renderReady)
                     return;
+                MarkDirty(handle);
                 PostMessageToControl(handle, handle, WM_SIZE, (WPARAM)0, (LPARAM)(nint)((size.Y << 16) | (size.X & 0xFFFF)));
             };
 
@@ -178,6 +179,7 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
             {
                 if (!renderReady)
                     return;
+                MarkDirty(handle);
                 PostMessageToControl(handle, handle, WM_MOVE, (WPARAM)0, (LPARAM)(nint)((pos.Y << 16) | (pos.X & 0xFFFF)));
             };
 
@@ -196,19 +198,37 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
 
                 // Flutter/wxWidgets pattern: the Render event is the ONLY place
                 // where the GPU context is current.  We own the frame lifecycle here.
-                int w = silkWindow.Size.X;
-                int h = silkWindow.Size.Y;
-                if (w <= 0 || h <= 0)
+                int logicalW = silkWindow.Size.X;
+                int logicalH = silkWindow.Size.Y;
+                if (logicalW <= 0 || logicalH <= 0)
                     return;
+
+                var (framebufferW, framebufferH) = ResolveFramebufferSize(silkWindow, logicalW, logicalH);
+                if (framebufferW <= 0 || framebufferH <= 0)
+                {
+                    framebufferW = logicalW;
+                    framebufferH = logicalH;
+                }
 
                 // Keep stored dimensions in sync
                 if (_windows.TryGetValue(handle, out var ws))
                 {
-                    ws.Width = w;
-                    ws.Height = h;
+                    ws.Width = logicalW;
+                    ws.Height = logicalH;
+                    long now = Environment.TickCount64;
+                    if (now - ws.LastRenderTickMs < 33)
+                    {
+                        return;
+                    }
+
+                    ws.LastRenderTickMs = now;
+                    if (!ws.Dirty)
+                    {
+                        return;
+                    }
                 }
 
-                TracePaint($"[Render] hwnd=0x{(nint)handle:X} size={w}x{h}");
+                TracePaint($"[Render] hwnd=0x{(nint)handle:X} logical={logicalW}x{logicalH} framebuffer={framebufferW}x{framebufferH}");
 
                 // Guard: catch managed exceptions during backend init
                 System.Drawing.Graphics? g;
@@ -224,26 +244,45 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
 
                 using (g)
                 {
-                    bool beganFrame = g.BeginFrame(w, h);
-                    TracePaint($"[Render] BeginFrame={beganFrame} size={w}x{h}");
+                    bool beganFrame = g.BeginFrame(framebufferW, framebufferH);
+                    TracePaint($"[Render] BeginFrame={beganFrame} framebuffer={framebufferW}x{framebufferH}");
                     if (!beganFrame)
                         return;
 
                     try
                     {
-                        // Strict Impeller-only bootstrap mode:
-                        // Render a deterministic solid color and avoid all Win32/GDI-style
-                        // control paint dispatch until the frame pipeline is validated.
-                        g.Clear(System.Drawing.Color.FromArgb(34, 120, 255));
+                        // TODO: apply explicit logical->framebuffer scaling here once the
+                        // transform pipeline is fully stabilized across message callbacks.
+
+                        // Draw root form and children using the shared backend graphics.
+                        // This stays on the PAL/Impeller path and avoids native GDI+ surfaces.
+                        Control? root = ResolveTopLevelControl(handle);
+                        TracePaint($"[Render] resolvedRoot={(root is null ? "null" : root.GetType().Name)} handle=0x{(nint)handle:X}");
+                        if (root is null || root.Width <= 0 || root.Height <= 0)
+                        {
+                            TracePaint($"[Render] fallbackClear rootNullOrEmpty={root is null} rootSize={(root is null ? "n/a" : $"{root.Width}x{root.Height}")}");
+                            g.Clear(System.Drawing.Color.FromArgb(34, 120, 255));
+                        }
+                        else
+                        {
+                            g.Clear(root.BackColor);
+                            FixupTabPages(root);
+                            var clip = new System.Drawing.Rectangle(0, 0, logicalW, logicalH);
+                            PaintControlTree(root, g, clip, isRoot: true);
+                        }
                     }
                     catch (Exception ex)
                     {
-                        Console.Error.WriteLine($"[Render] Clear error: {ex}");
+                        Console.Error.WriteLine($"[Render] Paint error: {ex}");
                     }
 
                     try
                     {
-                        g.EndFrame(w, h);
+                        g.EndFrame(framebufferW, framebufferH);
+                        if (_windows.TryGetValue(handle, out var rendered))
+                        {
+                            rendered.Dirty = false;
+                        }
                     }
                     catch (Exception ex)
                     {
@@ -271,6 +310,7 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                 WM_SIZE,
                 (WPARAM)0,
                 (LPARAM)(nint)((initialSize.Y << 16) | (initialSize.X & 0xFFFF)));
+            MarkDirty(handle);
 
             // --- Wire up Silk.NET input to WinForms synthetic messages ---
             try
@@ -282,16 +322,19 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                 {
                     keyboard.KeyDown += (kb, key, scancode) =>
                     {
+                        MarkDirty(handle);
                         uint vk = SilkKeyToWin32(key);
                         PostMessageToControl(handle, handle, WM_KEYDOWN, (WPARAM)(nuint)vk, (LPARAM)(nint)scancode);
                     };
                     keyboard.KeyUp += (kb, key, scancode) =>
                     {
+                        MarkDirty(handle);
                         uint vk = SilkKeyToWin32(key);
                         PostMessageToControl(handle, handle, WM_KEYUP, (WPARAM)(nuint)vk, (LPARAM)(nint)scancode);
                     };
                     keyboard.KeyChar += (kb, character) =>
                     {
+                        MarkDirty(handle);
                         PostMessageToControl(handle, handle, WM_CHAR, (WPARAM)(nuint)character, (LPARAM)0);
                     };
                 }
@@ -306,6 +349,7 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                     };
                     mouse.MouseDown += (m, button) =>
                     {
+                        MarkDirty(handle);
                         uint msg = button switch
                         {
                             MouseButton.Left => WM_LBUTTONDOWN,
@@ -343,6 +387,7 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                     };
                     mouse.MouseUp += (m, button) =>
                     {
+                        MarkDirty(handle);
                         uint msg = button switch
                         {
                             MouseButton.Left => WM_LBUTTONUP,
@@ -359,6 +404,7 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                     };
                     mouse.Scroll += (m, scrollWheel) =>
                     {
+                        MarkDirty(handle);
                         // Vertical scroll
                         if (scrollWheel.Y != 0)
                         {
@@ -467,7 +513,29 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
             var bg = control.BackColor;
             if (bg.A > 0)
             {
-                g.Clear(bg);
+                using var brush = new System.Drawing.SolidBrush(bg);
+                int bgWidth = isRoot ? Math.Max(1, clipRect.Width) : Math.Max(1, control.Width);
+                int bgHeight = isRoot ? Math.Max(1, clipRect.Height) : Math.Max(1, control.Height);
+                g.FillRectangle(brush, 0, 0, bgWidth, bgHeight);
+            }
+
+            if (control is Label label && !string.IsNullOrEmpty(label.Text))
+            {
+                using var textBrush = new System.Drawing.SolidBrush(label.ForeColor);
+                var textRect = new System.Drawing.RectangleF(0, 0, Math.Max(1, label.Width), Math.Max(1, label.Height));
+                g.DrawString(label.Text, label.Font, textBrush, textRect);
+            }
+            else if (control is System.Windows.Forms.Button button)
+            {
+                DrawButton(button, g);
+            }
+            else if (control is MenuStrip menuStrip)
+            {
+                DrawMenuStrip(menuStrip, g);
+            }
+            else if (control is TabControl tabControl)
+            {
+                DrawTabHeaders(tabControl, g);
             }
 
             // Impeller-first clean-room mode: do not call Win32/GDI-dependent paint
@@ -506,6 +574,89 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
             s_firstPaint = false;
     }
 
+    private static void DrawButton(System.Windows.Forms.Button button, System.Drawing.Graphics g)
+    {
+        var face = button.BackColor.A == 0 ? System.Drawing.Color.FromArgb(74, 139, 255) : button.BackColor;
+        using var fill = new System.Drawing.SolidBrush(face);
+        g.FillRectangle(fill, 0, 0, Math.Max(1, button.Width), Math.Max(1, button.Height));
+
+        using var borderPen = new System.Drawing.Pen(System.Drawing.Color.FromArgb(40, 40, 40));
+        g.DrawRectangle(borderPen, 0, 0, Math.Max(1, button.Width) - 1, Math.Max(1, button.Height) - 1);
+
+        if (!string.IsNullOrEmpty(button.Text))
+        {
+            using var textBrush = new System.Drawing.SolidBrush(button.ForeColor.A == 0 ? System.Drawing.Color.White : button.ForeColor);
+            var textRect = new System.Drawing.RectangleF(0, 0, Math.Max(1, button.Width), Math.Max(1, button.Height));
+            using var sf = new System.Drawing.StringFormat
+            {
+                Alignment = System.Drawing.StringAlignment.Center,
+                LineAlignment = System.Drawing.StringAlignment.Center,
+                Trimming = System.Drawing.StringTrimming.EllipsisCharacter,
+            };
+            g.DrawString(button.Text, button.Font, textBrush, textRect, sf);
+        }
+    }
+
+    private static void DrawMenuStrip(MenuStrip menuStrip, System.Drawing.Graphics g)
+    {
+        using var bg = new System.Drawing.SolidBrush(System.Drawing.Color.FromArgb(55, 55, 55));
+        g.FillRectangle(bg, 0, 0, Math.Max(1, menuStrip.Width), Math.Max(1, menuStrip.Height));
+
+        int x = 12;
+        foreach (ToolStripItem item in menuStrip.Items)
+        {
+            string text = item.Text ?? string.Empty;
+            if (text.Length == 0)
+            {
+                continue;
+            }
+
+            using var brush = new System.Drawing.SolidBrush(System.Drawing.Color.FromArgb(235, 235, 235));
+            g.DrawString(text, menuStrip.Font, brush, new System.Drawing.PointF(x, 4));
+            x += 68;
+        }
+    }
+
+    private static void DrawTabHeaders(TabControl tabControl, System.Drawing.Graphics g)
+    {
+        const int headerHeight = 30;
+        int width = Math.Max(1, tabControl.Width);
+        using var stripBg = new System.Drawing.SolidBrush(System.Drawing.Color.FromArgb(230, 228, 212));
+        g.FillRectangle(stripBg, 0, 0, width, headerHeight);
+
+        int x = 8;
+        int selected = tabControl.SelectedIndex;
+        for (int i = 0; i < tabControl.TabPages.Count; i++)
+        {
+            var tab = tabControl.TabPages[i];
+            int tabWidth = 128;
+            var rect = new System.Drawing.Rectangle(x, 2, tabWidth, headerHeight - 4);
+            bool isSelected = i == selected;
+
+            using var fill = new System.Drawing.SolidBrush(isSelected
+                ? System.Drawing.Color.FromArgb(252, 252, 252)
+                : System.Drawing.Color.FromArgb(210, 210, 196));
+            g.FillRectangle(fill, rect);
+
+            using var pen = new System.Drawing.Pen(System.Drawing.Color.FromArgb(150, 150, 140));
+            g.DrawRectangle(pen, rect.X, rect.Y, rect.Width - 1, rect.Height - 1);
+
+            using var brush = new System.Drawing.SolidBrush(System.Drawing.Color.FromArgb(45, 45, 45));
+            using var sf = new System.Drawing.StringFormat
+            {
+                Alignment = System.Drawing.StringAlignment.Center,
+                LineAlignment = System.Drawing.StringAlignment.Center,
+                Trimming = System.Drawing.StringTrimming.EllipsisCharacter,
+            };
+            g.DrawString(tab.Text, tabControl.Font, brush, rect, sf);
+            x += tabWidth + 4;
+            if (x >= width - 40)
+            {
+                break;
+            }
+        }
+    }
+
     private static void TracePaint(string message)
     {
         if (string.IsNullOrWhiteSpace(s_traceFile))
@@ -520,6 +671,36 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
         catch
         {
         }
+    }
+
+    private void MarkDirty(HWND hWnd)
+    {
+        if (_windows.TryGetValue(hWnd, out var state))
+        {
+            state.Dirty = true;
+        }
+    }
+
+    private static (int Width, int Height) ResolveFramebufferSize(IWindow window, int fallbackWidth, int fallbackHeight)
+    {
+        try
+        {
+            var property = window.GetType().GetProperty("FramebufferSize");
+            if (property?.GetValue(window) is object value)
+            {
+                var xProp = value.GetType().GetProperty("X");
+                var yProp = value.GetType().GetProperty("Y");
+                if (xProp?.GetValue(value) is int w && yProp?.GetValue(value) is int h && w > 0 && h > 0)
+                {
+                    return (w, h);
+                }
+            }
+        }
+        catch
+        {
+        }
+
+        return (fallbackWidth, fallbackHeight);
     }
 
 
@@ -1023,4 +1204,6 @@ internal sealed class ImpellerWindowState
     public IWindow? SilkWindow;
     public IInputContext? InputContext;
     public HWND NativeHwnd;
+    public long LastRenderTickMs;
+    public bool Dirty = true;
 }

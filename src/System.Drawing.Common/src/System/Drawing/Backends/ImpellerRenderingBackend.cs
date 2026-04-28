@@ -245,8 +245,9 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend
         {
             NativeMethods.ImpellerParagraphStyleSetForeground(style, paintHandle);
             NativeMethods.ImpellerParagraphStyleSetFontSize(style, fontSize);
-            if (!string.IsNullOrEmpty(fontFamily))
-                NativeMethods.ImpellerParagraphStyleSetFontFamily(style, fontFamily);
+            string? resolvedFamily = TypographyProvider.ResolveFontFamily(fontFamily, bold, italic);
+            if (!string.IsNullOrEmpty(resolvedFamily))
+                NativeMethods.ImpellerParagraphStyleSetFontFamily(style, resolvedFamily);
             if (bold)
                 NativeMethods.ImpellerParagraphStyleSetFontWeight(style, ImpellerFontWeight.W700);
             if (italic)
@@ -300,8 +301,9 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend
         {
             NativeMethods.ImpellerParagraphStyleSetForeground(style, paintHandle);
             NativeMethods.ImpellerParagraphStyleSetFontSize(style, fontSize);
-            if (!string.IsNullOrEmpty(fontFamily))
-                NativeMethods.ImpellerParagraphStyleSetFontFamily(style, fontFamily);
+            string? resolvedFamily = TypographyProvider.ResolveFontFamily(fontFamily, bold, italic);
+            if (!string.IsNullOrEmpty(resolvedFamily))
+                NativeMethods.ImpellerParagraphStyleSetFontFamily(style, resolvedFamily);
             if (bold)
                 NativeMethods.ImpellerParagraphStyleSetFontWeight(style, ImpellerFontWeight.W700);
             if (italic)
@@ -367,8 +369,9 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend
         try
         {
             NativeMethods.ImpellerParagraphStyleSetFontSize(style, fontSize);
-            if (!string.IsNullOrEmpty(fontFamily))
-                NativeMethods.ImpellerParagraphStyleSetFontFamily(style, fontFamily);
+            string? resolvedFamily = TypographyProvider.ResolveFontFamily(fontFamily, bold, italic);
+            if (!string.IsNullOrEmpty(resolvedFamily))
+                NativeMethods.ImpellerParagraphStyleSetFontFamily(style, resolvedFamily);
             if (bold)
                 NativeMethods.ImpellerParagraphStyleSetFontWeight(style, ImpellerFontWeight.W700);
             if (italic)

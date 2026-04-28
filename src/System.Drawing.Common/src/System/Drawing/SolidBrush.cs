@@ -15,9 +15,12 @@ public sealed unsafe class SolidBrush : Brush, ISystemColorTracker
     {
         _color = color;
 
-        GpSolidFill* nativeBrush;
-        PInvoke.GdipCreateSolidFill((ARGB)_color, &nativeBrush).ThrowIfFailed();
-        SetNativeBrushInternal((GpBrush*)nativeBrush);
+        if (!Graphics.IsBackendActive)
+        {
+            GpSolidFill* nativeBrush;
+            PInvoke.GdipCreateSolidFill((ARGB)_color, &nativeBrush).ThrowIfFailed();
+            SetNativeBrushInternal((GpBrush*)nativeBrush);
+        }
 
         if (_color.IsSystemColor)
         {
@@ -61,6 +64,11 @@ public sealed unsafe class SolidBrush : Brush, ISystemColorTracker
     {
         get
         {
+            if (NativeBrush is null)
+            {
+                return _color;
+            }
+
             if (_color == Color.Empty)
             {
                 ARGB color;
@@ -97,8 +105,12 @@ public sealed unsafe class SolidBrush : Brush, ISystemColorTracker
     // Sets the color even if the brush is considered immutable.
     private void InternalSetColor(Color value)
     {
-        PInvoke.GdipSetSolidFillColor((GpSolidFill*)NativeBrush, (ARGB)value).ThrowIfFailed();
-        GC.KeepAlive(this);
+        if (NativeBrush is not null)
+        {
+            PInvoke.GdipSetSolidFillColor((GpSolidFill*)NativeBrush, (ARGB)value).ThrowIfFailed();
+            GC.KeepAlive(this);
+        }
+
         _color = value;
     }
 
