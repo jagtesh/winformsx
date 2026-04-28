@@ -4,6 +4,7 @@
 #if !BROWSER
 
 using System.Drawing.Impeller;
+using System.Text;
 
 namespace System.Drawing;
 
@@ -11,7 +12,7 @@ namespace System.Drawing;
 /// Desktop rendering backend. Uses Impeller's DisplayListBuilder for GPU-accelerated
 /// rendering via Vulkan or Metal.
 /// </summary>
-internal sealed class ImpellerRenderingBackend : IRenderingBackend
+internal sealed class ImpellerRenderingBackend : IRenderingBackend, IDisposable
     {
         private enum PaintKind
         {
@@ -20,6 +21,14 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend
         }
 
         private readonly record struct PaintKey(int Argb, PaintKind Kind, int StrokeWidthBits);
+        private readonly record struct ParagraphKey(
+            string Text,
+            string FontFamily,
+            int FontSizeBits,
+            int Argb,
+            bool Bold,
+            bool Italic);
+
         private readonly record struct TransformSnapshot(float ScaleX, float ScaleY, float OffsetX, float OffsetY);
 
         private const int MaxGlyphsPerPath = 64;
@@ -28,6 +37,7 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend
         private readonly nint _impellerContext;
         private static readonly HarfBuzzTextEngine s_textEngine = new();
         private readonly Dictionary<PaintKey, nint> _framePaintCache = [];
+        private readonly Dictionary<ParagraphKey, NativeParagraphEntry> _paragraphCache = [];
         private readonly Dictionary<int, List<PositionedGlyphOutline>> _frameGlyphBatches = [];
         private readonly Stack<TransformSnapshot> _transformStack = [];
         private DisplayListBuilder? _builder;
@@ -36,6 +46,7 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend
         private float _scaleY = 1f;
         private float _offsetX;
         private float _offsetY;
+        private bool _disposed;
 
     public ImpellerRenderingBackend(IPlatformBackend platformBackend, nint impellerContext)
     {
@@ -50,6 +61,11 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend
 
     public bool BeginFrame(int width, int height)
     {
+        if (_disposed)
+        {
+            return false;
+        }
+
         _frameSurface = _platformBackend.AcquireNextSurface();
         if (_frameSurface == nint.Zero)
             return false;
@@ -64,7 +80,7 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend
 
     public void EndFrame(int width, int height)
     {
-        if (_builder is null)
+        if (_disposed || _builder is null)
             return;
 
         // Guard: surface may have been invalidated by a resize event
@@ -121,6 +137,23 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend
         ResetTrackedTransform();
         _builder?.Dispose();
         _builder = null;
+    }
+
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
+        AbortFrame();
+        foreach (NativeParagraphEntry entry in _paragraphCache.Values)
+        {
+            entry.Dispose();
+        }
+
+        _paragraphCache.Clear();
     }
 
     public void FlushPending()
@@ -438,18 +471,68 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend
             return;
         }
 
-        nint paragraphStyle = NativeMethods.ImpellerParagraphStyleNew();
-        if (paragraphStyle == nint.Zero)
+        NativeParagraphEntry? paragraphEntry = GetOrCreateParagraph(
+            line,
+            fontFamily,
+            fontSize,
+            color,
+            bold,
+            italic,
+            typography);
+        if (paragraphEntry is null)
         {
             return;
         }
 
+        var point = new ImpellerPoint(x, y);
+        _builder.DrawParagraph(paragraphEntry.Paragraph, ref point);
+    }
+
+    private NativeParagraphEntry? GetOrCreateParagraph(
+        string line,
+        string fontFamily,
+        float fontSize,
+        Color color,
+        bool bold,
+        bool italic,
+        nint typography)
+    {
+        var key = new ParagraphKey(
+            line,
+            fontFamily,
+            BitConverter.SingleToInt32Bits(MathF.Max(1f, fontSize)),
+            color.ToArgb(),
+            bold,
+            italic);
+
+        if (_paragraphCache.TryGetValue(key, out NativeParagraphEntry? cached))
+        {
+            return cached;
+        }
+
+        nint paragraphStyle = NativeMethods.ImpellerParagraphStyleNew();
+        if (paragraphStyle == nint.Zero)
+        {
+            return null;
+        }
+
+        nint paint = nint.Zero;
         nint paragraphBuilder = nint.Zero;
         nint paragraph = nint.Zero;
         try
         {
-            NativeMethods.ImpellerParagraphStyleSetForeground(paragraphStyle, GetFillPaint(color));
-            byte[] familyUtf8 = System.Text.Encoding.UTF8.GetBytes(fontFamily + '\0');
+            paint = NativeMethods.ImpellerPaintNew();
+            if (paint == nint.Zero)
+            {
+                return null;
+            }
+
+            var ic = color.ToImpellerColor();
+            NativeMethods.ImpellerPaintSetColor(paint, ref ic);
+            NativeMethods.ImpellerPaintSetDrawStyle(paint, ImpellerDrawStyle.Fill);
+            NativeMethods.ImpellerParagraphStyleSetForeground(paragraphStyle, paint);
+
+            byte[] familyUtf8 = Encoding.UTF8.GetBytes(fontFamily + '\0');
             unsafe
             {
                 fixed (byte* pFamily = familyUtf8)
@@ -471,11 +554,11 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend
             paragraphBuilder = NativeMethods.ImpellerParagraphBuilderNew(typography);
             if (paragraphBuilder == nint.Zero)
             {
-                return;
+                return null;
             }
 
             NativeMethods.ImpellerParagraphBuilderPushStyle(paragraphBuilder, paragraphStyle);
-            byte[] utf8 = System.Text.Encoding.UTF8.GetBytes(line);
+            byte[] utf8 = Encoding.UTF8.GetBytes(line);
             unsafe
             {
                 fixed (byte* pText = utf8)
@@ -488,11 +571,14 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend
             paragraph = NativeMethods.ImpellerParagraphBuilderBuildParagraphNew(paragraphBuilder, 100_000f);
             if (paragraph == nint.Zero)
             {
-                return;
+                return null;
             }
 
-            var point = new ImpellerPoint(x, y);
-            _builder.DrawParagraph(paragraph, ref point);
+            var entry = new NativeParagraphEntry(paragraph, paint);
+            paragraph = nint.Zero;
+            paint = nint.Zero;
+            _paragraphCache[key] = entry;
+            return entry;
         }
         finally
         {
@@ -504,6 +590,11 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend
             if (paragraphBuilder != nint.Zero)
             {
                 NativeMethods.ImpellerParagraphBuilderRelease(paragraphBuilder);
+            }
+
+            if (paint != nint.Zero)
+            {
+                NativeMethods.ImpellerPaintRelease(paint);
             }
 
             NativeMethods.ImpellerParagraphStyleRelease(paragraphStyle);
@@ -873,6 +964,34 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend
         }
 
         _framePaintCache.Clear();
+    }
+
+    private sealed class NativeParagraphEntry : IDisposable
+    {
+        public NativeParagraphEntry(nint paragraph, nint paint)
+        {
+            Paragraph = paragraph;
+            Paint = paint;
+        }
+
+        public nint Paragraph { get; private set; }
+
+        private nint Paint { get; set; }
+
+        public void Dispose()
+        {
+            if (Paragraph != nint.Zero)
+            {
+                NativeMethods.ImpellerParagraphRelease(Paragraph);
+                Paragraph = nint.Zero;
+            }
+
+            if (Paint != nint.Zero)
+            {
+                NativeMethods.ImpellerPaintRelease(Paint);
+                Paint = nint.Zero;
+            }
+        }
     }
 }
 #endif
