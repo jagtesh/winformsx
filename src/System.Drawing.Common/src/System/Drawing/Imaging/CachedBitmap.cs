@@ -40,13 +40,6 @@ public sealed unsafe class CachedBitmap : IDisposable
     {
         ArgumentNullException.ThrowIfNull(bitmap);
         ArgumentNullException.ThrowIfNull(graphics);
-
-        GpCachedBitmap* cachedBitmap;
-        PInvoke.GdipCreateCachedBitmap(
-            bitmap.Pointer(),
-            graphics.Pointer(),
-            &cachedBitmap);
-        _handle = (nint)cachedBitmap;
     }
 
     internal nint Handle => _handle;
@@ -59,12 +52,6 @@ public sealed unsafe class CachedBitmap : IDisposable
             return;
         }
 
-        Status status = PInvoke.GdipDeleteCachedBitmap((GpCachedBitmap*)handle);
-        if (disposing)
-        {
-            // Don't want to throw on the finalizer thread.
-            Gdip.CheckStatus(status);
-        }
     }
 
     ~CachedBitmap() => Dispose(disposing: false);

@@ -10,16 +10,16 @@ namespace System.Drawing.Imaging.Effects;
 /// </summary>
 public abstract unsafe class Effect : IDisposable
 {
-    private CGpEffect* _nativeEffect;
+    private byte[]? _parameters;
+    private bool _disposed;
 
-    internal CGpEffect* NativeEffect => _nativeEffect;
+    internal CGpEffect* NativeEffect => null;
 
-    private protected Effect(Guid guid)
-    {
-        CGpEffect* nativeEffect;
-        PInvoke.GdipCreateEffect(guid, &nativeEffect).ThrowIfFailed();
-        _nativeEffect = nativeEffect;
-    }
+    internal Guid Id { get; }
+
+    internal ReadOnlySpan<byte> Parameters => _parameters;
+
+    private protected Effect(Guid guid) => Id = guid;
 
     public void Dispose()
     {
@@ -29,10 +29,15 @@ public abstract unsafe class Effect : IDisposable
 
     private protected void SetParameters<T>(ref T parameters) where T : unmanaged
     {
-        fixed (T* p = &parameters)
+        if (_disposed)
         {
-            PInvoke.GdipSetEffectParameters(NativeEffect, p, (uint)sizeof(T)).ThrowIfFailed();
-            GC.KeepAlive(this);
+            throw Status.InvalidParameter.GetException();
+        }
+
+        _parameters = new byte[sizeof(T)];
+        fixed (byte* destination = _parameters)
+        {
+            *(T*)destination = parameters;
         }
     }
 
@@ -43,11 +48,8 @@ public abstract unsafe class Effect : IDisposable
 
     protected virtual void Dispose(bool disposing)
     {
-        if (_nativeEffect is not null)
-        {
-            PInvoke.GdipDeleteEffect(_nativeEffect);
-            _nativeEffect = null;
-        }
+        _disposed = true;
+        _parameters = null;
     }
 }
 #endif

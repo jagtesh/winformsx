@@ -1,34 +1,14 @@
 ﻿// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-using System.Runtime.InteropServices;
 using System.IO;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 #if NET9_0_OR_GREATER
 using System.ComponentModel;
 #endif
 
 namespace System.Drawing.Imaging;
-
-// sdkinc\GDIplusImageAttributes.h
-
-// There are 5 possible sets of color adjustments:
-//          ColorAdjustDefault,
-//          ColorAdjustBitmap,
-//          ColorAdjustBrush,
-//          ColorAdjustPen,
-//          ColorAdjustText,
-
-// Bitmaps, Brushes, Pens, and Text will all use any color adjustments
-// that have been set into the default ImageAttributes until their own
-// color adjustments have been set.  So as soon as any "Set" method is
-// called for Bitmaps, Brushes, Pens, or Text, then they start from
-// scratch with only the color adjustments that have been set for them.
-// Calling Reset removes any individual color adjustments for a type
-// and makes it revert back to using all the default color adjustments
-// (if any).  The SetToIdentity method is a way to force a type to
-// have no color adjustments at all, regardless of what previous adjustments
-// have been set for the defaults or for that type.
 
 /// <summary>
 ///  Contains information about how image colors are manipulated during rendering.
@@ -37,15 +17,17 @@ namespace System.Drawing.Imaging;
 public sealed unsafe class ImageAttributes : ICloneable, IDisposable
 {
     private const int ColorMapStackSpace = 32;
+    private readonly Dictionary<ColorAdjustType, AdjustmentState> _states = [];
+    private bool _disposed;
 
-    internal GpImageAttributes* _nativeImageAttributes;
+    internal GpImageAttributes* _nativeImageAttributes => null;
 
     internal void SetNativeImageAttributes(GpImageAttributes* handle)
     {
         if (handle is null)
+        {
             throw new ArgumentNullException(nameof(handle));
-
-        _nativeImageAttributes = handle;
+        }
     }
 
     /// <summary>
@@ -53,33 +35,31 @@ public sealed unsafe class ImageAttributes : ICloneable, IDisposable
     /// </summary>
     public ImageAttributes()
     {
-        GpImageAttributes* newImageAttributes;
-
-        PInvoke.GdipCreateImageAttributes(&newImageAttributes).ThrowIfFailed();
-        SetNativeImageAttributes(newImageAttributes);
     }
 
     internal ImageAttributes(GpImageAttributes* newNativeImageAttributes)
         => SetNativeImageAttributes(newNativeImageAttributes);
 
+    private ImageAttributes(ImageAttributes source)
+    {
+        foreach ((ColorAdjustType type, AdjustmentState state) in source._states)
+        {
+            _states[type] = state.Clone();
+        }
+    }
+
     /// <summary>
-    ///  Cleans up Windows resources for this <see cref='ImageAttributes'/>.
+    ///  Cleans up resources for this <see cref='ImageAttributes'/>.
     /// </summary>
     public void Dispose()
     {
-        if (_nativeImageAttributes is null)
-        {
-            return;
-        }
-
-        Status status = !Gdip.Initialized ? Status.Ok : PInvoke.GdipDisposeImageAttributes(_nativeImageAttributes);
-        _nativeImageAttributes = null;
-        Debug.Assert(status == Status.Ok, $"GDI+ returned an error status: {status}");
+        _disposed = true;
+        _states.Clear();
         GC.SuppressFinalize(this);
     }
 
     /// <summary>
-    ///  Cleans up Windows resources for this <see cref='ImageAttributes'/>.
+    ///  Cleans up resources for this <see cref='ImageAttributes'/>.
     /// </summary>
     ~ImageAttributes() => Dispose();
 
@@ -88,55 +68,32 @@ public sealed unsafe class ImageAttributes : ICloneable, IDisposable
     /// </summary>
     public object Clone()
     {
-        GpImageAttributes* clone;
-        PInvoke.GdipCloneImageAttributes(_nativeImageAttributes, &clone).ThrowIfFailed();
-        GC.KeepAlive(this);
-
-        return new ImageAttributes(clone);
+        ThrowIfDisposed();
+        return new ImageAttributes(this);
     }
 
-    /// <summary>
-    ///  Sets the 5 X 5 color adjust matrix to the specified <see cref='Matrix'/>.
-    /// </summary>
+    internal ColorMatrix? GetColorMatrix(ColorAdjustType type)
+        => _states.TryGetValue(type, out AdjustmentState? state) ? state.ColorMatrix : null;
+
     public void SetColorMatrix(ColorMatrix newColorMatrix) =>
         SetColorMatrix(newColorMatrix, ColorMatrixFlag.Default, ColorAdjustType.Default);
 
-    /// <summary>
-    ///  Sets the 5 X 5 color adjust matrix to the specified 'Matrix' with the specified 'ColorMatrixFlags'.
-    /// </summary>
     public void SetColorMatrix(ColorMatrix newColorMatrix, ColorMatrixFlag flags) =>
         SetColorMatrix(newColorMatrix, flags, ColorAdjustType.Default);
 
-    /// <summary>
-    ///  Sets the 5 X 5 color adjust matrix to the specified 'Matrix' with the  specified 'ColorMatrixFlags'.
-    /// </summary>
     public void SetColorMatrix(ColorMatrix newColorMatrix, ColorMatrixFlag mode, ColorAdjustType type) =>
         SetColorMatrices(newColorMatrix, null, mode, type);
 
-    /// <summary>
-    ///  Clears the color adjust matrix to all zeroes.
-    /// </summary>
     public void ClearColorMatrix() => ClearColorMatrix(ColorAdjustType.Default);
 
-    /// <summary>
-    ///  Clears the color adjust matrix.
-    /// </summary>
     public void ClearColorMatrix(ColorAdjustType type)
     {
-        PInvoke.GdipSetImageAttributesColorMatrix(
-            _nativeImageAttributes,
-            (GdiPlus.ColorAdjustType)type,
-            false,
-            null,
-            null,
-            (ColorMatrixFlags)ColorMatrixFlag.Default).ThrowIfFailed();
-
-        GC.KeepAlive(this);
+        ThrowIfDisposed();
+        ValidateColorAdjustType(type);
+        GetOrCreateState(type).ColorMatrix = null;
+        GetOrCreateState(type).GrayMatrix = null;
     }
 
-    /// <summary>
-    ///  Sets a color adjust matrix for image colors and a separate gray scale adjust matrix for gray scale values.
-    /// </summary>
     public void SetColorMatrices(ColorMatrix newColorMatrix, ColorMatrix? grayMatrix) =>
         SetColorMatrices(newColorMatrix, grayMatrix, ColorMatrixFlag.Default, ColorAdjustType.Default);
 
@@ -149,37 +106,15 @@ public sealed unsafe class ImageAttributes : ICloneable, IDisposable
         ColorMatrixFlag mode,
         ColorAdjustType type)
     {
+        ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(newColorMatrix);
+        ValidateColorAdjustType(type);
+        ValidateColorMatrixFlag(mode, allowAltGrays: grayMatrix is not null);
 
-        if (grayMatrix is not null)
-        {
-            fixed (void* cm = &newColorMatrix.GetPinnableReference())
-            fixed (void* gm = &grayMatrix.GetPinnableReference())
-            {
-                PInvoke.GdipSetImageAttributesColorMatrix(
-                    _nativeImageAttributes,
-                    (GdiPlus.ColorAdjustType)type,
-                    enableFlag: true,
-                    (GdiPlus.ColorMatrix*)cm,
-                    (GdiPlus.ColorMatrix*)gm,
-                    (ColorMatrixFlags)mode).ThrowIfFailed();
-            }
-        }
-        else
-        {
-            fixed (void* cm = &newColorMatrix.GetPinnableReference())
-            {
-                PInvoke.GdipSetImageAttributesColorMatrix(
-                    _nativeImageAttributes,
-                    (GdiPlus.ColorAdjustType)type,
-                    enableFlag: true,
-                    (GdiPlus.ColorMatrix*)cm,
-                    null,
-                    (ColorMatrixFlags)mode).ThrowIfFailed();
-            }
-        }
-
-        GC.KeepAlive(this);
+        AdjustmentState state = GetOrCreateState(type);
+        state.ColorMatrix = CloneColorMatrix(newColorMatrix);
+        state.GrayMatrix = grayMatrix is null ? null : CloneColorMatrix(grayMatrix);
+        state.ColorMatrixFlag = mode;
     }
 
     public void SetThreshold(float threshold) => SetThreshold(threshold, ColorAdjustType.Default);
@@ -192,13 +127,10 @@ public sealed unsafe class ImageAttributes : ICloneable, IDisposable
 
     private void SetThreshold(float threshold, ColorAdjustType type, bool enableFlag)
     {
-        PInvoke.GdipSetImageAttributesThreshold(
-            _nativeImageAttributes,
-            (GdiPlus.ColorAdjustType)type,
-            enableFlag,
-            threshold).ThrowIfFailed();
-
-        GC.KeepAlive(this);
+        ThrowIfDisposed();
+        ValidateColorAdjustType(type);
+        AdjustmentState state = GetOrCreateState(type);
+        state.Threshold = enableFlag ? threshold : null;
     }
 
     public void SetGamma(float gamma) => SetGamma(gamma, ColorAdjustType.Default);
@@ -211,13 +143,10 @@ public sealed unsafe class ImageAttributes : ICloneable, IDisposable
 
     private void SetGamma(float gamma, ColorAdjustType type, bool enableFlag)
     {
-        PInvoke.GdipSetImageAttributesGamma(
-            _nativeImageAttributes,
-            (GdiPlus.ColorAdjustType)type,
-            enableFlag,
-            gamma).ThrowIfFailed();
-
-        GC.KeepAlive(this);
+        ThrowIfDisposed();
+        ValidateColorAdjustType(type);
+        AdjustmentState state = GetOrCreateState(type);
+        state.Gamma = enableFlag ? gamma : null;
     }
 
     public void SetNoOp() => SetNoOp(ColorAdjustType.Default);
@@ -230,12 +159,9 @@ public sealed unsafe class ImageAttributes : ICloneable, IDisposable
 
     private void SetNoOp(ColorAdjustType type, bool enableFlag)
     {
-        PInvoke.GdipSetImageAttributesNoOp(
-            _nativeImageAttributes,
-            (GdiPlus.ColorAdjustType)type,
-            enableFlag).ThrowIfFailed();
-
-        GC.KeepAlive(this);
+        ThrowIfDisposed();
+        ValidateColorAdjustType(type);
+        GetOrCreateState(type).NoOp = enableFlag;
     }
 
     public void SetColorKey(Color colorLow, Color colorHigh) =>
@@ -250,14 +176,10 @@ public sealed unsafe class ImageAttributes : ICloneable, IDisposable
 
     private void SetColorKey(Color colorLow, Color colorHigh, ColorAdjustType type, bool enableFlag)
     {
-        PInvoke.GdipSetImageAttributesColorKeys(
-            _nativeImageAttributes,
-            (GdiPlus.ColorAdjustType)type,
-            enableFlag,
-            (uint)colorLow.ToArgb(),
-            (uint)colorHigh.ToArgb()).ThrowIfFailed();
-
-        GC.KeepAlive(this);
+        ThrowIfDisposed();
+        ValidateColorAdjustType(type);
+        AdjustmentState state = GetOrCreateState(type);
+        state.ColorKey = enableFlag ? (colorLow, colorHigh) : null;
     }
 
     public void SetOutputChannel(ColorChannelFlag flags) => SetOutputChannel(flags, ColorAdjustType.Default);
@@ -272,13 +194,11 @@ public sealed unsafe class ImageAttributes : ICloneable, IDisposable
 
     private void SetOutputChannel(ColorAdjustType type, ColorChannelFlag flags, bool enableFlag)
     {
-        PInvoke.GdipSetImageAttributesOutputChannel(
-            _nativeImageAttributes,
-            (GdiPlus.ColorAdjustType)type,
-            enableFlag,
-            (ColorChannelFlags)flags).ThrowIfFailed();
-
-        GC.KeepAlive(this);
+        ThrowIfDisposed();
+        ValidateColorAdjustType(type);
+        ValidateColorChannelFlag(flags);
+        AdjustmentState state = GetOrCreateState(type);
+        state.OutputChannel = enableFlag ? flags : null;
     }
 
     public void SetOutputChannelColorProfile(string colorProfileFilename) =>
@@ -286,32 +206,20 @@ public sealed unsafe class ImageAttributes : ICloneable, IDisposable
 
     public void SetOutputChannelColorProfile(string colorProfileFilename, ColorAdjustType type)
     {
-        // Called in order to emulate exception behavior from .NET Framework related to invalid file paths.
-        Path.GetFullPath(colorProfileFilename);
+        ThrowIfDisposed();
+        ValidateColorAdjustType(type);
 
-        fixed (char* n = colorProfileFilename)
-        {
-            PInvoke.GdipSetImageAttributesOutputChannelColorProfile(
-                _nativeImageAttributes,
-                (GdiPlus.ColorAdjustType)type,
-                enableFlag: true,
-                n).ThrowIfFailed();
-        }
-
-        GC.KeepAlive(this);
+        string fullPath = Path.GetFullPath(colorProfileFilename);
+        GetOrCreateState(type).OutputChannelColorProfile = fullPath;
     }
 
     public void ClearOutputChannelColorProfile() => ClearOutputChannel(ColorAdjustType.Default);
 
     public void ClearOutputChannelColorProfile(ColorAdjustType type)
     {
-        PInvoke.GdipSetImageAttributesOutputChannel(
-            _nativeImageAttributes,
-            (GdiPlus.ColorAdjustType)type,
-            false,
-            ColorChannelFlags.ColorChannelFlagsLast).ThrowIfFailed();
-
-        GC.KeepAlive(this);
+        ThrowIfDisposed();
+        ValidateColorAdjustType(type);
+        GetOrCreateState(type).OutputChannelColorProfile = null;
     }
 
     /// <inheritdoc cref="SetRemapTable(ColorMap[], ColorAdjustType)"/>
@@ -338,15 +246,6 @@ public sealed unsafe class ImageAttributes : ICloneable, IDisposable
     public void SetRemapTable(params ReadOnlySpan<(Color OldColor, Color NewColor)> map) => SetRemapTable(ColorAdjustType.Default, map);
 #endif
 
-    /// <summary>
-    ///  Sets the color-remap table for a specified category.
-    /// </summary>
-    /// <param name="type">
-    ///  An element of <see cref="ColorAdjustType"/> that specifies the category for which the color-remap table is set.
-    /// </param>
-    /// <param name="map">
-    ///  A series of color pairs mapping an existing color to a new color.
-    /// </param>
 #if NET9_0_OR_GREATER
     public
 #else
@@ -354,53 +253,27 @@ public sealed unsafe class ImageAttributes : ICloneable, IDisposable
 #endif
     void SetRemapTable(ColorAdjustType type, params ReadOnlySpan<ColorMap> map)
     {
-        // Color is being generated incorrectly so we can't use GdiPlus.ColorMap directly.
-        // https://github.com/microsoft/CsWin32/issues/1121
+        ThrowIfDisposed();
+        ValidateColorAdjustType(type);
 
-        StackBuffer stackBuffer = default;
-        using BufferScope<(ARGB, ARGB)> buffer = new(stackBuffer, map.Length);
-
-        for (int i = 0; i < map.Length; i++)
-        {
-            buffer[i] = (map[i].OldColor, map[i].NewColor);
-        }
-
-        fixed (void* m = buffer)
-        {
-            PInvoke.GdipSetImageAttributesRemapTable(
-                _nativeImageAttributes,
-                (GdiPlus.ColorAdjustType)type,
-                enableFlag: true,
-                (uint)map.Length,
-                (GdiPlus.ColorMap*)m).ThrowIfFailed();
-        }
-
-        GC.KeepAlive(this);
+        ColorMap[] copy = new ColorMap[map.Length];
+        map.CopyTo(copy);
+        GetOrCreateState(type).RemapTable = copy;
     }
 
 #if NET9_0_OR_GREATER
-    /// <inheritdoc cref="SetRemapTable(ColorAdjustType, ReadOnlySpan{ColorMap})"/>
     public void SetRemapTable(ColorAdjustType type, params ReadOnlySpan<(Color OldColor, Color NewColor)> map)
     {
-        StackBuffer stackBuffer = default;
-        using BufferScope<(ARGB, ARGB)> buffer = new(stackBuffer, map.Length);
+        ThrowIfDisposed();
+        ValidateColorAdjustType(type);
 
+        ColorMap[] copy = new ColorMap[map.Length];
         for (int i = 0; i < map.Length; i++)
         {
-            buffer[i] = (map[i].OldColor, map[i].NewColor);
+            copy[i] = new ColorMap { OldColor = map[i].OldColor, NewColor = map[i].NewColor };
         }
 
-        fixed (void* m = buffer)
-        {
-            PInvoke.GdipSetImageAttributesRemapTable(
-                _nativeImageAttributes,
-                (GdiPlus.ColorAdjustType)type,
-                enableFlag: true,
-                (uint)map.Length,
-                (GdiPlus.ColorMap*)m).ThrowIfFailed();
-        }
-
-        GC.KeepAlive(this);
+        GetOrCreateState(type).RemapTable = copy;
     }
 #endif
 
@@ -414,23 +287,16 @@ public sealed unsafe class ImageAttributes : ICloneable, IDisposable
 
     public void ClearRemapTable(ColorAdjustType type)
     {
-        PInvoke.GdipSetImageAttributesRemapTable(
-            _nativeImageAttributes,
-            (GdiPlus.ColorAdjustType)type,
-            enableFlag: false,
-            0,
-            null).ThrowIfFailed();
-
-        GC.KeepAlive(this);
+        ThrowIfDisposed();
+        ValidateColorAdjustType(type);
+        GetOrCreateState(type).RemapTable = null;
     }
 
     public void SetBrushRemapTable(params ColorMap[] map) => SetRemapTable(map, ColorAdjustType.Brush);
 
 #if NET9_0_OR_GREATER
-    /// <inheritdoc cref="SetRemapTable(ColorAdjustType, ReadOnlySpan{ColorMap})"/>
     public void SetBrushRemapTable(params ReadOnlySpan<ColorMap> map) => SetRemapTable(ColorAdjustType.Brush, map);
 
-    /// <inheritdoc cref="SetRemapTable(ColorAdjustType, ReadOnlySpan{ColorMap})"/>
     public void SetBrushRemapTable(params ReadOnlySpan<(Color OldColor, Color NewColor)> map) => SetRemapTable(ColorAdjustType.Brush, map);
 #endif
 
@@ -442,26 +308,122 @@ public sealed unsafe class ImageAttributes : ICloneable, IDisposable
 
     public void SetWrapMode(Drawing2D.WrapMode mode, Color color, bool clamp)
     {
-        PInvoke.GdipSetImageAttributesWrapMode(
-            _nativeImageAttributes,
-            (WrapMode)mode,
-            (uint)color.ToArgb(),
-            clamp).ThrowIfFailed();
+        ThrowIfDisposed();
+        ValidateWrapMode(mode);
 
-        GC.KeepAlive(this);
+        AdjustmentState state = GetOrCreateState(ColorAdjustType.Default);
+        state.WrapMode = mode;
+        state.WrapColor = color;
+        state.Clamp = clamp;
     }
 
     public void GetAdjustedPalette(ColorPalette palette, ColorAdjustType type)
     {
-        using var buffer = palette.ConvertToBuffer();
-        fixed (void* p = buffer)
+        ThrowIfDisposed();
+
+        // Match GDI+ null behavior for this API.
+        _ = palette.Entries;
+        ValidateColorAdjustType(type);
+    }
+
+    private AdjustmentState GetOrCreateState(ColorAdjustType type)
+    {
+        if (!_states.TryGetValue(type, out AdjustmentState? state))
         {
-            PInvoke.GdipGetImageAttributesAdjustedPalette(
-                _nativeImageAttributes,
-                (GdiPlus.ColorPalette*)p,
-                (GdiPlus.ColorAdjustType)type).ThrowIfFailed();
+            state = new AdjustmentState();
+            _states[type] = state;
         }
 
-        GC.KeepAlive(this);
+        return state;
+    }
+
+    private void ThrowIfDisposed()
+    {
+        if (_disposed)
+        {
+            throw Status.InvalidParameter.GetException();
+        }
+    }
+
+    private static void ValidateColorAdjustType(ColorAdjustType type)
+    {
+        if (type < ColorAdjustType.Default || type > ColorAdjustType.Text)
+        {
+            throw Status.InvalidParameter.GetException();
+        }
+    }
+
+    private static void ValidateColorMatrixFlag(ColorMatrixFlag flag, bool allowAltGrays)
+    {
+        if (flag < ColorMatrixFlag.Default || flag > ColorMatrixFlag.AltGrays || (!allowAltGrays && flag == ColorMatrixFlag.AltGrays))
+        {
+            throw Status.InvalidParameter.GetException();
+        }
+    }
+
+    private static void ValidateColorChannelFlag(ColorChannelFlag flag)
+    {
+        if (flag < ColorChannelFlag.ColorChannelC || flag > ColorChannelFlag.ColorChannelLast)
+        {
+            throw Status.InvalidParameter.GetException();
+        }
+    }
+
+    private static void ValidateWrapMode(Drawing2D.WrapMode mode)
+    {
+        if (mode < Drawing2D.WrapMode.Tile || mode > Drawing2D.WrapMode.Clamp)
+        {
+            throw Status.InvalidParameter.GetException();
+        }
+    }
+
+    private static ColorMatrix CloneColorMatrix(ColorMatrix matrix)
+    {
+        float[][] values = new float[5][];
+        for (int row = 0; row < 5; row++)
+        {
+            values[row] = new float[5];
+            for (int column = 0; column < 5; column++)
+            {
+                values[row][column] = matrix[row, column];
+            }
+        }
+
+        return new ColorMatrix(values);
+    }
+
+    private sealed class AdjustmentState
+    {
+        public ColorMatrix? ColorMatrix { get; set; }
+        public ColorMatrix? GrayMatrix { get; set; }
+        public ColorMatrixFlag ColorMatrixFlag { get; set; }
+        public float? Threshold { get; set; }
+        public float? Gamma { get; set; }
+        public bool NoOp { get; set; }
+        public (Color Low, Color High)? ColorKey { get; set; }
+        public ColorChannelFlag? OutputChannel { get; set; }
+        public string? OutputChannelColorProfile { get; set; }
+        public ColorMap[]? RemapTable { get; set; }
+        public Drawing2D.WrapMode WrapMode { get; set; }
+        public Color WrapColor { get; set; }
+        public bool Clamp { get; set; }
+
+        public AdjustmentState Clone()
+            => new()
+            {
+                ColorMatrix = ColorMatrix is null ? null : CloneColorMatrix(ColorMatrix),
+                GrayMatrix = GrayMatrix is null ? null : CloneColorMatrix(GrayMatrix),
+                ColorMatrixFlag = ColorMatrixFlag,
+                Threshold = Threshold,
+                Gamma = Gamma,
+                NoOp = NoOp,
+                ColorKey = ColorKey,
+                OutputChannel = OutputChannel,
+                OutputChannelColorProfile = OutputChannelColorProfile,
+                RemapTable = RemapTable is null ? null : (ColorMap[])RemapTable.Clone(),
+                WrapMode = WrapMode,
+                WrapColor = WrapColor,
+                Clamp = Clamp,
+            };
     }
 }

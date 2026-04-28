@@ -24,12 +24,6 @@ public unsafe class ColorMatrixEffect : Effect
     /// <param name="matrix">Color transform matrix.</param>
     public ColorMatrixEffect(ColorMatrix matrix) : base(PInvoke.ColorMatrixEffectGuid)
     {
-        fixed (float* p = &matrix.GetPinnableReference())
-        {
-            PInvoke.GdipSetEffectParameters(NativeEffect, p, (uint)sizeof(GdiPlus.ColorMatrix)).ThrowIfFailed();
-            GC.KeepAlive(this);
-        }
-
         _matrix = matrix;
     }
 

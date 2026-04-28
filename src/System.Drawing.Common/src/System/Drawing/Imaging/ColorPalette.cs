@@ -98,21 +98,43 @@ public sealed unsafe class ColorPalette
         bool useTransparentColor,
         IPointer<GpBitmap>? bitmap)
     {
-        // Reserve the largest possible buffer for the palette.
-        using BufferScope<uint> buffer = new(256 + sizeof(GdiPlus.ColorPalette) / sizeof(uint));
-        buffer[1] = 256;
-        fixed (void* b = buffer)
+        if (fixedPaletteType == PaletteType.Custom)
         {
-            PInvoke.GdipInitializePalette(
-                (GdiPlus.ColorPalette*)b,
-                (GdiPlus.PaletteType)fixedPaletteType,
-                colorCount,
-                useTransparentColor,
-                bitmap is null ? null : bitmap.GetPointer()).ThrowIfFailed();
+            return new ColorPalette([]);
+        }
+
+        int count = fixedPaletteType switch
+        {
+            PaletteType.FixedBlackAndWhite => 2,
+            PaletteType.FixedHalftone8 => 8,
+            PaletteType.FixedHalftone27 => 27,
+            PaletteType.FixedHalftone64 => 64,
+            PaletteType.FixedHalftone125 => 125,
+            PaletteType.FixedHalftone216 => 216,
+            PaletteType.FixedHalftone252 => 252,
+            PaletteType.FixedHalftone256 => 256,
+            _ => colorCount,
+        };
+
+        if (count < 0 || count > 256)
+        {
+            throw Status.InvalidParameter.GetException();
+        }
+
+        Color[] entries = new Color[count];
+        for (int i = 0; i < entries.Length; i++)
+        {
+            int value = entries.Length <= 1 ? 0 : (255 * i) / (entries.Length - 1);
+            entries[i] = Color.FromArgb(255, value, value, value);
+        }
+
+        if (useTransparentColor && entries.Length > 0)
+        {
+            entries[0] = Color.Transparent;
         }
 
         GC.KeepAlive(bitmap);
-        return ConvertFromBuffer(buffer);
+        return new ColorPalette(0, entries);
     }
 #endif
 }
