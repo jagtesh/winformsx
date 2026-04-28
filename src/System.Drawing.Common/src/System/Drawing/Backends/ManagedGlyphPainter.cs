@@ -24,12 +24,27 @@ internal sealed class ManagedGlyphPainter
         for (int row = 0; row < pattern.Length; row++)
         {
             string line = pattern[row];
-            for (int col = 0; col < line.Length; col++)
+            int col = 0;
+            while (col < line.Length)
             {
-                if (line[col] == '1')
+                if (line[col] != '1')
                 {
-                    backend.FillRect(originX + (col * scale), originY + (row * scale), scale, scale, color);
+                    col++;
+                    continue;
                 }
+
+                int runStart = col;
+                while (col < line.Length && line[col] == '1')
+                {
+                    col++;
+                }
+
+                backend.FillRect(
+                    originX + (runStart * scale),
+                    originY + (row * scale),
+                    (col - runStart) * scale,
+                    scale,
+                    color);
             }
         }
     }

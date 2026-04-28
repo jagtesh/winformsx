@@ -899,7 +899,7 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
         string? raw = Environment.GetEnvironmentVariable("WINFORMSX_HIDPI_SCALE");
         if (!float.TryParse(raw, out float parsed) || parsed <= 0f)
         {
-            return 1f;
+            return OperatingSystem.IsMacOS() ? 2f : 1f;
         }
 
         return parsed;
@@ -936,9 +936,26 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
         {
         }
 
+        try
+        {
+            Vector2D<int> framebufferPoint = window.PointToFramebuffer(new Vector2D<int>(fallbackWidth, fallbackHeight));
+            if (framebufferPoint.X > 0 && framebufferPoint.Y > 0
+                && (width == fallbackWidth || height == fallbackHeight
+                    || framebufferPoint.X > width || framebufferPoint.Y > height))
+            {
+                width = framebufferPoint.X;
+                height = framebufferPoint.Y;
+            }
+        }
+        catch
+        {
+        }
+
         // Some macOS/Vulkan runtime paths report framebuffer == logical even on Retina.
-        // Allow explicit cross-platform override so HiDPI mode is testable/deterministic.
-        if (s_hiDpiMode == HiDpiMode.On && s_hiDpiScaleOverride > 1f
+        // Infer the backing framebuffer there; other hosts require explicit HiDPI opt-in.
+        bool shouldInferFramebuffer = s_hiDpiMode == HiDpiMode.On
+            || (s_hiDpiMode == HiDpiMode.Auto && OperatingSystem.IsMacOS());
+        if (shouldInferFramebuffer && s_hiDpiScaleOverride > 1f
             && width == fallbackWidth && height == fallbackHeight)
         {
             width = Math.Max(1, (int)Math.Round(fallbackWidth * s_hiDpiScaleOverride));
