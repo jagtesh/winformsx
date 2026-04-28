@@ -14,9 +14,16 @@ internal sealed class ImpellerMessageInterop : IMessageInterop
     private const uint WM_QUIT = 0x0012;
     private const uint WM_PAINT = 0x000F;
     private const uint WM_ERASEBKGND = 0x0014;
+    private const uint EM_GETSEL = 0x00B0;
+    private const uint EM_SETSEL = 0x00B1;
+    private const uint EM_SETMODIFY = 0x00B9;
+    private const uint EM_REPLACESEL = 0x00C2;
+    private const uint EM_LIMITTEXT = 0x00C5;
+    private const uint EM_SETREADONLY = 0x00CF;
 
     private readonly ConcurrentQueue<ImpellerMessage> _messageQueue = new();
     private readonly Dictionary<string, uint> _registeredMessages = [];
+    private readonly Dictionary<HWND, TextSelectionState> _textSelections = [];
     private uint _nextRegisteredMessage = 0xC000; // WM_APP range
 
     public LRESULT SendMessage(HWND hWnd, uint msg, WPARAM wParam, LPARAM lParam)
@@ -24,6 +31,11 @@ internal sealed class ImpellerMessageInterop : IMessageInterop
         using var guard = WinFormsXExecutionGuard.Enter(
             WinFormsXExecutionKind.MessageDispatch,
             $"SendMessage hwnd=0x{(nint)hWnd:X} msg=0x{msg:X}");
+
+        if (TryHandleTextBoxMessage(hWnd, msg, wParam, lParam, out LRESULT textResult))
+        {
+            return textResult;
+        }
 
         // Synchronous dispatch — look up the NativeWindow for this HWND and invoke
         // its WndProc directly (wxWidgets-style synthetic message dispatch).
@@ -160,6 +172,108 @@ internal sealed class ImpellerMessageInterop : IMessageInterop
             NativeWindow.DispatchMessageDirect(msg.hwnd, msg.message, msg.wParam, msg.lParam, out _);
         }
     }
+
+    private unsafe bool TryHandleTextBoxMessage(HWND hWnd, uint msg, WPARAM wParam, LPARAM lParam, out LRESULT result)
+    {
+        result = (LRESULT)0;
+        if (Control.FromHandle(hWnd) is not TextBoxBase textBox)
+        {
+            return false;
+        }
+
+        switch (msg)
+        {
+            case EM_GETSEL:
+            {
+                GetTextSelection(hWnd, textBox, out int start, out int length);
+                int end = Math.Min(textBox.Text.Length, start + length);
+                if ((nint)wParam != 0)
+                {
+                    *(int*)(nint)wParam = start;
+                }
+
+                if ((nint)lParam != 0)
+                {
+                    *(int*)(nint)lParam = end;
+                }
+
+                uint packed = unchecked((uint)((start & 0xFFFF) | ((end & 0xFFFF) << 16)));
+                result = (LRESULT)(nint)packed;
+                return true;
+            }
+
+            case EM_SETSEL:
+            {
+                int textLength = textBox.Text.Length;
+                int start = (int)(nint)wParam;
+                int end = (int)(nint)lParam;
+                if (start < 0)
+                {
+                    start = textLength;
+                }
+
+                if (end < 0)
+                {
+                    end = textLength;
+                }
+
+                start = Math.Clamp(start, 0, textLength);
+                end = Math.Clamp(end, 0, textLength);
+                if (end < start)
+                {
+                    (start, end) = (end, start);
+                }
+
+                _textSelections[hWnd] = new TextSelectionState(start, end - start);
+                return true;
+            }
+
+            case EM_REPLACESEL:
+            {
+                if (textBox.ReadOnly)
+                {
+                    return true;
+                }
+
+                string replacement = (nint)lParam == 0 ? string.Empty : new string((char*)(nint)lParam);
+                GetTextSelection(hWnd, textBox, out int start, out int length);
+                string oldText = textBox.Text;
+                start = Math.Clamp(start, 0, oldText.Length);
+                length = Math.Clamp(length, 0, oldText.Length - start);
+
+                int allowed = Math.Max(0, textBox.MaxLength - (oldText.Length - length));
+                if (replacement.Length > allowed)
+                {
+                    replacement = replacement[..allowed];
+                }
+
+                textBox.Text = string.Concat(oldText.AsSpan(0, start), replacement, oldText.AsSpan(start + length));
+                _textSelections[hWnd] = new TextSelectionState(start + replacement.Length, 0);
+                return true;
+            }
+
+            case EM_LIMITTEXT:
+            case EM_SETMODIFY:
+            case EM_SETREADONLY:
+                return true;
+        }
+
+        return false;
+    }
+
+    private void GetTextSelection(HWND hWnd, TextBoxBase textBox, out int start, out int length)
+    {
+        if (!_textSelections.TryGetValue(hWnd, out TextSelectionState selection))
+        {
+            selection = new TextSelectionState(0, 0);
+        }
+
+        int textLength = textBox.Text.Length;
+        start = Math.Clamp(selection.Start, 0, textLength);
+        length = Math.Clamp(selection.Length, 0, textLength - start);
+    }
+
+    private readonly record struct TextSelectionState(int Start, int Length);
 }
 
 /// <summary>

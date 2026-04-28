@@ -57,6 +57,8 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
     private const int ManagedListViewHeaderHeight = 24;
     private const int ManagedDataGridHeaderHeight = 24;
     private const int ManagedDataGridRowHeight = 24;
+    private const int DefaultDirtyCoalesceMs = 33;
+    private const int DefaultRenderFailureCooldownMs = 250;
 
     // Internal window registry: HWND -> ImpellerSurface mapping
     private static long s_nextHandle = 0x10000;
@@ -64,6 +66,8 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
     private static readonly HiDpiMode s_hiDpiMode = ParseHiDpiMode();
     private static readonly float s_hiDpiScaleOverride = ParseHiDpiScaleOverride();
     private static readonly long s_targetFrameIntervalMs = ParseTargetFrameIntervalMs();
+    private static readonly long s_dirtyCoalesceMs = ParseMilliseconds("WINFORMSX_DIRTY_COALESCE_MS", DefaultDirtyCoalesceMs, 0, 250);
+    private static readonly long s_renderFailureCooldownMs = ParseMilliseconds("WINFORMSX_RENDER_FAILURE_COOLDOWN_MS", DefaultRenderFailureCooldownMs, 0, 2000);
     private static readonly Dictionary<ListView, int> s_managedListViewSelection = [];
     private static readonly Dictionary<DataGridView, int> s_managedDataGridViewSelection = [];
     private static readonly HashSet<Control> s_pressedControls = [];
@@ -255,12 +259,23 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                         ws.LastFramebufferWidth = framebufferW;
                         ws.LastFramebufferHeight = framebufferH;
                         ws.Dirty = true;
+                        ws.DeferRenderUntilTickMs = 0;
                     }
 
                     long now = Environment.TickCount64;
                     if (ws.HasPresentedFrame && now - ws.LastRenderTickMs < s_targetFrameIntervalMs)
                     {
                         return;
+                    }
+
+                    if (ws.Dirty && ws.HasPresentedFrame && ws.DeferRenderUntilTickMs > now)
+                    {
+                        return;
+                    }
+
+                    if (ws.DeferRenderUntilTickMs <= now)
+                    {
+                        ws.DeferRenderUntilTickMs = 0;
                     }
 
                     if (!ws.Dirty)
@@ -364,6 +379,11 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                     catch (Exception ex)
                     {
                         Console.Error.WriteLine($"[Render] EndFrame error: {ex}");
+                        if (_windows.TryGetValue(handle, out var failed))
+                        {
+                            failed.Dirty = true;
+                            failed.DeferRenderUntilTickMs = Environment.TickCount64 + s_renderFailureCooldownMs;
+                        }
                     }
                 }
             };
@@ -387,7 +407,7 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                 WM_SIZE,
                 (WPARAM)0,
                 (LPARAM)(nint)((initialSize.Y << 16) | (initialSize.X & 0xFFFF)));
-            MarkDirty(handle);
+            MarkDirtyImmediate(handle);
 
             // --- Wire up Silk.NET input to WinForms synthetic messages ---
             try
@@ -399,20 +419,48 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                 {
                     keyboard.KeyDown += (kb, key, scancode) =>
                     {
-                        MarkDirty(handle);
+                        HWND target = PlatformApi.Input.GetFocus();
+                        if (target == HWND.Null)
+                        {
+                            target = handle;
+                        }
+
+                        if (TryHandleManagedTextBoxKeyDown(handle, target, kb, key))
+                        {
+                            return;
+                        }
+
                         uint vk = SilkKeyToWin32(key);
-                        PostMessageToControl(handle, handle, WM_KEYDOWN, (WPARAM)(nuint)vk, (LPARAM)(nint)scancode);
+                        PostMessageToControl(target, handle, WM_KEYDOWN, (WPARAM)(nuint)vk, (LPARAM)(nint)scancode);
+                        MarkDirty(handle);
                     };
                     keyboard.KeyUp += (kb, key, scancode) =>
                     {
-                        MarkDirty(handle);
+                        HWND target = PlatformApi.Input.GetFocus();
+                        if (target == HWND.Null)
+                        {
+                            target = handle;
+                        }
+
                         uint vk = SilkKeyToWin32(key);
-                        PostMessageToControl(handle, handle, WM_KEYUP, (WPARAM)(nuint)vk, (LPARAM)(nint)scancode);
+                        PostMessageToControl(target, handle, WM_KEYUP, (WPARAM)(nuint)vk, (LPARAM)(nint)scancode);
+                        MarkDirty(handle);
                     };
                     keyboard.KeyChar += (kb, character) =>
                     {
+                        HWND target = PlatformApi.Input.GetFocus();
+                        if (target == HWND.Null)
+                        {
+                            target = handle;
+                        }
+
+                        if (TryHandleManagedTextBoxKeyChar(handle, target, kb, character))
+                        {
+                            return;
+                        }
+
+                        PostMessageToControl(target, handle, WM_CHAR, (WPARAM)(nuint)character, (LPARAM)0);
                         MarkDirty(handle);
-                        PostMessageToControl(handle, handle, WM_CHAR, (WPARAM)(nuint)character, (LPARAM)0);
                     };
                 }
 
@@ -456,11 +504,12 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                             }
 
                             HWND target = HitTest(handle, pt, out var clientPt);
-                            TraceInput($"[MouseDown] button={button} pt={pt} target=0x{(nint)target:X} control={Control.FromHandle(target)?.GetType().Name ?? "<none>"} client={clientPt}");
+                            Control? ctrl = Control.FromHandle(target);
+                            TraceInput($"[MouseDown] button={button} pt={pt} target=0x{(nint)target:X} control={ctrl?.GetType().Name ?? "<none>"} client={clientPt}");
                             if (msg == WM_LBUTTONDOWN && _windows.TryGetValue(handle, out var mouseDownState))
                             {
                                 mouseDownState.MouseDownTarget = target;
-                                mouseDownState.PressedControl = Control.FromHandle(target);
+                                mouseDownState.PressedControl = ctrl;
                                 if (mouseDownState.PressedControl is not null)
                                 {
                                     s_pressedControls.Add(mouseDownState.PressedControl);
@@ -470,12 +519,20 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                             PlatformApi.Input.SetCapture(target);
                             PlatformApi.Input.SetFocus(target);
                             PlatformApi.Input.SetActiveWindow(handle);
-                            MarkDirty(handle);
+                            bool managedMouseDown = msg == WM_LBUTTONDOWN
+                                && (ctrl is TabControl
+                                    || ctrl is ToolStrip
+                                    || ctrl is TextBoxBase
+                                    || IsManagedClickControl(ctrl));
+                            bool paintsPressedState = ctrl is ButtonBase or IButtonControl;
+                            if (!managedMouseDown || paintsPressedState)
+                            {
+                                MarkDirty(handle);
+                            }
 
                             // Intercept TabControl click because we don't have native SysTabControl32 to process it
                             if (msg == WM_LBUTTONDOWN)
                             {
-                                var ctrl = Control.FromHandle(target);
                                 if (ctrl is TabControl tabControl)
                                 {
                                     ctrl.BeginInvoke(new Action(() =>
@@ -519,6 +576,11 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
 
                                     return;
                                 }
+                                else if (ctrl is TextBoxBase textBox)
+                                {
+                                    BeginManagedTextBoxMouseDown(handle, textBox, clientPt);
+                                    return;
+                                }
                                 else if (IsManagedClickControl(ctrl))
                                 {
                                     return;
@@ -559,8 +621,14 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                                 bool clickMatchesMouseDown = mouseUpState.MouseDownTarget == target;
                                 mouseUpState.MouseDownTarget = HWND.Null;
                                 PlatformApi.Input.ReleaseCapture();
-                                MarkDirty(handle);
-                                if (clickMatchesMouseDown && TryPerformManagedControlClick(handle, target, clientPt))
+                                bool handledManagedClick = clickMatchesMouseDown
+                                    && TryPerformManagedControlClick(handle, target, clientPt);
+                                if (!handledManagedClick)
+                                {
+                                    MarkDirty(handle);
+                                }
+
+                                if (handledManagedClick)
                                 {
                                     return;
                                 }
@@ -874,7 +942,19 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
 
         if (text.Length == 0)
         {
+            DrawTextBoxCaret(textBox, g, 0);
             return;
+        }
+
+        int selectionStart = Math.Clamp(textBox.SelectionStart, 0, text.Length);
+        int selectionLength = Math.Clamp(textBox.SelectionLength, 0, text.Length - selectionStart);
+        float charWidth = EstimateTextBoxCharWidth(textBox);
+        if (selectionLength > 0 && PlatformApi.Input.GetFocus() == (HWND)(nint)textBox.Handle)
+        {
+            using var selectionBrush = new System.Drawing.SolidBrush(System.Drawing.Color.FromArgb(0, 120, 215));
+            float selectionX = ManagedTextPadding + selectionStart * charWidth;
+            float selectionW = Math.Max(2, selectionLength * charWidth);
+            g.FillRectangle(selectionBrush, selectionX, 3, Math.Min(selectionW, Math.Max(1, textBox.Width - selectionX - ManagedTextPadding)), Math.Max(1, textBox.Height - 6));
         }
 
         using var textBrush = new System.Drawing.SolidBrush(textBox.ForeColor.A == 0 ? System.Drawing.SystemColors.WindowText : textBox.ForeColor);
@@ -884,7 +964,30 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
             Math.Max(1, textBox.Width - ManagedTextPadding * 2),
             Math.Max(1, textBox.Height - 2));
         g.DrawString(SanitizeTextForImpeller(text), textBox.Font, textBrush, rect);
+        DrawTextBoxCaret(textBox, g, selectionStart + selectionLength);
     }
+
+    private static void DrawTextBoxCaret(TextBoxBase textBox, System.Drawing.Graphics g, int caretIndex)
+    {
+        if (PlatformApi.Input.GetFocus() != (HWND)(nint)textBox.Handle)
+        {
+            return;
+        }
+
+        caretIndex = Math.Clamp(caretIndex, 0, textBox.Text.Length);
+        float charWidth = EstimateTextBoxCharWidth(textBox);
+        float x = ManagedTextPadding + caretIndex * charWidth;
+        if (x >= textBox.Width - ManagedTextPadding)
+        {
+            x = Math.Max(ManagedTextPadding, textBox.Width - ManagedTextPadding - 1);
+        }
+
+        using var caretPen = new System.Drawing.Pen(System.Drawing.Color.Black, 1);
+        g.DrawLine(caretPen, x, 4, x, Math.Max(5, textBox.Height - 5));
+    }
+
+    private static float EstimateTextBoxCharWidth(TextBoxBase textBox)
+        => Math.Max(5f, textBox.Font.Size * 0.62f);
 
     private static void DrawCheckBox(CheckBox checkBox, System.Drawing.Graphics g)
     {
@@ -1680,6 +1783,196 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
         }));
     }
 
+    private bool TryHandleManagedTextBoxKeyDown(HWND rootHandle, HWND target, IKeyboard keyboard, Key key)
+    {
+        if (Control.FromHandle(target) is not TextBoxBase textBox || !textBox.Enabled)
+        {
+            return false;
+        }
+
+        using var guard = WinFormsXExecutionGuard.Enter(
+            WinFormsXExecutionKind.Input,
+            $"TextBoxKeyDown key={key}");
+
+        bool shift = IsSilkKeyPressed(keyboard, Key.ShiftLeft) || IsSilkKeyPressed(keyboard, Key.ShiftRight);
+        bool command = IsSilkKeyPressed(keyboard, Key.ControlLeft)
+            || IsSilkKeyPressed(keyboard, Key.ControlRight)
+            || IsSilkKeyPressed(keyboard, Key.SuperLeft)
+            || IsSilkKeyPressed(keyboard, Key.SuperRight);
+
+        if (command && key == Key.A)
+        {
+            textBox.SelectAll();
+            MarkDirtyDeferred(rootHandle);
+            return true;
+        }
+
+        int selectionStart = Math.Clamp(textBox.SelectionStart, 0, textBox.Text.Length);
+        int selectionLength = Math.Clamp(textBox.SelectionLength, 0, textBox.Text.Length - selectionStart);
+        int selectionEnd = selectionStart + selectionLength;
+
+        switch (key)
+        {
+            case Key.Backspace:
+                if (textBox.ReadOnly)
+                {
+                    return true;
+                }
+
+                if (selectionLength > 0)
+                {
+                    ReplaceManagedTextSelection(rootHandle, textBox, string.Empty);
+                }
+                else if (selectionStart > 0)
+                {
+                    textBox.Select(selectionStart - 1, 1);
+                    ReplaceManagedTextSelection(rootHandle, textBox, string.Empty);
+                }
+
+                return true;
+            case Key.Delete:
+                if (textBox.ReadOnly)
+                {
+                    return true;
+                }
+
+                if (selectionLength > 0)
+                {
+                    ReplaceManagedTextSelection(rootHandle, textBox, string.Empty);
+                }
+                else if (selectionStart < textBox.Text.Length)
+                {
+                    textBox.Select(selectionStart, 1);
+                    ReplaceManagedTextSelection(rootHandle, textBox, string.Empty);
+                }
+
+                return true;
+            case Key.Left:
+                MoveManagedTextCaret(textBox, Math.Max(0, selectionLength == 0 ? selectionStart - 1 : selectionStart), shift);
+                MarkDirtyDeferred(rootHandle);
+                return true;
+            case Key.Right:
+                MoveManagedTextCaret(textBox, Math.Min(textBox.Text.Length, selectionLength == 0 ? selectionEnd + 1 : selectionEnd), shift);
+                MarkDirtyDeferred(rootHandle);
+                return true;
+            case Key.Home:
+                MoveManagedTextCaret(textBox, 0, shift);
+                MarkDirtyDeferred(rootHandle);
+                return true;
+            case Key.End:
+                MoveManagedTextCaret(textBox, textBox.Text.Length, shift);
+                MarkDirtyDeferred(rootHandle);
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    private bool TryHandleManagedTextBoxKeyChar(HWND rootHandle, HWND target, IKeyboard keyboard, char character)
+    {
+        if (Control.FromHandle(target) is not TextBoxBase textBox || !textBox.Enabled)
+        {
+            return false;
+        }
+
+        if (IsSilkKeyPressed(keyboard, Key.ControlLeft)
+            || IsSilkKeyPressed(keyboard, Key.ControlRight)
+            || IsSilkKeyPressed(keyboard, Key.SuperLeft)
+            || IsSilkKeyPressed(keyboard, Key.SuperRight))
+        {
+            return true;
+        }
+
+        if (character == '\b')
+        {
+            return true;
+        }
+
+        if (character is '\r' or '\n')
+        {
+            if (textBox.Multiline)
+            {
+                ReplaceManagedTextSelection(rootHandle, textBox, Environment.NewLine);
+            }
+
+            return true;
+        }
+
+        if (char.IsControl(character))
+        {
+            return false;
+        }
+
+        ReplaceManagedTextSelection(rootHandle, textBox, character.ToString());
+        return true;
+    }
+
+    private void BeginManagedTextBoxMouseDown(HWND rootHandle, TextBoxBase textBox, System.Drawing.Point clientPoint)
+    {
+        textBox.BeginInvoke(new Action(() =>
+        {
+            using var guard = WinFormsXExecutionGuard.Enter(
+                WinFormsXExecutionKind.Input,
+                $"TextBoxMouseDown text={textBox.Name}");
+
+            int index = EstimateTextBoxCaretIndex(textBox, clientPoint);
+            textBox.Select(index, 0);
+            MarkDirty(rootHandle);
+        }));
+    }
+
+    private void ReplaceManagedTextSelection(HWND rootHandle, TextBoxBase textBox, string replacement)
+    {
+        if (textBox.ReadOnly)
+        {
+            return;
+        }
+
+        textBox.SelectedText = replacement;
+        MarkDirtyDeferred(rootHandle);
+    }
+
+    private static void MoveManagedTextCaret(TextBoxBase textBox, int caretIndex, bool extendSelection)
+    {
+        caretIndex = Math.Clamp(caretIndex, 0, textBox.Text.Length);
+        if (!extendSelection)
+        {
+            textBox.Select(caretIndex, 0);
+            return;
+        }
+
+        int selectionStart = Math.Clamp(textBox.SelectionStart, 0, textBox.Text.Length);
+        int selectionLength = Math.Clamp(textBox.SelectionLength, 0, textBox.Text.Length - selectionStart);
+        int anchor = selectionLength == 0 ? selectionStart : selectionStart;
+        if (caretIndex < anchor)
+        {
+            textBox.Select(caretIndex, anchor - caretIndex);
+        }
+        else
+        {
+            textBox.Select(anchor, caretIndex - anchor);
+        }
+    }
+
+    private static int EstimateTextBoxCaretIndex(TextBoxBase textBox, System.Drawing.Point clientPoint)
+    {
+        float charWidth = EstimateTextBoxCharWidth(textBox);
+        int index = (int)MathF.Round((clientPoint.X - ManagedTextPadding) / charWidth);
+        return Math.Clamp(index, 0, textBox.Text.Length);
+    }
+
+    private static bool IsSilkKeyPressed(IKeyboard keyboard, Key key)
+    {
+        try
+        {
+            return keyboard.IsKeyPressed(key);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     private bool TryPerformManagedControlClick(HWND rootHandle, HWND target, System.Drawing.Point clientPoint)
     {
         using var guard = WinFormsXExecutionGuard.Enter(
@@ -1694,6 +1987,8 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
 
         switch (control)
         {
+            case TextBoxBase:
+                return true;
             case CheckBox checkBox:
                 InvokeManagedInteraction(rootHandle, control, () =>
                 {
@@ -1780,7 +2075,7 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
             }
             finally
             {
-                MarkDirty(rootHandle);
+                MarkDirtyDeferred(rootHandle);
             }
         }));
     }
@@ -1910,6 +2205,7 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
         => control is IButtonControl
             or CheckBox
             or RadioButton
+            or TextBoxBase
             or ListBox
             or ComboBox
             or TreeView
@@ -2059,7 +2355,27 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
         return Math.Max(1, (long)Math.Round(1000.0 / fps));
     }
 
+    private static long ParseMilliseconds(string environmentVariable, int defaultValue, int minValue, int maxValue)
+    {
+        string? raw = Environment.GetEnvironmentVariable(environmentVariable);
+        if (!int.TryParse(raw, out int milliseconds) || milliseconds < 0)
+        {
+            milliseconds = defaultValue;
+        }
+
+        return Math.Clamp(milliseconds, minValue, maxValue);
+    }
+
     private void MarkDirty(HWND hWnd)
+        => MarkDirty(hWnd, s_dirtyCoalesceMs);
+
+    private void MarkDirtyImmediate(HWND hWnd)
+        => MarkDirty(hWnd, deferMs: 0);
+
+    private void MarkDirtyDeferred(HWND hWnd)
+        => MarkDirty(hWnd, s_dirtyCoalesceMs);
+
+    private void MarkDirty(HWND hWnd, long deferMs)
     {
         using var guard = WinFormsXExecutionGuard.Enter(
             WinFormsXExecutionKind.Invalidation,
@@ -2068,6 +2384,10 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
         if (TryGetTopLevelWindowState(hWnd, out var state))
         {
             state.Dirty = true;
+            if (deferMs > 0 && state.HasPresentedFrame)
+            {
+                state.DeferRenderUntilTickMs = Environment.TickCount64 + deferMs;
+            }
         }
     }
 
@@ -2690,6 +3010,7 @@ internal sealed class ImpellerWindowState
     public int LastLogicalHeight;
     public int LastFramebufferWidth;
     public int LastFramebufferHeight;
+    public long DeferRenderUntilTickMs;
     public ToolStripMenuItem? ActiveMenuItem;
     public HWND ActiveMenuOwner;
     public System.Drawing.Rectangle ActiveMenuBounds;

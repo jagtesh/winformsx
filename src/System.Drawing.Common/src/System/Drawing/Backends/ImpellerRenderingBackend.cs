@@ -22,7 +22,7 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend
         private readonly record struct PaintKey(int Argb, PaintKind Kind, int StrokeWidthBits);
         private readonly record struct TransformSnapshot(float ScaleX, float ScaleY, float OffsetX, float OffsetY);
 
-        private const int MaxGlyphsPerPath = 16;
+        private const int MaxGlyphsPerPath = 256;
 
         private readonly IPlatformBackend _platformBackend;
         private readonly nint _impellerContext;
