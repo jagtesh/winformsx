@@ -43,6 +43,7 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
     private static long s_nextHandle = 0x10000;
     private static readonly string? s_traceFile = Environment.GetEnvironmentVariable("WINFORMSX_TRACE_FILE");
     private static readonly HiDpiMode s_hiDpiMode = ParseHiDpiMode();
+    private static readonly float s_hiDpiScaleOverride = ParseHiDpiScaleOverride();
     private HWND _activeWindow;
     private readonly Dictionary<nint, ImpellerWindowState> _windows = [];
 
@@ -287,6 +288,7 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                             // Render in logical WinForms units and scale to framebuffer pixels.
                             // On Retina this keeps layout semantics while preserving sharp output.
                             var (sx, sy) = ResolveHiDpiScale(logicalW, logicalH, framebufferW, framebufferH);
+                            TracePaint($"[HiDPI] mode={s_hiDpiMode} logical={logicalW}x{logicalH} framebuffer={framebufferW}x{framebufferH} scale={sx:0.###}x{sy:0.###}");
                             if (sx != 1f || sy != 1f)
                             {
                                 g.ScaleTransform(sx, sy);
@@ -739,6 +741,17 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
         return (sx <= 0f ? 1f : sx, sy <= 0f ? 1f : sy);
     }
 
+    private static float ParseHiDpiScaleOverride()
+    {
+        string? raw = Environment.GetEnvironmentVariable("WINFORMSX_HIDPI_SCALE");
+        if (!float.TryParse(raw, out float parsed) || parsed <= 0f)
+        {
+            return 1f;
+        }
+
+        return parsed;
+    }
+
     private void MarkDirty(HWND hWnd)
     {
         if (_windows.TryGetValue(hWnd, out var state))
@@ -749,6 +762,9 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
 
     private static (int Width, int Height) ResolveFramebufferSize(IWindow window, int fallbackWidth, int fallbackHeight)
     {
+        int width = fallbackWidth;
+        int height = fallbackHeight;
+
         try
         {
             var property = window.GetType().GetProperty("FramebufferSize");
@@ -758,7 +774,8 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                 var yProp = value.GetType().GetProperty("Y");
                 if (xProp?.GetValue(value) is int w && yProp?.GetValue(value) is int h && w > 0 && h > 0)
                 {
-                    return (w, h);
+                    width = w;
+                    height = h;
                 }
             }
         }
@@ -766,7 +783,16 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
         {
         }
 
-        return (fallbackWidth, fallbackHeight);
+        // Some macOS/Vulkan runtime paths report framebuffer == logical even on Retina.
+        // Allow explicit cross-platform override so HiDPI mode is testable/deterministic.
+        if (s_hiDpiMode == HiDpiMode.On && s_hiDpiScaleOverride > 1f
+            && width == fallbackWidth && height == fallbackHeight)
+        {
+            width = Math.Max(1, (int)Math.Round(fallbackWidth * s_hiDpiScaleOverride));
+            height = Math.Max(1, (int)Math.Round(fallbackHeight * s_hiDpiScaleOverride));
+        }
+
+        return (width, height);
     }
 
 
