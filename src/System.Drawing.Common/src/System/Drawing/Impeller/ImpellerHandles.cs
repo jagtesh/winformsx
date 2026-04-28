@@ -113,15 +113,3 @@ public sealed class ImpellerTextureHandle : ImpellerHandle
         return true;
     }
 }
-
-/// <summary>
-/// Handle to an Impeller Paragraph (shaped + laid out text ready for rendering).
-/// </summary>
-public sealed class ImpellerParagraphHandle : ImpellerHandle
-{
-    protected override bool ReleaseHandle()
-    {
-        NativeMethods.ImpellerParagraphRelease(handle);
-        return true;
-    }
-}

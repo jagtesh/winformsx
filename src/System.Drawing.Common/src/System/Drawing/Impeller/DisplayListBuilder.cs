@@ -84,8 +84,6 @@ public sealed class DisplayListBuilder : IDisposable
             _handle, textureHandle, ref srcRect, ref dstRect, paintHandle);
     public void DrawDisplayList(nint displayListHandle, float opacity = 1.0f) =>
         NativeMethods.ImpellerDisplayListBuilderDrawDisplayList(_handle, displayListHandle, opacity);
-    public void DrawParagraph(nint paragraphHandle, ref ImpellerPoint point) =>
-        NativeMethods.ImpellerDisplayListBuilderDrawParagraph(_handle, paragraphHandle, ref point);
     public void SaveLayer(ref ImpellerRect bounds, nint paintHandle, nint backdropHandle = 0) =>
         NativeMethods.ImpellerDisplayListBuilderSaveLayer(_handle, ref bounds, paintHandle, backdropHandle);
 

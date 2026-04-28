@@ -212,11 +212,6 @@ public static partial class NativeMethods
     public static partial void ImpellerDisplayListBuilderDrawDisplayList(
         nint builder, nint displayList, float opacity);
 
-    [LibraryImport(ImpellerLib, EntryPoint = "ImpellerDisplayListBuilderDrawParagraph")]
-    [SuppressGCTransition]
-    public static partial void ImpellerDisplayListBuilderDrawParagraph(
-        nint builder, nint paragraph, ref ImpellerPoint point);
-
     // SaveLayer for compositing effects
     [LibraryImport(ImpellerLib, EntryPoint = "ImpellerDisplayListBuilderSaveLayer")]
     public static partial void ImpellerDisplayListBuilderSaveLayer(
@@ -369,86 +364,4 @@ public static partial class NativeMethods
         ref ImpellerMapping contents,
         nint contentsOnReleaseUserData,
         string familyNameAlias);
-
-    // ─── Paragraph Style ──────────────────────────────────────────────────
-
-    [LibraryImport(ImpellerLib, EntryPoint = "ImpellerParagraphStyleNew")]
-    public static partial nint ImpellerParagraphStyleNew();
-
-    [LibraryImport(ImpellerLib, EntryPoint = "ImpellerParagraphStyleRelease")]
-    public static partial void ImpellerParagraphStyleRelease(nint paragraphStyle);
-
-    [LibraryImport(ImpellerLib, EntryPoint = "ImpellerParagraphStyleSetForeground")]
-    public static partial void ImpellerParagraphStyleSetForeground(nint paragraphStyle, nint paint);
-
-    [LibraryImport(ImpellerLib, EntryPoint = "ImpellerParagraphStyleSetBackground")]
-    public static partial void ImpellerParagraphStyleSetBackground(nint paragraphStyle, nint paint);
-
-    [LibraryImport(ImpellerLib, EntryPoint = "ImpellerParagraphStyleSetFontWeight")]
-    public static partial void ImpellerParagraphStyleSetFontWeight(nint paragraphStyle, ImpellerFontWeight weight);
-
-    [LibraryImport(ImpellerLib, EntryPoint = "ImpellerParagraphStyleSetFontStyle")]
-    public static partial void ImpellerParagraphStyleSetFontStyle(nint paragraphStyle, ImpellerFontStyle style);
-
-    [LibraryImport(ImpellerLib, EntryPoint = "ImpellerParagraphStyleSetFontFamily",
-        StringMarshalling = StringMarshalling.Utf8)]
-    public static partial void ImpellerParagraphStyleSetFontFamily(nint paragraphStyle, string familyName);
-
-    [LibraryImport(ImpellerLib, EntryPoint = "ImpellerParagraphStyleSetFontSize")]
-    public static partial void ImpellerParagraphStyleSetFontSize(nint paragraphStyle, float size);
-
-    [LibraryImport(ImpellerLib, EntryPoint = "ImpellerParagraphStyleSetHeight")]
-    public static partial void ImpellerParagraphStyleSetHeight(nint paragraphStyle, float height);
-
-    [LibraryImport(ImpellerLib, EntryPoint = "ImpellerParagraphStyleSetTextAlignment")]
-    public static partial void ImpellerParagraphStyleSetTextAlignment(nint paragraphStyle, ImpellerTextAlignment align);
-
-    [LibraryImport(ImpellerLib, EntryPoint = "ImpellerParagraphStyleSetTextDirection")]
-    public static partial void ImpellerParagraphStyleSetTextDirection(nint paragraphStyle, ImpellerTextDirection direction);
-
-    [LibraryImport(ImpellerLib, EntryPoint = "ImpellerParagraphStyleSetMaxLines")]
-    public static partial void ImpellerParagraphStyleSetMaxLines(nint paragraphStyle, uint maxLines);
-
-    // ─── Paragraph Builder ────────────────────────────────────────────────
-
-    [LibraryImport(ImpellerLib, EntryPoint = "ImpellerParagraphBuilderNew")]
-    public static partial nint ImpellerParagraphBuilderNew(nint typographyContext);
-
-    [LibraryImport(ImpellerLib, EntryPoint = "ImpellerParagraphBuilderRelease")]
-    public static partial void ImpellerParagraphBuilderRelease(nint paragraphBuilder);
-
-    [LibraryImport(ImpellerLib, EntryPoint = "ImpellerParagraphBuilderPushStyle")]
-    public static partial void ImpellerParagraphBuilderPushStyle(nint paragraphBuilder, nint style);
-
-    [LibraryImport(ImpellerLib, EntryPoint = "ImpellerParagraphBuilderPopStyle")]
-    public static partial void ImpellerParagraphBuilderPopStyle(nint paragraphBuilder);
-
-    [LibraryImport(ImpellerLib, EntryPoint = "ImpellerParagraphBuilderAddText")]
-    public static partial void ImpellerParagraphBuilderAddText(nint paragraphBuilder, nint data, uint length);
-
-    [LibraryImport(ImpellerLib, EntryPoint = "ImpellerParagraphBuilderBuildParagraphNew")]
-    public static partial nint ImpellerParagraphBuilderBuildParagraphNew(nint paragraphBuilder, float width);
-
-    // ─── Paragraph ────────────────────────────────────────────────────────
-
-    [LibraryImport(ImpellerLib, EntryPoint = "ImpellerParagraphRetain")]
-    public static partial void ImpellerParagraphRetain(nint paragraph);
-
-    [LibraryImport(ImpellerLib, EntryPoint = "ImpellerParagraphRelease")]
-    public static partial void ImpellerParagraphRelease(nint paragraph);
-
-    [LibraryImport(ImpellerLib, EntryPoint = "ImpellerParagraphGetHeight")]
-    public static partial float ImpellerParagraphGetHeight(nint paragraph);
-
-    [LibraryImport(ImpellerLib, EntryPoint = "ImpellerParagraphGetMaxWidth")]
-    public static partial float ImpellerParagraphGetMaxWidth(nint paragraph);
-
-    [LibraryImport(ImpellerLib, EntryPoint = "ImpellerParagraphGetAlphabeticBaseline")]
-    public static partial float ImpellerParagraphGetAlphabeticBaseline(nint paragraph);
-
-    [LibraryImport(ImpellerLib, EntryPoint = "ImpellerParagraphGetLongestLineWidth")]
-    public static partial float ImpellerParagraphGetLongestLineWidth(nint paragraph);
-
-    [LibraryImport(ImpellerLib, EntryPoint = "ImpellerParagraphGetMaxIntrinsicWidth")]
-    public static partial float ImpellerParagraphGetMaxIntrinsicWidth(nint paragraph);
 }
