@@ -184,6 +184,11 @@ public abstract unsafe class Image : MarshalByRefObject, IImage, IDisposable, IC
 
         if (_nativeImage is null)
         {
+            if (this is Bitmap bitmap)
+            {
+                return bitmap.CloneManagedBitmap();
+            }
+
             Image clone = (Image)MemberwiseClone();
             clone._propertyItems = ClonePropertyItems();
             clone._palette = ClonePalette(_palette);

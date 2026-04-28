@@ -9,6 +9,7 @@ using System.Drawing.Imaging.Effects;
 #endif
 using System.IO;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Runtime.Serialization;
 
 namespace System.Drawing;
@@ -20,6 +21,10 @@ namespace System.Drawing;
 public sealed unsafe class Bitmap : Image, IPointer<GpBitmap>
 {
     private static readonly Color s_defaultTransparentColor = Color.LightGray;
+    private static readonly object s_bitmapLockGate = new();
+    private static readonly Dictionary<IntPtr, Bitmap> s_syntheticIconHandles = [];
+    private static readonly Dictionary<IntPtr, ManagedBitmapLock> s_bitmapLocks = [];
+    private static int s_nextSyntheticIconHandle = 1;
     private int[]? _pixels;
 
     private Bitmap() { }
@@ -115,6 +120,26 @@ public sealed unsafe class Bitmap : Image, IPointer<GpBitmap>
     }
 
     internal ReadOnlySpan<int> ManagedPixels => _pixels;
+
+    internal Bitmap CloneManagedBitmap()
+    {
+        ThrowIfDisposed();
+
+        Bitmap clone = new(Width, Height, PixelFormat);
+        clone.SetManagedImage(Width, Height, PixelFormat, HorizontalResolution, VerticalResolution, RawFormat);
+        if (_pixels is not null && clone._pixels is not null)
+        {
+            _pixels.AsSpan().CopyTo(clone._pixels);
+        }
+
+        clone.Palette = Palette;
+        foreach (Imaging.PropertyItem item in PropertyItems)
+        {
+            clone.SetPropertyItem(item);
+        }
+
+        return clone;
+    }
 
     private void InitializeManagedBitmap(ReadOnlySpan<byte> data)
     {
@@ -372,21 +397,26 @@ public sealed unsafe class Bitmap : Image, IPointer<GpBitmap>
 
     public static Bitmap FromHicon(IntPtr hicon)
     {
-        GpBitmap* bitmap;
-        PInvoke.GdipCreateBitmapFromHICON((HICON)hicon, &bitmap).ThrowIfFailed();
-        return new Bitmap(bitmap);
+        if (hicon == IntPtr.Zero)
+        {
+            throw new ArgumentException(SR.GdiplusInvalidParameter);
+        }
+
+        lock (s_bitmapLockGate)
+        {
+            if (s_syntheticIconHandles.TryGetValue(hicon, out Bitmap? bitmap))
+            {
+                return bitmap.CloneManagedBitmap();
+            }
+        }
+
+        throw new ArgumentException(SR.GdiplusInvalidParameter);
     }
 
     public static Bitmap FromResource(IntPtr hinstance, string bitmapName)
     {
         ArgumentNullException.ThrowIfNull(bitmapName);
-        GpBitmap* bitmap = null;
-        fixed (char* bn = bitmapName)
-        {
-            PInvoke.GdipCreateBitmapFromResource((HINSTANCE)hinstance, bn, &bitmap).ThrowIfFailed();
-        }
-
-        return new Bitmap(bitmap);
+        throw new ArgumentException(SR.GdiplusInvalidParameter);
     }
 
     [EditorBrowsable(EditorBrowsableState.Advanced)]
@@ -395,30 +425,26 @@ public sealed unsafe class Bitmap : Image, IPointer<GpBitmap>
     [EditorBrowsable(EditorBrowsableState.Advanced)]
     public IntPtr GetHbitmap(Color background)
     {
-        try
+        ThrowIfDisposed();
+        if (Width >= short.MaxValue || Height >= short.MaxValue)
         {
-            return this.GetHBITMAP(background);
+            throw new ArgumentException(SR.GdiplusInvalidSize);
         }
-        catch (ArgumentException)
-        {
-            if (Width >= short.MaxValue || Height >= short.MaxValue)
-            {
-                throw new ArgumentException(SR.GdiplusInvalidSize);
-            }
-            else
-            {
-                throw;
-            }
-        }
+
+        GC.KeepAlive(background);
+        return CreateSyntheticBitmapHandle();
     }
 
     [EditorBrowsable(EditorBrowsableState.Advanced)]
     public IntPtr GetHicon()
     {
-        HICON hicon;
-        PInvoke.GdipCreateHICONFromBitmap(this.Pointer(), &hicon).ThrowIfFailed();
-        GC.KeepAlive(this);
-        return hicon;
+        ThrowIfDisposed();
+        if (PixelFormat == PixelFormat.Format16bppGrayScale)
+        {
+            throw new ArgumentException(SR.GdiplusInvalidParameter);
+        }
+
+        return CreateSyntheticBitmapHandle();
     }
 
     public Bitmap Clone(RectangleF rect, PixelFormat format)
@@ -428,21 +454,8 @@ public sealed unsafe class Bitmap : Image, IPointer<GpBitmap>
             throw new ArgumentException(SR.Format(SR.GdiplusInvalidRectangle, rect.ToString()));
         }
 
-        GpBitmap* clone;
-
-        Status status = PInvoke.GdipCloneBitmapArea(
-            rect.X, rect.Y, rect.Width, rect.Height,
-            (int)format,
-            this.Pointer(),
-            &clone);
-
-        if (status != Status.Ok || clone is null)
-        {
-            throw Gdip.StatusException(status);
-        }
-
-        GC.KeepAlive(this);
-        return new Bitmap(clone);
+        Rectangle rounded = Rectangle.Round(rect);
+        return CloneManagedBitmapArea(rounded, format);
     }
 
     public void MakeTransparent()
@@ -471,32 +484,21 @@ public sealed unsafe class Bitmap : Image, IPointer<GpBitmap>
         }
 
         Size size = Size;
-
-        // The new bitmap must be in 32bppARGB  format, because that's the only
-        // thing that supports alpha.  (And that's what the image is initialized to -- transparent)
-        using Bitmap result = new(size.Width, size.Height, PixelFormat.Format32bppArgb);
-        using var graphics = Graphics.FromImage(result);
-
-        graphics.Clear(Color.Transparent);
-        Rectangle rectangle = new(0, 0, size.Width, size.Height);
-
-        using (ImageAttributes attributes = new())
+        if (_pixels is null)
         {
-            attributes.SetColorKey(transparentColor, transparentColor);
-            graphics.DrawImage(
-                this,
-                rectangle,
-                0, 0, size.Width, size.Height,
-                GraphicsUnit.Pixel,
-                attributes,
-                callback: null,
-                callbackData: 0);
+            throw new NotSupportedException($"{nameof(MakeTransparent)} requires a managed bitmap backing store.");
         }
 
-        // Swap nativeImage pointers to make it look like we modified the image in place
-        GpBitmap* temp = this.Pointer();
-        SetNativeImage((GpImage*)result.Pointer());
-        result.SetNativeImage((GpImage*)temp);
+        int transparentRgb = transparentColor.ToArgb() & 0x00FFFFFF;
+        for (int i = 0; i < _pixels.Length; i++)
+        {
+            if ((_pixels[i] & 0x00FFFFFF) == transparentRgb)
+            {
+                _pixels[i] = 0;
+            }
+        }
+
+        SetManagedImage(size.Width, size.Height, PixelFormat.Format32bppArgb, HorizontalResolution, VerticalResolution, RawFormat);
     }
 
     public BitmapData LockBits(Rectangle rect, ImageLockMode flags, PixelFormat format) =>
@@ -506,16 +508,50 @@ public sealed unsafe class Bitmap : Image, IPointer<GpBitmap>
     {
         ArgumentNullException.ThrowIfNull(bitmapData);
 
-        fixed (void* data = &bitmapData.GetPinnableReference())
+        ThrowIfDisposed();
+        lock (s_bitmapLockGate)
         {
-            this.LockBits(
-                rect,
-                (GdiPlus.ImageLockMode)flags,
-                (GdiPlus.PixelFormat)format,
-                ref Unsafe.AsRef<GdiPlus.BitmapData>(data));
+            foreach (ManagedBitmapLock activeLock in s_bitmapLocks.Values)
+            {
+                if (ReferenceEquals(activeLock.Bitmap, this))
+                {
+                    throw new InvalidOperationException(SR.GdiplusObjectBusy);
+                }
+            }
         }
 
-        GC.KeepAlive(this);
+        ValidateLockBits(rect, flags, format);
+        if (format == PixelFormat.Format16bppGrayScale && flags == ImageLockMode.WriteOnly)
+        {
+            bitmapData.Width = rect.Width;
+            bitmapData.Height = rect.Height;
+            bitmapData.PixelFormat = format;
+            bitmapData.Stride = GetStride(rect.Width, format);
+            bitmapData.Reserved = (int)flags | (format == PixelFormat ? 0 : 0x10000);
+            bitmapData.Scan0 = IntPtr.Zero;
+            return bitmapData;
+        }
+
+        int stride = GetStride(rect.Width, format);
+        byte[] buffer = new byte[checked(stride * rect.Height)];
+        if ((flags & ImageLockMode.WriteOnly) == 0)
+        {
+            CopyPixelsToBuffer(rect, format, stride, buffer);
+        }
+
+        GCHandle handle = GCHandle.Alloc(buffer, GCHandleType.Pinned);
+        bitmapData.Width = rect.Width;
+        bitmapData.Height = rect.Height;
+        bitmapData.PixelFormat = format;
+        bitmapData.Stride = stride;
+        bitmapData.Scan0 = handle.AddrOfPinnedObject();
+        bitmapData.Reserved = (int)flags | (format == PixelFormat ? 0 : 0x10000);
+
+        lock (s_bitmapLockGate)
+        {
+            s_bitmapLocks.Add(bitmapData.Scan0, new ManagedBitmapLock(this, rect, flags, format, stride, buffer, handle));
+        }
+
         return bitmapData;
     }
 
@@ -523,12 +559,32 @@ public sealed unsafe class Bitmap : Image, IPointer<GpBitmap>
     {
         ArgumentNullException.ThrowIfNull(bitmapdata);
 
-        fixed (void* data = &bitmapdata.GetPinnableReference())
+        if (bitmapdata.PixelFormat == PixelFormat.Format16bppGrayScale)
         {
-            this.UnlockBits(ref Unsafe.AsRef<GdiPlus.BitmapData>(data));
+            throw new ArgumentException(SR.GdiplusInvalidParameter);
         }
 
-        GC.KeepAlive(this);
+        ManagedBitmapLock activeLock;
+        lock (s_bitmapLockGate)
+        {
+            if (!s_bitmapLocks.Remove(bitmapdata.Scan0, out activeLock!))
+            {
+                throw new ArgumentException(SR.GdiplusInvalidParameter);
+            }
+        }
+
+        try
+        {
+            if ((activeLock.Flags & ImageLockMode.WriteOnly) != 0)
+            {
+                activeLock.Bitmap.CopyBufferToPixels(activeLock.Rect, activeLock.Format, activeLock.Stride, activeLock.Buffer);
+            }
+        }
+        finally
+        {
+            activeLock.Handle.Free();
+            bitmapdata.Scan0 = IntPtr.Zero;
+        }
     }
 
     public Color GetPixel(int x, int y)
@@ -600,21 +656,212 @@ public sealed unsafe class Bitmap : Image, IPointer<GpBitmap>
             throw new ArgumentException(SR.Format(SR.GdiplusInvalidRectangle, rect.ToString()));
         }
 
-        GpBitmap* clone;
-        Status status = PInvoke.GdipCloneBitmapAreaI(
-            rect.X, rect.Y, rect.Width, rect.Height,
-            (int)format,
-            this.Pointer(),
-            &clone);
+        return CloneManagedBitmapArea(rect, format);
+    }
 
-        if (status != Status.Ok || clone is null)
+    private Bitmap CloneManagedBitmapArea(Rectangle rect, PixelFormat format)
+    {
+        ThrowIfDisposed();
+        if (!IsSupportedManagedPixelFormat(format) || PixelFormat == PixelFormat.Format16bppGrayScale)
         {
-            throw Gdip.StatusException(status);
+            throw Status.OutOfMemory.GetException();
         }
 
-        GC.KeepAlive(this);
-        return new Bitmap(clone);
+        if (rect.X < 0 || rect.Y < 0 || rect.Width <= 0 || rect.Height <= 0 || rect.Right > Width || rect.Bottom > Height)
+        {
+            throw Status.OutOfMemory.GetException();
+        }
+
+        if (_pixels is null)
+        {
+            throw new NotSupportedException($"{nameof(Clone)} requires a managed bitmap backing store.");
+        }
+
+        Bitmap clone = new(rect.Width, rect.Height, format);
+        clone.SetManagedImage(rect.Width, rect.Height, format, HorizontalResolution, VerticalResolution, RawFormat);
+        for (int y = 0; y < rect.Height; y++)
+        {
+            for (int x = 0; x < rect.Width; x++)
+            {
+                int argb = _pixels[((rect.Y + y) * Width) + rect.X + x];
+                if (!Image.IsAlphaPixelFormat(format))
+                {
+                    Color color = Color.FromArgb(argb);
+                    argb = Color.FromArgb(255, color.R, color.G, color.B).ToArgb();
+                }
+
+                clone._pixels![y * rect.Width + x] = argb;
+            }
+        }
+
+        return clone;
     }
+
+    private static bool IsSupportedManagedPixelFormat(PixelFormat format) =>
+        format is PixelFormat.Format1bppIndexed
+            or PixelFormat.Format4bppIndexed
+            or PixelFormat.Format8bppIndexed
+            or PixelFormat.Format16bppRgb555
+            or PixelFormat.Format16bppRgb565
+            or PixelFormat.Format16bppArgb1555
+            or PixelFormat.Format24bppRgb
+            or PixelFormat.Format32bppRgb
+            or PixelFormat.Format32bppArgb
+            or PixelFormat.Format32bppPArgb
+            or PixelFormat.Format48bppRgb
+            or PixelFormat.Format64bppArgb
+            or PixelFormat.Format64bppPArgb;
+
+    private static int GetStride(int width, PixelFormat format)
+    {
+        int bitsPerPixel = Image.GetPixelFormatSize(format);
+        return checked((((width * bitsPerPixel) + 31) / 32) * 4);
+    }
+
+    private static void ValidateLockBitsCore(Rectangle rect, ImageLockMode flags, PixelFormat format)
+    {
+        if (flags is not (ImageLockMode.ReadOnly or ImageLockMode.WriteOnly or ImageLockMode.ReadWrite))
+        {
+            throw new ArgumentException(SR.GdiplusInvalidParameter);
+        }
+
+        if (!IsSupportedManagedPixelFormat(format) || format == PixelFormat.Format16bppGrayScale)
+        {
+            if (format == PixelFormat.Format16bppGrayScale && flags == ImageLockMode.WriteOnly)
+            {
+                return;
+            }
+
+            throw new ArgumentException(SR.GdiplusInvalidParameter);
+        }
+
+        if (rect.X < 0 || rect.Y < 0 || rect.Width <= 0 || rect.Height <= 0)
+        {
+            throw new ArgumentException(SR.GdiplusInvalidParameter);
+        }
+    }
+
+    private void ValidateLockBits(Rectangle rect, ImageLockMode flags, PixelFormat format)
+    {
+        ValidateLockBitsCore(rect, flags, format);
+        if (rect.Right > Width || rect.Bottom > Height)
+        {
+            throw new ArgumentException(SR.GdiplusInvalidParameter);
+        }
+    }
+
+    private IntPtr CreateSyntheticBitmapHandle()
+    {
+        Bitmap handleBitmap = CloneManagedBitmapArea(new Rectangle(0, 0, Width, Height), PixelFormat.Format32bppArgb);
+        lock (s_bitmapLockGate)
+        {
+            IntPtr handle = new(s_nextSyntheticIconHandle++);
+            s_syntheticIconHandles.Add(handle, handleBitmap);
+            return handle;
+        }
+    }
+
+    private void CopyPixelsToBuffer(Rectangle rect, PixelFormat format, int stride, byte[] buffer)
+    {
+        if (_pixels is null)
+        {
+            throw new NotSupportedException($"{nameof(LockBits)} requires a managed bitmap backing store.");
+        }
+
+        for (int y = 0; y < rect.Height; y++)
+        {
+            Span<byte> row = buffer.AsSpan(y * stride, stride);
+            for (int x = 0; x < rect.Width; x++)
+            {
+                Color color = Color.FromArgb(_pixels[((rect.Y + y) * Width) + rect.X + x]);
+                WritePixel(row, x, format, color);
+            }
+        }
+    }
+
+    private void CopyBufferToPixels(Rectangle rect, PixelFormat format, int stride, byte[] buffer)
+    {
+        if (_pixels is null)
+        {
+            throw new NotSupportedException($"{nameof(UnlockBits)} requires a managed bitmap backing store.");
+        }
+
+        for (int y = 0; y < rect.Height; y++)
+        {
+            ReadOnlySpan<byte> row = buffer.AsSpan(y * stride, stride);
+            for (int x = 0; x < rect.Width; x++)
+            {
+                _pixels[((rect.Y + y) * Width) + rect.X + x] = ReadPixel(row, x, format).ToArgb();
+            }
+        }
+    }
+
+    private static void WritePixel(Span<byte> row, int x, PixelFormat format, Color color)
+    {
+        switch (format)
+        {
+            case PixelFormat.Format1bppIndexed:
+                if (color.GetBrightness() >= 0.5f)
+                {
+                    row[x >> 3] |= (byte)(0x80 >> (x & 7));
+                }
+
+                break;
+            case PixelFormat.Format4bppIndexed:
+                int nibble = (int)Math.Round(color.GetBrightness() * 15);
+                if ((x & 1) == 0)
+                {
+                    row[x >> 1] = (byte)((row[x >> 1] & 0x0F) | (nibble << 4));
+                }
+                else
+                {
+                    row[x >> 1] = (byte)((row[x >> 1] & 0xF0) | nibble);
+                }
+
+                break;
+            case PixelFormat.Format8bppIndexed:
+                row[x] = (byte)Math.Round(color.GetBrightness() * 255);
+                break;
+            case PixelFormat.Format24bppRgb:
+                row[(x * 3) + 0] = color.B;
+                row[(x * 3) + 1] = color.G;
+                row[(x * 3) + 2] = color.R;
+                break;
+            default:
+                row[(x * 4) + 0] = color.B;
+                row[(x * 4) + 1] = color.G;
+                row[(x * 4) + 2] = color.R;
+                row[(x * 4) + 3] = Image.IsAlphaPixelFormat(format) ? color.A : (byte)255;
+                break;
+        }
+    }
+
+    private static Color ReadPixel(ReadOnlySpan<byte> row, int x, PixelFormat format)
+    {
+        return format switch
+        {
+            PixelFormat.Format1bppIndexed => ((row[x >> 3] & (0x80 >> (x & 7))) == 0) ? Color.Black : Color.White,
+            PixelFormat.Format4bppIndexed => Color.FromArgb(255, GetNibble(row[x >> 1], x) * 17, GetNibble(row[x >> 1], x) * 17, GetNibble(row[x >> 1], x) * 17),
+            PixelFormat.Format8bppIndexed => Color.FromArgb(255, row[x], row[x], row[x]),
+            PixelFormat.Format24bppRgb => Color.FromArgb(255, row[(x * 3) + 2], row[(x * 3) + 1], row[(x * 3) + 0]),
+            _ => Color.FromArgb(
+                Image.IsAlphaPixelFormat(format) ? row[(x * 4) + 3] : 255,
+                row[(x * 4) + 2],
+                row[(x * 4) + 1],
+                row[(x * 4) + 0])
+        };
+    }
+
+    private static int GetNibble(byte value, int x) => (x & 1) == 0 ? value >> 4 : value & 0x0F;
+
+    private sealed record ManagedBitmapLock(
+        Bitmap Bitmap,
+        Rectangle Rect,
+        ImageLockMode Flags,
+        PixelFormat Format,
+        int Stride,
+        byte[] Buffer,
+        GCHandle Handle);
 
 #if NET9_0_OR_GREATER
     /// <summary>
@@ -624,17 +871,16 @@ public sealed unsafe class Bitmap : Image, IPointer<GpBitmap>
     /// <param name="area">The area to apply to, or <see cref="Rectangle.Empty"/> for the entire image.</param>
     public void ApplyEffect(Effect effect, Rectangle area = default)
     {
-        RECT rect = area;
-        PInvoke.GdipBitmapApplyEffect(
-            this.Pointer(),
-            effect.Pointer(),
-            area.IsEmpty ? null : &rect,
-            useAuxData: false,
-            auxData: null,
-            auxDataSize: null).ThrowIfFailed();
+        ArgumentNullException.ThrowIfNull(effect);
+        ThrowIfDisposed();
+        if (!area.IsEmpty && (area.X < 0 || area.Y < 0 || area.Right > Width || area.Bottom > Height))
+        {
+            throw new ArgumentException(SR.GdiplusInvalidParameter);
+        }
 
         GC.KeepAlive(this);
         GC.KeepAlive(effect);
+        throw new NotSupportedException("Bitmap effects are not implemented in the managed drawing PAL yet.");
     }
 
     /// <summary>
@@ -704,29 +950,30 @@ public sealed unsafe class Bitmap : Image, IPointer<GpBitmap>
         ColorPalette? palette = null,
         float alphaThresholdPercent = 0.0f)
     {
-        if (palette is null)
+        ThrowIfDisposed();
+        if (!IsSupportedManagedPixelFormat(format) || format == PixelFormat.Format16bppGrayScale)
         {
-            PInvoke.GdipBitmapConvertFormat(
-                this.Pointer(),
-                (int)format,
-                (GdiPlus.DitherType)ditherType,
-                (GdiPlus.PaletteType)paletteType,
-                null,
-                alphaThresholdPercent).ThrowIfFailed();
+            throw new ArgumentException(SR.GdiplusInvalidParameter);
         }
-        else
+
+        if (alphaThresholdPercent is < 0 or > 100)
         {
-            using var buffer = palette.ConvertToBuffer();
-            fixed (void* b = buffer)
+            throw new ArgumentException(SR.GdiplusInvalidParameter);
+        }
+
+        if (!Image.IsAlphaPixelFormat(format) && _pixels is not null)
+        {
+            for (int i = 0; i < _pixels.Length; i++)
             {
-                PInvoke.GdipBitmapConvertFormat(
-                    this.Pointer(),
-                    (int)format,
-                    (GdiPlus.DitherType)ditherType,
-                    (GdiPlus.PaletteType)paletteType,
-                    (GdiPlus.ColorPalette*)b,
-                    alphaThresholdPercent).ThrowIfFailed();
+                Color color = Color.FromArgb(_pixels[i]);
+                _pixels[i] = Color.FromArgb(255, color.R, color.G, color.B).ToArgb();
             }
+        }
+
+        SetManagedImage(Width, Height, format, HorizontalResolution, VerticalResolution, RawFormat);
+        if (palette is not null)
+        {
+            Palette = palette;
         }
 
         GC.KeepAlive(this);
