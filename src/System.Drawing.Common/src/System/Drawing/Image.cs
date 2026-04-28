@@ -1,12 +1,12 @@
 ﻿// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using System.Buffers.Binary;
 using System.ComponentModel;
 using System.Drawing.Imaging;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Runtime.Serialization;
-using Windows.Win32.System.Com;
 
 namespace System.Drawing;
 
@@ -70,7 +70,14 @@ public abstract unsafe class Image : MarshalByRefObject, IImage, IDisposable, IC
 
         try
         {
-            SetNativeImage(InitializeFromStream(new MemoryStream(dat)));
+            using Bitmap bitmap = new(new MemoryStream(dat));
+            SetManagedImage(
+                bitmap.Width,
+                bitmap.Height,
+                bitmap.PixelFormat,
+                bitmap.HorizontalResolution,
+                bitmap.VerticalResolution,
+                bitmap.RawFormat);
         }
         catch (Exception e) when (e is ExternalException
             or ArgumentException
@@ -96,6 +103,8 @@ public abstract unsafe class Image : MarshalByRefObject, IImage, IDisposable, IC
 
     public static Image FromFile(string filename, bool useEmbeddedColorManagement)
     {
+        ArgumentNullException.ThrowIfNull(filename, "path");
+
         if (!File.Exists(filename))
         {
             // Throw a more specific exception for invalid paths that are null or empty,
@@ -104,29 +113,15 @@ public abstract unsafe class Image : MarshalByRefObject, IImage, IDisposable, IC
             throw new FileNotFoundException(filename);
         }
 
-        // GDI+ will read this file multiple times. Get the fully qualified path
-        // so if our app changes default directory we won't get an error
         filename = Path.GetFullPath(filename);
-
-        GpImage* image = null;
-
-        fixed (char* fn = filename)
+        try
         {
-            if (useEmbeddedColorManagement)
-            {
-                PInvoke.GdipLoadImageFromFileICM(fn, &image).ThrowIfFailed();
-            }
-            else
-            {
-                PInvoke.GdipLoadImageFromFile(fn, &image).ThrowIfFailed();
-            }
+            return new Bitmap(filename, useEmbeddedColorManagement);
         }
-
-        ValidateImage(image);
-
-        Image img = CreateImageObject(image);
-        GetAnimatedGifRawData(img, filename, dataStream: null);
-        return img;
+        catch (ArgumentException)
+        {
+            throw Status.OutOfMemory.GetException();
+        }
     }
 
     /// <summary>
@@ -140,50 +135,28 @@ public abstract unsafe class Image : MarshalByRefObject, IImage, IDisposable, IC
     public static Image FromStream(Stream stream, bool useEmbeddedColorManagement, bool validateImageData)
     {
         ArgumentNullException.ThrowIfNull(stream);
-        GpImage* image = LoadGdipImageFromStream(stream, useEmbeddedColorManagement);
 
-        if (validateImageData)
+        long position = stream.CanSeek ? stream.Position : 0;
+        try
         {
-            ValidateImage(image);
+            using MemoryStream memory = new();
+            stream.CopyTo(memory);
+            if (stream.CanSeek)
+            {
+                stream.Position = position;
+            }
+
+            return new Bitmap(new MemoryStream(memory.ToArray()), useEmbeddedColorManagement);
         }
-
-        Image img = CreateImageObject(image);
-        GetAnimatedGifRawData(img, filename: null, stream);
-        return img;
-    }
-
-    // Used for serialization
-    private GpImage* InitializeFromStream(Stream stream)
-    {
-        GpImage* image = LoadGdipImageFromStream(stream, useEmbeddedColorManagement: false);
-        ValidateImage(image);
-        _nativeImage = image;
-        GdiPlus.ImageType type = default;
-        PInvoke.GdipGetImageType(_nativeImage, &type).ThrowIfFailed();
-        GetAnimatedGifRawData(this, filename: null, stream);
-        return image;
-    }
-
-    private static GpImage* LoadGdipImageFromStream(Stream stream, bool useEmbeddedColorManagement)
-    {
-        using var iStream = stream.ToIStream(makeSeekable: true);
-        return LoadGdipImageFromStream(iStream, useEmbeddedColorManagement);
-    }
-
-    private static unsafe GpImage* LoadGdipImageFromStream(IStream* stream, bool useEmbeddedColorManagement)
-    {
-        GpImage* image;
-
-        if (useEmbeddedColorManagement)
+        catch
         {
-            PInvoke.GdipLoadImageFromStreamICM(stream, &image).ThrowIfFailed();
-        }
-        else
-        {
-            PInvoke.GdipLoadImageFromStream(stream, &image).ThrowIfFailed();
-        }
+            if (stream.CanSeek)
+            {
+                stream.Position = position;
+            }
 
-        return image;
+            throw;
+        }
     }
 
     internal Image(GpImage* nativeImage) => SetNativeImage(nativeImage);
@@ -275,38 +248,62 @@ public abstract unsafe class Image : MarshalByRefObject, IImage, IDisposable, IC
 
         ThrowIfDirectoryDoesntExist(filename);
 
-        GdiPlus.EncoderParameters* nativeParameters = null;
-
-        if (encoderParams is not null)
+        if (_animatedGifRawData is not null && RawFormat.Encoder == encoder)
         {
-            _animatedGifRawData = null;
-            nativeParameters = encoderParams.ConvertToNative();
+            // Special case for animated gifs. We don't have an encoder for them, so we just write the raw data.
+            using var fs = File.OpenWrite(filename);
+            fs.Write(_animatedGifRawData, 0, _animatedGifRawData.Length);
+            return;
         }
 
-        try
+        using FileStream stream = File.Create(filename);
+        SaveManagedBitmap(stream);
+        GC.KeepAlive(encoderParams);
+    }
+
+    private void SaveManagedBitmap(Stream stream)
+    {
+        ThrowIfDisposed();
+
+        int width = Width;
+        int height = Height;
+        int stride = checked(((width * 3) + 3) & ~3);
+        int pixelDataSize = checked(stride * height);
+        int fileSize = checked(14 + 40 + pixelDataSize);
+
+        Span<byte> fileHeader = stackalloc byte[14];
+        fileHeader[0] = (byte)'B';
+        fileHeader[1] = (byte)'M';
+        BinaryPrimitives.WriteInt32LittleEndian(fileHeader[2..6], fileSize);
+        BinaryPrimitives.WriteInt32LittleEndian(fileHeader[10..14], 54);
+        stream.Write(fileHeader);
+
+        Span<byte> dibHeader = stackalloc byte[40];
+        BinaryPrimitives.WriteInt32LittleEndian(dibHeader[0..4], 40);
+        BinaryPrimitives.WriteInt32LittleEndian(dibHeader[4..8], width);
+        BinaryPrimitives.WriteInt32LittleEndian(dibHeader[8..12], height);
+        BinaryPrimitives.WriteInt16LittleEndian(dibHeader[12..14], 1);
+        BinaryPrimitives.WriteInt16LittleEndian(dibHeader[14..16], 24);
+        BinaryPrimitives.WriteInt32LittleEndian(dibHeader[20..24], pixelDataSize);
+        BinaryPrimitives.WriteInt32LittleEndian(dibHeader[24..28], (int)Math.Round(HorizontalResolution * 39.3701f));
+        BinaryPrimitives.WriteInt32LittleEndian(dibHeader[28..32], (int)Math.Round(VerticalResolution * 39.3701f));
+        stream.Write(dibHeader);
+
+        Span<byte> row = stride <= 4096 ? stackalloc byte[stride] : new byte[stride];
+        ReadOnlySpan<int> pixels = this is Bitmap bitmap ? bitmap.ManagedPixels : [];
+        for (int y = height - 1; y >= 0; y--)
         {
-            if (_animatedGifRawData is not null && RawFormat.Encoder == encoder)
+            row.Clear();
+            for (int x = 0; x < width; x++)
             {
-                // Special case for animated gifs. We don't have an encoder for them, so we just write the raw data.
-                using var fs = File.OpenWrite(filename);
-                fs.Write(_animatedGifRawData, 0, _animatedGifRawData.Length);
-                return;
+                int argb = pixels.IsEmpty ? Color.Black.ToArgb() : pixels[(y * width) + x];
+                int offset = x * 3;
+                row[offset] = (byte)argb;
+                row[offset + 1] = (byte)(argb >> 8);
+                row[offset + 2] = (byte)(argb >> 16);
             }
 
-            fixed (char* fn = filename)
-            {
-                PInvoke.GdipSaveImageToFile(_nativeImage, fn, &encoder, nativeParameters).ThrowIfFailed();
-            }
-        }
-        finally
-        {
-            if (nativeParameters is not null)
-            {
-                Marshal.FreeHGlobal((nint)nativeParameters);
-            }
-
-            GC.KeepAlive(this);
-            GC.KeepAlive(encoderParams);
+            stream.Write(row);
         }
     }
 
@@ -327,28 +324,8 @@ public abstract unsafe class Image : MarshalByRefObject, IImage, IDisposable, IC
         ArgumentNullException.ThrowIfNull(stream);
         ArgumentNullException.ThrowIfNull(encoder);
 
-        GdiPlus.EncoderParameters* nativeParameters = null;
-
-        if (encoderParams is not null)
-        {
-            _animatedGifRawData = null;
-            nativeParameters = encoderParams.ConvertToNative();
-        }
-
-        try
-        {
-            this.Save(stream, encoder.Clsid, encoder.FormatID, nativeParameters);
-        }
-        finally
-        {
-            if (nativeParameters is not null)
-            {
-                Marshal.FreeHGlobal((nint)nativeParameters);
-            }
-
-            GC.KeepAlive(this);
-            GC.KeepAlive(encoderParams);
-        }
+        SaveManagedBitmap(stream);
+        GC.KeepAlive(encoderParams);
     }
 
     /// <summary>
@@ -356,28 +333,10 @@ public abstract unsafe class Image : MarshalByRefObject, IImage, IDisposable, IC
     /// </summary>
     public void SaveAdd(Imaging.EncoderParameters? encoderParams)
     {
-        GdiPlus.EncoderParameters* nativeParameters = null;
-        if (encoderParams is not null)
-        {
-            nativeParameters = encoderParams.ConvertToNative();
-        }
-
         _animatedGifRawData = null;
-
-        try
-        {
-            PInvoke.GdipSaveAdd(_nativeImage, nativeParameters).ThrowIfFailed();
-        }
-        finally
-        {
-            if (nativeParameters is not null)
-            {
-                Marshal.FreeHGlobal((nint)nativeParameters);
-            }
-
-            GC.KeepAlive(this);
-            GC.KeepAlive(encoderParams);
-        }
+        GC.KeepAlive(this);
+        GC.KeepAlive(encoderParams);
+        throw new NotSupportedException("Multi-frame image encoding is not implemented in the managed drawing PAL yet.");
     }
 
     /// <summary>
@@ -387,30 +346,11 @@ public abstract unsafe class Image : MarshalByRefObject, IImage, IDisposable, IC
     {
         ArgumentNullException.ThrowIfNull(image);
 
-        GdiPlus.EncoderParameters* nativeParameters = null;
-
-        if (encoderParams is not null)
-        {
-            nativeParameters = encoderParams.ConvertToNative();
-        }
-
         _animatedGifRawData = null;
-
-        try
-        {
-            PInvoke.GdipSaveAddImage(_nativeImage, image._nativeImage, nativeParameters).ThrowIfFailed();
-        }
-        finally
-        {
-            if (nativeParameters is not null)
-            {
-                Marshal.FreeHGlobal((nint)nativeParameters);
-            }
-
-            GC.KeepAlive(this);
-            GC.KeepAlive(image);
-            GC.KeepAlive(encoderParams);
-        }
+        GC.KeepAlive(this);
+        GC.KeepAlive(image);
+        GC.KeepAlive(encoderParams);
+        throw new NotSupportedException("Multi-frame image encoding is not implemented in the managed drawing PAL yet.");
     }
 
     private static void ThrowIfDirectoryDoesntExist(string filename)
@@ -738,20 +678,10 @@ public abstract unsafe class Image : MarshalByRefObject, IImage, IDisposable, IC
     /// </summary>
     public Image GetThumbnailImage(int thumbWidth, int thumbHeight, GetThumbnailImageAbort? callback, IntPtr callbackData)
     {
-        GpImage* thumbImage;
-
-        // GDI+ had to ignore the callback as System.Drawing didn't define it correctly so it was eventually removed
-        // completely in Windows 7. As such, we don't need to pass it to GDI+.
-        PInvoke.GdipGetImageThumbnail(
-            this.Pointer(),
-            (uint)thumbWidth,
-            (uint)thumbHeight,
-            &thumbImage,
-            0,
-            null).ThrowIfFailed();
-
+        Bitmap thumbnail = new(this, thumbWidth, thumbHeight);
         GC.KeepAlive(this);
-        return CreateImageObject(thumbImage);
+        GC.KeepAlive(callback);
+        return thumbnail;
     }
 
     internal static void ValidateImage(GpImage* image)
@@ -910,30 +840,7 @@ public abstract unsafe class Image : MarshalByRefObject, IImage, IDisposable, IC
     /// </summary>
     public unsafe Imaging.EncoderParameters? GetEncoderParameterList(Guid encoder)
     {
-        Imaging.EncoderParameters parameters;
-
-        uint size;
-        PInvoke.GdipGetEncoderParameterListSize(_nativeImage, &encoder, &size).ThrowIfFailed();
-
-        if (size <= 0)
-        {
-            return null;
-        }
-
-        using BufferScope<byte> buffer = new((int)size);
-        fixed (byte* b = buffer)
-        {
-            PInvoke.GdipGetEncoderParameterList(
-                _nativeImage,
-                &encoder,
-                size,
-                (GdiPlus.EncoderParameters*)b).ThrowIfFailed();
-
-            parameters = Imaging.EncoderParameters.ConvertFromNative((GdiPlus.EncoderParameters*)b);
-            GC.KeepAlive(this);
-        }
-
-        return parameters;
+        return CreateEncoderParameterList(encoder);
     }
 
     /// <summary>
@@ -946,9 +853,7 @@ public abstract unsafe class Image : MarshalByRefObject, IImage, IDisposable, IC
     /// </summary>
     public static Bitmap FromHbitmap(IntPtr hbitmap, IntPtr hpalette)
     {
-        GpBitmap* bitmap;
-        PInvoke.GdipCreateBitmapFromHBITMAP((HBITMAP)hbitmap, (HPALETTE)hpalette, &bitmap).ThrowIfFailed();
-        return new Bitmap(bitmap);
+        throw Status.GenericError.GetException();
     }
 
     /// <summary>
@@ -1112,6 +1017,44 @@ public abstract unsafe class Image : MarshalByRefObject, IImage, IDisposable, IC
         }
 
         return ColorPalette.Create(0, []);
+    }
+
+    private static Imaging.EncoderParameters? CreateEncoderParameterList(Guid encoder)
+    {
+        Guid jpegCodec = new(0x557cf401, 0x1a04, 0x11d3, [0x9a, 0x73, 0x00, 0x00, 0xf8, 0x1e, 0xf3, 0x2e]);
+        Guid tiffCodec = new(0x557cf405, 0x1a04, 0x11d3, [0x9a, 0x73, 0x00, 0x00, 0xf8, 0x1e, 0xf3, 0x2e]);
+
+        if (encoder == jpegCodec)
+        {
+            return CreateEncoderParameters(
+                Imaging.Encoder.Transformation,
+                Imaging.Encoder.Quality,
+                Imaging.Encoder.LuminanceTable,
+                Imaging.Encoder.ChrominanceTable,
+                Imaging.Encoder.ImageItems);
+        }
+
+        if (encoder == tiffCodec)
+        {
+            return CreateEncoderParameters(
+                Imaging.Encoder.Compression,
+                Imaging.Encoder.ColorDepth,
+                Imaging.Encoder.SaveFlag,
+                Imaging.Encoder.SaveAsCmyk);
+        }
+
+        return null;
+    }
+
+    private static Imaging.EncoderParameters CreateEncoderParameters(params Imaging.Encoder[] encoders)
+    {
+        Imaging.EncoderParameters parameters = new(encoders.Length);
+        for (int i = 0; i < encoders.Length; i++)
+        {
+            parameters.Param[i] = new Imaging.EncoderParameter(encoders[i], 0L);
+        }
+
+        return parameters;
     }
 
     private static Color[] CreateDefault8BitPalette(int count)

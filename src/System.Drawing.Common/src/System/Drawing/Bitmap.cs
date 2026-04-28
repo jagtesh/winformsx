@@ -114,6 +114,8 @@ public sealed unsafe class Bitmap : Image, IPointer<GpBitmap>
         Array.Fill(_pixels, Color.Black.ToArgb());
     }
 
+    internal ReadOnlySpan<int> ManagedPixels => _pixels;
+
     private void InitializeManagedBitmap(ReadOnlySpan<byte> data)
     {
         if (TryInitializeIcon(data) || TryInitializePng(data) || TryInitializeBmp(data) || TryInitializeJpeg(data))
@@ -156,6 +158,13 @@ public sealed unsafe class Bitmap : Image, IPointer<GpBitmap>
             || BinaryPrimitives.ReadUInt16LittleEndian(data[..2]) != 0
             || BinaryPrimitives.ReadUInt16LittleEndian(data.Slice(2, 2)) != 1
             || BinaryPrimitives.ReadUInt16LittleEndian(data.Slice(4, 2)) == 0)
+        {
+            return false;
+        }
+
+        uint bytesInResource = BinaryPrimitives.ReadUInt32LittleEndian(data.Slice(14, 4));
+        uint imageOffset = BinaryPrimitives.ReadUInt32LittleEndian(data.Slice(18, 4));
+        if (bytesInResource == 0 || imageOffset >= data.Length || imageOffset + bytesInResource > data.Length)
         {
             return false;
         }

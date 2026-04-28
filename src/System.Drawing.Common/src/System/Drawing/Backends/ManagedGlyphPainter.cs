@@ -20,6 +20,7 @@ internal sealed class ManagedGlyphPainter
         float originX = x + MathF.Max(0f, (advance - glyphWidth) / 2f);
         float originY = y + MathF.Max(0f, (lineHeight - glyphHeight) / 2f);
         string[] pattern = GetPattern(raw);
+        List<RectangleF>? rectangles = backend is ImpellerRenderingBackend ? [] : null;
 
         for (int row = 0; row < pattern.Length; row++)
         {
@@ -39,13 +40,26 @@ internal sealed class ManagedGlyphPainter
                     col++;
                 }
 
-                backend.FillRect(
+                RectangleF rectangle = new(
                     originX + (runStart * scale),
                     originY + (row * scale),
                     (col - runStart) * scale,
-                    scale,
-                    color);
+                    scale);
+
+                if (rectangles is not null)
+                {
+                    rectangles.Add(rectangle);
+                }
+                else
+                {
+                    backend.FillRect(rectangle.X, rectangle.Y, rectangle.Width, rectangle.Height, color);
+                }
             }
+        }
+
+        if (rectangles is not null && backend is ImpellerRenderingBackend impellerBackend)
+        {
+            impellerBackend.FillRectPath(rectangles, color);
         }
     }
 

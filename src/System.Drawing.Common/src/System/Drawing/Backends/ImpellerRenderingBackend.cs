@@ -290,6 +290,42 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend
         finally { NativeMethods.ImpellerPaintRelease(paintHandle); }
     }
 
+    internal void FillRectPath(List<RectangleF> rectangles, Color color)
+    {
+        if (_builder is null || rectangles.Count == 0)
+            return;
+
+        var paintHandle = CreateFillPaint(color);
+        var pathBuilder = NativeMethods.ImpellerPathBuilderNew();
+        try
+        {
+            foreach (RectangleF rectangle in rectangles)
+            {
+                if (rectangle.Width <= 0 || rectangle.Height <= 0)
+                    continue;
+
+                var p0 = new ImpellerPoint(rectangle.Left, rectangle.Top);
+                var p1 = new ImpellerPoint(rectangle.Right, rectangle.Top);
+                var p2 = new ImpellerPoint(rectangle.Right, rectangle.Bottom);
+                var p3 = new ImpellerPoint(rectangle.Left, rectangle.Bottom);
+                NativeMethods.ImpellerPathBuilderMoveTo(pathBuilder, ref p0);
+                NativeMethods.ImpellerPathBuilderLineTo(pathBuilder, ref p1);
+                NativeMethods.ImpellerPathBuilderLineTo(pathBuilder, ref p2);
+                NativeMethods.ImpellerPathBuilderLineTo(pathBuilder, ref p3);
+                NativeMethods.ImpellerPathBuilderClose(pathBuilder);
+            }
+
+            var path = NativeMethods.ImpellerPathBuilderCopyPathNew(pathBuilder, 0);
+            _builder.DrawPath(path, paintHandle);
+            NativeMethods.ImpellerPathRelease(path);
+        }
+        finally
+        {
+            NativeMethods.ImpellerPathBuilderRelease(pathBuilder);
+            NativeMethods.ImpellerPaintRelease(paintHandle);
+        }
+    }
+
     // ─── Images ─────────────────────────────────────────────────────────
 
     public void DrawImage(Image image, float x, float y)
