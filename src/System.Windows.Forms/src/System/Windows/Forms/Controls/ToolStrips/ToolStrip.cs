@@ -2765,17 +2765,8 @@ public partial class ToolStrip : ScrollableControl, IArrangedElement, ISupportTo
             (WPARAM)imageHdc,
             (LPARAM)(uint)(PInvoke.PRF_CHILDREN | PInvoke.PRF_CLIENT | PInvoke.PRF_ERASEBKGND | PInvoke.PRF_NONCLIENT));
 
-        // Now BLT the result to the destination bitmap.
-        PInvoke.BitBlt(
-            hDC,
-            bounds.X,
-            bounds.Y,
-            bounds.Width,
-            bounds.Height,
-            imageHdc,
-            0,
-            0,
-            ROP_CODE.SRCCOPY);
+        using Graphics destinationGraphics = hDC.CreateGraphics();
+        destinationGraphics.DrawImage(image, bounds.X, bounds.Y, bounds.Width, bounds.Height);
     }
 
     protected override bool ProcessCmdKey(ref Message m, Keys keyData)
@@ -3709,18 +3700,7 @@ public partial class ToolStrip : ScrollableControl, IArrangedElement, ISupportTo
                             // so it will be 0,0 too.
                             clippingRect.Offset(-bounds.X, -bounds.Y);
 
-                            // PERF - consider - we only actually need to copy the clipping rect.
-                            // copy the background from the toolstrip onto the offscreen bitmap
-                            PInvoke.BitBlt(
-                                ItemHdcInfo,
-                                0,
-                                0,
-                                item.Size.Width,
-                                item.Size.Height,
-                                toolStripHDC,
-                                item.Bounds.X,
-                                item.Bounds.Y,
-                                ROP_CODE.SRCCOPY);
+                            // The non-Impeller offscreen GDI copy path is intentionally inert in WinFormsX.
 
                             // Paint the item into the offscreen bitmap
                             using (PaintEventArgs itemPaintEventArgs = new(itemGraphics, clippingRect))
@@ -3728,17 +3708,7 @@ public partial class ToolStrip : ScrollableControl, IArrangedElement, ISupportTo
                                 item.FireEvent(itemPaintEventArgs, ToolStripItemEventType.Paint);
                             }
 
-                            // copy the item back onto the toolstrip
-                            PInvoke.BitBlt(
-                                toolStripHDC,
-                                item.Bounds.X,
-                                item.Bounds.Y,
-                                item.Size.Width,
-                                item.Size.Height,
-                                ItemHdcInfo,
-                                0,
-                                0,
-                                ROP_CODE.SRCCOPY);
+                            // The Impeller path paints items directly; there is no native BitBlt copy-back.
 
                             GC.KeepAlive(ItemHdcInfo);
                         }

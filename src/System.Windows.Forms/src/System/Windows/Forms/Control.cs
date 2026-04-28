@@ -5066,17 +5066,7 @@ public unsafe partial class Control :
 
         // Now BLT the result to the destination bitmap.
         using Graphics destGraphics = Graphics.FromImage(bitmap);
-        using DeviceContextHdcScope desthDC = new(destGraphics, applyGraphicsState: false);
-        PInvoke.BitBlt(
-            desthDC,
-            targetBounds.X,
-            targetBounds.Y,
-            width,
-            height,
-            hDc,
-            0,
-            0,
-            ROP_CODE.SRCCOPY);
+        destGraphics.DrawImage(image, targetBounds.X, targetBounds.Y, width, height);
     }
 
     /// <summary>

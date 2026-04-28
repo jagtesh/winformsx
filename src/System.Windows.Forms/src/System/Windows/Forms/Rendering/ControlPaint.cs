@@ -1,7 +1,6 @@
 ﻿// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-using System.ComponentModel;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
@@ -15,6 +14,8 @@ namespace System.Windows.Forms;
 /// </summary>
 public static unsafe partial class ControlPaint
 {
+    private static int s_nextSyntheticBrush = 1;
+
     [ThreadStatic]
     private static Bitmap? t_checkImage;         // image used to render checkmarks
 
@@ -148,93 +149,7 @@ public static unsafe partial class ControlPaint
     public static unsafe IntPtr CreateHBitmap16Bit(Bitmap bitmap, Color background)
     {
         ArgumentNullException.ThrowIfNull(bitmap);
-
-        HBITMAP hbitmap;
-        Size size = bitmap.Size;
-
-        // Don't use the cached DC here as this isn't a common API and we're manipulating the state.
-        using CreateDcScope screen = new(default);
-        using CreateDcScope dc = new(screen);
-
-        HPALETTE palette = PInvoke.CreateHalftonePalette(dc);
-        PInvoke.GetObject(palette, out uint entryCount);
-
-        using BufferScope<byte> bitmapInfoBuffer = new
-            (checked((int)(sizeof(BITMAPINFOHEADER) + (sizeof(RGBQUAD) * entryCount))));
-
-        // Create a DIB based on the screen DC to write into with a halftone palette
-        fixed (byte* bi = bitmapInfoBuffer)
-        {
-            *((BITMAPINFOHEADER*)bi) = new BITMAPINFOHEADER
-            {
-                biSize = (uint)sizeof(BITMAPINFOHEADER),
-                biWidth = bitmap.Width,
-                biHeight = bitmap.Height,
-                biPlanes = 1,
-                biBitCount = 16,
-                biCompression = (uint)BI_COMPRESSION.BI_RGB
-            };
-
-            Span<RGBQUAD> colors = new(bi + sizeof(BITMAPINFOHEADER), (int)entryCount);
-            Span<PALETTEENTRY> entries = stackalloc PALETTEENTRY[(int)entryCount];
-            PInvoke.GetPaletteEntries(palette, entries);
-
-            // Set up color table
-            for (int i = 0; i < entryCount; i++)
-            {
-                PALETTEENTRY entry = entries[i];
-                colors[i] = new RGBQUAD
-                {
-                    rgbRed = entry.peRed,
-                    rgbGreen = entry.peGreen,
-                    rgbBlue = entry.peBlue
-                };
-            }
-
-            PInvoke.DeleteObject(palette);
-
-            void* bitsBuffer;
-            hbitmap = PInvoke.CreateDIBSection(
-                screen,
-                (BITMAPINFO*)bi,
-                DIB_USAGE.DIB_RGB_COLORS,
-                &bitsBuffer,
-                hSection: default,
-                offset: 0);
-
-            if (hbitmap.IsNull)
-            {
-                throw new Win32Exception();
-            }
-        }
-
-        try
-        {
-            // Put our new bitmap handle (with the halftone palette) into the dc and use Graphics to
-            // copy the Bitmap into it.
-
-            HGDIOBJ previousBitmap = PInvoke.SelectObject(dc, hbitmap);
-            if (previousBitmap.IsNull)
-            {
-                throw new Win32Exception();
-            }
-
-            PInvoke.DeleteObject(previousBitmap);
-
-            using Graphics graphics = dc.CreateGraphics();
-            using var brush = background.GetCachedSolidBrushScope();
-            graphics.FillRectangle(brush, 0, 0, size.Width, size.Height);
-            graphics.DrawImage(bitmap, 0, 0, size.Width, size.Height);
-        }
-        catch
-        {
-            // As we're throwing out, we can't return this and need to delete it.
-            PInvoke.DeleteObject(hbitmap);
-            throw;
-        }
-
-        // The caller is responsible for freeing the HBITMAP.
-        return (IntPtr)hbitmap;
+        return bitmap.GetHbitmap(background);
     }
 
     /// <summary>
@@ -245,55 +160,7 @@ public static unsafe partial class ControlPaint
     {
         ArgumentNullException.ThrowIfNull(bitmap);
 
-        Size size = bitmap.Size;
-        int width = bitmap.Width;
-        int height = bitmap.Height;
-
-        int monochromeStride = width / 8;
-        if ((width % 8) != 0)
-        {
-            // Want division to round up, not down
-            monochromeStride++;
-        }
-
-        // Must be multiple of two -- i.e., bitmap scanlines must fall on double-byte boundaries.
-        if ((monochromeStride % 2) != 0)
-        {
-            monochromeStride++;
-        }
-
-        // This needs to be zeroed out so we cannot use the ArrayPool
-        byte[] bits = new byte[monochromeStride * height];
-        BitmapData data = bitmap.LockBits(
-            new Rectangle(0, 0, width, height),
-            ImageLockMode.ReadOnly,
-            PixelFormat.Format32bppArgb);
-
-        Debug.Assert(data.Scan0 != 0, "BitmapData.Scan0 is null; check marshalling");
-
-        ReadOnlySpan<ARGB> colors = new((ARGB*)data.Scan0, width * height);
-
-        for (int y = 0; y < height; y++)
-        {
-            for (int x = 0; x < width; x++)
-            {
-                ARGB color = colors[y * width + x];
-                if (color.A == 0)
-                {
-                    // Pixel is transparent; set bit to 1
-                    int index = monochromeStride * y + x / 8;
-                    bits[index] |= (byte)(0x80 >> (x % 8));
-                }
-            }
-        }
-
-        bitmap.UnlockBits(data);
-
-        // Create 1bpp.
-        fixed (byte* pBits = bits)
-        {
-            return (IntPtr)PInvoke.CreateBitmap(size.Width, size.Height, nPlanes: 1, nBitCount: 1, pBits);
-        }
+        return bitmap.GetHbitmap(Color.Transparent);
     }
 
     /// <summary>
@@ -304,46 +171,12 @@ public static unsafe partial class ControlPaint
     {
         ArgumentNullException.ThrowIfNull(bitmap);
 
-        Size size = bitmap.Size;
-
-        HBITMAP colorMask = (HBITMAP)bitmap.GetHbitmap();
-        using GetDcScope screenDC = new(HWND.Null);
-        using CreateDcScope sourceDC = new(screenDC);
-        using CreateDcScope targetDC = new(screenDC);
-        using SelectObjectScope sourceBitmapSelection = new(sourceDC, (HGDIOBJ)monochromeMask);
-        using SelectObjectScope targetBitmapSelection = new(targetDC, (HGDIOBJ)colorMask.Value);
-
-        // Now the trick is to make colorBitmap black wherever the transparent color is located, but keep the
-        // original color everywhere else. We've already got the original bitmap, so all we need to do is to AND
-        // with the inverse of the mask (ROP DSna). When going from monochrome to color, Windows sets all 1 bits
-        // to the background color, and all 0 bits to the foreground color.
-
-        PInvoke.SetBkColor(targetDC, (COLORREF)0x00ffffff);    // white
-        PInvoke.SetTextColor(targetDC, (COLORREF)0x00000000);  // black
-        PInvoke.BitBlt(targetDC, x: 0, y: 0, size.Width, size.Height, sourceDC, x1: 0, y1: 0, (ROP_CODE)0x220326);
-        // RasterOp.SOURCE.Invert().AndWith(RasterOp.TARGET).GetRop());
-
-        return (IntPtr)colorMask;
+        return bitmap.GetHbitmap();
     }
 
     internal static unsafe HBRUSH CreateHalftoneHBRUSH()
     {
-        short* grayPattern = stackalloc short[8];
-        for (int i = 0; i < 8; i++)
-        {
-            grayPattern[i] = (short)(0x5555 << (i & 1));
-        }
-
-        using CreateBitmapScope hBitmap = new(8, 8, 1, 1, grayPattern);
-
-        LOGBRUSH logicalBrush = new()
-        {
-            lbStyle = BRUSH_STYLE.BS_PATTERN,
-            lbColor = default, // color is ignored since style is BS.PATTERN
-            lbHatch = (nuint)(IntPtr)hBitmap
-        };
-
-        return PInvoke.CreateBrushIndirect(&logicalBrush);
+        return (HBRUSH)(nint)Interlocked.Increment(ref s_nextSyntheticBrush);
     }
 
     /// <summary>
