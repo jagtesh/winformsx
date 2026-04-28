@@ -1,8 +1,6 @@
 ﻿// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-using Microsoft.Win32;
-
 namespace System.Drawing.Internal;
 
 // Keeps track of objects that need to be notified of system color change events.
@@ -36,7 +34,6 @@ internal static class SystemColorTracker
             if (!s_addedTracker)
             {
                 s_addedTracker = true;
-                SystemEvents.UserPreferenceChanged += new UserPreferenceChangedEventHandler(OnUserPreferenceChanged);
             }
 
             // Strictly speaking, we should grab a lock on this class.  But since the chances
@@ -123,18 +120,14 @@ internal static class SystemColorTracker
         }
     }
 
-    private static void OnUserPreferenceChanged(object sender, UserPreferenceChangedEventArgs e)
+    internal static void OnSystemColorChanged()
     {
-        // Update pens and brushes
-        if (e.Category == UserPreferenceCategory.Color)
+        for (int i = 0; i < s_count; i++)
         {
-            for (int i = 0; i < s_count; i++)
+            Debug.Assert(s_list[i] is not null, "null value in active part of list");
+            if (s_list[i]?.TryGetTarget(out ISystemColorTracker? target) == true)
             {
-                Debug.Assert(s_list[i] is not null, "null value in active part of list");
-                if (s_list[i]?.TryGetTarget(out ISystemColorTracker? target) == true)
-                {
-                    target.OnSystemColorChanged();
-                }
+                target.OnSystemColorChanged();
             }
         }
     }

@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using Microsoft.Win32;
+using System.Windows.Forms.Platform;
 
 namespace System.Windows.Forms;
 
@@ -21,8 +22,8 @@ internal static class DisplayInformation
     {
         if (OperatingSystem.IsWindows())
         {
-            SystemEvents.UserPreferenceChanging += new UserPreferenceChangingEventHandler(UserPreferenceChanging);
-            SystemEvents.DisplaySettingsChanging += new EventHandler(DisplaySettingsChanging);
+            PalEvents.UserPreferenceChanging += new UserPreferenceChangingEventHandler(UserPreferenceChanging);
+            PalEvents.DisplaySettingsChanging += new EventHandler(DisplaySettingsChanging);
         }
     }
 

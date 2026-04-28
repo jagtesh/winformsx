@@ -36,7 +36,7 @@ public partial class Screen
 
     private readonly int _bitDepth;
 
-    private static readonly object s_syncLock = new(); // used to lock this class before syncing to SystemEvents
+    private static readonly object s_syncLock = new();
 
     private static int s_desktopChangedCount = -1; // static counter of desktop size changes
 
@@ -143,7 +143,7 @@ public partial class Screen
                 // event so that we know when to invalidate them.
                 if (OperatingSystem.IsWindows())
                 {
-                    SystemEvents.DisplaySettingsChanging += OnDisplaySettingsChanging;
+                    PalEvents.DisplaySettingsChanging += OnDisplaySettingsChanging;
                 }
             }
 
@@ -256,7 +256,7 @@ public partial class Screen
                     {
                         // Sync the UserPreference.Desktop change event. We'll keep count of desktop changes so that
                         // the WorkingArea property on Screen instances know when to invalidate their cache.
-                        SystemEvents.UserPreferenceChanged += OnUserPreferenceChanged;
+                        PalEvents.UserPreferenceChanged += OnUserPreferenceChanged;
 
                         s_desktopChangedCount = 0;
                     }
@@ -342,21 +342,21 @@ public partial class Screen
     public override int GetHashCode() => PARAM.ToInt(_hmonitor);
 
     /// <summary>
-    ///  Called by the SystemEvents class when our display settings are changing.  We cache screen information and
+    ///  Called when PAL display settings are changing. We cache screen information and
     ///  at this point we must invalidate our cache.
     /// </summary>
     private static void OnDisplaySettingsChanging(object? sender, EventArgs e)
     {
         // Now that we've responded to this event, we don't need it again until
         // someone re-queries. We will re-add the event at that time.
-        SystemEvents.DisplaySettingsChanging -= OnDisplaySettingsChanging;
+        PalEvents.DisplaySettingsChanging -= OnDisplaySettingsChanging;
 
         // Display settings changed, so the set of screens we have is invalid.
         s_screens = null;
     }
 
     /// <summary>
-    ///  Called by the SystemEvents class when our display settings have changed. Here, we increment a static counter
+    ///  Called when PAL display settings have changed. Here, we increment a static counter
     ///  that Screen instances can check against to invalidate their cache.
     /// </summary>
     private static void OnUserPreferenceChanged(object sender, UserPreferenceChangedEventArgs e)

@@ -7,6 +7,7 @@ using System.Drawing;
 using System.Drawing.Design;
 using System.Globalization;
 using System.Windows.Forms.Design;
+using System.Windows.Forms.Platform;
 using System.Windows.Forms.VisualStyles;
 using Microsoft.Win32;
 using Windows.Win32.System.Variant;
@@ -2218,12 +2219,12 @@ internal sealed partial class PropertyGridView :
     protected override void OnHandleCreated(EventArgs e)
     {
         base.OnHandleCreated(e);
-        SystemEvents.UserPreferenceChanged += OnSysColorChange;
+        PalEvents.UserPreferenceChanged += OnSysColorChange;
     }
 
     protected override void OnHandleDestroyed(EventArgs e)
     {
-        SystemEvents.UserPreferenceChanged -= OnSysColorChange;
+        PalEvents.UserPreferenceChanged -= OnSysColorChange;
 
         // We can leak this if we aren't disposed.
         if (_toolTip is not null && !RecreatingHandle)

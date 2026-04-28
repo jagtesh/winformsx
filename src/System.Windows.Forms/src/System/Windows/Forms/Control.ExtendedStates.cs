@@ -22,7 +22,7 @@ public partial class Control
         SetScrollPosition = 0x00000002,
 
         /// <summary>
-        ///  If set, the control will listen to SystemEvents.UserPreferenceChanged when TopLevel is true and handle is created.
+        ///  If set, the control will listen to PAL user preference changes when TopLevel is true and handle is created.
         /// </summary>
         InterestedInUserPreferenceChanged = 0x00000008,
 

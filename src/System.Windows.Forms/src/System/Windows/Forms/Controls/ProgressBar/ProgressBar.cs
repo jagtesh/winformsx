@@ -4,6 +4,7 @@
 using System.ComponentModel;
 using System.Drawing;
 using System.Windows.Forms.Layout;
+using System.Windows.Forms.Platform;
 using Microsoft.Win32;
 
 namespace System.Windows.Forms;
@@ -626,7 +627,7 @@ public partial class ProgressBar : Control
         }
 
         StartMarquee();
-        SystemEvents.UserPreferenceChanged += new UserPreferenceChangedEventHandler(UserPreferenceChangedHandler);
+        PalEvents.UserPreferenceChanged += new UserPreferenceChangedEventHandler(UserPreferenceChangedHandler);
     }
 
     /// <summary>
@@ -634,7 +635,7 @@ public partial class ProgressBar : Control
     /// </summary>
     protected override void OnHandleDestroyed(EventArgs e)
     {
-        SystemEvents.UserPreferenceChanged -= new UserPreferenceChangedEventHandler(UserPreferenceChangedHandler);
+        PalEvents.UserPreferenceChanged -= new UserPreferenceChangedEventHandler(UserPreferenceChangedHandler);
         base.OnHandleDestroyed(e);
     }
 

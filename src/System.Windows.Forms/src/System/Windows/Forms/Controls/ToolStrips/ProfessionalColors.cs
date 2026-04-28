@@ -4,6 +4,7 @@
 using System.Drawing;
 using System.Windows.Forms.VisualStyles;
 using Microsoft.Win32;
+using System.Windows.Forms.Platform;
 
 namespace System.Windows.Forms;
 
@@ -22,7 +23,7 @@ public static class ProfessionalColors
 
     static ProfessionalColors()
     {
-        SystemEvents.UserPreferenceChanged += new UserPreferenceChangedEventHandler(OnUserPreferenceChanged);
+        PalEvents.UserPreferenceChanged += new UserPreferenceChangedEventHandler(OnUserPreferenceChanged);
         SetScheme();
     }
 

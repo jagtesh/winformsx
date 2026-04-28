@@ -8,6 +8,7 @@ using System.Drawing.Drawing2D;
 using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Windows.Forms.Layout;
+using System.Windows.Forms.Platform;
 using System.Windows.Forms.Primitives;
 using Microsoft.Win32;
 
@@ -2572,7 +2573,7 @@ public partial class ToolStrip : ScrollableControl, IArrangedElement, ISupportTo
                     ToolStripManager.RendererChanged += new EventHandler(OnDefaultRendererChanged);
                     if (OperatingSystem.IsWindows())
                     {
-                        SystemEvents.UserPreferenceChanged += new UserPreferenceChangedEventHandler(OnUserPreferenceChanged);
+                        PalEvents.UserPreferenceChanged += new UserPreferenceChangedEventHandler(OnUserPreferenceChanged);
                     }
                 }
                 finally
@@ -2588,7 +2589,7 @@ public partial class ToolStrip : ScrollableControl, IArrangedElement, ISupportTo
                 ToolStripManager.RendererChanged -= new EventHandler(OnDefaultRendererChanged);
                 if (OperatingSystem.IsWindows())
                 {
-                    SystemEvents.UserPreferenceChanged -= new UserPreferenceChangedEventHandler(OnUserPreferenceChanged);
+                    PalEvents.UserPreferenceChanged -= new UserPreferenceChangedEventHandler(OnUserPreferenceChanged);
                 }
             }
             finally

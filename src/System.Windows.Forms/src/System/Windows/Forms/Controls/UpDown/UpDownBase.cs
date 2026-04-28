@@ -4,6 +4,7 @@
 using System.ComponentModel;
 using System.Drawing;
 using System.Runtime.InteropServices;
+using System.Windows.Forms.Platform;
 using System.Windows.Forms.VisualStyles;
 using Microsoft.Win32;
 
@@ -496,7 +497,7 @@ public abstract partial class UpDownBase : ContainerControl
     {
         base.OnHandleCreated(e);
         PositionControls();
-        SystemEvents.UserPreferenceChanged += new UserPreferenceChangedEventHandler(UserPreferenceChanged);
+        PalEvents.UserPreferenceChanged += new UserPreferenceChangedEventHandler(UserPreferenceChanged);
     }
 
     /// <summary>
@@ -504,7 +505,7 @@ public abstract partial class UpDownBase : ContainerControl
     /// </summary>
     protected override void OnHandleDestroyed(EventArgs e)
     {
-        SystemEvents.UserPreferenceChanged -= new UserPreferenceChangedEventHandler(UserPreferenceChanged);
+        PalEvents.UserPreferenceChanged -= new UserPreferenceChangedEventHandler(UserPreferenceChanged);
         base.OnHandleDestroyed(e);
     }
 

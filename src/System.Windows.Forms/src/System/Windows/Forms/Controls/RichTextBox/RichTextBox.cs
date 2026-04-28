@@ -7,6 +7,7 @@ using System.Drawing;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Windows.Forms.Layout;
+using System.Windows.Forms.Platform;
 using Microsoft.Win32;
 using Windows.Win32.UI.Controls.Dialogs;
 using Windows.Win32.UI.Controls.RichEdit;
@@ -2509,7 +2510,7 @@ public partial class RichTextBox : TextBoxBase
 
         SendZoomFactor(_zoomMultiplier);
 
-        SystemEvents.UserPreferenceChanged += new UserPreferenceChangedEventHandler(UserPreferenceChangedHandler);
+        PalEvents.UserPreferenceChanged += new UserPreferenceChangedEventHandler(UserPreferenceChangedHandler);
     }
 
     protected override void OnHandleDestroyed(EventArgs e)
@@ -2526,7 +2527,7 @@ public partial class RichTextBox : TextBoxBase
         }
 
         _oleCallback = null;
-        SystemEvents.UserPreferenceChanged -= new UserPreferenceChangedEventHandler(UserPreferenceChangedHandler);
+        PalEvents.UserPreferenceChanged -= new UserPreferenceChangedEventHandler(UserPreferenceChangedHandler);
     }
 
     /// <summary>

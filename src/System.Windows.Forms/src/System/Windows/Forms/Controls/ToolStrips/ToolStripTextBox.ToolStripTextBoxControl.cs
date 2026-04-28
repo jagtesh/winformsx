@@ -3,6 +3,7 @@
 
 using System.ComponentModel;
 using System.Drawing;
+using System.Windows.Forms.Platform;
 using Microsoft.Win32;
 
 namespace System.Windows.Forms;
@@ -165,7 +166,7 @@ public partial class ToolStripTextBox
                 {
                     try
                     {
-                        SystemEvents.UserPreferenceChanged += new UserPreferenceChangedEventHandler(OnUserPreferenceChanged);
+                        PalEvents.UserPreferenceChanged += new UserPreferenceChangedEventHandler(OnUserPreferenceChanged);
                     }
                     finally
                     {
@@ -177,7 +178,7 @@ public partial class ToolStripTextBox
             {
                 try
                 {
-                    SystemEvents.UserPreferenceChanged -= new UserPreferenceChangedEventHandler(OnUserPreferenceChanged);
+                    PalEvents.UserPreferenceChanged -= new UserPreferenceChangedEventHandler(OnUserPreferenceChanged);
                 }
                 finally
                 {

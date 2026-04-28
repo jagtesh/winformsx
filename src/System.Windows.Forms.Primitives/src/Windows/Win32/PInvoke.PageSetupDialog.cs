@@ -1,13 +1,15 @@
 ﻿// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-using System.Runtime.InteropServices;
 using Windows.Win32.UI.Controls.Dialogs;
 
 namespace Windows.Win32;
 
 internal static partial class PInvoke
 {
-    [DllImport("COMDLG32.dll", ExactSpelling = true, EntryPoint = "PageSetupDlgW")]
-    public static extern unsafe BOOL PageSetupDlg(PAGESETUPDLGW* param0);
+    public static unsafe BOOL PageSetupDlg(PAGESETUPDLGW* param0)
+    {
+        _ = param0;
+        return BOOL.FALSE;
+    }
 }

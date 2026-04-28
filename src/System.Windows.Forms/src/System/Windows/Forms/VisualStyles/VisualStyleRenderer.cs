@@ -4,6 +4,7 @@
 using System.Drawing;
 using System.Drawing.Interop;
 using Microsoft.Win32;
+using System.Windows.Forms.Platform;
 
 namespace System.Windows.Forms.VisualStyles;
 
@@ -27,7 +28,7 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
     {
         if (OperatingSystem.IsWindows())
         {
-            SystemEvents.UserPreferenceChanging += new UserPreferenceChangingEventHandler(OnUserPreferenceChanging);
+            PalEvents.UserPreferenceChanging += new UserPreferenceChangingEventHandler(OnUserPreferenceChanging);
         }
     }
 
@@ -171,10 +172,8 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
     /// </summary>
     /// <remarks>
     ///  <para>
-    ///   NOTE: The handle gets invalidated when the theme changes or the user disables theming. When that
-    ///   happens, the user should requery this property to get the correct handle. To know when the
-    ///   theme changed, hook on to SystemEvents.UserPreferenceChanged and look for ThemeChanged.
-    ///   category.
+    ///   NOTE: The handle gets invalidated when the theme changes or the user disables theming.
+    ///   When that happens, the user should requery this property to get the correct handle.
     /// </para>
     /// </remarks>
     public IntPtr Handle

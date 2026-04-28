@@ -5,6 +5,7 @@ using System.ComponentModel;
 using System.Drawing;
 using System.Globalization;
 using System.Windows.Forms.Layout;
+using System.Windows.Forms.Platform;
 using Microsoft.Win32;
 using Windows.Win32.UI.Accessibility;
 
@@ -1411,12 +1412,12 @@ public partial class MonthCalendar : Control
             PInvoke.SendMessage(this, PInvoke.MCM_SETMONTHDELTA, (WPARAM)_scrollChange);
         }
 
-        SystemEvents.UserPreferenceChanged += MarshaledUserPreferenceChanged;
+        PalEvents.UserPreferenceChanged += MarshaledUserPreferenceChanged;
     }
 
     protected override void OnHandleDestroyed(EventArgs e)
     {
-        SystemEvents.UserPreferenceChanged -= MarshaledUserPreferenceChanged;
+        PalEvents.UserPreferenceChanged -= MarshaledUserPreferenceChanged;
         base.OnHandleDestroyed(e);
     }
 

@@ -3,6 +3,7 @@
 
 using System.Collections.Concurrent;
 using System.Drawing;
+using System.Windows.Forms.Platform;
 using System.Windows.Forms.Primitives;
 using Microsoft.Win32;
 
@@ -47,7 +48,7 @@ public static partial class ToolStripManager
     {
         if (OperatingSystem.IsWindows())
         {
-            SystemEvents.UserPreferenceChanging += new UserPreferenceChangingEventHandler(OnUserPreferenceChanging);
+            PalEvents.UserPreferenceChanging += new UserPreferenceChangingEventHandler(OnUserPreferenceChanging);
         }
     }
 
