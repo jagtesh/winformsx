@@ -13,9 +13,18 @@ namespace System.Drawing;
 /// </summary>
 internal sealed class ImpellerRenderingBackend : IRenderingBackend
     {
+        private enum PaintKind
+        {
+            Fill,
+            Stroke,
+        }
+
+        private readonly record struct PaintKey(int Argb, PaintKind Kind, int StrokeWidthBits);
+
         private readonly IPlatformBackend _platformBackend;
         private readonly nint _impellerContext;
         private static readonly HarfBuzzTextEngine s_textEngine = new();
+        private readonly Dictionary<PaintKey, nint> _framePaintCache = [];
         private DisplayListBuilder? _builder;
         private nint _frameSurface;
 
@@ -35,6 +44,7 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend
         _frameSurface = _platformBackend.AcquireNextSurface();
         if (_frameSurface == nint.Zero)
             return false;
+        _framePaintCache.Clear();
         _builder = new DisplayListBuilder();
         return true;
     }
@@ -47,6 +57,7 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend
         // Guard: surface may have been invalidated by a resize event
         if (_frameSurface == nint.Zero)
         {
+            ReleaseFramePaints();
             _builder.Dispose();
             _builder = null;
             return;
@@ -75,6 +86,7 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend
 
             NativeMethods.ImpellerSurfaceRelease(_frameSurface);
             _frameSurface = nint.Zero;
+            ReleaseFramePaints();
             _builder.Dispose();
             _builder = null;
         }
@@ -110,51 +122,34 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend
     {
         if (_builder is null)
             return;
-        var paintHandle = NativeMethods.ImpellerPaintNew();
-        try
-        {
-            var ic = color.ToImpellerColor();
-            NativeMethods.ImpellerPaintSetColor(paintHandle, ref ic);
-            NativeMethods.ImpellerPaintSetDrawStyle(paintHandle, ImpellerDrawStyle.Fill);
-            _builder.DrawPaint(paintHandle);
-        }
-        finally { NativeMethods.ImpellerPaintRelease(paintHandle); }
+        _builder.DrawPaint(GetFillPaint(color));
     }
 
     public void FillRect(float x, float y, float w, float h, Color color)
     {
         if (_builder is null)
             return;
-        var paintHandle = CreateFillPaint(color);
-        try
-        {
-            var rect = new ImpellerRect(x, y, w, h);
-            _builder.DrawRect(ref rect, paintHandle);
-        }
-        finally { NativeMethods.ImpellerPaintRelease(paintHandle); }
+        var rect = new ImpellerRect(x, y, w, h);
+        _builder.DrawRect(ref rect, GetFillPaint(color));
     }
 
     public void FillEllipse(float x, float y, float w, float h, Color color)
     {
         if (_builder is null)
             return;
-        var paintHandle = CreateFillPaint(color);
-        try
-        {
-            var rect = new ImpellerRect(x, y, w, h);
-            _builder.DrawOval(ref rect, paintHandle);
-        }
-        finally { NativeMethods.ImpellerPaintRelease(paintHandle); }
+        var rect = new ImpellerRect(x, y, w, h);
+        _builder.DrawOval(ref rect, GetFillPaint(color));
     }
 
     public void FillPolygon(Point[] points, Color color)
     {
         if (_builder is null || points.Length < 3)
             return;
-        var paintHandle = CreateFillPaint(color);
+        var paintHandle = GetFillPaint(color);
+        nint pathBuilder = NativeMethods.ImpellerPathBuilderNew();
+        nint path = nint.Zero;
         try
         {
-            var pathBuilder = NativeMethods.ImpellerPathBuilderNew();
             var p0 = new ImpellerPoint(points[0].X, points[0].Y);
             NativeMethods.ImpellerPathBuilderMoveTo(pathBuilder, ref p0);
             for (int i = 1; i < points.Length; i++)
@@ -164,12 +159,18 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend
             }
 
             NativeMethods.ImpellerPathBuilderClose(pathBuilder);
-            var path = NativeMethods.ImpellerPathBuilderCopyPathNew(pathBuilder, 0);
+            path = NativeMethods.ImpellerPathBuilderCopyPathNew(pathBuilder, 0);
             _builder.DrawPath(path, paintHandle);
-            NativeMethods.ImpellerPathRelease(path);
+        }
+        finally
+        {
+            if (path != nint.Zero)
+            {
+                NativeMethods.ImpellerPathRelease(path);
+            }
+
             NativeMethods.ImpellerPathBuilderRelease(pathBuilder);
         }
-        finally { NativeMethods.ImpellerPaintRelease(paintHandle); }
     }
 
     // ─── Stroke Operations ──────────────────────────────────────────────
@@ -178,50 +179,36 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend
     {
         if (_builder is null)
             return;
-        var paintHandle = CreateStrokePaint(color, lineWidth);
-        try
-        {
-            var rect = new ImpellerRect(x, y, w, h);
-            _builder.DrawRect(ref rect, paintHandle);
-        }
-        finally { NativeMethods.ImpellerPaintRelease(paintHandle); }
+        var rect = new ImpellerRect(x, y, w, h);
+        _builder.DrawRect(ref rect, GetStrokePaint(color, lineWidth));
     }
 
     public void StrokeEllipse(float x, float y, float w, float h, Color color, float lineWidth)
     {
         if (_builder is null)
             return;
-        var paintHandle = CreateStrokePaint(color, lineWidth);
-        try
-        {
-            var rect = new ImpellerRect(x, y, w, h);
-            _builder.DrawOval(ref rect, paintHandle);
-        }
-        finally { NativeMethods.ImpellerPaintRelease(paintHandle); }
+        var rect = new ImpellerRect(x, y, w, h);
+        _builder.DrawOval(ref rect, GetStrokePaint(color, lineWidth));
     }
 
     public void StrokeLine(float x1, float y1, float x2, float y2, Color color, float lineWidth)
     {
         if (_builder is null)
             return;
-        var paintHandle = CreateStrokePaint(color, lineWidth);
-        try
-        {
-            var from = new ImpellerPoint(x1, y1);
-            var to = new ImpellerPoint(x2, y2);
-            _builder.DrawLine(ref from, ref to, paintHandle);
-        }
-        finally { NativeMethods.ImpellerPaintRelease(paintHandle); }
+        var from = new ImpellerPoint(x1, y1);
+        var to = new ImpellerPoint(x2, y2);
+        _builder.DrawLine(ref from, ref to, GetStrokePaint(color, lineWidth));
     }
 
     public void StrokePolygon(Point[] points, Color color, float lineWidth)
     {
         if (_builder is null || points.Length < 3)
             return;
-        var paintHandle = CreateStrokePaint(color, lineWidth);
+        var paintHandle = GetStrokePaint(color, lineWidth);
+        nint pathBuilder = NativeMethods.ImpellerPathBuilderNew();
+        nint path = nint.Zero;
         try
         {
-            var pathBuilder = NativeMethods.ImpellerPathBuilderNew();
             var p0 = new ImpellerPoint(points[0].X, points[0].Y);
             NativeMethods.ImpellerPathBuilderMoveTo(pathBuilder, ref p0);
             for (int i = 1; i < points.Length; i++)
@@ -231,12 +218,18 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend
             }
 
             NativeMethods.ImpellerPathBuilderClose(pathBuilder);
-            var path = NativeMethods.ImpellerPathBuilderCopyPathNew(pathBuilder, 0);
+            path = NativeMethods.ImpellerPathBuilderCopyPathNew(pathBuilder, 0);
             _builder.DrawPath(path, paintHandle);
-            NativeMethods.ImpellerPathRelease(path);
+        }
+        finally
+        {
+            if (path != nint.Zero)
+            {
+                NativeMethods.ImpellerPathRelease(path);
+            }
+
             NativeMethods.ImpellerPathBuilderRelease(pathBuilder);
         }
-        finally { NativeMethods.ImpellerPaintRelease(paintHandle); }
     }
 
     // ─── Text ───────────────────────────────────────────────────────────
@@ -265,42 +258,43 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend
     {
         if (_builder is null)
             return;
-        var paintHandle = CreateStrokePaint(color, lineWidth);
+        var paintHandle = GetStrokePaint(color, lineWidth);
+        nint pathBuilder = NativeMethods.ImpellerPathBuilderNew();
+        nint path = nint.Zero;
         try
         {
-            var pathBuilder = NativeMethods.ImpellerPathBuilderNew();
             var p0 = new ImpellerPoint(x1, y1);
             NativeMethods.ImpellerPathBuilderMoveTo(pathBuilder, ref p0);
             var cp1 = new ImpellerPoint(cx1, cy1);
             var cp2 = new ImpellerPoint(cx2, cy2);
             var end = new ImpellerPoint(x2, y2);
             NativeMethods.ImpellerPathBuilderCubicCurveTo(pathBuilder, ref cp1, ref cp2, ref end);
-            var path = NativeMethods.ImpellerPathBuilderCopyPathNew(pathBuilder, 0);
+            path = NativeMethods.ImpellerPathBuilderCopyPathNew(pathBuilder, 0);
             _builder.DrawPath(path, paintHandle);
-            NativeMethods.ImpellerPathRelease(path);
+        }
+        finally
+        {
+            if (path != nint.Zero)
+            {
+                NativeMethods.ImpellerPathRelease(path);
+            }
+
             NativeMethods.ImpellerPathBuilderRelease(pathBuilder);
         }
-        finally { NativeMethods.ImpellerPaintRelease(paintHandle); }
     }
 
     public void DrawPath(nint pathHandle, Color color, float lineWidth)
     {
         if (_builder is null)
             return;
-        var paintHandle = CreateStrokePaint(color, lineWidth);
-        try
-        { _builder.DrawPath(pathHandle, paintHandle); }
-        finally { NativeMethods.ImpellerPaintRelease(paintHandle); }
+        _builder.DrawPath(pathHandle, GetStrokePaint(color, lineWidth));
     }
 
     public void FillPath(nint pathHandle, Color color)
     {
         if (_builder is null)
             return;
-        var paintHandle = CreateFillPaint(color);
-        try
-        { _builder.DrawPath(pathHandle, paintHandle); }
-        finally { NativeMethods.ImpellerPaintRelease(paintHandle); }
+        _builder.DrawPath(pathHandle, GetFillPaint(color));
     }
 
     internal void FillRectPath(List<RectangleF> rectangles, Color color)
@@ -308,7 +302,7 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend
         if (_builder is null || rectangles.Count == 0)
             return;
 
-        var paintHandle = CreateFillPaint(color);
+        var paintHandle = GetFillPaint(color);
         var pathBuilder = NativeMethods.ImpellerPathBuilderNew();
         try
         {
@@ -335,7 +329,6 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend
         finally
         {
             NativeMethods.ImpellerPathBuilderRelease(pathBuilder);
-            NativeMethods.ImpellerPaintRelease(paintHandle);
         }
     }
 
@@ -363,23 +356,40 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend
 
     // ─── Helpers ────────────────────────────────────────────────────────
 
-    private static nint CreateFillPaint(Color color)
+    private nint GetFillPaint(Color color)
+        => GetOrCreatePaint(new PaintKey(color.ToArgb(), PaintKind.Fill, 0), color, 0f);
+
+    private nint GetStrokePaint(Color color, float lineWidth)
+        => GetOrCreatePaint(new PaintKey(color.ToArgb(), PaintKind.Stroke, BitConverter.SingleToInt32Bits(lineWidth)), color, lineWidth);
+
+    private nint GetOrCreatePaint(PaintKey key, Color color, float lineWidth)
     {
+        if (_framePaintCache.TryGetValue(key, out nint existing))
+        {
+            return existing;
+        }
+
         var handle = NativeMethods.ImpellerPaintNew();
         var ic = color.ToImpellerColor();
         NativeMethods.ImpellerPaintSetColor(handle, ref ic);
-        NativeMethods.ImpellerPaintSetDrawStyle(handle, ImpellerDrawStyle.Fill);
+        NativeMethods.ImpellerPaintSetDrawStyle(handle, key.Kind == PaintKind.Fill ? ImpellerDrawStyle.Fill : ImpellerDrawStyle.Stroke);
+        if (key.Kind == PaintKind.Stroke)
+        {
+            NativeMethods.ImpellerPaintSetStrokeWidth(handle, lineWidth);
+        }
+
+        _framePaintCache[key] = handle;
         return handle;
     }
 
-    private static nint CreateStrokePaint(Color color, float lineWidth)
+    private void ReleaseFramePaints()
     {
-        var handle = NativeMethods.ImpellerPaintNew();
-        var ic = color.ToImpellerColor();
-        NativeMethods.ImpellerPaintSetColor(handle, ref ic);
-        NativeMethods.ImpellerPaintSetDrawStyle(handle, ImpellerDrawStyle.Stroke);
-        NativeMethods.ImpellerPaintSetStrokeWidth(handle, lineWidth);
-        return handle;
+        foreach (nint paint in _framePaintCache.Values)
+        {
+            NativeMethods.ImpellerPaintRelease(paint);
+        }
+
+        _framePaintCache.Clear();
     }
 }
 #endif
