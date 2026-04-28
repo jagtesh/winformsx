@@ -310,13 +310,13 @@ public static class Pens
 
     private static Pen GetPen(object key, Color color)
     {
-        if (Gdip.ThreadData.TryGetValue(key, out object? objectPen) && objectPen is Pen Pen)
+        if (DrawingPalThreadState.ThreadData.TryGetValue(key, out object? objectPen) && objectPen is Pen Pen)
         {
             return Pen;
         }
 
         Pen newPen = new(color, true);
-        Gdip.ThreadData[key] = newPen;
+        DrawingPalThreadState.ThreadData[key] = newPen;
         return newPen;
     }
 }

@@ -62,43 +62,12 @@ internal unsafe ref struct RegionScope
     /// </summary>
     public RegionScope(IPointer<GpRegion> region, IPointer<GpGraphics> graphics)
     {
-        InitializeFromGdiPlus(region.GetPointer(), graphics.GetPointer());
-        GC.KeepAlive(region);
-        GC.KeepAlive(graphics);
-    }
-
-    private void InitializeFromGdiPlus(GpRegion* region, GpGraphics* graphics)
-    {
-        BOOL isInfinite;
-        PInvokeCore.GdipIsInfiniteRegion(region, graphics, &isInfinite).ThrowIfFailed();
-
-        if (isInfinite)
-        {
-            // An infinite region would cover the entire device region which is the same as
-            // not having a clipping region. Observe that this is not the same as having an
-            // empty region, which when clipping to it has the effect of excluding the entire
-            // device region.
-            //
-            // To remove the clip region from a dc the SelectClipRgn() function needs to be
-            // called with a null region ptr - that's why we use the empty constructor here.
-            // GDI+ will return IntPtr.Zero for Region.GetHrgn(Graphics) when the region is
-            // Infinite.
-
-            Region = default;
-            return;
-        }
-
-        HRGN hrgn;
-        PInvokeCore.GdipGetRegionHRgn(region, graphics, &hrgn).ThrowIfFailed();
-        Region = hrgn;
+        throw new NotSupportedException("Native GDI+ regions are not supported by the managed drawing PAL.");
     }
 
     public RegionScope(IPointer<GpRegion> region, HWND hwnd)
     {
-        GpGraphics* graphics = null;
-        PInvokeCore.GdipCreateFromHWND(hwnd, &graphics).ThrowIfFailed();
-        InitializeFromGdiPlus(region.GetPointer(), graphics);
-        GC.KeepAlive(region);
+        throw new NotSupportedException("Native GDI+ regions are not supported by the managed drawing PAL.");
     }
 
     /// <summary>

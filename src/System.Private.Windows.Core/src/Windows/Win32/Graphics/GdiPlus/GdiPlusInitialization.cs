@@ -26,8 +26,6 @@ internal static partial class GdiPlusInitialization
     /// </remarks>
     internal static bool EnsureInitialized()
     {
-        // WinFormsX is Impeller-only on every host OS, including Windows.
-        // Never bind gdiplus.dll; callers must route drawing through PAL.
         return false;
     }
 }

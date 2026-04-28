@@ -311,8 +311,16 @@ public abstract unsafe class Image : MarshalByRefObject, IImage, IDisposable, IC
     /// </summary>
     public void Save(Stream stream, ImageFormat format)
     {
+        ArgumentNullException.ThrowIfNull(stream);
         ArgumentNullException.ThrowIfNull(format);
-        this.Save(stream, format.Encoder, format.Guid, encoderParameters: null);
+
+        if (_animatedGifRawData is not null && RawFormat.Equals(format))
+        {
+            stream.Write(_animatedGifRawData, 0, _animatedGifRawData.Length);
+            return;
+        }
+
+        SaveManagedBitmap(stream);
     }
 
     /// <summary>

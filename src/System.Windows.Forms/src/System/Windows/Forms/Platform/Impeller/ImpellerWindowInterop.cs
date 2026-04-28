@@ -527,15 +527,40 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
 
                 if (selectedIndex >= 0 && selectedIndex < tc.TabPages.Count)
                 {
-                    var page = tc.TabPages[selectedIndex];
-                    // Approximate the display rectangle (tab header area ~24px)
                     const int tabHeaderHeight = 24;
-                    page.SetBounds(0, tabHeaderHeight, tc.Width, tc.Height - tabHeaderHeight);
-                    page.Visible = true;
-                    if (s_firstPaint)
-                        Console.Error.WriteLine($"[FixupTabPages] Made '{page.Text}' visible: {page.Bounds}. Page Controls Count={page.Controls.Count}");
-                    // Recurse into the now-visible page
-                    FixupTabPages(page);
+                    var selectedBounds = new System.Drawing.Rectangle(
+                        0,
+                        tabHeaderHeight,
+                        tc.Width,
+                        Math.Max(1, tc.Height - tabHeaderHeight));
+
+                    for (int i = 0; i < tc.TabPages.Count; i++)
+                    {
+                        var page = tc.TabPages[i];
+                        bool shouldBeVisible = i == selectedIndex;
+                        if (page.Visible != shouldBeVisible)
+                        {
+                            page.Visible = shouldBeVisible;
+                        }
+
+                        if (shouldBeVisible && page.Bounds != selectedBounds)
+                        {
+                            page.SetBounds(
+                                selectedBounds.X,
+                                selectedBounds.Y,
+                                selectedBounds.Width,
+                                selectedBounds.Height);
+                        }
+
+                        if (shouldBeVisible)
+                        {
+                            if (s_firstPaint)
+                                Console.Error.WriteLine($"[FixupTabPages] Made '{page.Text}' visible: {page.Bounds}. Page Controls Count={page.Controls.Count}");
+
+                            // Recurse into the now-visible page.
+                            FixupTabPages(page);
+                        }
+                    }
                 }
             }
             else

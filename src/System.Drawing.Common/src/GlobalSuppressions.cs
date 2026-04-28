@@ -22,5 +22,4 @@
 [assembly: SuppressMessage("Style", "IDE1006:Naming Styles", Justification = "Public API", Scope = "member", Target = "~F:System.Drawing.Imaging.Encoder.ImageItems")]
 [assembly: SuppressMessage("Style", "IDE1006:Naming Styles", Justification = "Public API", Scope = "member", Target = "~F:System.Drawing.Imaging.Encoder.SaveAsCmyk")]
 
-[assembly: SuppressMessage("Style", "IDE1006:Naming Styles", Justification = "Thread local", Scope = "member", Target = "~F:System.Drawing.Gdip.t_threadData")]
 [assembly: SuppressMessage("Style", "IDE1006:Naming Styles", Justification = "Thread local", Scope = "member", Target = "~F:System.Drawing.ImageAnimator.t_threadWriterLockWaitCount")]

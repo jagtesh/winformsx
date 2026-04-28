@@ -7,9 +7,6 @@ internal static unsafe class GpMetafileExtensions
 {
     public static HENHMETAFILE GetHENHMETAFILE(this IPointer<GpMetafile> metafile)
     {
-        HENHMETAFILE hemf;
-        PInvokeCore.GdipGetHemfFromMetafile(metafile.GetPointer(), &hemf).ThrowIfFailed();
-        GC.KeepAlive(metafile);
-        return hemf;
+        throw new NotSupportedException("Metafile handles are not supported by the managed drawing PAL.");
     }
 }

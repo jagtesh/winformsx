@@ -310,13 +310,13 @@ public static class Brushes
 
     private static Brush GetBrush(object key, Color color)
     {
-        if (Gdip.ThreadData.TryGetValue(key, out object? objectBrush) && objectBrush is Brush brush)
+        if (DrawingPalThreadState.ThreadData.TryGetValue(key, out object? objectBrush) && objectBrush is Brush brush)
         {
             return brush;
         }
 
         Brush newBrush = new SolidBrush(color);
-        Gdip.ThreadData[key] = newBrush;
+        DrawingPalThreadState.ThreadData[key] = newBrush;
         return newBrush;
     }
 }
