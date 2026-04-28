@@ -573,7 +573,7 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
             {
                 using var textBrush = new System.Drawing.SolidBrush(label.ForeColor);
                 var textRect = new System.Drawing.RectangleF(0, 0, Math.Max(1, label.Width), Math.Max(1, label.Height));
-                g.DrawString(label.Text, label.Font, textBrush, textRect);
+                g.DrawString(SanitizeTextForImpeller(label.Text), label.Font, textBrush, textRect);
             }
             else if (control is System.Windows.Forms.Button button)
             {
@@ -643,7 +643,7 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                 LineAlignment = System.Drawing.StringAlignment.Center,
                 Trimming = System.Drawing.StringTrimming.EllipsisCharacter,
             };
-            g.DrawString(button.Text, button.Font, textBrush, textRect, sf);
+            g.DrawString(SanitizeTextForImpeller(button.Text), button.Font, textBrush, textRect, sf);
         }
     }
 
@@ -655,7 +655,7 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
         int x = 12;
         foreach (ToolStripItem item in menuStrip.Items)
         {
-            string text = item.Text ?? string.Empty;
+            string text = SanitizeTextForImpeller(item.Text);
             if (text.Length == 0)
             {
                 continue;
@@ -698,7 +698,7 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                 LineAlignment = System.Drawing.StringAlignment.Center,
                 Trimming = System.Drawing.StringTrimming.EllipsisCharacter,
             };
-            g.DrawString(tab.Text, tabControl.Font, brush, rect, sf);
+            g.DrawString(SanitizeTextForImpeller(tab.Text), tabControl.Font, brush, rect, sf);
             x += tabWidth + 4;
             if (x >= width - 40)
             {
@@ -826,31 +826,72 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
         float x = mouse.Position.X;
         float y = mouse.Position.Y;
 
-        if (_windows.TryGetValue(handle, out var state) && state.SilkWindow is not null)
+        if (_windows.TryGetValue(handle, out var state))
         {
-            int logicalW = state.Width > 0 ? state.Width : state.LastLogicalWidth;
-            int logicalH = state.Height > 0 ? state.Height : state.LastLogicalHeight;
-            if (logicalW > 0 && logicalH > 0)
-            {
-                var (fbW, fbH) = ResolveFramebufferSize(state.SilkWindow, logicalW, logicalH);
-                if (fbW > 0 && fbH > 0)
-                {
-                    float sx = fbW / (float)logicalW;
-                    float sy = fbH / (float)logicalH;
-                    if (sx > 0f)
-                    {
-                        x /= sx;
-                    }
+            // Prefer the exact dimensions used during the last successful render pass.
+            int logicalW = state.LastLogicalWidth;
+            int logicalH = state.LastLogicalHeight;
+            int fbW = state.LastFramebufferWidth;
+            int fbH = state.LastFramebufferHeight;
 
-                    if (sy > 0f)
-                    {
-                        y /= sy;
-                    }
+            // Fallback if the first render has not populated cached sizes yet.
+            if ((logicalW <= 0 || logicalH <= 0) && state.Width > 0 && state.Height > 0)
+            {
+                logicalW = state.Width;
+                logicalH = state.Height;
+            }
+
+            if ((fbW <= 0 || fbH <= 0) && state.SilkWindow is not null && logicalW > 0 && logicalH > 0)
+            {
+                var resolved = ResolveFramebufferSize(state.SilkWindow, logicalW, logicalH);
+                fbW = resolved.Width;
+                fbH = resolved.Height;
+            }
+
+            if (logicalW > 0 && logicalH > 0 && fbW > 0 && fbH > 0)
+            {
+                // Only apply scale conversion if framebuffer is materially larger than logical.
+                // This avoids over-correcting when the input subsystem already reports logical coords.
+                if (fbW > logicalW + 1)
+                {
+                    x = x * logicalW / fbW;
+                }
+
+                if (fbH > logicalH + 1)
+                {
+                    y = y * logicalH / fbH;
                 }
             }
         }
 
-        return new System.Drawing.Point((int)Math.Round(x), (int)Math.Round(y));
+        return new System.Drawing.Point((int)Math.Floor(x), (int)Math.Floor(y));
+    }
+
+    private static string SanitizeTextForImpeller(string? text)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return string.Empty;
+        }
+
+        var chars = text.ToCharArray();
+        bool changed = false;
+        for (int i = 0; i < chars.Length; i++)
+        {
+            char c = chars[i];
+            if (c == '\u2014' || c == '\u2013')
+            {
+                chars[i] = '-';
+                changed = true;
+            }
+            else if (c < 32 || c > 126)
+            {
+                chars[i] = '?';
+                changed = true;
+            }
+        }
+
+        return changed ? new string(chars) : text;
     }
 
     private static float ParseHiDpiScaleOverride()
