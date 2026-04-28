@@ -9,9 +9,9 @@ internal static partial class PInvoke
 {
     static PInvoke()
     {
-        // Ensure GDI+ is initialized before the first PInvoke call. Note that this has to happen after
-        // the DPI awareness context is set for scaling to occur correctly.
-        bool initialized = Gdip.Initialized;
-        Debug.Assert(initialized);
+        // WinFormsX routes drawing through the Drawing PAL and Impeller.
+        // The GDI+ entrypoint declarations remain only while public surface
+        // area is migrated; touching them must not initialize gdiplus.dll.
+        Debug.Assert(!Gdip.Initialized);
     }
 }

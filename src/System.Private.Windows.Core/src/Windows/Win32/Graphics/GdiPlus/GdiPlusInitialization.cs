@@ -8,18 +8,6 @@ namespace Windows.Win32.Graphics.GdiPlus;
 /// </summary>
 internal static partial class GdiPlusInitialization
 {
-    private static readonly nuint s_initToken = Init();
-
-    private static unsafe nuint Init()
-    {
-        Debug.Assert(s_initToken == 0, "GdiplusInitialization: Initialize should not be called more than once!");
-
-        // WinFormsX is Impeller-only on every host OS, including Windows.
-        // Never bind gdiplus.dll; return a non-zero sentinel so legacy callers
-        // do not trigger native startup while they are being migrated to PAL.
-        return 1;
-    }
-
     /// <summary>
     ///  Returns true if GDI+ has been started.
     /// </summary>
@@ -36,5 +24,10 @@ internal static partial class GdiPlusInitialization
     ///   https://github.com/microsoft/CsWin32/issues/1308 tracks a proposal to make this more automatic.
     ///  </para>
     /// </remarks>
-    internal static bool EnsureInitialized() => s_initToken != 0;
+    internal static bool EnsureInitialized()
+    {
+        // WinFormsX is Impeller-only on every host OS, including Windows.
+        // Never bind gdiplus.dll; callers must route drawing through PAL.
+        return false;
+    }
 }
