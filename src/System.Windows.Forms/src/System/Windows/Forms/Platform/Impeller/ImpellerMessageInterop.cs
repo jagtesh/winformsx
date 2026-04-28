@@ -21,6 +21,10 @@ internal sealed class ImpellerMessageInterop : IMessageInterop
 
     public LRESULT SendMessage(HWND hWnd, uint msg, WPARAM wParam, LPARAM lParam)
     {
+        using var guard = WinFormsXExecutionGuard.Enter(
+            WinFormsXExecutionKind.MessageDispatch,
+            $"SendMessage hwnd=0x{(nint)hWnd:X} msg=0x{msg:X}");
+
         // Synchronous dispatch — look up the NativeWindow for this HWND and invoke
         // its WndProc directly (wxWidgets-style synthetic message dispatch).
         // WM_PAINT flows through the standard WinForms WmPaint pipeline:
@@ -122,6 +126,10 @@ internal sealed class ImpellerMessageInterop : IMessageInterop
     /// </summary>
     internal void ProcessPendingMessages()
     {
+        using var guard = WinFormsXExecutionGuard.Enter(
+            WinFormsXExecutionKind.MessageDispatch,
+            "ProcessPendingMessages");
+
         // Process a bounded batch to avoid blocking the render loop
         int maxMessages = 64;
         while (maxMessages-- > 0 && _messageQueue.TryDequeue(out var im))

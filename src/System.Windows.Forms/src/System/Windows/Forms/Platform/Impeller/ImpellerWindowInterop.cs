@@ -66,6 +66,7 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
     private static readonly long s_targetFrameIntervalMs = ParseTargetFrameIntervalMs();
     private static readonly Dictionary<ListView, int> s_managedListViewSelection = [];
     private static readonly Dictionary<DataGridView, int> s_managedDataGridViewSelection = [];
+    private static readonly HashSet<Control> s_pressedControls = [];
     private HWND _activeWindow;
     private readonly Dictionary<nint, ImpellerWindowState> _windows = [];
 
@@ -308,6 +309,10 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                         }
                         else
                         {
+                            using var paintGuard = WinFormsXExecutionGuard.Enter(
+                                WinFormsXExecutionKind.Paint,
+                                $"Render hwnd=0x{(nint)handle:X} root={root.GetType().Name}");
+
                             g.Clear(root.BackColor);
                             // Render in logical WinForms units and scale to framebuffer pixels.
                             // On Retina this keeps layout semantics while preserving sharp output.
@@ -415,12 +420,21 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                 {
                     mouse.MouseMove += (m, position) =>
                     {
+                        using var guard = WinFormsXExecutionGuard.Enter(WinFormsXExecutionKind.Input, "MouseMove");
                         var pt = GetLogicalMousePoint(handle, m);
-                        HWND target = HitTest(handle, pt, out var clientPt);
-                        PostMessageToControl(target, handle, WM_MOUSEMOVE, (WPARAM)0, (LPARAM)(nint)(((int)clientPt.Y << 16) | ((int)clientPt.X & 0xFFFF)));
+                        PlatformApi.Input.SetCursorPos(pt.X, pt.Y);
+                        HWND target = PlatformApi.Input.GetCapture();
+                        System.Drawing.Point clientPt;
+                        if (target == HWND.Null || !TryGetClientPoint(target, pt, out clientPt))
+                        {
+                            target = HitTest(handle, pt, out clientPt);
+                        }
+
+                        PostMessageToControl(target, handle, WM_MOUSEMOVE, (WPARAM)0, PackMouseLParam(clientPt));
                     };
                     mouse.MouseDown += (m, button) =>
                     {
+                        using var guard = WinFormsXExecutionGuard.Enter(WinFormsXExecutionKind.Input, $"MouseDown {button}");
                         uint msg = button switch
                         {
                             MouseButton.Left => WM_LBUTTONDOWN,
@@ -446,7 +460,17 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                             if (msg == WM_LBUTTONDOWN && _windows.TryGetValue(handle, out var mouseDownState))
                             {
                                 mouseDownState.MouseDownTarget = target;
+                                mouseDownState.PressedControl = Control.FromHandle(target);
+                                if (mouseDownState.PressedControl is not null)
+                                {
+                                    s_pressedControls.Add(mouseDownState.PressedControl);
+                                }
                             }
+
+                            PlatformApi.Input.SetCapture(target);
+                            PlatformApi.Input.SetFocus(target);
+                            PlatformApi.Input.SetActiveWindow(handle);
+                            MarkDirty(handle);
 
                             // Intercept TabControl click because we don't have native SysTabControl32 to process it
                             if (msg == WM_LBUTTONDOWN)
@@ -495,13 +519,18 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
 
                                     return;
                                 }
+                                else if (IsManagedClickControl(ctrl))
+                                {
+                                    return;
+                                }
                             }
 
-                            PostMessageToControl(target, handle, msg, (WPARAM)0, (LPARAM)(nint)(((int)clientPt.Y << 16) | ((int)clientPt.X & 0xFFFF)));
+                            PostMessageToControl(target, handle, msg, (WPARAM)0, PackMouseLParam(clientPt));
                         }
                     };
                     mouse.MouseUp += (m, button) =>
                     {
+                        using var guard = WinFormsXExecutionGuard.Enter(WinFormsXExecutionKind.Input, $"MouseUp {button}");
                         uint msg = button switch
                         {
                             MouseButton.Left => WM_LBUTTONUP,
@@ -512,11 +541,25 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                         if (msg != 0)
                         {
                             var pt = GetLogicalMousePoint(handle, m);
-                            HWND target = HitTest(handle, pt, out var clientPt);
+                            HWND target = PlatformApi.Input.GetCapture();
+                            System.Drawing.Point clientPt;
+                            if (target == HWND.Null || !TryGetClientPoint(target, pt, out clientPt))
+                            {
+                                target = HitTest(handle, pt, out clientPt);
+                            }
+
                             if (msg == WM_LBUTTONUP && _windows.TryGetValue(handle, out var mouseUpState))
                             {
+                                if (mouseUpState.PressedControl is not null)
+                                {
+                                    s_pressedControls.Remove(mouseUpState.PressedControl);
+                                    mouseUpState.PressedControl = null;
+                                }
+
                                 bool clickMatchesMouseDown = mouseUpState.MouseDownTarget == target;
                                 mouseUpState.MouseDownTarget = HWND.Null;
+                                PlatformApi.Input.ReleaseCapture();
+                                MarkDirty(handle);
                                 if (clickMatchesMouseDown && TryPerformManagedControlClick(handle, target, clientPt))
                                 {
                                     return;
@@ -528,18 +571,19 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                                 return;
                             }
 
-                            PostMessageToControl(target, handle, msg, (WPARAM)0, (LPARAM)(nint)(((int)clientPt.Y << 16) | ((int)clientPt.X & 0xFFFF)));
+                            PostMessageToControl(target, handle, msg, (WPARAM)0, PackMouseLParam(clientPt));
                         }
                     };
                     mouse.Scroll += (m, scrollWheel) =>
                     {
+                        using var guard = WinFormsXExecutionGuard.Enter(WinFormsXExecutionKind.Input, "MouseScroll");
                         MarkDirty(handle);
                         // Vertical scroll
                         if (scrollWheel.Y != 0)
                         {
                             var pt = GetLogicalMousePoint(handle, m);
                             HWND target = HitTest(handle, pt, out var clientPt);
-                            PostMessageToControl(target, handle, WM_MOUSEWHEEL, (WPARAM)(nuint)((int)(scrollWheel.Y * 120) << 16), (LPARAM)(nint)(((int)clientPt.Y << 16) | ((int)clientPt.X & 0xFFFF)));
+                            PostMessageToControl(target, handle, WM_MOUSEWHEEL, (WPARAM)(nuint)((int)(scrollWheel.Y * 120) << 16), PackMouseLParam(clientPt));
                         }
 
                         // Horizontal scroll
@@ -547,7 +591,7 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                         {
                             var pt = GetLogicalMousePoint(handle, m);
                             HWND target = HitTest(handle, pt, out var clientPt);
-                            PostMessageToControl(target, handle, WM_MOUSEHWHEEL, (WPARAM)(nuint)((int)(scrollWheel.X * 120) << 16), (LPARAM)(nint)(((int)clientPt.Y << 16) | ((int)clientPt.X & 0xFFFF)));
+                            PostMessageToControl(target, handle, WM_MOUSEHWHEEL, (WPARAM)(nuint)((int)(scrollWheel.X * 120) << 16), PackMouseLParam(clientPt));
                         }
                     };
                 }
@@ -655,6 +699,10 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
     private static bool s_firstPaint = true;
     private static void PaintControlTree(Control control, System.Drawing.Graphics g, System.Drawing.Rectangle clipRect, bool isRoot = true)
     {
+        using var guard = WinFormsXExecutionGuard.Enter(
+            WinFormsXExecutionKind.Paint,
+            $"PaintControlTree {control.GetType().Name} bounds={control.Bounds}");
+
         try
         {
             TracePaint($"[Paint] {control.GetType().Name} visible={control.Visible} bounds={control.Bounds} children={control.Controls.Count}");
@@ -672,6 +720,7 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                 g.FillRectangle(brush, 0, 0, bgWidth, bgHeight);
             }
 
+            bool handled = true;
             if (control is Label label && !string.IsNullOrEmpty(label.Text))
             {
                 using var textBrush = new System.Drawing.SolidBrush(label.ForeColor);
@@ -730,6 +779,17 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
             {
                 DrawTabHeaders(tabControl, g);
             }
+            else
+            {
+                handled = false;
+            }
+
+            if (!handled && IsUserPaintControl(control))
+            {
+                using var paintArgs = new PaintEventArgs(g, clipRect);
+                control.InvokePaintBackgroundInternal(paintArgs);
+                control.InvokePaintInternal(paintArgs);
+            }
 
             // Impeller-first clean-room mode: do not call Win32/GDI-dependent paint
             // dispatch for now. We recurse and paint primitive surfaces through backend.
@@ -769,11 +829,21 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
 
     private static void DrawButton(System.Windows.Forms.Button button, System.Drawing.Graphics g)
     {
+        bool pressed = s_pressedControls.Contains(button);
         var face = button.BackColor.A == 0 ? System.Drawing.Color.FromArgb(74, 139, 255) : button.BackColor;
+        if (pressed)
+        {
+            face = System.Drawing.Color.FromArgb(
+                face.A,
+                Math.Max(0, face.R - 28),
+                Math.Max(0, face.G - 28),
+                Math.Max(0, face.B - 28));
+        }
+
         using var fill = new System.Drawing.SolidBrush(face);
         g.FillRectangle(fill, 0, 0, Math.Max(1, button.Width), Math.Max(1, button.Height));
 
-        using var borderPen = new System.Drawing.Pen(System.Drawing.Color.FromArgb(40, 40, 40));
+        using var borderPen = new System.Drawing.Pen(pressed ? System.Drawing.Color.FromArgb(20, 20, 20) : System.Drawing.Color.FromArgb(40, 40, 40));
         g.DrawRectangle(borderPen, 0, 0, Math.Max(1, button.Width) - 1, Math.Max(1, button.Height) - 1);
 
         if (!string.IsNullOrEmpty(button.Text))
@@ -1612,6 +1682,10 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
 
     private bool TryPerformManagedControlClick(HWND rootHandle, HWND target, System.Drawing.Point clientPoint)
     {
+        using var guard = WinFormsXExecutionGuard.Enter(
+            WinFormsXExecutionKind.Selection,
+            $"ManagedClick target=0x{(nint)target:X}");
+
         Control? control = Control.FromHandle(target);
         if (control is null || !control.Enabled)
         {
@@ -1620,9 +1694,6 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
 
         switch (control)
         {
-            case IButtonControl buttonControl:
-                InvokeManagedInteraction(rootHandle, control, buttonControl.PerformClick);
-                return true;
             case CheckBox checkBox:
                 InvokeManagedInteraction(rootHandle, control, () =>
                 {
@@ -1649,6 +1720,9 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                     radioButton.Checked = true;
                     TraceInput($"[ManagedRadioButtonClick] text={radioButton.Text}");
                 });
+                return true;
+            case IButtonControl buttonControl:
+                InvokeManagedInteraction(rootHandle, control, buttonControl.PerformClick);
                 return true;
             case ListBox listBox:
                 InvokeManagedInteraction(rootHandle, control, () =>
@@ -1692,6 +1766,10 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
     {
         invoker.BeginInvoke(new Action(() =>
         {
+            using var guard = WinFormsXExecutionGuard.Enter(
+                WinFormsXExecutionKind.Selection,
+                $"ManagedInteraction {invoker.GetType().Name}");
+
             try
             {
                 action();
@@ -1828,6 +1906,37 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
         TracePaint(message);
     }
 
+    private static bool IsManagedClickControl(Control? control)
+        => control is IButtonControl
+            or CheckBox
+            or RadioButton
+            or ListBox
+            or ComboBox
+            or TreeView
+            or ListView
+            or DataGridView;
+
+    private static bool IsUserPaintControl(Control control)
+        => control.GetType().Assembly != typeof(Control).Assembly
+            && control is not Form;
+
+    private static LPARAM PackMouseLParam(System.Drawing.Point point)
+        => (LPARAM)(nint)SafeArithmetic.PackSignedLowHigh16(point.X, point.Y);
+
+    private static bool TryGetClientPoint(HWND target, System.Drawing.Point rootPoint, out System.Drawing.Point clientPoint)
+    {
+        Control? control = Control.FromHandle(target);
+        if (control is null)
+        {
+            clientPoint = rootPoint;
+            return false;
+        }
+
+        var origin = GetRootRelativeLocation(control);
+        clientPoint = new System.Drawing.Point(rootPoint.X - origin.X, rootPoint.Y - origin.Y);
+        return true;
+    }
+
     private static HiDpiMode ParseHiDpiMode()
     {
         string? raw = Environment.GetEnvironmentVariable("WINFORMSX_HIDPI_MODE");
@@ -1952,6 +2061,10 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
 
     private void MarkDirty(HWND hWnd)
     {
+        using var guard = WinFormsXExecutionGuard.Enter(
+            WinFormsXExecutionKind.Invalidation,
+            $"MarkDirty hwnd=0x{(nint)hWnd:X}");
+
         if (TryGetTopLevelWindowState(hWnd, out var state))
         {
             state.Dirty = true;
@@ -2522,6 +2635,10 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                 : targetWindow;
             ctrl.BeginInvoke(new Action(() =>
             {
+                using var guard = WinFormsXExecutionGuard.Enter(
+                    WinFormsXExecutionKind.MessageDispatch,
+                    $"PostMessageToControl hwnd=0x{(nint)dispatchTarget:X} msg=0x{msg:X}");
+
                 NativeWindow.DispatchMessageDirect(dispatchTarget, msg, wParam, lParam, out _);
             }));
         }
@@ -2579,4 +2696,5 @@ internal sealed class ImpellerWindowState
     public ComboBox? ActiveComboBox;
     public System.Drawing.Rectangle ActiveComboBounds;
     public HWND MouseDownTarget;
+    public Control? PressedControl;
 }

@@ -9,6 +9,7 @@
     <NoWarn>$(NoWarn);NU5104</NoWarn>
     <EnableAOTAnalyzer>false</EnableAOTAnalyzer>
     <Nullable>enable</Nullable>
+    <CheckForOverflowUnderflow>true</CheckForOverflowUnderflow>
     <ImplicitUsings>disable</ImplicitUsings>
     <CLSCompliant>true</CLSCompliant>
     <ProduceReferenceAssembly>true</ProduceReferenceAssembly>

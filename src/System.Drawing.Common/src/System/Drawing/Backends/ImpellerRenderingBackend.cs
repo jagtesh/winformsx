@@ -22,6 +22,8 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend
         private readonly record struct PaintKey(int Argb, PaintKind Kind, int StrokeWidthBits);
         private readonly record struct TransformSnapshot(float ScaleX, float ScaleY, float OffsetX, float OffsetY);
 
+        private const int MaxGlyphsPerPath = 16;
+
         private readonly IPlatformBackend _platformBackend;
         private readonly nint _impellerContext;
         private static readonly HarfBuzzTextEngine s_textEngine = new();
@@ -422,6 +424,11 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend
 
     internal void FillGlyphOutlines(IReadOnlyList<PositionedGlyphOutline> glyphs, Color color)
     {
+        FillGlyphOutlines(glyphs, 0, glyphs.Count, color);
+    }
+
+    private void FillGlyphOutlines(IReadOnlyList<PositionedGlyphOutline> glyphs, int start, int count, Color color)
+    {
         if (_builder is null || glyphs.Count == 0)
             return;
 
@@ -429,8 +436,10 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend
         nint path = nint.Zero;
         try
         {
-            foreach (PositionedGlyphOutline glyph in glyphs)
+            int end = Math.Min(glyphs.Count, start + count);
+            for (int i = start; i < end; i++)
             {
+                PositionedGlyphOutline glyph = glyphs[i];
                 if (glyph.Outline.IsEmpty || glyph.Scale <= 0f)
                 {
                     continue;
@@ -492,7 +501,12 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend
 
         foreach ((int argb, List<PositionedGlyphOutline> glyphs) in _frameGlyphBatches)
         {
-            FillGlyphOutlines(glyphs, Color.FromArgb(argb));
+            Color color = Color.FromArgb(argb);
+            for (int i = 0; i < glyphs.Count; i += MaxGlyphsPerPath)
+            {
+                int count = Math.Min(MaxGlyphsPerPath, glyphs.Count - i);
+                FillGlyphOutlines(glyphs, i, count, color);
+            }
         }
 
         _frameGlyphBatches.Clear();
