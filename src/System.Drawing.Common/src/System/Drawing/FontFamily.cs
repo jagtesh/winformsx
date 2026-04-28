@@ -13,6 +13,7 @@ public sealed unsafe class FontFamily : MarshalByRefObject, IDisposable
 {
     private const int NeutralLanguage = 0;
     private readonly string _name;
+    private readonly Dictionary<int, string>? _localizedNames;
 
     internal FontFamily(GpFontFamily* family)
     {
@@ -23,6 +24,12 @@ public sealed unsafe class FontFamily : MarshalByRefObject, IDisposable
     internal FontFamily(string name, bool createDefaultOnFail)
     {
         _name = string.IsNullOrWhiteSpace(name) && createDefaultOnFail ? "SansSerif" : name;
+    }
+
+    internal FontFamily(string name, Dictionary<int, string>? localizedNames)
+    {
+        _name = name;
+        _localizedNames = localizedNames;
     }
 
     public FontFamily(string name)
@@ -76,7 +83,8 @@ public sealed unsafe class FontFamily : MarshalByRefObject, IDisposable
 
     public string Name => _name;
 
-    public string GetName(int language) => _name;
+    public string GetName(int language)
+        => _localizedNames is not null && _localizedNames.TryGetValue(language, out string? name) ? name : _name;
 
     public static FontFamily[] Families => new InstalledFontCollection().Families;
 

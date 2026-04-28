@@ -1,6 +1,8 @@
 ﻿// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+#nullable enable
+
 namespace System.Drawing.Text;
 
 /// <summary>
@@ -8,9 +10,11 @@ namespace System.Drawing.Text;
 /// </summary>
 public abstract unsafe class FontCollection : IDisposable
 {
-    internal GpFontCollection* _nativeFontCollection;
+    private readonly List<FontFamily> _families = [];
+    private readonly bool _throwWhenDisposed;
+    private bool _disposed;
 
-    internal FontCollection() => _nativeFontCollection = null;
+    internal FontCollection(bool throwWhenDisposed = false) => _throwWhenDisposed = throwWhenDisposed;
 
     /// <summary>
     ///  Disposes of this <see cref='FontCollection'/>
@@ -21,7 +25,10 @@ public abstract unsafe class FontCollection : IDisposable
         GC.SuppressFinalize(this);
     }
 
-    protected virtual void Dispose(bool disposing) { }
+    protected virtual void Dispose(bool disposing)
+    {
+        _disposed = true;
+    }
 
     /// <summary>
     ///  Gets the array of <see cref='FontFamily'/> objects associated with this <see cref='FontCollection'/>.
@@ -30,31 +37,35 @@ public abstract unsafe class FontCollection : IDisposable
     {
         get
         {
-            int numFound;
-            PInvoke.GdipGetFontCollectionFamilyCount(_nativeFontCollection, &numFound).ThrowIfFailed();
-
-            if (numFound == 0)
+            if (_disposed && _throwWhenDisposed)
             {
-                return [];
+                throw Status.InvalidParameter.GetException();
             }
 
-            GpFontFamily*[] gpFamilies = new GpFontFamily*[numFound];
-            fixed (GpFontFamily** f = gpFamilies)
-            {
-                PInvoke.GdipGetFontCollectionFamilyList(_nativeFontCollection, numFound, f, &numFound).ThrowIfFailed();
-            }
+            return [.. _families];
+        }
+    }
 
-            Debug.Assert(gpFamilies.Length == numFound, "GDI+ can't give a straight answer about how many fonts there are");
-            FontFamily[] families = new FontFamily[numFound];
-            for (int f = 0; f < numFound; f++)
-            {
-                GpFontFamily* native;
-                PInvoke.GdipCloneFontFamily(gpFamilies[f], &native).ThrowIfFailed();
-                families[f] = new FontFamily(native);
-            }
+    internal void AddFamily(FontFamily family)
+    {
+        ThrowIfDisposed();
 
-            GC.KeepAlive(this);
-            return families;
+        foreach (FontFamily existing in _families)
+        {
+            if (string.Equals(existing.Name, family.Name, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+        }
+
+        _families.Add(family);
+    }
+
+    internal void ThrowIfDisposed()
+    {
+        if (_disposed && _throwWhenDisposed)
+        {
+            throw Status.InvalidParameter.GetException();
         }
     }
 

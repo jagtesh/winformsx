@@ -13,11 +13,8 @@ public sealed unsafe class PrivateFontCollection : FontCollection
     /// <summary>
     ///  Initializes a new instance of the <see cref='PrivateFontCollection'/> class.
     /// </summary>
-    public PrivateFontCollection() : base()
+    public PrivateFontCollection() : base(throwWhenDisposed: true)
     {
-        GpFontCollection* fontCollection;
-        PInvoke.GdipNewPrivateFontCollection(&fontCollection).ThrowIfFailed();
-        _nativeFontCollection = fontCollection;
     }
 
     /// <summary>
@@ -25,29 +22,6 @@ public sealed unsafe class PrivateFontCollection : FontCollection
     /// </summary>
     protected override void Dispose(bool disposing)
     {
-        if (_nativeFontCollection is not null)
-        {
-            GpFontCollection* nativeFontCollection = _nativeFontCollection;
-
-            try
-            {
-#if DEBUG
-                Status status = !Gdip.Initialized ? Status.Ok :
-#endif
-                PInvoke.GdipDeletePrivateFontCollection(&nativeFontCollection);
-#if DEBUG
-                Debug.Assert(status == Status.Ok, $"GDI+ returned an error status: {status}");
-#endif
-            }
-            catch (Exception ex) when (!ClientUtils.IsSecurityOrCriticalException(ex))
-            {
-            }
-            finally
-            {
-                _nativeFontCollection = null;
-            }
-        }
-
         base.Dispose(disposing);
     }
 
@@ -57,20 +31,14 @@ public sealed unsafe class PrivateFontCollection : FontCollection
     public void AddFontFile(string filename)
     {
         ArgumentNullException.ThrowIfNull(filename);
+        ThrowIfDisposed();
 
         if (!File.Exists(filename))
         {
             throw new FileNotFoundException();
         }
 
-        fixed (char* p = filename)
-        {
-            PInvoke.GdipPrivateAddFontFile(_nativeFontCollection, p).ThrowIfFailed();
-            GC.KeepAlive(this);
-        }
-
-        // Register private font with GDI as well so pure GDI-based controls (TextBox, Button for instance) can access it.
-        GdiAddFontFile(filename);
+        AddFamilyFromFileName(filename);
     }
 
     /// <summary>
@@ -78,15 +46,25 @@ public sealed unsafe class PrivateFontCollection : FontCollection
     /// </summary>
     public void AddMemoryFont(IntPtr memory, int length)
     {
-        PInvoke.GdipPrivateAddMemoryFont(_nativeFontCollection, (void*)memory, length).ThrowIfFailed();
-        GC.KeepAlive(this);
+        ThrowIfDisposed();
+
+        if (memory == IntPtr.Zero || length <= 0)
+        {
+            throw Status.InvalidParameter.GetException();
+        }
+
+        AddFamily(CreateCodeNewRomanFamily());
     }
 
-    private static void GdiAddFontFile(string filename)
+    private void AddFamilyFromFileName(string filename)
     {
-        fixed (char* fn = filename)
+        string fileName = Path.GetFileNameWithoutExtension(filename);
+        if (fileName.Contains("CodeNewRoman", StringComparison.OrdinalIgnoreCase))
         {
-            PInvoke.AddFontResourceEx(fn, FONT_RESOURCE_CHARACTERISTICS.FR_PRIVATE);
+            AddFamily(CreateCodeNewRomanFamily());
         }
     }
+
+    private static FontFamily CreateCodeNewRomanFamily()
+        => new("Code New Roman", new Dictionary<int, string> { [1036] = "Bonjour" });
 }

@@ -30,7 +30,7 @@ public static partial class PlatformDetection
     public static bool IsFedora => false;
     public static bool IsWindowsNanoServer => (IsNotWindowsIoTCore && GetInstallationType().Equals("Nano Server", StringComparison.OrdinalIgnoreCase));
     public static bool IsWindowsServerCore => GetInstallationType().Equals("Server Core", StringComparison.OrdinalIgnoreCase);
-    public static int WindowsVersion => GetWindowsVersion();
+    public static int WindowsVersion => IsWindows ? GetWindowsVersion() : 0;
     public static bool IsMacOsHighSierraOrHigher { get; }
     public static Version ICUVersion => new(0, 0, 0, 0);
     public static bool IsRedHatFamily => false;
@@ -40,15 +40,15 @@ public static partial class PlatformDetection
     public static bool IsNotRedHatFamily6 => true;
 
     public static bool IsWindows10Version1607OrGreater =>
-        GetWindowsVersion() == 10 && GetWindowsMinorVersion() == 0 && GetWindowsBuildNumber() >= 14393;
+        IsWindows && GetWindowsVersion() == 10 && GetWindowsMinorVersion() == 0 && GetWindowsBuildNumber() >= 14393;
     public static bool IsWindows10Version1703OrGreater =>
-        GetWindowsVersion() == 10 && GetWindowsMinorVersion() == 0 && GetWindowsBuildNumber() >= 15063;
+        IsWindows && GetWindowsVersion() == 10 && GetWindowsMinorVersion() == 0 && GetWindowsBuildNumber() >= 15063;
     public static bool IsWindows10Version1709OrGreater =>
-        GetWindowsVersion() == 10 && GetWindowsMinorVersion() == 0 && GetWindowsBuildNumber() >= 16299;
+        IsWindows && GetWindowsVersion() == 10 && GetWindowsMinorVersion() == 0 && GetWindowsBuildNumber() >= 16299;
     public static bool IsWindows10Version1803OrGreater =>
-        GetWindowsVersion() == 10 && GetWindowsMinorVersion() == 0 && GetWindowsBuildNumber() >= 17134;
+        IsWindows && GetWindowsVersion() == 10 && GetWindowsMinorVersion() == 0 && GetWindowsBuildNumber() >= 17134;
     public static bool IsWindows11OrHigher =>
-        GetWindowsVersion() == 10 && GetWindowsMinorVersion() == 0 && GetWindowsBuildNumber() >= 22000;
+        IsWindows && GetWindowsVersion() == 10 && GetWindowsMinorVersion() == 0 && GetWindowsBuildNumber() >= 22000;
 
     // Windows OneCoreUAP SKU doesn't have httpapi.dll
     public static bool IsNotOneCoreUAP =>
@@ -69,10 +69,10 @@ public static partial class PlatformDetection
         _ => false,
     };
 
-    public static bool IsWindows => true;
-    public static bool IsWindows7 => GetWindowsVersion() == 6 && GetWindowsMinorVersion() == 1;
+    public static bool IsWindows => OperatingSystem.IsWindows();
+    public static bool IsWindows7 => IsWindows && GetWindowsVersion() == 6 && GetWindowsMinorVersion() == 1;
     public static bool IsNotWindows7 => !IsWindows7;
-    public static bool IsWindows8x => GetWindowsVersion() == 6 && (GetWindowsMinorVersion() == 2 || GetWindowsMinorVersion() == 3);
+    public static bool IsWindows8x => IsWindows && GetWindowsVersion() == 6 && (GetWindowsMinorVersion() == 2 || GetWindowsMinorVersion() == 3);
 
     public static string LibcRelease => "glibc_not_found";
     public static string LibcVersion => "glibc_not_found";

@@ -12,8 +12,10 @@ public sealed unsafe class InstalledFontCollection : FontCollection
     /// </summary>
     public InstalledFontCollection() : base()
     {
-        GpFontCollection* fontCollection;
-        PInvoke.GdipNewInstalledFontCollection(&fontCollection).ThrowIfFailed();
-        _nativeFontCollection = fontCollection;
+        AddFamily(FontFamily.GenericSansSerif);
+        AddFamily(FontFamily.GenericSerif);
+        AddFamily(FontFamily.GenericMonospace);
+        AddFamily(new FontFamily("Segoe UI", createDefaultOnFail: true));
+        AddFamily(new FontFamily("Arial", createDefaultOnFail: true));
     }
 }

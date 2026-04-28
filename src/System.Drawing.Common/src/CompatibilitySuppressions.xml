@@ -103,6 +103,20 @@
     <IsBaselineSuppression>true</IsBaselineSuppression>
   </Suppression>
   <Suppression>
+    <DiagnosticId>CP0014</DiagnosticId>
+    <Target>M:System.Drawing.Text.FontCollection.get_Families:[T:System.Runtime.CompilerServices.NullableContextAttribute]</Target>
+    <Left>lib/net8.0/System.Drawing.Common.dll</Left>
+    <Right>lib/net8.0/System.Drawing.Common.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0014</DiagnosticId>
+    <Target>P:System.Drawing.Text.FontCollection.Families:[T:System.Runtime.CompilerServices.NullableAttribute]</Target>
+    <Left>lib/net8.0/System.Drawing.Common.dll</Left>
+    <Right>lib/net8.0/System.Drawing.Common.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
     <DiagnosticId>CP0015</DiagnosticId>
     <Target>T:System.Drawing.Drawing2D.CustomLineCap:[T:System.Runtime.CompilerServices.NullableContextAttribute]</Target>
     <Left>lib/net8.0/System.Drawing.Common.dll</Left>
