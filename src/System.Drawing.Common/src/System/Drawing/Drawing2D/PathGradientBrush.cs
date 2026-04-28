@@ -10,23 +10,25 @@ namespace System.Drawing.Drawing2D;
 /// </summary>
 public sealed unsafe class PathGradientBrush : Brush
 {
-    /// <summary>
-    ///  Initializes a new instance of the <see cref="PathGradientBrush"/> class with the specified points.
-    /// </summary>
+    private PointF[] _points;
+    private Color _centerColor = Color.White;
+    private Color[] _surroundColors;
+    private PointF _centerPoint;
+    private RectangleF _rectangle;
+    private Blend _blend = new();
+    private ColorBlend _interpolationColors = new();
+    private Matrix _transform = new();
+    private PointF _focusScales = new(1.0f, 1.0f);
+    private WrapMode _wrapMode;
+
     public PathGradientBrush(params PointF[] points) : this(points, WrapMode.Clamp) { }
 
 #if NET9_0_OR_GREATER
-    /// <inheritdoc cref="PathGradientBrush(PointF[])"/>
     public PathGradientBrush(params ReadOnlySpan<PointF> points) : this(WrapMode.Clamp, points) { }
 #endif
 
-    /// <summary>
-    ///  Initializes a new instance of the <see cref="PathGradientBrush"/> class with the specified points and
-    ///  <see cref="WrapMode"/>.
-    /// </summary>
-    public PathGradientBrush(PointF[] points, WrapMode wrapMode) : this(wrapMode, points.OrThrowIfNull().AsSpan()) { }
+    public PathGradientBrush(PointF[] points, WrapMode wrapMode) : this(wrapMode, AsSpan(points)) { }
 
-    /// <inheritdoc cref="PathGradientBrush(PointF[], WrapMode)"/>
 #if NET9_0_OR_GREATER
     public
 #else
@@ -34,29 +36,19 @@ public sealed unsafe class PathGradientBrush : Brush
 #endif
     PathGradientBrush(WrapMode wrapMode, params ReadOnlySpan<PointF> points)
     {
-        if (wrapMode is < WrapMode.Tile or > WrapMode.Clamp)
-            throw new InvalidEnumArgumentException(nameof(wrapMode), (int)wrapMode, typeof(WrapMode));
-
+        ValidateWrapMode(wrapMode);
         if (points.Length < 2)
             throw new ArgumentException(null, nameof(points));
 
-        fixed (PointF* p = points)
-        {
-            GpPathGradient* nativeBrush;
-            PInvoke.GdipCreatePathGradient(
-                (GdiPlus.PointF*)p,
-                points.Length,
-                (GdiPlus.WrapMode)wrapMode,
-                &nativeBrush).ThrowIfFailed();
-
-            SetNativeBrushInternal((GpBrush*)nativeBrush);
-        }
+        _points = points.ToArray();
+        _wrapMode = wrapMode;
+        _surroundColors = CreateColorArray(Color.White, points.Length);
+        _rectangle = BoundsFromPoints(points);
+        _centerPoint = new PointF(_rectangle.X + _rectangle.Width / 2.0f, _rectangle.Y + _rectangle.Height / 2.0f);
     }
 
-    /// <inheritdoc cref="PathGradientBrush(PointF[])"/>
     public PathGradientBrush(params Point[] points) : this(points, WrapMode.Clamp) { }
 
-    /// <inheritdoc cref="PathGradientBrush(PointF[])"/>
 #if NET9_0_OR_GREATER
     public
 #else
@@ -64,181 +56,100 @@ public sealed unsafe class PathGradientBrush : Brush
 #endif
     PathGradientBrush(params ReadOnlySpan<Point> points) : this(WrapMode.Clamp, points) { }
 
-    /// <inheritdoc cref="PathGradientBrush(PointF[], WrapMode)"/>
-    public PathGradientBrush(Point[] points, WrapMode wrapMode) : this(wrapMode, points.OrThrowIfNull().AsSpan()) { }
+    public PathGradientBrush(Point[] points, WrapMode wrapMode) : this(wrapMode, AsSpan(points)) { }
 
-    /// <inheritdoc cref="PathGradientBrush(PointF[], WrapMode)"/>
 #if NET9_0_OR_GREATER
     public
 #else
     private
 #endif
     PathGradientBrush(WrapMode wrapMode, params ReadOnlySpan<Point> points)
+        : this(wrapMode, ToPointFArray(points).AsSpan())
     {
-        if (wrapMode is < WrapMode.Tile or > WrapMode.Clamp)
-            throw new InvalidEnumArgumentException(nameof(wrapMode), (int)wrapMode, typeof(WrapMode));
-
-        if (points.Length < 2)
-            throw new ArgumentException(null, nameof(points));
-
-        fixed (Point* p = points)
-        {
-            GpPathGradient* nativeBrush;
-            PInvoke.GdipCreatePathGradientI(
-                (GdiPlus.Point*)p,
-                points.Length,
-                (GdiPlus.WrapMode)wrapMode,
-                &nativeBrush).ThrowIfFailed();
-
-            SetNativeBrushInternal((GpBrush*)nativeBrush);
-        }
     }
 
     public PathGradientBrush(GraphicsPath path)
     {
         ArgumentNullException.ThrowIfNull(path);
-        GpPathGradient* nativeBrush;
-        PInvoke.GdipCreatePathGradientFromPath(path._nativePath, &nativeBrush).ThrowIfFailed();
-        SetNativeBrushInternal((GpBrush*)nativeBrush);
+        PointF[] points = path.PathPoints;
+        if (points.Length < 2)
+        {
+            RectangleF bounds = path.GetBounds();
+            points =
+            [
+                new(bounds.Left, bounds.Top),
+                new(bounds.Right, bounds.Top),
+                new(bounds.Right, bounds.Bottom),
+                new(bounds.Left, bounds.Bottom)
+            ];
+        }
+
+        _points = points;
+        _wrapMode = WrapMode.Clamp;
+        _surroundColors = CreateColorArray(Color.White, points.Length);
+        _rectangle = BoundsFromPoints(points);
+        _centerPoint = new PointF(_rectangle.X + _rectangle.Width / 2.0f, _rectangle.Y + _rectangle.Height / 2.0f);
     }
 
     internal PathGradientBrush(GpPathGradient* nativeBrush)
     {
         Debug.Assert(nativeBrush is not null, "Initializing native brush with null.");
-        SetNativeBrushInternal((GpBrush*)nativeBrush);
+        _points = [PointF.Empty, new PointF(1, 0)];
+        _surroundColors = [Color.White, Color.White];
+        _rectangle = new RectangleF(0, 0, 1, 1);
     }
 
-    internal GpPathGradient* NativePathGradient => (GpPathGradient*)NativeBrush;
+    internal GpPathGradient* NativePathGradient => null;
 
     public override object Clone()
     {
-        GpBrush* clonedBrush;
-        PInvoke.GdipCloneBrush(NativeBrush, &clonedBrush).ThrowIfFailed();
-        GC.KeepAlive(this);
-        return new PathGradientBrush((GpPathGradient*)clonedBrush);
+        PathGradientBrush clone = new(_points, _wrapMode)
+        {
+            _centerColor = _centerColor,
+            _surroundColors = (Color[])_surroundColors.Clone(),
+            _centerPoint = _centerPoint,
+            _rectangle = _rectangle,
+            _blend = CloneBlend(_blend),
+            _interpolationColors = CloneColorBlend(_interpolationColors),
+            _transform = (Matrix)_transform.Clone(),
+            _focusScales = _focusScales
+        };
+
+        return clone;
     }
 
     public Color CenterColor
     {
-        get
-        {
-            ARGB argb;
-            PInvoke.GdipGetPathGradientCenterColor(NativePathGradient, (uint*)&argb).ThrowIfFailed();
-            GC.KeepAlive(this);
-            return argb;
-        }
-        set
-        {
-            PInvoke.GdipSetPathGradientCenterColor(NativePathGradient, (ARGB)value).ThrowIfFailed();
-            GC.KeepAlive(this);
-        }
+        get => _centerColor;
+        set => _centerColor = value;
     }
 
     public Color[] SurroundColors
     {
-        get
-        {
-            int count;
-            PInvoke.GdipGetPathGradientSurroundColorCount(NativePathGradient, &count).ThrowIfFailed();
-
-            using ArgbBuffer buffer = new(count);
-            fixed (uint* b = buffer)
-            {
-                PInvoke.GdipGetPathGradientSurroundColorsWithCount(NativePathGradient, b, &count).ThrowIfFailed();
-            }
-
-            GC.KeepAlive(this);
-            return buffer.ToColorArray(count);
-        }
+        get => (Color[])_surroundColors.Clone();
         set
         {
             ArgumentNullException.ThrowIfNull(value);
-            using ArgbBuffer buffer = new(value);
-
-            int count = value.Length;
-            fixed (uint* b = buffer)
-            {
-                PInvoke.GdipSetPathGradientSurroundColorsWithCount(
-                    NativePathGradient,
-                    b,
-                    &count).ThrowIfFailed();
-
-                GC.KeepAlive(this);
-            }
+            _surroundColors = (Color[])value.Clone();
         }
     }
 
     public PointF CenterPoint
     {
-        get
-        {
-            PointF point;
-            PInvoke.GdipGetPathGradientCenterPoint(NativePathGradient, (GdiPlus.PointF*)&point).ThrowIfFailed();
-            GC.KeepAlive(this);
-            return point;
-        }
-        set
-        {
-            PInvoke.GdipSetPathGradientCenterPoint(NativePathGradient, (GdiPlus.PointF*)&value).ThrowIfFailed();
-            GC.KeepAlive(this);
-        }
+        get => _centerPoint;
+        set => _centerPoint = value;
     }
 
-    public RectangleF Rectangle
-    {
-        get
-        {
-            RectangleF rect;
-            PInvoke.GdipGetPathGradientRect(NativePathGradient, (RectF*)&rect).ThrowIfFailed();
-            GC.KeepAlive(this);
-            return rect;
-        }
-    }
+    public RectangleF Rectangle => _rectangle;
 
     public Blend Blend
     {
-        get
-        {
-            // Figure out the size of blend factor array
-            int count;
-            PInvoke.GdipGetPathGradientBlendCount(NativePathGradient, &count).ThrowIfFailed();
-
-            float[] factors = new float[count];
-            float[] positions = new float[count];
-
-            // Retrieve horizontal blend factors
-            fixed (float* f = factors, p = positions)
-            {
-                PInvoke.GdipGetPathGradientBlend(NativePathGradient, f, p, count).ThrowIfFailed();
-            }
-
-            // Return the result in a managed array
-
-            Blend blend = new(factors.Length)
-            {
-                Factors = factors,
-                Positions = positions
-            };
-
-            GC.KeepAlive(this);
-            return blend;
-        }
+        get => CloneBlend(_blend);
         set
         {
             ArgumentNullException.ThrowIfNull(value);
-            ArgumentNullException.ThrowIfNull(value.Factors);
-
-            if (value.Positions is null || value.Positions.Length != value.Factors.Length)
-                throw new ArgumentException(SR.Format(SR.InvalidArgumentValue, "value.Positions", value.Positions), nameof(value));
-
-            int count = value.Factors.Length;
-
-            fixed (float* f = value.Factors, p = value.Positions)
-            {
-                // Set blend factors
-                PInvoke.GdipSetPathGradientBlend(NativePathGradient, f, p, count).ThrowIfFailed();
-                GC.KeepAlive(this);
-            }
+            ValidateBlend(value);
+            _blend = CloneBlend(value);
         }
     }
 
@@ -246,164 +157,159 @@ public sealed unsafe class PathGradientBrush : Brush
 
     public void SetSigmaBellShape(float focus, float scale)
     {
-        PInvoke.GdipSetPathGradientSigmaBlend(NativePathGradient, focus, scale).ThrowIfFailed();
-        GC.KeepAlive(this);
+        _blend = new Blend(3)
+        {
+            Factors = [0.0f, scale, 0.0f],
+            Positions = [0.0f, focus, 1.0f]
+        };
     }
 
     public void SetBlendTriangularShape(float focus) => SetBlendTriangularShape(focus, (float)1.0);
 
     public void SetBlendTriangularShape(float focus, float scale)
     {
-        PInvoke.GdipSetPathGradientLinearBlend(NativePathGradient, focus, scale).ThrowIfFailed();
-        GC.KeepAlive(this);
+        _blend = new Blend(3)
+        {
+            Factors = [0.0f, scale, 0.0f],
+            Positions = [0.0f, focus, 1.0f]
+        };
     }
 
     public ColorBlend InterpolationColors
     {
-        get
-        {
-            // Figure out the size of blend factor array
-            int count;
-            PInvoke.GdipGetPathGradientPresetBlendCount(NativePathGradient, &count).ThrowIfFailed();
-
-            if (count == 0)
-            {
-                return new ColorBlend();
-            }
-
-            using ArgbBuffer colors = new(count);
-            float[] positions = new float[count];
-
-            ColorBlend blend = new(count);
-
-            fixed (uint* c = colors)
-            fixed (float* p = positions)
-            {
-                // Retrieve horizontal blend factors
-                PInvoke.GdipGetPathGradientPresetBlend(NativePathGradient, c, p, count).ThrowIfFailed();
-            }
-
-            blend.Positions = positions;
-            blend.Colors = colors.ToColorArray(count);
-            GC.KeepAlive(this);
-            return blend;
-        }
+        get => CloneColorBlend(_interpolationColors);
         set
         {
             ArgumentNullException.ThrowIfNull(value);
-            int count = value.Colors.Length;
-
-            if (value.Positions is null || value.Colors.Length != value.Positions.Length)
-                throw new ArgumentException(SR.Format(SR.InvalidArgumentValue, "value.Positions", value.Positions), nameof(value));
-
-            float[] positions = value.Positions;
-            using ArgbBuffer argbColors = new(value.Colors);
-
-            fixed (float* p = positions)
-            fixed (uint* a = argbColors)
-            {
-                // Set blend factors
-                PInvoke.GdipSetPathGradientPresetBlend(NativePathGradient, a, p, count).ThrowIfFailed();
-                GC.KeepAlive(this);
-            }
+            ValidateColorBlend(value);
+            _interpolationColors = CloneColorBlend(value);
         }
     }
 
     public Matrix Transform
     {
-        get
-        {
-            Matrix matrix = new();
-            PInvoke.GdipGetPathGradientTransform(NativePathGradient, matrix.NativeMatrix).ThrowIfFailed();
-            GC.KeepAlive(this);
-            return matrix;
-        }
+        get => (Matrix)_transform.Clone();
         set
         {
             ArgumentNullException.ThrowIfNull(value);
-            PInvoke.GdipSetPathGradientTransform(NativePathGradient, value.NativeMatrix).ThrowIfFailed();
-            GC.KeepAlive(value);
-            GC.KeepAlive(this);
+            _transform = (Matrix)value.Clone();
         }
     }
 
-    public void ResetTransform()
-    {
-        PInvoke.GdipResetPathGradientTransform(NativePathGradient).ThrowIfFailed();
-        GC.KeepAlive(this);
-    }
+    public void ResetTransform() => _transform.Reset();
 
     public void MultiplyTransform(Matrix matrix) => MultiplyTransform(matrix, MatrixOrder.Prepend);
 
     public void MultiplyTransform(Matrix matrix, MatrixOrder order)
     {
         ArgumentNullException.ThrowIfNull(matrix);
-        PInvoke.GdipMultiplyPathGradientTransform(
-            NativePathGradient,
-            matrix.NativeMatrix,
-            (GdiPlus.MatrixOrder)order).ThrowIfFailed();
-
-        GC.KeepAlive(matrix);
-        GC.KeepAlive(this);
+        _transform.Multiply(matrix, order);
     }
 
     public void TranslateTransform(float dx, float dy) => TranslateTransform(dx, dy, MatrixOrder.Prepend);
 
-    public void TranslateTransform(float dx, float dy, MatrixOrder order)
-    {
-        PInvoke.GdipTranslatePathGradientTransform(NativePathGradient, dx, dy, (GdiPlus.MatrixOrder)order).ThrowIfFailed();
-        GC.KeepAlive(this);
-    }
+    public void TranslateTransform(float dx, float dy, MatrixOrder order) => _transform.Translate(dx, dy, order);
 
     public void ScaleTransform(float sx, float sy) => ScaleTransform(sx, sy, MatrixOrder.Prepend);
 
-    public void ScaleTransform(float sx, float sy, MatrixOrder order)
-    {
-        PInvoke.GdipScalePathGradientTransform(NativePathGradient, sx, sy, (GdiPlus.MatrixOrder)order).ThrowIfFailed();
-        GC.KeepAlive(this);
-    }
+    public void ScaleTransform(float sx, float sy, MatrixOrder order) => _transform.Scale(sx, sy, order);
 
     public void RotateTransform(float angle) => RotateTransform(angle, MatrixOrder.Prepend);
 
-    public void RotateTransform(float angle, MatrixOrder order)
-    {
-        PInvoke.GdipRotatePathGradientTransform(NativePathGradient, angle, (GdiPlus.MatrixOrder)order).ThrowIfFailed();
-        GC.KeepAlive(this);
-    }
+    public void RotateTransform(float angle, MatrixOrder order) => _transform.Rotate(angle, order);
 
     public PointF FocusScales
     {
-        get
-        {
-            float scaleX;
-            float scaleY;
-            PInvoke.GdipGetPathGradientFocusScales(NativePathGradient, &scaleX, &scaleY).ThrowIfFailed();
-            GC.KeepAlive(this);
-            return new PointF(scaleX, scaleY);
-        }
-        set
-        {
-            PInvoke.GdipSetPathGradientFocusScales(NativePathGradient, value.X, value.Y).ThrowIfFailed();
-            GC.KeepAlive(this);
-        }
+        get => _focusScales;
+        set => _focusScales = value;
     }
 
     public WrapMode WrapMode
     {
-        get
-        {
-            WrapMode mode;
-            PInvoke.GdipGetPathGradientWrapMode(NativePathGradient, (GdiPlus.WrapMode*)&mode).ThrowIfFailed();
-            GC.KeepAlive(this);
-            return mode;
-        }
+        get => _wrapMode;
         set
         {
-            if (value is < WrapMode.Tile or > WrapMode.Clamp)
-                throw new InvalidEnumArgumentException(nameof(value), (int)value, typeof(WrapMode));
-
-            PInvoke.GdipSetPathGradientWrapMode(NativePathGradient, (GdiPlus.WrapMode)value).ThrowIfFailed();
-            GC.KeepAlive(this);
+            ValidateWrapMode(value);
+            _wrapMode = value;
         }
+    }
+
+    private static ReadOnlySpan<T> AsSpan<T>(T[]? values)
+    {
+        ArgumentNullException.ThrowIfNull(values);
+        return values;
+    }
+
+    private static PointF[] ToPointFArray(ReadOnlySpan<Point> points)
+    {
+        PointF[] result = new PointF[points.Length];
+        for (int i = 0; i < points.Length; i++)
+        {
+            result[i] = points[i];
+        }
+
+        return result;
+    }
+
+    private static Color[] CreateColorArray(Color color, int length)
+    {
+        Color[] result = new Color[length];
+        Array.Fill(result, color);
+        return result;
+    }
+
+    private static RectangleF BoundsFromPoints(ReadOnlySpan<PointF> points)
+    {
+        float minX = points[0].X;
+        float minY = points[0].Y;
+        float maxX = points[0].X;
+        float maxY = points[0].Y;
+
+        for (int i = 1; i < points.Length; i++)
+        {
+            minX = MathF.Min(minX, points[i].X);
+            minY = MathF.Min(minY, points[i].Y);
+            maxX = MathF.Max(maxX, points[i].X);
+            maxY = MathF.Max(maxY, points[i].Y);
+        }
+
+        return RectangleF.FromLTRB(minX, minY, maxX, maxY);
+    }
+
+    private static void ValidateWrapMode(WrapMode value)
+    {
+        if (value is < WrapMode.Tile or > WrapMode.Clamp)
+            throw new InvalidEnumArgumentException(nameof(value), (int)value, typeof(WrapMode));
+    }
+
+    private static void ValidateBlend(Blend value)
+    {
+        ArgumentNullException.ThrowIfNull(value.Factors);
+        if (value.Positions is null || value.Positions.Length != value.Factors.Length)
+            throw new ArgumentException(SR.Format(SR.InvalidArgumentValue, "value.Positions", value.Positions), nameof(value));
+    }
+
+    private static void ValidateColorBlend(ColorBlend value)
+    {
+        if (value.Positions is null || value.Colors.Length != value.Positions.Length)
+            throw new ArgumentException(SR.Format(SR.InvalidArgumentValue, "value.Positions", value.Positions), nameof(value));
+    }
+
+    private static Blend CloneBlend(Blend blend)
+    {
+        return new Blend(blend.Factors.Length)
+        {
+            Factors = (float[])blend.Factors.Clone(),
+            Positions = (float[])blend.Positions.Clone()
+        };
+    }
+
+    private static ColorBlend CloneColorBlend(ColorBlend blend)
+    {
+        return new ColorBlend(blend.Colors.Length)
+        {
+            Colors = (Color[])blend.Colors.Clone(),
+            Positions = (float[])blend.Positions.Clone()
+        };
     }
 }

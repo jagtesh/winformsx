@@ -8,11 +8,11 @@ namespace System.Drawing;
 
 public sealed unsafe class TextureBrush : Brush
 {
-    // When creating a texture brush from a metafile image, the dstRect
-    // is used to specify the size that the metafile image should be
-    // rendered at in the device units of the destination graphics.
-    // It is NOT used to crop the metafile image, so only the width
-    // and height values matter for metafiles.
+    private readonly Image _image;
+    private RectangleF _dstRect;
+    private ImageAttributes? _imageAttributes;
+    private Matrix _transform = new();
+    private Drawing2D.WrapMode _wrapMode;
 
     public TextureBrush(Image bitmap) : this(bitmap, Drawing2D.WrapMode.Tile)
     {
@@ -21,35 +21,16 @@ public sealed unsafe class TextureBrush : Brush
     public TextureBrush(Image image, Drawing2D.WrapMode wrapMode)
     {
         ArgumentNullException.ThrowIfNull(image);
-
-        if (wrapMode is < Drawing2D.WrapMode.Tile or > Drawing2D.WrapMode.Clamp)
-        {
-            throw new InvalidEnumArgumentException(nameof(wrapMode), (int)wrapMode, typeof(Drawing2D.WrapMode));
-        }
-
-        GpTexture* brush;
-        PInvoke.GdipCreateTexture(image.Pointer(), (WrapMode)wrapMode, &brush).ThrowIfFailed();
-        GC.KeepAlive(image);
-        SetNativeBrushInternal((GpBrush*)brush);
+        ValidateWrapMode(wrapMode);
+        _image = image;
+        _wrapMode = wrapMode;
+        _dstRect = new RectangleF(0, 0, image.Width, image.Height);
     }
 
     public TextureBrush(Image image, Drawing2D.WrapMode wrapMode, RectangleF dstRect)
+        : this(image, wrapMode)
     {
-        ArgumentNullException.ThrowIfNull(image);
-
-        if (wrapMode is < Drawing2D.WrapMode.Tile or > Drawing2D.WrapMode.Clamp)
-        {
-            throw new InvalidEnumArgumentException(nameof(wrapMode), (int)wrapMode, typeof(Drawing2D.WrapMode));
-        }
-
-        GpTexture* brush;
-        PInvoke.GdipCreateTexture2(
-            image.Pointer(),
-            (WrapMode)wrapMode,
-            dstRect.X, dstRect.Y, dstRect.Width, dstRect.Height, &brush).ThrowIfFailed();
-
-        GC.KeepAlive(image);
-        SetNativeBrushInternal((GpBrush*)brush);
+        _dstRect = dstRect;
     }
 
     public TextureBrush(Image image, Drawing2D.WrapMode wrapMode, Rectangle dstRect)
@@ -60,22 +41,9 @@ public sealed unsafe class TextureBrush : Brush
     public TextureBrush(Image image, RectangleF dstRect) : this(image, dstRect, null) { }
 
     public TextureBrush(Image image, RectangleF dstRect, ImageAttributes? imageAttr)
+        : this(image, Drawing2D.WrapMode.Tile, dstRect)
     {
-        ArgumentNullException.ThrowIfNull(image);
-
-        GpTexture* brush;
-        PInvoke.GdipCreateTextureIA(
-            image.Pointer(),
-            imageAttr is null ? null : imageAttr._nativeImageAttributes,
-            dstRect.X,
-            dstRect.Y,
-            dstRect.Width,
-            dstRect.Height,
-            &brush).ThrowIfFailed();
-
-        SetNativeBrushInternal((GpBrush*)brush);
-        GC.KeepAlive(image);
-        GC.KeepAlive(imageAttr);
+        _imageAttributes = imageAttr;
     }
 
     public TextureBrush(Image image, Rectangle dstRect) : this(image, dstRect, null) { }
@@ -88,126 +56,71 @@ public sealed unsafe class TextureBrush : Brush
     internal TextureBrush(GpTexture* nativeBrush)
     {
         Debug.Assert(nativeBrush is not null, "Initializing native brush with null.");
-        SetNativeBrushInternal((GpBrush*)nativeBrush);
+        _image = new Bitmap(1, 1);
+        _dstRect = new RectangleF(0, 0, 1, 1);
+        _wrapMode = Drawing2D.WrapMode.Tile;
     }
 
     public override object Clone()
     {
-        GpBrush* cloneBrush;
-        PInvoke.GdipCloneBrush(NativeBrush, &cloneBrush).ThrowIfFailed();
-        GC.KeepAlive(this);
+        TextureBrush clone = new(_image, _wrapMode, _dstRect)
+        {
+            _imageAttributes = _imageAttributes,
+            _transform = (Matrix)_transform.Clone()
+        };
 
-        return new TextureBrush((GpTexture*)cloneBrush);
+        return clone;
     }
 
     public Matrix Transform
     {
-        get
-        {
-            Matrix matrix = new();
-            PInvoke.GdipGetTextureTransform((GpTexture*)NativeBrush, matrix.NativeMatrix).ThrowIfFailed();
-            GC.KeepAlive(this);
-            return matrix;
-        }
+        get => (Matrix)_transform.Clone();
         set
         {
             ArgumentNullException.ThrowIfNull(value);
-            PInvoke.GdipSetTextureTransform((GpTexture*)NativeBrush, value.NativeMatrix).ThrowIfFailed();
-            GC.KeepAlive(this);
+            _transform = (Matrix)value.Clone();
         }
     }
 
     public Drawing2D.WrapMode WrapMode
     {
-        get
-        {
-            WrapMode mode;
-            PInvoke.GdipGetTextureWrapMode((GpTexture*)NativeBrush, &mode).ThrowIfFailed();
-            GC.KeepAlive(this);
-            return (Drawing2D.WrapMode)mode;
-        }
+        get => _wrapMode;
         set
         {
-            if (value is < Drawing2D.WrapMode.Tile or > Drawing2D.WrapMode.Clamp)
-            {
-                throw new InvalidEnumArgumentException(nameof(value), (int)value, typeof(Drawing2D.WrapMode));
-            }
-
-            PInvoke.GdipSetTextureWrapMode((GpTexture*)NativeBrush, (WrapMode)value).ThrowIfFailed();
-            GC.KeepAlive(this);
+            ValidateWrapMode(value);
+            _wrapMode = value;
         }
     }
 
-    public Image Image
-    {
-        get
-        {
-            GpImage* image;
-            PInvoke.GdipGetTextureImage((GpTexture*)NativeBrush, &image).ThrowIfFailed();
-            GC.KeepAlive(this);
-            return Image.CreateImageObject(image);
-        }
-    }
+    public Image Image => _image;
 
-    public void ResetTransform()
-    {
-        PInvoke.GdipResetTextureTransform((GpTexture*)NativeBrush).ThrowIfFailed();
-        GC.KeepAlive(this);
-    }
+    public void ResetTransform() => _transform.Reset();
 
     public void MultiplyTransform(Matrix matrix) => MultiplyTransform(matrix, MatrixOrder.Prepend);
 
     public void MultiplyTransform(Matrix matrix, MatrixOrder order)
     {
         ArgumentNullException.ThrowIfNull(matrix);
-
-        if (matrix.NativeMatrix is null)
-        {
-            return;
-        }
-
-        PInvoke.GdipMultiplyTextureTransform(
-            (GpTexture*)NativeBrush,
-            matrix.NativeMatrix,
-            (GdiPlus.MatrixOrder)order).ThrowIfFailed();
-
-        GC.KeepAlive(this);
-        GC.KeepAlive(matrix);
+        _transform.Multiply(matrix, order);
     }
 
     public void TranslateTransform(float dx, float dy) => TranslateTransform(dx, dy, MatrixOrder.Prepend);
 
-    public void TranslateTransform(float dx, float dy, MatrixOrder order)
-    {
-        PInvoke.GdipTranslateTextureTransform(
-            (GpTexture*)NativeBrush,
-            dx, dy,
-            (GdiPlus.MatrixOrder)order).ThrowIfFailed();
-
-        GC.KeepAlive(this);
-    }
+    public void TranslateTransform(float dx, float dy, MatrixOrder order) => _transform.Translate(dx, dy, order);
 
     public void ScaleTransform(float sx, float sy) => ScaleTransform(sx, sy, MatrixOrder.Prepend);
 
-    public void ScaleTransform(float sx, float sy, MatrixOrder order)
-    {
-        PInvoke.GdipScaleTextureTransform(
-            (GpTexture*)NativeBrush,
-            sx, sy,
-            (GdiPlus.MatrixOrder)order).ThrowIfFailed();
-
-        GC.KeepAlive(this);
-    }
+    public void ScaleTransform(float sx, float sy, MatrixOrder order) => _transform.Scale(sx, sy, order);
 
     public void RotateTransform(float angle) => RotateTransform(angle, MatrixOrder.Prepend);
 
-    public void RotateTransform(float angle, MatrixOrder order)
-    {
-        PInvoke.GdipRotateTextureTransform(
-            (GpTexture*)NativeBrush,
-            angle,
-            (GdiPlus.MatrixOrder)order).ThrowIfFailed();
+    public void RotateTransform(float angle, MatrixOrder order) => _transform.Rotate(angle, order);
 
-        GC.KeepAlive(this);
+    private static void ValidateWrapMode(Drawing2D.WrapMode value)
+    {
+        if (value is < Drawing2D.WrapMode.Tile or > Drawing2D.WrapMode.Clamp)
+        {
+            throw new InvalidEnumArgumentException(nameof(value), (int)value, typeof(Drawing2D.WrapMode));
+        }
     }
 }
