@@ -65,8 +65,7 @@ internal static partial class WebBrowserHelper
         {
             if (s_logPixelsX == -1)
             {
-                using var dc = GetDcScope.ScreenDC;
-                s_logPixelsX = PInvoke.GetDeviceCaps(dc, GET_DEVICE_CAPS_INDEX.LOGPIXELSX);
+                s_logPixelsX = ScaleHelper.InitialSystemDpi;
             }
 
             return s_logPixelsX;
@@ -80,8 +79,7 @@ internal static partial class WebBrowserHelper
         {
             if (s_logPixelsY == -1)
             {
-                using var dc = GetDcScope.ScreenDC;
-                s_logPixelsY = PInvoke.GetDeviceCaps(dc, GET_DEVICE_CAPS_INDEX.LOGPIXELSY);
+                s_logPixelsY = ScaleHelper.InitialSystemDpi;
             }
 
             return s_logPixelsY;

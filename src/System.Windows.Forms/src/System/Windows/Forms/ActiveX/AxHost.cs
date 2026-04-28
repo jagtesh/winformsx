@@ -1074,14 +1074,8 @@ public abstract unsafe partial class AxHost : Control, ISupportInitialize, ICust
     {
         if (s_logPixelsX == -1 || force)
         {
-            using var dc = GetDcScope.ScreenDC;
-            if (dc.IsNull)
-            {
-                return HRESULT.E_FAIL;
-            }
-
-            s_logPixelsX = PInvoke.GetDeviceCaps(dc, GET_DEVICE_CAPS_INDEX.LOGPIXELSX);
-            s_logPixelsY = PInvoke.GetDeviceCaps(dc, GET_DEVICE_CAPS_INDEX.LOGPIXELSY);
+            s_logPixelsX = ScaleHelper.InitialSystemDpi;
+            s_logPixelsY = ScaleHelper.InitialSystemDpi;
         }
 
         return HRESULT.S_OK;

@@ -281,10 +281,7 @@ public partial class Control
             {
                 if (s_logPixels.IsEmpty)
                 {
-                    s_logPixels = default;
-                    using var dc = GetDcScope.ScreenDC;
-                    s_logPixels.X = PInvoke.GetDeviceCaps(dc, GET_DEVICE_CAPS_INDEX.LOGPIXELSX);
-                    s_logPixels.Y = PInvoke.GetDeviceCaps(dc, GET_DEVICE_CAPS_INDEX.LOGPIXELSY);
+                    s_logPixels = new Point(ScaleHelper.InitialSystemDpi, ScaleHelper.InitialSystemDpi);
                 }
 
                 return s_logPixels;

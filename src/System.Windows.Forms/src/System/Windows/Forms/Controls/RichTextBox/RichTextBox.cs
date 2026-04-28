@@ -2778,9 +2778,8 @@ public partial class RichTextBox : TextBoxBase
 
     private static void SetupLogPixels()
     {
-        using var dc = GetDcScope.ScreenDC;
-        s_logPixelsX = PInvoke.GetDeviceCaps(dc, GET_DEVICE_CAPS_INDEX.LOGPIXELSX);
-        s_logPixelsY = PInvoke.GetDeviceCaps(dc, GET_DEVICE_CAPS_INDEX.LOGPIXELSY);
+        s_logPixelsX = ScaleHelper.InitialSystemDpi;
+        s_logPixelsY = ScaleHelper.InitialSystemDpi;
     }
 
     private static int Pixel2Twip(int v, bool xDirection)
