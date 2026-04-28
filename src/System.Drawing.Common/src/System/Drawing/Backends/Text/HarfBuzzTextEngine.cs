@@ -76,10 +76,10 @@ internal sealed class HarfBuzzTextEngine : ITextEngine
 
     private static HarfBuzzTextShaper CreateShaper(TextShapeKey key)
     {
-        string? fontPath = FontFileResolver.FindFontFile(key.FontFamily, key.Bold, key.Italic);
-        return fontPath is null
+        ResolvedFontFile? font = FontFileResolver.ResolveFontFile(key.FontFamily, key.Bold, key.Italic);
+        return font is null
             ? throw new InvalidOperationException($"No font file could be resolved for '{key.FontFamily}'.")
-            : new HarfBuzzTextShaper(fontPath, key.FontSize);
+            : new HarfBuzzTextShaper(font.Path, font.FamilyName, key.FontSize, key.Bold, key.Italic);
     }
 
     private void DrawShapedString(
@@ -98,6 +98,27 @@ internal sealed class HarfBuzzTextEngine : ITextEngine
 
         foreach (string line in lines)
         {
+            if (UseNativeImpellerText() && backend is ImpellerRenderingBackend nativeTextBackend)
+            {
+                string nativeLine = SanitizeForNativeText(line);
+                float width = MathF.Max(1f, shaper.Measure(line).Width + 2f);
+                if (nativeTextBackend.DrawNativeText(
+                    nativeLine,
+                    x,
+                    currentY,
+                    width,
+                    color,
+                    shaper.FamilyName,
+                    shaper.FontSize,
+                    shaper.Bold,
+                    shaper.Italic,
+                    lineHeight))
+                {
+                    currentY += lineHeight;
+                    continue;
+                }
+            }
+
             float cursorX = x;
             foreach (ShapedGlyph glyph in shaper.Shape(line))
             {
@@ -129,6 +150,35 @@ internal sealed class HarfBuzzTextEngine : ITextEngine
             impellerBackend.FillRectPath(impellerTextRun, color);
         }
     }
+
+    private static string SanitizeForNativeText(string text)
+    {
+        bool changed = false;
+        char[] chars = text.ToCharArray();
+        for (int i = 0; i < chars.Length; i++)
+        {
+            if (chars[i] is < ' ' or > '~')
+            {
+                chars[i] = '?';
+                changed = true;
+            }
+        }
+
+        if (changed)
+        {
+            WinFormsXCompatibilityWarning.Once(
+                "ImpellerText.NonAsciiSanitized",
+                "Impeller native text is currently limited to ASCII-safe UI text; unsupported characters were substituted before rendering.");
+        }
+
+        return changed ? new string(chars) : text;
+    }
+
+    private static bool UseNativeImpellerText() =>
+        string.Equals(
+            Environment.GetEnvironmentVariable("WINFORMSX_USE_NATIVE_IMPELLER_TEXT"),
+            "1",
+            StringComparison.Ordinal);
 
     private readonly record struct TextShapeKey(string FontFamily, float FontSize, bool Bold, bool Italic);
 }

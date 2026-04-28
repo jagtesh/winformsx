@@ -1,162 +1,46 @@
 #pragma warning disable IDE1006
 using System.Drawing.Impeller;
 #pragma warning disable IDE1006
+using System.Linq;
 using System.Runtime.InteropServices;
 
 namespace System.Drawing;
 
-/// <summary>
-/// Manages the Impeller typography context and font registration.
-/// In WASM mode, returns nint.Zero — text measurement uses fallback approximations.
-/// </summary>
 internal static class TypographyProvider
 {
-    private static nint _typographyContext;
-    private static bool _initialized;
-    private static readonly object _lock = new();
+    private const string DefaultFamilyAlias = "WinFormsDefault";
+
+    private static readonly object s_lock = new();
     private static readonly List<byte[]> s_fontBlobs = [];
+    private static readonly List<GCHandle> s_pinnedFonts = [];
     private static readonly HashSet<string> s_registeredAliases = new(StringComparer.OrdinalIgnoreCase);
     private static readonly Dictionary<string, string> s_requestedFamilyToAlias = new(StringComparer.OrdinalIgnoreCase);
-    private const string DefaultFamilyAlias = "WinFormsDefault";
+
+    private static nint s_typographyContext;
+    private static bool s_initialized;
 
     public static nint Context
     {
         get
         {
-            if (!_initialized)
-            {
-                lock (_lock)
-                {
-                    if (!_initialized)
-                        Initialize();
-                }
-            }
-
-            return _typographyContext;
+            EnsureInitialized();
+            return s_typographyContext;
         }
     }
 
-    private static void Initialize()
-    {
-#if !BROWSER
-        _typographyContext = NativeMethods.ImpellerTypographyContextNew();
-        if (_typographyContext == nint.Zero)
-            throw new InvalidOperationException("Failed to create Impeller TypographyContext.");
-
-        string[] fontPaths = GetCandidateFontPaths();
-        foreach (string path in fontPaths)
-        {
-            if (IO.File.Exists(path) && RegisterFont(path, DefaultFamilyAlias))
-            {
-                break;
-            }
-        }
-#endif
-        _initialized = true;
-    }
-
-    private static string[] GetCandidateFontPaths()
-    {
-        if (OperatingSystem.IsWindows())
-        {
-            return
-            [
-                @"C:\Windows\Fonts\segoeui.ttf",
-                @"C:\Windows\Fonts\arial.ttf",
-                @"C:\Windows\Fonts\tahoma.ttf"
-            ];
-        }
-
-        if (OperatingSystem.IsMacOS())
-        {
-            return
-            [
-                "/System/Library/Fonts/Supplemental/Arial.ttf",
-                "/System/Library/Fonts/Supplemental/Helvetica.ttc",
-                "/System/Library/Fonts/Supplemental/Menlo.ttc",
-                "/System/Library/Fonts/Supplemental/Verdana.ttf"
-            ];
-        }
-
-        return
-        [
-            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-            "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
-            "/usr/share/fonts/opentype/noto/NotoSans-Regular.ttf"
-        ];
-    }
-
-    public static bool RegisterFont(string filePath, string? familyAlias = null)
-    {
-#if !BROWSER
-        if (_typographyContext == nint.Zero)
-            _ = Context;
-
-        byte[] fontData = IO.File.ReadAllBytes(filePath);
-        s_fontBlobs.Add(fontData);
-        var pinnedData = GCHandle.Alloc(fontData, GCHandleType.Pinned);
-
-        var mapping = new ImpellerMapping
-        {
-            Data = pinnedData.AddrOfPinnedObject(),
-            Length = (ulong)fontData.Length,
-            OnRelease = nint.Zero,
-        };
-
-        bool result;
-        if (familyAlias is not null)
-        {
-            result = NativeMethods.ImpellerTypographyContextRegisterFontWithAlias(
-                _typographyContext, ref mapping, nint.Zero, familyAlias);
-            if (result)
-            {
-                s_registeredAliases.Add(familyAlias);
-            }
-        }
-        else
-        {
-            result = NativeMethods.ImpellerTypographyContextRegisterFont(
-                _typographyContext, ref mapping, nint.Zero, nint.Zero);
-        }
-
-        return result;
-#else
-        return true; // No-op in WASM
-#endif
-    }
-
-    public static string? ResolveFontFamily(string? requested)
-    {
-#if BROWSER
-        return requested;
-#else
-        if (_typographyContext == nint.Zero)
-        {
-            _ = Context;
-        }
-
-        if (!string.IsNullOrWhiteSpace(requested) && s_registeredAliases.Contains(requested))
-        {
-            return requested;
-        }
-
-        return s_registeredAliases.Contains(DefaultFamilyAlias) ? DefaultFamilyAlias : null;
-#endif
-    }
+    public static string? ResolveFontFamily(string? requested) =>
+        ResolveFontFamily(requested, bold: false, italic: false);
 
     public static string? ResolveFontFamily(string? requested, bool bold, bool italic)
     {
 #if BROWSER
         return requested;
 #else
-        if (_typographyContext == nint.Zero)
-        {
-            _ = Context;
-        }
+        EnsureInitialized();
 
         if (string.IsNullOrWhiteSpace(requested))
         {
-            return ResolveFontFamily(requested);
+            return s_registeredAliases.Contains(DefaultFamilyAlias) ? DefaultFamilyAlias : null;
         }
 
         string requestKey = $"{requested}|{(bold ? 'b' : '-')}{(italic ? 'i' : '-')}";
@@ -165,16 +49,16 @@ internal static class TypographyProvider
             return cachedAlias;
         }
 
-        string? fontPath = FindFontFile(requested, bold, italic);
-        if (fontPath is null)
+        ResolvedFontFile? font = FontFileResolver.ResolveFontFile(requested, bold, italic);
+        if (font is null)
         {
-            return ResolveFontFamily(requested);
+            return s_registeredAliases.Contains(DefaultFamilyAlias) ? DefaultFamilyAlias : null;
         }
 
-        string alias = $"wf_{requested.Replace(' ', '_')}_{(bold ? "b" : "n")}{(italic ? "i" : "n")}";
-        if (!s_registeredAliases.Contains(alias) && !RegisterFont(fontPath, alias))
+        string alias = CreateAlias(font.FamilyName, bold, italic);
+        if (!s_registeredAliases.Contains(alias) && !RegisterFont(font.Path, alias))
         {
-            return ResolveFontFamily(requested);
+            return s_registeredAliases.Contains(DefaultFamilyAlias) ? DefaultFamilyAlias : null;
         }
 
         s_requestedFamilyToAlias[requestKey] = alias;
@@ -182,102 +66,95 @@ internal static class TypographyProvider
 #endif
     }
 
-    // Reused from ../src/WinFormsX/TextRenderer.cs and adapted for backend registration.
-    private static string? FindFontFile(string familyName, bool bold, bool italic)
+    public static bool RegisterFont(string filePath, string? familyAlias = null)
     {
-        string fileName = GetFontFileName(familyName, bold, italic);
+#if !BROWSER
+        EnsureInitialized();
 
-        string[] searchPaths;
-        if (OperatingSystem.IsWindows())
+        byte[] fontData = IO.File.ReadAllBytes(filePath);
+        s_fontBlobs.Add(fontData);
+        GCHandle pinnedData = GCHandle.Alloc(fontData, GCHandleType.Pinned);
+        s_pinnedFonts.Add(pinnedData);
+
+        ImpellerMapping mapping = new()
         {
-            searchPaths =
-            [
-                IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Fonts)),
-                @"C:\Windows\Fonts",
-            ];
-        }
-        else if (OperatingSystem.IsMacOS())
+            Data = pinnedData.AddrOfPinnedObject(),
+            Length = (ulong)fontData.Length,
+            OnRelease = nint.Zero,
+        };
+
+        bool result = familyAlias is not null
+            ? NativeMethods.ImpellerTypographyContextRegisterFontWithAlias(s_typographyContext, ref mapping, nint.Zero, familyAlias)
+            : NativeMethods.ImpellerTypographyContextRegisterFont(s_typographyContext, ref mapping, nint.Zero, nint.Zero);
+
+        if (result && familyAlias is not null)
         {
-            searchPaths =
-            [
-                "/System/Library/Fonts",
-                "/System/Library/Fonts/Supplemental",
-                "/Library/Fonts",
-                IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Library/Fonts"),
-            ];
-        }
-        else
-        {
-            searchPaths =
-            [
-                "/usr/share/fonts",
-                "/usr/local/share/fonts",
-                IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".fonts"),
-            ];
+            s_registeredAliases.Add(familyAlias);
         }
 
-        foreach (string dir in searchPaths)
-        {
-            if (!IO.Directory.Exists(dir))
-            {
-                continue;
-            }
-
-            string path = IO.Path.Combine(dir, fileName);
-            if (IO.File.Exists(path))
-            {
-                return path;
-            }
-
-            try
-            {
-                string[] files = IO.Directory.GetFiles(dir, fileName, IO.SearchOption.AllDirectories);
-                if (files.Length > 0)
-                {
-                    return files[0];
-                }
-            }
-            catch
-            {
-            }
-        }
-
-        return null;
+        return result;
+#else
+        return true;
+#endif
     }
 
-    private static string GetFontFileName(string familyName, bool bold, bool italic)
+    private static void EnsureInitialized()
     {
-        string normalized = familyName.ToLowerInvariant().Replace(" ", "");
-
-        string suffix = (bold, italic) switch
+        if (s_initialized)
         {
-            (true, true) => "bi",
-            (true, false) => "b",
-            (false, true) => "i",
-            _ => "",
+            return;
+        }
+
+        lock (s_lock)
+        {
+            if (s_initialized)
+            {
+                return;
+            }
+
+#if !BROWSER
+            s_typographyContext = NativeMethods.ImpellerTypographyContextNew();
+            if (s_typographyContext == nint.Zero)
+            {
+                throw new InvalidOperationException("Failed to create Impeller TypographyContext.");
+            }
+
+            ResolvedFontFile? defaultFont = FontFileResolver.ResolveFontFile("Segoe UI", bold: false, italic: false);
+            if (defaultFont is not null)
+            {
+                _ = RegisterFontCore(defaultFont.Path, DefaultFamilyAlias);
+            }
+#endif
+            s_initialized = true;
+        }
+    }
+
+    private static bool RegisterFontCore(string filePath, string familyAlias)
+    {
+        byte[] fontData = IO.File.ReadAllBytes(filePath);
+        s_fontBlobs.Add(fontData);
+        GCHandle pinnedData = GCHandle.Alloc(fontData, GCHandleType.Pinned);
+        s_pinnedFonts.Add(pinnedData);
+
+        ImpellerMapping mapping = new()
+        {
+            Data = pinnedData.AddrOfPinnedObject(),
+            Length = (ulong)fontData.Length,
+            OnRelease = nint.Zero,
         };
 
-        return normalized switch
+        bool result = NativeMethods.ImpellerTypographyContextRegisterFontWithAlias(s_typographyContext, ref mapping, nint.Zero, familyAlias);
+        if (result)
         {
-            "segoeui" => $"segoeui{suffix}.ttf",
-            "arial" => $"arial{suffix}.ttf",
-            "timesnewroman" => $"times{suffix}.ttf",
-            "couriernew" => $"cour{suffix}.ttf",
-            "calibri" => $"calibri{suffix}.ttf",
-            "consolas" => $"consola{suffix}.ttf",
-            "verdana" => $"verdana{suffix}.ttf",
-            "tahoma" => $"tahoma{suffix}.ttf",
-            "trebuchetms" => $"trebuc{suffix}.ttf",
-            "georgia" => $"georgia{suffix}.ttf",
-            "impact" => "impact.ttf",
-            "comicsansms" => $"comic{suffix}.ttf",
-            "sfpro" or "sfsystemfont" => "SFNS.ttf",
-            "helvetica" => "Helvetica.ttf",
-            "helveticaneue" => "HelveticaNeue.ttf",
-            "dejavusans" => $"DejaVuSans{(suffix == "b" ? "-Bold" : suffix == "i" ? "-Oblique" : "")}.ttf",
-            "liberationsans" => $"LiberationSans-{(suffix == "b" ? "Bold" : suffix == "i" ? "Italic" : "Regular")}.ttf",
-            "notosans" => $"NotoSans-{(suffix == "b" ? "Bold" : suffix == "i" ? "Italic" : "Regular")}.ttf",
-            _ => $"{familyName}{suffix}.ttf",
-        };
+            s_registeredAliases.Add(familyAlias);
+        }
+
+        return result;
+    }
+
+    private static string CreateAlias(string familyName, bool bold, bool italic)
+    {
+        string sanitized = new(familyName.Select(static c => char.IsLetterOrDigit(c) ? c : '_').ToArray());
+        return $"wf_{sanitized}_{(bold ? "b" : "n")}{(italic ? "i" : "n")}";
     }
 }

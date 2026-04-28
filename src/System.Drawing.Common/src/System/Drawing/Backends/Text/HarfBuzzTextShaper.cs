@@ -24,8 +24,11 @@ internal sealed class HarfBuzzTextShaper : IDisposable
     private nint _font;
     private bool _disposed;
 
-    public HarfBuzzTextShaper(string fontPath, float fontSize)
+    public HarfBuzzTextShaper(string fontPath, string familyName, float fontSize, bool bold, bool italic)
     {
+        FamilyName = familyName;
+        Bold = bold;
+        Italic = italic;
         _fontSize = MathF.Max(1f, fontSize);
         _blob = HarfBuzzNative.BlobCreateFromFile(fontPath);
         if (_blob == nint.Zero)
@@ -39,6 +42,14 @@ internal sealed class HarfBuzzTextShaper : IDisposable
         HarfBuzzNative.FontSetScale(_font, scale, scale);
         HarfBuzzNative.OpenTypeFontSetFunctions(_font);
     }
+
+    public string FamilyName { get; }
+
+    public float FontSize => _fontSize;
+
+    public bool Bold { get; }
+
+    public bool Italic { get; }
 
     public ShapedGlyph[] Shape(string text)
     {

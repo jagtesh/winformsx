@@ -98,6 +98,41 @@ public enum ImpellerColorSpace : uint
     DisplayP3 = 2,
 }
 
+public enum ImpellerFontWeight : uint
+{
+    Thin = 0,
+    ExtraLight = 1,
+    Light = 2,
+    Regular = 3,
+    Medium = 4,
+    SemiBold = 5,
+    Bold = 6,
+    ExtraBold = 7,
+    Black = 8,
+}
+
+public enum ImpellerFontStyle : uint
+{
+    Normal = 0,
+    Italic = 1,
+}
+
+public enum ImpellerTextAlignment : uint
+{
+    Left = 0,
+    Right = 1,
+    Center = 2,
+    Justify = 3,
+    Start = 4,
+    End = 5,
+}
+
+public enum ImpellerTextDirection : uint
+{
+    RightToLeft = 0,
+    LeftToRight = 1,
+}
+
 /// <summary>
 /// RGBA color with color space, matching Impeller's ImpellerColor struct.
 /// </summary>

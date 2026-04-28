@@ -53,6 +53,10 @@
 
     <Content Include="NativeMethods.json" />
     <Content Include="NativeMethods.txt" />
+    <Content Include="System\Drawing\Fonts\**\*.*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
 
     <EmbeddedResource Include="Resources\System\Drawing\DefaultComponent.bmp" LogicalName="System.Drawing.DefaultComponent.bmp" />
     <EmbeddedResource Include="Resources\System\Drawing\Printing\PrintDocument.bmp" />

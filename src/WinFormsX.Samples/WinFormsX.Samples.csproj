@@ -43,6 +43,13 @@
     <PackageReference Include="Silk.NET.Input" Version="2.23.0" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Content Include="..\..\artifacts\bin\System.Windows.Forms\Debug\net9.0\System\Drawing\Fonts\**\*.*"
+             Link="System\Drawing\Fonts\%(RecursiveDir)%(Filename)%(Extension)"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
   <!-- Copy wwwroot content to WASM AppBundle -->
   <ItemGroup Condition="'$(UseWasm)'=='true'">
     <WasmExtraFilesToDeploy Include="wwwroot\index.html" />

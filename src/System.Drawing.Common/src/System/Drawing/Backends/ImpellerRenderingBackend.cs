@@ -4,6 +4,7 @@
 #if !BROWSER
 
 using System.Drawing.Impeller;
+using System.Text;
 
 namespace System.Drawing;
 
@@ -25,6 +26,7 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend
         private readonly nint _impellerContext;
         private static readonly HarfBuzzTextEngine s_textEngine = new();
         private readonly Dictionary<PaintKey, nint> _framePaintCache = [];
+        private readonly List<nint> _frameParagraphs = [];
         private DisplayListBuilder? _builder;
         private nint _frameSurface;
 
@@ -57,6 +59,7 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend
         // Guard: surface may have been invalidated by a resize event
         if (_frameSurface == nint.Zero)
         {
+            ReleaseFrameParagraphs();
             ReleaseFramePaints();
             _builder.Dispose();
             _builder = null;
@@ -86,6 +89,7 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend
 
             NativeMethods.ImpellerSurfaceRelease(_frameSurface);
             _frameSurface = nint.Zero;
+            ReleaseFrameParagraphs();
             ReleaseFramePaints();
             _builder.Dispose();
             _builder = null;
@@ -251,6 +255,97 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend
             return s_textEngine.MeasureString(text, fontFamily, fontSize, bold, italic);
         }
 
+        internal unsafe bool DrawNativeText(
+            string text,
+            float x,
+            float y,
+            float width,
+            Color color,
+            string fontFamily,
+            float fontSize,
+            bool bold,
+            bool italic,
+            float lineHeight)
+        {
+            if (_builder is null || string.IsNullOrEmpty(text))
+            {
+                return false;
+            }
+
+            string? familyAlias = TypographyProvider.ResolveFontFamily(fontFamily, bold, italic);
+            if (familyAlias is null)
+            {
+                return false;
+            }
+
+            byte[] utf8 = Encoding.UTF8.GetBytes(text);
+            nint paragraphStyle = nint.Zero;
+            nint paragraphBuilder = nint.Zero;
+            nint paragraph = nint.Zero;
+
+            try
+            {
+                paragraphStyle = NativeMethods.ImpellerParagraphStyleNew();
+                if (paragraphStyle == nint.Zero)
+                {
+                    return false;
+                }
+
+                NativeMethods.ImpellerParagraphStyleSetForeground(paragraphStyle, GetFillPaint(color));
+                NativeMethods.ImpellerParagraphStyleSetFontFamily(paragraphStyle, familyAlias);
+                NativeMethods.ImpellerParagraphStyleSetFontSize(paragraphStyle, MathF.Max(1f, fontSize));
+                NativeMethods.ImpellerParagraphStyleSetHeight(paragraphStyle, MathF.Max(0.1f, lineHeight / MathF.Max(1f, fontSize)));
+                NativeMethods.ImpellerParagraphStyleSetFontWeight(paragraphStyle, bold ? ImpellerFontWeight.Bold : ImpellerFontWeight.Regular);
+                NativeMethods.ImpellerParagraphStyleSetFontStyle(paragraphStyle, italic ? ImpellerFontStyle.Italic : ImpellerFontStyle.Normal);
+                NativeMethods.ImpellerParagraphStyleSetTextAlignment(paragraphStyle, ImpellerTextAlignment.Left);
+                NativeMethods.ImpellerParagraphStyleSetTextDirection(paragraphStyle, ImpellerTextDirection.LeftToRight);
+
+                paragraphBuilder = NativeMethods.ImpellerParagraphBuilderNew(TypographyProvider.Context);
+                if (paragraphBuilder == nint.Zero)
+                {
+                    return false;
+                }
+
+                NativeMethods.ImpellerParagraphBuilderPushStyle(paragraphBuilder, paragraphStyle);
+                fixed (byte* textBytes = utf8)
+                {
+                    NativeMethods.ImpellerParagraphBuilderAddText(paragraphBuilder, textBytes, (uint)utf8.Length);
+
+                    NativeMethods.ImpellerParagraphBuilderPopStyle(paragraphBuilder);
+
+                    paragraph = NativeMethods.ImpellerParagraphBuilderBuildParagraphNew(paragraphBuilder, MathF.Max(1f, width));
+                }
+
+                if (paragraph == nint.Zero)
+                {
+                    return false;
+                }
+
+                ImpellerPoint point = new(x, y);
+                NativeMethods.ImpellerDisplayListBuilderDrawParagraph(_builder.Handle, paragraph, ref point);
+                _frameParagraphs.Add(paragraph);
+                paragraph = nint.Zero;
+                return true;
+            }
+            finally
+            {
+                if (paragraph != nint.Zero)
+                {
+                    NativeMethods.ImpellerParagraphRelease(paragraph);
+                }
+
+                if (paragraphBuilder != nint.Zero)
+                {
+                    NativeMethods.ImpellerParagraphBuilderRelease(paragraphBuilder);
+                }
+
+                if (paragraphStyle != nint.Zero)
+                {
+                    NativeMethods.ImpellerParagraphStyleRelease(paragraphStyle);
+                }
+            }
+        }
+
     // ─── Paths ──────────────────────────────────────────────────────────
 
     public void DrawBezier(float x1, float y1, float cx1, float cy1,
@@ -386,6 +481,16 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend
 
         _framePaintCache[key] = handle;
         return handle;
+        }
+
+    private void ReleaseFrameParagraphs()
+    {
+        foreach (nint paragraph in _frameParagraphs)
+        {
+            NativeMethods.ImpellerParagraphRelease(paragraph);
+        }
+
+        _frameParagraphs.Clear();
     }
 
     private void ReleaseFramePaints()
