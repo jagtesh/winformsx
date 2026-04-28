@@ -6,8 +6,6 @@ internal sealed class HarfBuzzTextEngine : ITextEngine
 {
     private static readonly ConcurrentDictionary<TextShapeKey, Lazy<HarfBuzzTextShaper>> s_shapers = new();
 
-    private readonly ManagedGlyphPainter _glyphPainter = new();
-
     public void DrawString(
         IRenderingBackend backend,
         string text,
@@ -94,49 +92,36 @@ internal sealed class HarfBuzzTextEngine : ITextEngine
         string[] lines = normalized.Split('\n');
         float lineHeight = MathF.Max(1f, shaper.GetMetrics().LineHeight);
         float currentY = y;
-        List<RectangleF>? impellerTextRun = backend is ImpellerRenderingBackend ? [] : null;
+        ShapedFontMetrics metrics = shaper.GetMetrics();
+        TrueTypeGlyphOutlineProvider? outlineProvider = null;
+        if (backend is ImpellerRenderingBackend)
+        {
+            outlineProvider = TrueTypeGlyphOutlineProvider.GetOrCreate(shaper.FontPath);
+        }
 
         foreach (string line in lines)
         {
-            if (UseNativeImpellerText() && backend is ImpellerRenderingBackend nativeTextBackend)
-            {
-                string nativeLine = SanitizeForNativeText(line);
-                float width = MathF.Max(1f, shaper.Measure(line).Width + 2f);
-                if (nativeTextBackend.DrawNativeText(
-                    nativeLine,
-                    x,
-                    currentY,
-                    width,
-                    color,
-                    shaper.FamilyName,
-                    shaper.FontSize,
-                    shaper.Bold,
-                    shaper.Italic,
-                    lineHeight))
-                {
-                    currentY += lineHeight;
-                    continue;
-                }
-            }
-
             float cursorX = x;
+            float baselineY = currentY + metrics.Ascender;
             foreach (ShapedGlyph glyph in shaper.Shape(line))
             {
-                if (glyph.Cluster < line.Length)
-                {
-                    char character = line[(int)glyph.Cluster];
-                    float glyphX = cursorX + glyph.XOffset;
-                    float glyphY = currentY + glyph.YOffset;
-                    float advance = MathF.Max(1f, glyph.XAdvance);
+                float glyphX = cursorX + glyph.XOffset;
+                float glyphY = baselineY - glyph.YOffset;
 
-                    if (impellerTextRun is not null)
-                    {
-                        _glyphPainter.AppendGlyphRectangles(impellerTextRun, character, glyphX, glyphY, advance, lineHeight);
-                    }
-                    else
-                    {
-                        _glyphPainter.DrawGlyph(backend, character, glyphX, glyphY, advance, lineHeight, color);
-                    }
+                if (outlineProvider is not null && backend is ImpellerRenderingBackend impellerBackend)
+                {
+                    impellerBackend.FillGlyphOutline(
+                        outlineProvider.GetGlyph(glyph.GlyphId),
+                        glyphX,
+                        glyphY,
+                        shaper.FontSize / outlineProvider.UnitsPerEm,
+                        color);
+                }
+                else if (glyph.Cluster < line.Length)
+                {
+                    WinFormsXCompatibilityWarning.Once(
+                        "Text.VectorGlyphs.NonImpeller",
+                        "Vector font text rendering is currently implemented for the Impeller backend; non-Impeller text draw was ignored.");
                 }
 
                 cursorX += glyph.XAdvance;
@@ -144,41 +129,7 @@ internal sealed class HarfBuzzTextEngine : ITextEngine
 
             currentY += lineHeight;
         }
-
-        if (impellerTextRun is { Count: > 0 } && backend is ImpellerRenderingBackend impellerBackend)
-        {
-            impellerBackend.FillRectPath(impellerTextRun, color);
-        }
     }
-
-    private static string SanitizeForNativeText(string text)
-    {
-        bool changed = false;
-        char[] chars = text.ToCharArray();
-        for (int i = 0; i < chars.Length; i++)
-        {
-            if (chars[i] is < ' ' or > '~')
-            {
-                chars[i] = '?';
-                changed = true;
-            }
-        }
-
-        if (changed)
-        {
-            WinFormsXCompatibilityWarning.Once(
-                "ImpellerText.NonAsciiSanitized",
-                "Impeller native text is currently limited to ASCII-safe UI text; unsupported characters were substituted before rendering.");
-        }
-
-        return changed ? new string(chars) : text;
-    }
-
-    private static bool UseNativeImpellerText() =>
-        string.Equals(
-            Environment.GetEnvironmentVariable("WINFORMSX_USE_NATIVE_IMPELLER_TEXT"),
-            "1",
-            StringComparison.Ordinal);
 
     private readonly record struct TextShapeKey(string FontFamily, float FontSize, bool Bold, bool Italic);
 }

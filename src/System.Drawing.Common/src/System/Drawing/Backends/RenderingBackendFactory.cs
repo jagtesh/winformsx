@@ -30,8 +30,7 @@ internal static class RenderingBackendFactory
 #if BROWSER
         return new Canvas2DRenderingBackend();
 #else
-        // Use a dummy backend for measurement — no platform backend needed
-        // since MeasureString only uses TypographyProvider, not the builder.
+        // Use a dummy backend for measurement; MeasureString only needs the text engine.
         return new ImpellerRenderingBackend(null!, nint.Zero);
 #endif
     }

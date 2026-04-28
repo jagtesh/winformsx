@@ -26,6 +26,7 @@ internal sealed class HarfBuzzTextShaper : IDisposable
 
     public HarfBuzzTextShaper(string fontPath, string familyName, float fontSize, bool bold, bool italic)
     {
+        FontPath = fontPath;
         FamilyName = familyName;
         Bold = bold;
         Italic = italic;
@@ -44,6 +45,8 @@ internal sealed class HarfBuzzTextShaper : IDisposable
     }
 
     public string FamilyName { get; }
+
+    public string FontPath { get; }
 
     public float FontSize => _fontSize;
 

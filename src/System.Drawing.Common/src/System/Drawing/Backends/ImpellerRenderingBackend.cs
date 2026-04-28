@@ -4,7 +4,6 @@
 #if !BROWSER
 
 using System.Drawing.Impeller;
-using System.Text;
 
 namespace System.Drawing;
 
@@ -26,7 +25,6 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend
         private readonly nint _impellerContext;
         private static readonly HarfBuzzTextEngine s_textEngine = new();
         private readonly Dictionary<PaintKey, nint> _framePaintCache = [];
-        private readonly List<nint> _frameParagraphs = [];
         private DisplayListBuilder? _builder;
         private nint _frameSurface;
 
@@ -59,7 +57,6 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend
         // Guard: surface may have been invalidated by a resize event
         if (_frameSurface == nint.Zero)
         {
-            ReleaseFrameParagraphs();
             ReleaseFramePaints();
             _builder.Dispose();
             _builder = null;
@@ -89,7 +86,6 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend
 
             NativeMethods.ImpellerSurfaceRelease(_frameSurface);
             _frameSurface = nint.Zero;
-            ReleaseFrameParagraphs();
             ReleaseFramePaints();
             _builder.Dispose();
             _builder = null;
@@ -255,97 +251,6 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend
             return s_textEngine.MeasureString(text, fontFamily, fontSize, bold, italic);
         }
 
-        internal unsafe bool DrawNativeText(
-            string text,
-            float x,
-            float y,
-            float width,
-            Color color,
-            string fontFamily,
-            float fontSize,
-            bool bold,
-            bool italic,
-            float lineHeight)
-        {
-            if (_builder is null || string.IsNullOrEmpty(text))
-            {
-                return false;
-            }
-
-            string? familyAlias = TypographyProvider.ResolveFontFamily(fontFamily, bold, italic);
-            if (familyAlias is null)
-            {
-                return false;
-            }
-
-            byte[] utf8 = Encoding.UTF8.GetBytes(text);
-            nint paragraphStyle = nint.Zero;
-            nint paragraphBuilder = nint.Zero;
-            nint paragraph = nint.Zero;
-
-            try
-            {
-                paragraphStyle = NativeMethods.ImpellerParagraphStyleNew();
-                if (paragraphStyle == nint.Zero)
-                {
-                    return false;
-                }
-
-                NativeMethods.ImpellerParagraphStyleSetForeground(paragraphStyle, GetFillPaint(color));
-                NativeMethods.ImpellerParagraphStyleSetFontFamily(paragraphStyle, familyAlias);
-                NativeMethods.ImpellerParagraphStyleSetFontSize(paragraphStyle, MathF.Max(1f, fontSize));
-                NativeMethods.ImpellerParagraphStyleSetHeight(paragraphStyle, MathF.Max(0.1f, lineHeight / MathF.Max(1f, fontSize)));
-                NativeMethods.ImpellerParagraphStyleSetFontWeight(paragraphStyle, bold ? ImpellerFontWeight.Bold : ImpellerFontWeight.Regular);
-                NativeMethods.ImpellerParagraphStyleSetFontStyle(paragraphStyle, italic ? ImpellerFontStyle.Italic : ImpellerFontStyle.Normal);
-                NativeMethods.ImpellerParagraphStyleSetTextAlignment(paragraphStyle, ImpellerTextAlignment.Left);
-                NativeMethods.ImpellerParagraphStyleSetTextDirection(paragraphStyle, ImpellerTextDirection.LeftToRight);
-
-                paragraphBuilder = NativeMethods.ImpellerParagraphBuilderNew(TypographyProvider.Context);
-                if (paragraphBuilder == nint.Zero)
-                {
-                    return false;
-                }
-
-                NativeMethods.ImpellerParagraphBuilderPushStyle(paragraphBuilder, paragraphStyle);
-                fixed (byte* textBytes = utf8)
-                {
-                    NativeMethods.ImpellerParagraphBuilderAddText(paragraphBuilder, textBytes, (uint)utf8.Length);
-
-                    NativeMethods.ImpellerParagraphBuilderPopStyle(paragraphBuilder);
-
-                    paragraph = NativeMethods.ImpellerParagraphBuilderBuildParagraphNew(paragraphBuilder, MathF.Max(1f, width));
-                }
-
-                if (paragraph == nint.Zero)
-                {
-                    return false;
-                }
-
-                ImpellerPoint point = new(x, y);
-                NativeMethods.ImpellerDisplayListBuilderDrawParagraph(_builder.Handle, paragraph, ref point);
-                _frameParagraphs.Add(paragraph);
-                paragraph = nint.Zero;
-                return true;
-            }
-            finally
-            {
-                if (paragraph != nint.Zero)
-                {
-                    NativeMethods.ImpellerParagraphRelease(paragraph);
-                }
-
-                if (paragraphBuilder != nint.Zero)
-                {
-                    NativeMethods.ImpellerParagraphBuilderRelease(paragraphBuilder);
-                }
-
-                if (paragraphStyle != nint.Zero)
-                {
-                    NativeMethods.ImpellerParagraphStyleRelease(paragraphStyle);
-                }
-            }
-        }
-
     // ─── Paths ──────────────────────────────────────────────────────────
 
     public void DrawBezier(float x1, float y1, float cx1, float cy1,
@@ -427,6 +332,115 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend
         }
     }
 
+    internal void FillGlyphOutline(TrueTypeGlyphOutline outline, float x, float baselineY, float scale, Color color)
+    {
+        if (_builder is null || outline.IsEmpty || scale <= 0f)
+            return;
+
+        nint pathBuilder = NativeMethods.ImpellerPathBuilderNew();
+        nint path = nint.Zero;
+        try
+        {
+            foreach (TrueTypeGlyphPoint[] contour in outline.Contours)
+            {
+                AppendGlyphContour(pathBuilder, contour, x, baselineY, scale);
+            }
+
+            path = NativeMethods.ImpellerPathBuilderCopyPathNew(pathBuilder, ImpellerFillType.NonZero);
+            if (path != nint.Zero)
+            {
+                _builder.DrawPath(path, GetFillPaint(color));
+            }
+        }
+        finally
+        {
+            if (path != nint.Zero)
+            {
+                NativeMethods.ImpellerPathRelease(path);
+            }
+
+            NativeMethods.ImpellerPathBuilderRelease(pathBuilder);
+        }
+    }
+
+    private static void AppendGlyphContour(nint pathBuilder, TrueTypeGlyphPoint[] contour, float x, float baselineY, float scale)
+    {
+        if (contour.Length == 0)
+        {
+            return;
+        }
+
+        int startIndex = ResolveContourStartIndex(contour);
+        TrueTypeGlyphPoint startPoint = ResolveContourStartPoint(contour, startIndex);
+        var start = ToImpellerPoint(startPoint, x, baselineY, scale);
+        NativeMethods.ImpellerPathBuilderMoveTo(pathBuilder, ref start);
+
+        int index = (startIndex + 1) % contour.Length;
+        int processed = 0;
+        while (processed < contour.Length)
+        {
+            TrueTypeGlyphPoint point = contour[index];
+            if (point.OnCurve)
+            {
+                var to = ToImpellerPoint(point, x, baselineY, scale);
+                NativeMethods.ImpellerPathBuilderLineTo(pathBuilder, ref to);
+                index = (index + 1) % contour.Length;
+                processed++;
+                continue;
+            }
+
+            int nextIndex = (index + 1) % contour.Length;
+            TrueTypeGlyphPoint next = contour[nextIndex];
+            TrueTypeGlyphPoint endPoint;
+            int consumed;
+            if (next.OnCurve)
+            {
+                endPoint = next;
+                consumed = 2;
+            }
+            else
+            {
+                endPoint = Midpoint(point, next);
+                consumed = 1;
+            }
+
+            var control = ToImpellerPoint(point, x, baselineY, scale);
+            var end = ToImpellerPoint(endPoint, x, baselineY, scale);
+            NativeMethods.ImpellerPathBuilderQuadraticCurveTo(pathBuilder, ref control, ref end);
+            index = (index + consumed) % contour.Length;
+            processed += consumed;
+        }
+
+        NativeMethods.ImpellerPathBuilderClose(pathBuilder);
+    }
+
+    private static int ResolveContourStartIndex(TrueTypeGlyphPoint[] contour)
+    {
+        if (contour[0].OnCurve)
+        {
+            return 0;
+        }
+
+        return contour[^1].OnCurve ? contour.Length - 1 : 0;
+    }
+
+    private static TrueTypeGlyphPoint ResolveContourStartPoint(TrueTypeGlyphPoint[] contour, int startIndex)
+    {
+        TrueTypeGlyphPoint start = contour[startIndex];
+        if (start.OnCurve)
+        {
+            return start;
+        }
+
+        return Midpoint(contour[^1], contour[0]);
+    }
+
+    private static TrueTypeGlyphPoint Midpoint(TrueTypeGlyphPoint first, TrueTypeGlyphPoint second) =>
+        new((first.X + second.X) / 2f, (first.Y + second.Y) / 2f, OnCurve: true);
+
+    private static ImpellerPoint ToImpellerPoint(TrueTypeGlyphPoint point, float x, float baselineY, float scale) =>
+        new(x + (point.X * scale), baselineY - (point.Y * scale));
+
     // ─── Images ─────────────────────────────────────────────────────────
 
     public void DrawImage(Image image, float x, float y)
@@ -482,16 +496,6 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend
         _framePaintCache[key] = handle;
         return handle;
         }
-
-    private void ReleaseFrameParagraphs()
-    {
-        foreach (nint paragraph in _frameParagraphs)
-        {
-            NativeMethods.ImpellerParagraphRelease(paragraph);
-        }
-
-        _frameParagraphs.Clear();
-    }
 
     private void ReleaseFramePaints()
     {
