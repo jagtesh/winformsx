@@ -26,9 +26,10 @@ public unsafe class CustomLineCap : MarshalByRefObject, ICloneable, IDisposable
 
     public CustomLineCap(GraphicsPath? fillPath, GraphicsPath? strokePath, LineCap baseCap, float baseInset)
     {
+        ValidateFillPath(fillPath);
         _fillPath = (GraphicsPath?)fillPath?.Clone();
         _strokePath = (GraphicsPath?)strokePath?.Clone();
-        _baseCap = baseCap;
+        _baseCap = NormalizeCtorBaseCap(baseCap);
         _baseInset = baseInset;
     }
 
@@ -74,6 +75,8 @@ public unsafe class CustomLineCap : MarshalByRefObject, ICloneable, IDisposable
     public void SetStrokeCaps(LineCap startCap, LineCap endCap)
     {
         ThrowIfDisposed();
+        ValidateStrokeCap(startCap);
+        ValidateStrokeCap(endCap);
         _startCap = startCap;
         _endCap = endCap;
     }
@@ -109,6 +112,7 @@ public unsafe class CustomLineCap : MarshalByRefObject, ICloneable, IDisposable
         set
         {
             ThrowIfDisposed();
+            ValidateBaseCap(value);
             _baseCap = value;
         }
     }
@@ -143,6 +147,58 @@ public unsafe class CustomLineCap : MarshalByRefObject, ICloneable, IDisposable
 
     protected void ThrowIfDisposed()
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
+        if (_disposed)
+        {
+            throw Status.InvalidParameter.GetException();
+        }
+    }
+
+    private static LineCap NormalizeCtorBaseCap(LineCap baseCap)
+        => IsBasicLineCap(baseCap) ? baseCap : LineCap.Flat;
+
+    private static void ValidateBaseCap(LineCap baseCap)
+    {
+        if (!IsBasicLineCap(baseCap))
+        {
+            throw Status.InvalidParameter.GetException();
+        }
+    }
+
+    private static void ValidateStrokeCap(LineCap cap)
+    {
+        if (!IsBasicLineCap(cap))
+        {
+            throw Status.InvalidParameter.GetException();
+        }
+    }
+
+    private static bool IsBasicLineCap(LineCap cap)
+        => cap is LineCap.Flat or LineCap.Square or LineCap.Round or LineCap.Triangle;
+
+    private static void ValidateFillPath(GraphicsPath? fillPath)
+    {
+        if (fillPath is null || fillPath.PointCount == 0)
+        {
+            return;
+        }
+
+        PointF[] points = fillPath.PathPoints;
+        bool explicitlyClosed = (fillPath.PathTypes[^1] & (byte)PathPointType.CloseSubpath) != 0;
+        bool returnsToStart = points.Length >= 3 && points[0] == points[^1];
+        if (!explicitlyClosed && !returnsToStart)
+        {
+            throw Status.InvalidParameter.GetException();
+        }
+
+        bool touchesYAxis = false;
+        foreach (PointF point in points)
+        {
+            touchesYAxis |= point.X == 0;
+        }
+
+        if (!touchesYAxis)
+        {
+            throw new NotImplementedException();
+        }
     }
 }

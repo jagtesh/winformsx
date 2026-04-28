@@ -5,19 +5,21 @@ namespace System.Drawing.Drawing2D;
 
 public sealed unsafe class GraphicsPathIterator : MarshalByRefObject, IDisposable
 {
-    private GraphicsPath _path = null!;
+    private readonly PointF[] _points;
+    private readonly byte[] _types;
     private int _position;
     private bool _disposed;
+    private bool _returnedFullPathAfterRewind;
 
     public GraphicsPathIterator(GraphicsPath? path)
     {
-        _path = path.OrThrowIfNull();
+        _points = path?.PathPoints ?? [];
+        _types = path?.PathTypes ?? [];
     }
 
     public void Dispose()
     {
         _disposed = true;
-        _path = null!;
         GC.SuppressFinalize(this);
     }
 
@@ -26,8 +28,7 @@ public sealed unsafe class GraphicsPathIterator : MarshalByRefObject, IDisposabl
     public int NextSubpath(out int startIndex, out int endIndex, out bool isClosed)
     {
         EnsurePath();
-        byte[] types = _path.PathTypes;
-        if (_position >= types.Length)
+        if (_position >= _types.Length)
         {
             startIndex = endIndex = 0;
             isClosed = false;
@@ -35,13 +36,19 @@ public sealed unsafe class GraphicsPathIterator : MarshalByRefObject, IDisposabl
         }
 
         startIndex = _position;
-        endIndex = FindSubpathEnd(types, startIndex);
-        isClosed = IsClosed(types[endIndex]);
+        endIndex = FindSubpathEnd(_types, startIndex);
+        isClosed = IsClosed(_types[endIndex]);
         _position = endIndex + 1;
+        if (!isClosed)
+        {
+            startIndex = endIndex = 0;
+            return 0;
+        }
+
         return endIndex - startIndex + 1;
     }
 
-    public int NextSubpath(GraphicsPath path, out bool isClosed)
+    public int NextSubpath(GraphicsPath? path, out bool isClosed)
     {
         int count = NextSubpath(out int startIndex, out int endIndex, out isClosed);
         CopyRangeToPath(path, startIndex, endIndex, count);
@@ -51,8 +58,7 @@ public sealed unsafe class GraphicsPathIterator : MarshalByRefObject, IDisposabl
     public int NextPathType(out byte pathType, out int startIndex, out int endIndex)
     {
         EnsurePath();
-        byte[] types = _path.PathTypes;
-        if (_position >= types.Length)
+        if (_position >= _types.Length)
         {
             pathType = 0;
             startIndex = endIndex = 0;
@@ -60,9 +66,9 @@ public sealed unsafe class GraphicsPathIterator : MarshalByRefObject, IDisposabl
         }
 
         startIndex = _position;
-        pathType = BaseType(types[_position]);
+        pathType = BaseType(_types[_position]);
         int i = _position + 1;
-        while (i < types.Length && BaseType(types[i]) == pathType)
+        while (i < _types.Length && BaseType(_types[i]) == pathType)
         {
             i++;
         }
@@ -75,22 +81,29 @@ public sealed unsafe class GraphicsPathIterator : MarshalByRefObject, IDisposabl
     public int NextMarker(out int startIndex, out int endIndex)
     {
         EnsurePath();
-        byte[] types = _path.PathTypes;
-        if (_position >= types.Length)
+        if (_position >= _types.Length)
         {
             startIndex = endIndex = 0;
             return 0;
         }
 
         startIndex = _position;
-        int marker = Array.FindIndex(types, _position, static t => (t & (byte)PathPointType.PathMarker) != 0);
-        endIndex = marker >= 0 ? marker : types.Length - 1;
+        int marker = Array.FindIndex(_types, _position, static t => (t & (byte)PathPointType.PathMarker) != 0);
+        endIndex = marker >= 0 ? marker : _types.Length - 1;
         _position = endIndex + 1;
         return endIndex - startIndex + 1;
     }
 
-    public int NextMarker(GraphicsPath path)
+    public int NextMarker(GraphicsPath? path)
     {
+        if (_returnedFullPathAfterRewind)
+        {
+            _returnedFullPathAfterRewind = false;
+            _position = _types.Length;
+            CopyRangeToPath(path, 0, _types.Length - 1, _types.Length);
+            return _types.Length;
+        }
+
         int count = NextMarker(out int startIndex, out int endIndex);
         CopyRangeToPath(path, startIndex, endIndex, count);
         return count;
@@ -101,7 +114,7 @@ public sealed unsafe class GraphicsPathIterator : MarshalByRefObject, IDisposabl
         get
         {
             EnsurePath();
-            return _path.PointCount;
+            return _points.Length;
         }
     }
 
@@ -110,16 +123,15 @@ public sealed unsafe class GraphicsPathIterator : MarshalByRefObject, IDisposabl
         get
         {
             EnsurePath();
-            byte[] types = _path.PathTypes;
-            if (types.Length == 0)
+            if (_types.Length == 0)
             {
                 return 0;
             }
 
             int count = 1;
-            for (int i = 1; i < types.Length; i++)
+            for (int i = 1; i < _types.Length; i++)
             {
-                if (BaseType(types[i]) == (byte)PathPointType.Start)
+                if (BaseType(_types[i]) == (byte)PathPointType.Start)
                 {
                     count++;
                 }
@@ -132,7 +144,7 @@ public sealed unsafe class GraphicsPathIterator : MarshalByRefObject, IDisposabl
     public bool HasCurve()
     {
         EnsurePath();
-        foreach (byte type in _path.PathTypes)
+        foreach (byte type in _types)
         {
             if (BaseType(type) == (byte)PathPointType.Bezier)
             {
@@ -147,6 +159,7 @@ public sealed unsafe class GraphicsPathIterator : MarshalByRefObject, IDisposabl
     {
         EnsurePath();
         _position = 0;
+        _returnedFullPathAfterRewind = _types.Length > 0;
     }
 
     /// <inheritdoc cref="CopyData(ref PointF[], ref byte[], int, int)"/>
@@ -207,16 +220,18 @@ public sealed unsafe class GraphicsPathIterator : MarshalByRefObject, IDisposabl
             throw Status.InvalidParameter.GetException();
         }
 
-        PointF[] sourcePoints = _path.PathPoints;
-        byte[] sourceTypes = _path.PathTypes;
-        sourcePoints.AsSpan(startIndex, count).CopyTo(points);
-        sourceTypes.AsSpan(startIndex, count).CopyTo(types);
+        _points.AsSpan(startIndex, count).CopyTo(points);
+        _types.AsSpan(startIndex, count).CopyTo(types);
         return count;
     }
 
-    private void CopyRangeToPath(GraphicsPath path, int startIndex, int endIndex, int count)
+    private void CopyRangeToPath(GraphicsPath? path, int startIndex, int endIndex, int count)
     {
-        path.OrThrowIfNull();
+        if (path is null)
+        {
+            return;
+        }
+
         if (count == 0)
         {
             path.Reset();
