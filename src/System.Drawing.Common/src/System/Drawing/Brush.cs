@@ -26,12 +26,7 @@ public abstract unsafe class Brush : MarshalByRefObject, ICloneable, IDisposable
 
     protected virtual void Dispose(bool disposing)
     {
-        if (_nativeBrush is not null)
-        {
-            Status status = !Gdip.Initialized ? Status.Ok : PInvoke.GdipDeleteBrush(_nativeBrush);
-            _nativeBrush = null;
-            Debug.Assert(status == Status.Ok, $"GDI+ returned an error status: {status}");
-        }
+        _nativeBrush = null;
     }
 
     ~Brush() => Dispose(disposing: false);
