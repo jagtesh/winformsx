@@ -14,13 +14,35 @@ internal sealed class ManagedGlyphPainter
         float lineHeight,
         Color color)
     {
+        List<RectangleF> rectangles = [];
+        AppendGlyphRectangles(rectangles, raw, x, y, advance, lineHeight);
+
+        if (backend is ImpellerRenderingBackend impellerBackend)
+        {
+            impellerBackend.FillRectPath(rectangles, color);
+            return;
+        }
+
+        foreach (RectangleF rectangle in rectangles)
+        {
+            backend.FillRect(rectangle.X, rectangle.Y, rectangle.Width, rectangle.Height, color);
+        }
+    }
+
+    internal void AppendGlyphRectangles(
+        List<RectangleF> rectangles,
+        char raw,
+        float x,
+        float y,
+        float advance,
+        float lineHeight)
+    {
         float scale = ResolveScale(advance, lineHeight);
         float glyphWidth = GlyphWidth * scale;
         float glyphHeight = GlyphHeight * scale;
         float originX = x + MathF.Max(0f, (advance - glyphWidth) / 2f);
         float originY = y + MathF.Max(0f, (lineHeight - glyphHeight) / 2f);
         string[] pattern = GetPattern(raw);
-        List<RectangleF>? rectangles = backend is ImpellerRenderingBackend ? [] : null;
 
         for (int row = 0; row < pattern.Length; row++)
         {
@@ -40,26 +62,12 @@ internal sealed class ManagedGlyphPainter
                     col++;
                 }
 
-                RectangleF rectangle = new(
+                rectangles.Add(new RectangleF(
                     originX + (runStart * scale),
                     originY + (row * scale),
                     (col - runStart) * scale,
-                    scale);
-
-                if (rectangles is not null)
-                {
-                    rectangles.Add(rectangle);
-                }
-                else
-                {
-                    backend.FillRect(rectangle.X, rectangle.Y, rectangle.Width, rectangle.Height, color);
-                }
+                    scale));
             }
-        }
-
-        if (rectangles is not null && backend is ImpellerRenderingBackend impellerBackend)
-        {
-            impellerBackend.FillRectPath(rectangles, color);
         }
     }
 

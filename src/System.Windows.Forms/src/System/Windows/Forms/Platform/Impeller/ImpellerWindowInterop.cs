@@ -38,12 +38,14 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
     private const uint WM_MBUTTONUP = 0x0208;
     private const uint WM_MOUSEWHEEL = 0x020A;
     private const uint WM_MOUSEHWHEEL = 0x020E;
+    private const int DefaultTargetFrameRate = 60;
 
     // Internal window registry: HWND -> ImpellerSurface mapping
     private static long s_nextHandle = 0x10000;
     private static readonly string? s_traceFile = Environment.GetEnvironmentVariable("WINFORMSX_TRACE_FILE");
     private static readonly HiDpiMode s_hiDpiMode = ParseHiDpiMode();
     private static readonly float s_hiDpiScaleOverride = ParseHiDpiScaleOverride();
+    private static readonly long s_targetFrameIntervalMs = ParseTargetFrameIntervalMs();
     private HWND _activeWindow;
     private readonly Dictionary<nint, ImpellerWindowState> _windows = [];
 
@@ -235,16 +237,17 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                     }
 
                     long now = Environment.TickCount64;
-                    if (now - ws.LastRenderTickMs < 33)
+                    if (ws.HasPresentedFrame && now - ws.LastRenderTickMs < s_targetFrameIntervalMs)
+                    {
+                        return;
+                    }
+
+                    if (!ws.Dirty)
                     {
                         return;
                     }
 
                     ws.LastRenderTickMs = now;
-                    if (!ws.Dirty)
-                    {
-                        return;
-                    }
                 }
 
                 TracePaint($"[Render] hwnd=0x{(nint)handle:X} logical={logicalW}x{logicalH} framebuffer={framebufferW}x{framebufferH}");
@@ -310,6 +313,7 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                         if (_windows.TryGetValue(handle, out var rendered))
                         {
                             rendered.Dirty = false;
+                            rendered.HasPresentedFrame = true;
                         }
                     }
                     catch (Exception ex)
@@ -930,12 +934,62 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
         return parsed;
     }
 
+    private static long ParseTargetFrameIntervalMs()
+    {
+        string? raw = Environment.GetEnvironmentVariable("WINFORMSX_TARGET_FPS");
+        if (!int.TryParse(raw, out int fps) || fps <= 0)
+        {
+            fps = DefaultTargetFrameRate;
+        }
+
+        fps = Math.Clamp(fps, 1, 240);
+        return Math.Max(1, (long)Math.Round(1000.0 / fps));
+    }
+
     private void MarkDirty(HWND hWnd)
     {
-        if (_windows.TryGetValue(hWnd, out var state))
+        if (TryGetTopLevelWindowState(hWnd, out var state))
         {
             state.Dirty = true;
         }
+    }
+
+    private bool TryGetTopLevelWindowState(HWND hWnd, out ImpellerWindowState state)
+    {
+        HWND current = hWnd;
+        while (_windows.TryGetValue(current, out state!))
+        {
+            if (state.Parent == HWND.Null)
+            {
+                return true;
+            }
+
+            current = state.Parent;
+        }
+
+        Control? control = Control.FromHandle(hWnd);
+        while (control is not null)
+        {
+            HWND handle = (HWND)(nint)control.Handle;
+            if (_windows.TryGetValue(handle, out state!) && state.Parent == HWND.Null)
+            {
+                return true;
+            }
+
+            control = control.Parent;
+        }
+
+        foreach (var candidate in _windows.Values)
+        {
+            if (candidate.Parent == HWND.Null && candidate.Visible)
+            {
+                state = candidate;
+                return true;
+            }
+        }
+
+        state = null!;
+        return false;
     }
 
     private static (int Width, int Height) ResolveFramebufferSize(IWindow window, int fallbackWidth, int fallbackHeight)
@@ -1070,7 +1124,11 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
     public bool SetForegroundWindow(HWND hWnd) { _activeWindow = hWnd; return true; }
     public bool IsChild(HWND hWndParent, HWND hWnd) => _windows.TryGetValue(hWnd, out var s) && s.Parent == hWndParent;
     public HWND GetWindow(HWND hWnd, GET_WINDOW_CMD uCmd) => HWND.Null;
-    public bool UpdateWindow(HWND hWnd) => true; // Impeller repaints on frame
+    public bool UpdateWindow(HWND hWnd)
+    {
+        MarkDirty(hWnd);
+        return true;
+    }
 
     public bool MoveWindow(HWND hWnd, int x, int y, int w, int h, bool repaint)
     {
@@ -1087,6 +1145,7 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                 s.SilkWindow.Size = new Vector2D<int>(w, h);
             }
 
+            MarkDirty(hWnd);
             return true;
         }
 
@@ -1136,6 +1195,7 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
             NativeWindow.DispatchMessageDirect(
                 hWnd, WM_WINDOWPOSCHANGED, (WPARAM)0, lParam, out _);
 
+            MarkDirty(hWnd);
             return true;
         }
 
@@ -1278,13 +1338,19 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
 
     public bool InvalidateRect(HWND hWnd, RECT? rect, bool erase)
     {
-        // In real Win32, InvalidateRect marks a region as dirty. The OS sends
-        // WM_PAINT later during the message loop. Our Silk.NET Render event
-        // fires continuously and handles painting, so no immediate dispatch needed.
+        // WinForms invalidates child HWNDs freely. The Impeller render loop owns
+        // painting, so invalidation dirties the top-level surface for the next
+        // render callback instead of dispatching native paint messages.
+        MarkDirty(hWnd);
         return true;
     }
 
-    public bool RedrawWindow(HWND hWnd, RECT? rect, HRGN rgn, REDRAW_WINDOW_FLAGS flags) => true;
+    public bool RedrawWindow(HWND hWnd, RECT? rect, HRGN rgn, REDRAW_WINDOW_FLAGS flags)
+    {
+        MarkDirty(hWnd);
+        return true;
+    }
+
     public bool ValidateRect(HWND hWnd, RECT? rect) => true;
 
     public LRESULT DefWindowProc(HWND hWnd, uint msg, WPARAM wParam, LPARAM lParam)
@@ -1493,6 +1559,7 @@ internal sealed class ImpellerWindowState
     public HWND NativeHwnd;
     public long LastRenderTickMs;
     public bool Dirty = true;
+    public bool HasPresentedFrame;
     public int LastLogicalWidth;
     public int LastLogicalHeight;
     public int LastFramebufferWidth;

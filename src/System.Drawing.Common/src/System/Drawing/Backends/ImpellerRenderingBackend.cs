@@ -52,15 +52,28 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend
             return;
         }
 
-        var displayList = _builder.Build();
+        nint displayList = nint.Zero;
         try
         {
-            NativeMethods.ImpellerSurfaceDrawDisplayList(_frameSurface, displayList);
-            _platformBackend.PresentSurface(_frameSurface);
+            displayList = _builder.Build();
+            if (!NativeMethods.ImpellerSurfaceDrawDisplayList(_frameSurface, displayList))
+            {
+                throw new InvalidOperationException("Impeller failed to draw the display list.");
+            }
+
+            if (!_platformBackend.PresentSurface(_frameSurface))
+            {
+                throw new InvalidOperationException("Impeller failed to present the frame surface.");
+            }
         }
         finally
         {
-            NativeMethods.ImpellerDisplayListRelease(displayList);
+            if (displayList != nint.Zero)
+            {
+                NativeMethods.ImpellerDisplayListRelease(displayList);
+            }
+
+            NativeMethods.ImpellerSurfaceRelease(_frameSurface);
             _frameSurface = nint.Zero;
             _builder.Dispose();
             _builder = null;

@@ -3,5 +3,5 @@
 public interface IPlatformBackend
 {
     nint AcquireNextSurface();
-    void PresentSurface(nint surface);
+    bool PresentSurface(nint surface);
 }

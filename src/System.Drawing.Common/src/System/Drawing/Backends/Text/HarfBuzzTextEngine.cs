@@ -94,6 +94,7 @@ internal sealed class HarfBuzzTextEngine : ITextEngine
         string[] lines = normalized.Split('\n');
         float lineHeight = MathF.Max(1f, shaper.GetMetrics().LineHeight);
         float currentY = y;
+        List<RectangleF>? impellerTextRun = backend is ImpellerRenderingBackend ? [] : null;
 
         foreach (string line in lines)
         {
@@ -102,20 +103,30 @@ internal sealed class HarfBuzzTextEngine : ITextEngine
             {
                 if (glyph.Cluster < line.Length)
                 {
-                    _glyphPainter.DrawGlyph(
-                        backend,
-                        line[(int)glyph.Cluster],
-                        cursorX + glyph.XOffset,
-                        currentY + glyph.YOffset,
-                        MathF.Max(1f, glyph.XAdvance),
-                        lineHeight,
-                        color);
+                    char character = line[(int)glyph.Cluster];
+                    float glyphX = cursorX + glyph.XOffset;
+                    float glyphY = currentY + glyph.YOffset;
+                    float advance = MathF.Max(1f, glyph.XAdvance);
+
+                    if (impellerTextRun is not null)
+                    {
+                        _glyphPainter.AppendGlyphRectangles(impellerTextRun, character, glyphX, glyphY, advance, lineHeight);
+                    }
+                    else
+                    {
+                        _glyphPainter.DrawGlyph(backend, character, glyphX, glyphY, advance, lineHeight, color);
+                    }
                 }
 
                 cursorX += glyph.XAdvance;
             }
 
             currentY += lineHeight;
+        }
+
+        if (impellerTextRun is { Count: > 0 } && backend is ImpellerRenderingBackend impellerBackend)
+        {
+            impellerBackend.FillRectPath(impellerTextRun, color);
         }
     }
 

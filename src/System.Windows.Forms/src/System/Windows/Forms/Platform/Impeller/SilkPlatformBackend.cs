@@ -75,12 +75,19 @@ internal sealed class SilkPlatformBackend : IPlatformBackend
         return nint.Zero;
     }
 
-    public void PresentSurface(nint surface)
+    public bool PresentSurface(nint surface)
     {
         if (_swapchain != nint.Zero && surface != nint.Zero)
         {
-            ImpellerSwapchainManager.PresentSurface(surface);
+            return ImpellerSwapchainManager.PresentSurface(surface);
         }
+
+        if (_useWrappedFbo && surface != nint.Zero)
+        {
+            return Drawing.Impeller.NativeMethods.ImpellerSurfacePresent(surface);
+        }
+
+        return false;
     }
 
     private static void Trace(string message)

@@ -15,9 +15,9 @@ public static class ImpellerSwapchainManager
         return NativeMethods.ImpellerVulkanSwapchainAcquireNextSurfaceNew(swapchain);
     }
 
-    public static void PresentSurface(nint surface)
+    public static bool PresentSurface(nint surface)
     {
-        NativeMethods.ImpellerSurfacePresent(surface);
+        return NativeMethods.ImpellerSurfacePresent(surface);
     }
 
     public static bool GetVulkanInfo(nint impellerContext, out ImpellerContextVulkanInfo vulkanInfo)
