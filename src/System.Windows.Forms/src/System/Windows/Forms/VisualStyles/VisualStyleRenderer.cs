@@ -471,10 +471,7 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
             return null;
         }
 
-        // From the GDI+ sources it doesn't appear as if they take ownership of the hRegion, so this is safe to do.
-        // We need to DeleteObject in order to not leak.
         Region region = Region.FromHrgn(hrgn);
-        PInvoke.DeleteObject(hrgn);
         return region;
     }
 

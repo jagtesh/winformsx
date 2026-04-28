@@ -4867,12 +4867,6 @@ public unsafe partial class Control :
             object? backBrush = Properties.GetObject(s_backBrushProperty);
             if (backBrush is not null)
             {
-                HBRUSH p = (HBRUSH)backBrush;
-                if (!p.IsNull)
-                {
-                    PInvoke.DeleteObject(p);
-                }
-
                 Properties.SetObject(s_backBrushProperty, value: null);
             }
         }
@@ -6790,15 +6784,6 @@ public unsafe partial class Control :
         object? backBrush = Properties.GetObject(s_backBrushProperty);
         if (backBrush is not null)
         {
-            if (GetState(States.OwnCtlBrush))
-            {
-                HBRUSH p = (HBRUSH)backBrush;
-                if (!p.IsNull)
-                {
-                    PInvoke.DeleteObject(p);
-                }
-            }
-
             Properties.SetObject(s_backBrushProperty, value: null);
         }
 
@@ -7709,11 +7694,6 @@ public unsafe partial class Control :
                 if (backBrush is not null)
                 {
                     Properties.SetObject(s_backBrushProperty, value: null);
-                    HBRUSH p = (HBRUSH)backBrush;
-                    if (!p.IsNull)
-                    {
-                        PInvoke.DeleteObject(p);
-                    }
                 }
             }
         }

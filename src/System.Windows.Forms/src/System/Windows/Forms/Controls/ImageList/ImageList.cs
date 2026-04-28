@@ -380,16 +380,7 @@ public sealed partial class ImageList : Component, IHandle<HIMAGELIST>
         // Calls GDI+ to create Bitmap
         HBITMAP hBitmap = (HBITMAP)ControlPaint.CreateHBitmapColorMask(bitmap, (IntPtr)hMask);
 
-        int index;
-        try
-        {
-            index = PInvoke.ImageList.Add(this, hBitmap, hMask);
-        }
-        finally
-        {
-            PInvoke.DeleteObject(hBitmap);
-            PInvoke.DeleteObject(hMask);
-        }
+        int index = PInvoke.ImageList.Add(this, hBitmap, hMask);
 
         if (index == -1)
         {

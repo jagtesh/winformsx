@@ -359,7 +359,6 @@ internal static unsafe class DragDropHelper
         // object, then by default, the extra text description of the drag-and-drop operation is not displayed.
         if (dragSourceHelper.Value->SetFlags((uint)DSH_FLAGS.DSH_ALLOWDROPDESCRIPTIONTEXT).Failed)
         {
-            PInvoke.DeleteObject(hbmpDragImage);
             return;
         }
 
