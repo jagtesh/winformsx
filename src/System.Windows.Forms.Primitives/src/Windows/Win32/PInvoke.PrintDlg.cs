@@ -9,12 +9,18 @@ internal static partial class PInvoke
 {
     internal static unsafe BOOL PrintDlg(PRINTDLGW_64* pPD)
     {
+        WinFormsXCompatibilityWarning.Once(
+            "PInvoke.PrintDlg",
+            "The stock Windows print dialog is not implemented in WinFormsX yet; PrintDlg returned false.");
         _ = pPD;
         return BOOL.FALSE;
     }
 
     internal static unsafe BOOL PrintDlg(PRINTDLGW_32* pPD)
     {
+        WinFormsXCompatibilityWarning.Once(
+            "PInvoke.PrintDlg",
+            "The stock Windows print dialog is not implemented in WinFormsX yet; PrintDlg returned false.");
         _ = pPD;
         return BOOL.FALSE;
     }

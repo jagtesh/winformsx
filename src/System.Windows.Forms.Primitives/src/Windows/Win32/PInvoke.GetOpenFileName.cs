@@ -10,12 +10,18 @@ internal static partial class PInvoke
 {
     public static unsafe BOOL GetOpenFileName(OPENFILENAME* param0)
     {
+        WinFormsXCompatibilityWarning.Once(
+            "PInvoke.GetOpenFileName",
+            "The stock Windows open-file dialog is not implemented in WinFormsX yet; GetOpenFileName returned false.");
         _ = param0;
         return BOOL.FALSE;
     }
 
     public static unsafe BOOL GetSaveFileName(OPENFILENAME* param0)
     {
+        WinFormsXCompatibilityWarning.Once(
+            "PInvoke.GetSaveFileName",
+            "The stock Windows save-file dialog is not implemented in WinFormsX yet; GetSaveFileName returned false.");
         _ = param0;
         return BOOL.FALSE;
     }

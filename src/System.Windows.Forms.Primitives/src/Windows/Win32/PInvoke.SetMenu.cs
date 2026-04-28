@@ -10,6 +10,9 @@ internal static partial class PInvoke
         where T : IHandle<HWND>
     {
         // Impeller: no Win32 menus
+        WinFormsXCompatibilityWarning.Once(
+            "PInvoke.SetMenu",
+            "Native Win32 menu attachment is ignored in WinFormsX; menus must be rendered through the managed PAL.");
         GC.KeepAlive(hWnd.Wrapper);
         return true;
     }
@@ -20,6 +23,9 @@ internal static partial class PInvoke
         where T2 : IHandle<HMENU>
     {
         // Impeller: no Win32 menus
+        WinFormsXCompatibilityWarning.Once(
+            "PInvoke.SetMenu",
+            "Native Win32 menu attachment is ignored in WinFormsX; menus must be rendered through the managed PAL.");
         GC.KeepAlive(hWnd.Wrapper);
         GC.KeepAlive(hMenu.Wrapper);
         return true;

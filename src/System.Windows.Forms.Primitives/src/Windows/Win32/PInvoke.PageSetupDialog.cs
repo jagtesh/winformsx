@@ -9,6 +9,9 @@ internal static partial class PInvoke
 {
     public static unsafe BOOL PageSetupDlg(PAGESETUPDLGW* param0)
     {
+        WinFormsXCompatibilityWarning.Once(
+            "PInvoke.PageSetupDlg",
+            "The stock Windows page-setup dialog is not implemented in WinFormsX yet; PageSetupDlg returned false.");
         _ = param0;
         return BOOL.FALSE;
     }

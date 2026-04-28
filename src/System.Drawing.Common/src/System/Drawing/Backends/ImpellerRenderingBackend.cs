@@ -336,6 +336,9 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend
 
     public void DrawImage(Image image, float x, float y)
     {
+        WinFormsXCompatibilityWarning.Once(
+            "ImpellerRenderingBackend.DrawImage",
+            "Graphics.DrawImage is not wired to Impeller image textures yet; the image draw command was ignored.");
         // if (_builder is null) return;
         // var texture = image.GetTextureHandle(_impellerContext);
         // if (texture == nint.Zero) return;
@@ -346,6 +349,9 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend
     public void DrawImageRect(Image image, float sx, float sy, float sw, float sh,
                               float dx, float dy, float dw, float dh)
     {
+        WinFormsXCompatibilityWarning.Once(
+            "ImpellerRenderingBackend.DrawImageRect",
+            "Graphics.DrawImage with source/destination rectangles is not wired to Impeller image textures yet; the image draw command was ignored.");
         // if (_builder is null) return;
         // var texture = image.GetTextureHandle(_impellerContext);
         // if (texture == nint.Zero) return;

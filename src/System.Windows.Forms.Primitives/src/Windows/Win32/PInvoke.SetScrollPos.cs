@@ -10,8 +10,10 @@ internal static partial class PInvoke
         where T : IHandle<HWND>
     {
         // Impeller: no Win32 scrollbars
+        WinFormsXCompatibilityWarning.Once(
+            "PInvoke.SetScrollPos",
+            "Native Win32 scrollbar state is ignored in WinFormsX; scrollbars must be represented by managed controls/PAL state.");
         GC.KeepAlive(hWnd.Wrapper); return 0;
     }
 }
-
 

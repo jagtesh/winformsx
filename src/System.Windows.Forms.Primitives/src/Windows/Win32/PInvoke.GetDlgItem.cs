@@ -10,8 +10,10 @@ internal static partial class PInvoke
         where T : IHandle<HWND>
     {
         // Impeller: no Win32 dialogs
+        WinFormsXCompatibilityWarning.Once(
+            "PInvoke.GetDlgItem",
+            "Native Win32 dialog child lookup is not implemented in WinFormsX; GetDlgItem returned a null handle.");
         GC.KeepAlive(hDlg.Wrapper); return HWND.Null;
     }
 }
-
 

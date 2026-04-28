@@ -12,6 +12,9 @@ internal static partial class PInvoke
         where T : IHandle<HWND>
     {
         // Impeller: no Win32 HTML help
+        WinFormsXCompatibilityWarning.Once(
+            "PInvoke.HtmlHelp",
+            "Native Windows HTML Help is not implemented in WinFormsX; HtmlHelp returned a null handle.");
         GC.KeepAlive(hwndCaller.Wrapper);
         return HWND.Null;
     }
@@ -21,6 +24,9 @@ internal static partial class PInvoke
         where T : IHandle<HWND>
     {
         // Impeller: no Win32 HTML help
+        WinFormsXCompatibilityWarning.Once(
+            "PInvoke.HtmlHelp",
+            "Native Windows HTML Help is not implemented in WinFormsX; HtmlHelp returned a null handle.");
         GC.KeepAlive(hwndCaller.Wrapper);
         return HWND.Null;
     }
@@ -35,6 +41,9 @@ internal static partial class PInvoke
         where TData : unmanaged
     {
         // Impeller: no Win32 HTML help
+        WinFormsXCompatibilityWarning.Once(
+            "PInvoke.HtmlHelp",
+            "Native Windows HTML Help is not implemented in WinFormsX; HtmlHelp returned a null handle.");
         GC.KeepAlive(hwndCaller.Wrapper);
         return HWND.Null;
     }

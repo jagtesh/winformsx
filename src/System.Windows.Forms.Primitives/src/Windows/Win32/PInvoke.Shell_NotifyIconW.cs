@@ -6,5 +6,11 @@ namespace Windows.Win32;
 // https://github.com/microsoft/CsWin32/issues/882
 internal static partial class PInvoke
 {
-    public static BOOL Shell_NotifyIconW(NOTIFY_ICON_MESSAGE dwMessage, ref NOTIFYICONDATAW lpData) => true;
+    public static BOOL Shell_NotifyIconW(NOTIFY_ICON_MESSAGE dwMessage, ref NOTIFYICONDATAW lpData)
+    {
+        WinFormsXCompatibilityWarning.Once(
+            "PInvoke.Shell_NotifyIconW",
+            "Native shell tray icons are not implemented in WinFormsX yet; Shell_NotifyIconW acknowledged without OS tray integration.");
+        return true;
+    }
 }

@@ -7,5 +7,10 @@ internal static partial class PInvoke
 {
     /// <summary>No-op via PAL — no comctl32 in Impeller.</summary>
     public static BOOL InitCommonControlsEx(in INITCOMMONCONTROLSEX picce)
-        => true;
+    {
+        WinFormsXCompatibilityWarning.Once(
+            "PInvoke.InitCommonControlsEx",
+            "Native comctl32 common controls are not loaded in WinFormsX; InitCommonControlsEx acknowledged without native work.");
+        return true;
+    }
 }

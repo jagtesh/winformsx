@@ -24,7 +24,13 @@ public sealed unsafe class Metafile : Image, IPointer<GpMetafile>
     nint IPointer<GpMetafile>.Pointer => (nint)this.Pointer();
 
     private static NotSupportedException MetafileUnsupported()
-        => new("Metafile playback and recording are not supported by the managed drawing PAL.");
+    {
+        WinFormsXCompatibilityWarning.Once(
+            "System.Drawing.Imaging.Metafile",
+            "Metafile playback/recording is not implemented in the WinFormsX drawing PAL yet.");
+
+        return new("Metafile playback and recording are not supported by the managed drawing PAL.");
+    }
 
     /// <summary>
     ///  Initializes a new instance of the <see cref='Metafile'/> class from the specified handle and

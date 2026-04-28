@@ -873,7 +873,16 @@ public abstract unsafe class Image : MarshalByRefObject, IImage, IDisposable, IC
         };
 
     private static NotSupportedException NativeImageUnsupported() =>
-        new NotSupportedException("Native GDI+ image handles are not supported by the managed drawing PAL.");
+        WarnNativeImageUnsupported();
+
+    private static NotSupportedException WarnNativeImageUnsupported()
+    {
+        WinFormsXCompatibilityWarning.Once(
+            "System.Drawing.Image.NativeGdiPlusHandle",
+            "Native GDI+ image handles are not supported in WinFormsX; use managed PAL image data instead.");
+
+        return new NotSupportedException("Native GDI+ image handles are not supported by the managed drawing PAL.");
+    }
 
     private static ColorPalette? ClonePalette(ColorPalette? palette) =>
         palette is null ? null : ColorPalette.Create(palette.Flags, (Color[])palette.Entries.Clone());

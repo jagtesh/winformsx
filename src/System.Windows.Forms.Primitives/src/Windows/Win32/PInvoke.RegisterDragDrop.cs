@@ -12,6 +12,9 @@ internal static partial class PInvoke
         where T : IHandle<HWND>
     {
         // Impeller: drag and drop not yet supported
+        WinFormsXCompatibilityWarning.Once(
+            "PInvoke.RegisterDragDrop",
+            "Native OLE drag/drop registration is not implemented in WinFormsX yet; RegisterDragDrop acknowledged without OS integration.");
         GC.KeepAlive(hwnd.Wrapper);
         return HRESULT.S_OK;
     }

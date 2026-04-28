@@ -11,6 +11,9 @@ internal static partial class PInvoke
     public static BOOL ImmReleaseContext<T>(T hWnd, HIMC hIMC) where T : IHandle<HWND>
     {
         // Impeller: no Win32 IME context
+        WinFormsXCompatibilityWarning.Once(
+            "PInvoke.ImmReleaseContext",
+            "Native Win32 IME contexts are not implemented in WinFormsX yet; ImmReleaseContext acknowledged without native work.");
         GC.KeepAlive(hWnd.Wrapper);
         return true;
     }

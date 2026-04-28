@@ -9,6 +9,9 @@ internal static partial class PInvoke
 {
     public static unsafe BOOL ChooseColor(CHOOSECOLORW* param0)
     {
+        WinFormsXCompatibilityWarning.Once(
+            "PInvoke.ChooseColor",
+            "The stock Windows color picker is not implemented in WinFormsX yet; ChooseColor returned false.");
         _ = param0;
         return BOOL.FALSE;
     }

@@ -10,8 +10,10 @@ internal static partial class PInvoke
         where T : IHandle<HWND>
     {
         // Impeller: no Win32 dialogs
+        WinFormsXCompatibilityWarning.Once(
+            "PInvoke.EndDialog",
+            "Native Win32 dialog lifetime is not implemented in WinFormsX; EndDialog acknowledged without closing a native dialog.");
         GC.KeepAlive(hDlg.Wrapper); return true;
     }
 }
-
 

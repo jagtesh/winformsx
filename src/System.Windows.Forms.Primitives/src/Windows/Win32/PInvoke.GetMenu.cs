@@ -10,8 +10,10 @@ internal static partial class PInvoke
         where T : IHandle<HWND>
     {
         // Impeller: no Win32 menus
+        WinFormsXCompatibilityWarning.Once(
+            "PInvoke.GetMenu",
+            "Native Win32 menus do not exist in WinFormsX; GetMenu returned a null handle.");
         GC.KeepAlive(hWnd.Wrapper); return HMENU.Null;
     }
 }
-
 

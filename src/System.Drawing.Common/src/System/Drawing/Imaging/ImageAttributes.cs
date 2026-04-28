@@ -28,6 +28,10 @@ public sealed unsafe class ImageAttributes : ICloneable, IDisposable
         {
             throw new ArgumentNullException(nameof(handle));
         }
+
+        WinFormsXCompatibilityWarning.Once(
+            "System.Drawing.Imaging.ImageAttributes.NativeGdiPlusHandle",
+            "Native GDI+ image-attribute handles are ignored in WinFormsX; managed ImageAttributes state is used instead.");
     }
 
     /// <summary>

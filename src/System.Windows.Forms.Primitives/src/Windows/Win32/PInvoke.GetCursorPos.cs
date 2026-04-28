@@ -9,6 +9,9 @@ internal static partial class PInvoke
     /// TODO: Wire to Silk.NET mouse position when input pipeline is connected.</summary>
     public static unsafe BOOL GetCursorPos(out global::System.Drawing.Point lpPoint)
     {
+        WinFormsXCompatibilityWarning.Once(
+            "PInvoke.GetCursorPos",
+            "Global cursor position is not wired to Silk.NET input yet; GetCursorPos returned the default point.");
         lpPoint = default;
         return true;
     }

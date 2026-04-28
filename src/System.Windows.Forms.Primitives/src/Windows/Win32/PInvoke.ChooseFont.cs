@@ -9,6 +9,9 @@ internal static partial class PInvoke
 {
     public static unsafe BOOL ChooseFont(CHOOSEFONTW* lpcf)
     {
+        WinFormsXCompatibilityWarning.Once(
+            "PInvoke.ChooseFont",
+            "The stock Windows font picker is not implemented in WinFormsX yet; ChooseFont returned false.");
         _ = lpcf;
         return BOOL.FALSE;
     }

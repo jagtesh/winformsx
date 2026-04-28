@@ -11,6 +11,9 @@ internal static partial class PInvoke
         // In Impeller mode, no system menu exists. Return null handle directly
         // to avoid recursion (HWND : IHandle<HWND> causes overload resolution
         // to select this generic method when calling GetSystemMenu(HWND, BOOL)).
+        WinFormsXCompatibilityWarning.Once(
+            "PInvoke.GetSystemMenu",
+            "Native Win32 system menus do not exist in WinFormsX; GetSystemMenu returned a null handle.");
         GC.KeepAlive(hwnd.Wrapper);
         return HMENU.Null;
     }
