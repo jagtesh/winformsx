@@ -408,6 +408,28 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                                         }
                                     }));
                                 }
+                                else if (ctrl is ToolStrip toolStrip)
+                                {
+                                    ctrl.BeginInvoke(new Action(() =>
+                                    {
+                                        ToolStripItem? item = toolStrip.GetItemAt(clientPt);
+                                        if (item is null || !item.Enabled)
+                                        {
+                                            return;
+                                        }
+
+                                        // Trigger standard ToolStrip behavior for menus/buttons.
+                                        // This avoids relying on Win32 menu/message plumbing.
+                                        if (item is ToolStripMenuItem menuItem)
+                                        {
+                                            menuItem.ShowDropDown();
+                                        }
+                                        else
+                                        {
+                                            item.PerformClick();
+                                        }
+                                    }));
+                                }
                             }
 
                             PostMessageToControl(target, handle, msg, (WPARAM)0, (LPARAM)(nint)(((int)clientPt.Y << 16) | ((int)clientPt.X & 0xFFFF)));
