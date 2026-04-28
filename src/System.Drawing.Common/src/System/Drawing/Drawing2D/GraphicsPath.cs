@@ -2,7 +2,6 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.ComponentModel;
-using System.Drawing.Internal;
 
 namespace System.Drawing.Drawing2D;
 
@@ -12,15 +11,20 @@ public sealed unsafe class GraphicsPath : MarshalByRefObject, ICloneable, IDispo
 
     private const float Flatness = (float)2.0 / (float)3.0;
 
+    private readonly List<PointF> _points = [];
+    private readonly List<byte> _types = [];
+    private FillMode _fillMode;
+    private bool _newFigure = true;
+    private bool _disposed;
+
     /// <inheritdoc cref="GraphicsPath(Point[], byte[], FillMode)"/>
     public GraphicsPath() : this(FillMode.Alternate) { }
 
     /// <inheritdoc cref="GraphicsPath(Point[], byte[], FillMode)"/>
     public GraphicsPath(FillMode fillMode)
     {
-        GpPath* path;
-        PInvoke.GdipCreatePath((GdiPlus.FillMode)fillMode, &path).ThrowIfFailed();
-        _nativePath = path;
+        ValidateFillMode(fillMode);
+        _fillMode = fillMode;
     }
 
     /// <inheritdoc cref="GraphicsPath(Point[], byte[], FillMode)"/>
@@ -28,7 +32,7 @@ public sealed unsafe class GraphicsPath : MarshalByRefObject, ICloneable, IDispo
 
     /// <inheritdoc cref="GraphicsPath(Point[], byte[], FillMode)"/>
     public GraphicsPath(PointF[] pts, byte[] types, FillMode fillMode)
-        : this(pts.OrThrowIfNull().AsSpan(), types.OrThrowIfNull().AsSpan(), fillMode)
+        : this(AsSpan(pts), AsSpan(types), fillMode)
     {
     }
 
@@ -39,19 +43,16 @@ public sealed unsafe class GraphicsPath : MarshalByRefObject, ICloneable, IDispo
     internal
 #endif
     GraphicsPath(ReadOnlySpan<PointF> pts, ReadOnlySpan<byte> types, FillMode fillMode = FillMode.Alternate)
+        : this(fillMode)
     {
         if (pts.Length != types.Length)
         {
             throw Status.InvalidParameter.GetException();
         }
 
-        fixed (PointF* p = pts)
-        fixed (byte* t = types)
-        {
-            GpPath* path;
-            PInvoke.GdipCreatePath2((GdiPlus.PointF*)p, t, types.Length, (GdiPlus.FillMode)fillMode, &path).ThrowIfFailed();
-            _nativePath = path;
-        }
+        _points.AddRange(pts.ToArray());
+        _types.AddRange(types.ToArray());
+        _newFigure = _points.Count == 0 || IsClosed(_types[^1]);
     }
 
     /// <inheritdoc cref="GraphicsPath(Point[], byte[], FillMode)"/>
@@ -66,7 +67,7 @@ public sealed unsafe class GraphicsPath : MarshalByRefObject, ICloneable, IDispo
     ///  A <see cref="Drawing2D.FillMode"/> enumeration that specifies how the interiors of shapes in this <see cref="GraphicsPath"/>
     /// </param>
     public GraphicsPath(Point[] pts, byte[] types, FillMode fillMode)
-        : this(pts.OrThrowIfNull().AsSpan(), types.OrThrowIfNull().AsSpan(), fillMode) { }
+        : this(ToPointFSpan(pts), AsSpan(types), fillMode) { }
 
     /// <inheritdoc cref="GraphicsPath(Point[], byte[], FillMode)"/>
 #if NET9_0_OR_GREATER
@@ -75,27 +76,21 @@ public sealed unsafe class GraphicsPath : MarshalByRefObject, ICloneable, IDispo
     internal
 #endif
     GraphicsPath(ReadOnlySpan<Point> pts, ReadOnlySpan<byte> types, FillMode fillMode = FillMode.Alternate)
+        : this(ToPointFArray(pts), types, fillMode)
     {
-        if (pts.Length != types.Length)
-        {
-            throw Status.InvalidParameter.GetException();
-        }
-
-        fixed (byte* t = types)
-        fixed (Point* p = pts)
-        {
-            GpPath* path;
-            PInvoke.GdipCreatePath2I((GdiPlus.Point*)p, t, types.Length, (GdiPlus.FillMode)fillMode, &path).ThrowIfFailed();
-            _nativePath = path;
-        }
     }
 
     public object Clone()
     {
-        GpPath* path;
-        PInvoke.GdipClonePath(_nativePath, &path).ThrowIfFailed();
-        GC.KeepAlive(this);
-        return new GraphicsPath(path);
+        ThrowIfDisposed();
+        GraphicsPath path = new(_fillMode)
+        {
+            _newFigure = _newFigure
+        };
+
+        path._points.AddRange(_points);
+        path._types.AddRange(_types);
+        return path;
     }
 
     private GraphicsPath(GpPath* nativePath)
@@ -103,64 +98,38 @@ public sealed unsafe class GraphicsPath : MarshalByRefObject, ICloneable, IDispo
         if (nativePath is null)
             throw new ArgumentNullException(nameof(nativePath));
 
-        _nativePath = nativePath;
+        _nativePath = null;
     }
 
     public void Dispose()
     {
-        Dispose(disposing: true);
+        _disposed = true;
+        _nativePath = null;
         GC.SuppressFinalize(this);
     }
 
-    private void Dispose(bool disposing)
-    {
-        if (_nativePath is not null)
-        {
-            try
-            {
-#if DEBUG
-                Status status = !Gdip.Initialized ? Status.Ok :
-#endif
-                PInvoke.GdipDeletePath(_nativePath);
-#if DEBUG
-                Debug.Assert(status == Status.Ok, $"GDI+ returned an error status: {status}");
-#endif
-            }
-            catch (Exception ex) when (!ClientUtils.IsSecurityOrCriticalException(ex))
-            {
-                Debug.Fail($"Exception thrown during Dispose: {ex}");
-            }
-            finally
-            {
-                _nativePath = null;
-            }
-        }
-    }
-
-    ~GraphicsPath() => Dispose(disposing: false);
+    ~GraphicsPath() => Dispose();
 
     public void Reset()
     {
-        PInvoke.GdipResetPath(_nativePath).ThrowIfFailed();
-        GC.KeepAlive(this);
+        ThrowIfDisposed();
+        _points.Clear();
+        _types.Clear();
+        _newFigure = true;
     }
 
     public FillMode FillMode
     {
         get
         {
-            GdiPlus.FillMode fillMode;
-            PInvoke.GdipGetPathFillMode(_nativePath, &fillMode).ThrowIfFailed();
-            GC.KeepAlive(this);
-            return (FillMode)fillMode;
+            ThrowIfDisposed();
+            return _fillMode;
         }
         set
         {
-            if (value is < FillMode.Alternate or > FillMode.Winding)
-                throw new InvalidEnumArgumentException(nameof(value), (int)value, typeof(FillMode));
-
-            PInvoke.GdipSetPathFillMode(_nativePath, (GdiPlus.FillMode)value).ThrowIfFailed();
-            GC.KeepAlive(this);
+            ValidateFillMode(value);
+            ThrowIfDisposed();
+            _fillMode = value;
         }
     }
 
@@ -168,77 +137,75 @@ public sealed unsafe class GraphicsPath : MarshalByRefObject, ICloneable, IDispo
     {
         get
         {
-            int count = PointCount;
-
-            PathData pathData = new()
+            ThrowIfDisposed();
+            return new PathData
             {
-                Types = new byte[count],
-                Points = new PointF[count]
+                Types = _types.ToArray(),
+                Points = _points.ToArray()
             };
-
-            if (count == 0)
-                return pathData;
-
-            fixed (byte* t = pathData.Types)
-            fixed (PointF* p = pathData.Points)
-            {
-                GpPathData data = new()
-                {
-                    Count = count,
-                    Points = p,
-                    Types = t
-                };
-
-                PInvoke.GdipGetPathData(_nativePath, (GdiPlus.PathData*)&data).ThrowIfFailed();
-                GC.KeepAlive(this);
-            }
-
-            return pathData;
         }
     }
 
     public void StartFigure()
     {
-        PInvoke.GdipStartPathFigure(_nativePath);
-        GC.KeepAlive(this);
+        ThrowIfDisposed();
+        _newFigure = true;
     }
 
     public void CloseFigure()
     {
-        PInvoke.GdipClosePathFigure(_nativePath).ThrowIfFailed();
-        GC.KeepAlive(this);
+        ThrowIfDisposed();
+        CloseCurrentFigure();
     }
 
     public void CloseAllFigures()
     {
-        PInvoke.GdipClosePathFigures(_nativePath).ThrowIfFailed();
-        GC.KeepAlive(this);
+        ThrowIfDisposed();
+        for (int i = 0; i < _types.Count; i++)
+        {
+            bool isLast = i == _types.Count - 1 || IsStart(_types[i + 1]);
+            if (isLast)
+            {
+                _types[i] = (byte)(_types[i] | (byte)PathPointType.CloseSubpath);
+            }
+        }
+
+        _newFigure = true;
     }
 
     public void SetMarkers()
     {
-        PInvoke.GdipSetPathMarker(_nativePath).ThrowIfFailed();
-        GC.KeepAlive(this);
+        ThrowIfDisposed();
+        if (_types.Count > 0)
+        {
+            _types[^1] = (byte)(_types[^1] | (byte)PathPointType.PathMarker);
+        }
     }
 
     public void ClearMarkers()
     {
-        PInvoke.GdipClearPathMarkers(_nativePath).ThrowIfFailed();
-        GC.KeepAlive(this);
+        ThrowIfDisposed();
+        for (int i = 0; i < _types.Count; i++)
+        {
+            _types[i] = (byte)(_types[i] & ~(byte)PathPointType.PathMarker);
+        }
     }
 
     public void Reverse()
     {
-        PInvoke.GdipReversePath(_nativePath).ThrowIfFailed();
-        GC.KeepAlive(this);
+        ThrowIfDisposed();
+        _points.Reverse();
+        _types.Reverse();
+        if (_types.Count > 0)
+        {
+            _types[0] = (byte)((_types[0] & ~(byte)PathPointType.PathTypeMask) | (byte)PathPointType.Start);
+        }
     }
 
     public PointF GetLastPoint()
     {
-        PointF point;
-        PInvoke.GdipGetPathLastPoint(_nativePath, (GdiPlus.PointF*)&point);
-        GC.KeepAlive(this);
-        return point;
+        ThrowIfDisposed();
+        return _points.Count == 0 ? PointF.Empty : _points[^1];
     }
 
     public bool IsVisible(float x, float y) => IsVisible(new PointF(x, y), null);
@@ -247,16 +214,8 @@ public sealed unsafe class GraphicsPath : MarshalByRefObject, ICloneable, IDispo
 
     public bool IsVisible(float x, float y, Graphics? graphics)
     {
-        BOOL isVisible;
-        PInvoke.GdipIsVisiblePathPoint(
-            _nativePath,
-            x, y,
-            graphics is null ? null : graphics.NativeGraphics,
-            &isVisible).ThrowIfFailed();
-
-        GC.KeepAlive(this);
-        GC.KeepAlive(graphics);
-        return isVisible;
+        ThrowIfDisposed();
+        return GetBounds().Contains(x, y);
     }
 
     public bool IsVisible(PointF pt, Graphics? graphics) => IsVisible(pt.X, pt.Y, graphics);
@@ -276,18 +235,12 @@ public sealed unsafe class GraphicsPath : MarshalByRefObject, ICloneable, IDispo
     public bool IsOutlineVisible(float x, float y, Pen pen, Graphics? graphics)
     {
         ArgumentNullException.ThrowIfNull(pen);
-        BOOL isVisible;
-        PInvoke.GdipIsOutlineVisiblePathPoint(
-            _nativePath,
-            x, y,
-            pen.NativePen,
-            graphics is null ? null : graphics.NativeGraphics,
-            &isVisible).ThrowIfFailed();
+        ThrowIfDisposed();
 
-        GC.KeepAlive(this);
-        GC.KeepAlive(pen);
-        GC.KeepAlive(graphics);
-        return isVisible;
+        RectangleF bounds = GetBounds();
+        float inflate = Math.Max(1.0f, pen.Width) / 2.0f;
+        bounds.Inflate(inflate, inflate);
+        return bounds.Contains(x, y);
     }
 
     public bool IsOutlineVisible(PointF pt, Pen pen, Graphics? graphics) => IsOutlineVisible(pt.X, pt.Y, pen, graphics);
@@ -304,24 +257,12 @@ public sealed unsafe class GraphicsPath : MarshalByRefObject, ICloneable, IDispo
 
     public void AddLine(float x1, float y1, float x2, float y2)
     {
-        PInvoke.GdipAddPathLine(_nativePath, x1, y1, x2, y2).ThrowIfFailed();
-        GC.KeepAlive(this);
+        ThrowIfDisposed();
+        AppendConnectedStart(new PointF(x1, y1));
+        AppendPoint(new PointF(x2, y2), PathPointType.Line);
     }
 
-    /// <summary>
-    ///  Appends a series of connected line segments to the end of this <see cref="GraphicsPath"/>.
-    /// </summary>
-    /// <param name="points">An array of points that define the line segments to add.</param>
-    /// <exception cref="ArgumentException"></exception>
-    /// <remarks>
-    ///  <para>
-    ///   If there are previous lines or curves in the figure, a line is added to connect the endpoint
-    ///   of the previous segment the starting point of the line. The <paramref name="points"/> parameter
-    ///   specifies an array of endpoints. The first two specify the first line. Each additional point
-    ///   specifies the endpoint of a line segment whose starting point is the endpoint of the previous line.
-    ///  </para>
-    /// </remarks>
-    public void AddLines(params PointF[] points) => AddLines(points.OrThrowIfNull().AsSpan());
+    public void AddLines(params PointF[] points) => AddLines(AsSpan(points));
 
     /// <inheritdoc cref="AddLines(PointF[])"/>
 #if NET9_0_OR_GREATER
@@ -331,15 +272,16 @@ public sealed unsafe class GraphicsPath : MarshalByRefObject, ICloneable, IDispo
 #endif
     void AddLines(params ReadOnlySpan<PointF> points)
     {
+        ThrowIfDisposed();
         if (points.Length == 0)
         {
             throw new ArgumentException(null, nameof(points));
         }
 
-        fixed (PointF* p = points)
+        AppendConnectedStart(points[0]);
+        for (int i = 1; i < points.Length; i++)
         {
-            PInvoke.GdipAddPathLine2(_nativePath, (GdiPlus.PointF*)p, points.Length).ThrowIfFailed();
-            GC.KeepAlive(this);
+            AppendPoint(points[i], PathPointType.Line);
         }
     }
 
@@ -347,8 +289,7 @@ public sealed unsafe class GraphicsPath : MarshalByRefObject, ICloneable, IDispo
 
     public void AddLine(int x1, int y1, int x2, int y2) => AddLine((float)x1, y1, x2, y2);
 
-    /// <inheritdoc cref="AddLines(PointF[])"/>
-    public void AddLines(params Point[] points) => AddLines(points.OrThrowIfNull().AsSpan());
+    public void AddLines(params Point[] points) => AddLines(ToPointFSpan(points));
 
     /// <inheritdoc cref="AddLines(PointF[])"/>
 #if NET9_0_OR_GREATER
@@ -356,27 +297,15 @@ public sealed unsafe class GraphicsPath : MarshalByRefObject, ICloneable, IDispo
 #else
     private
 #endif
-    void AddLines(params ReadOnlySpan<Point> points)
-    {
-        if (points.Length == 0)
-        {
-            throw new ArgumentException(null, nameof(points));
-        }
-
-        fixed (Point* p = points)
-        {
-            PInvoke.GdipAddPathLine2I(_nativePath, (GdiPlus.Point*)p, points.Length).ThrowIfFailed();
-            GC.KeepAlive(this);
-        }
-    }
+    void AddLines(params ReadOnlySpan<Point> points) => AddLines(ToPointFArray(points).AsSpan());
 
     public void AddArc(RectangleF rect, float startAngle, float sweepAngle) =>
         AddArc(rect.X, rect.Y, rect.Width, rect.Height, startAngle, sweepAngle);
 
     public void AddArc(float x, float y, float width, float height, float startAngle, float sweepAngle)
     {
-        PInvoke.GdipAddPathArc(_nativePath, x, y, width, height, startAngle, sweepAngle).ThrowIfFailed();
-        GC.KeepAlive(this);
+        ThrowIfDisposed();
+        AddArcApproximation(new RectangleF(x, y, width, height), startAngle, sweepAngle);
     }
 
     public void AddArc(Rectangle rect, float startAngle, float sweepAngle) =>
@@ -390,15 +319,14 @@ public sealed unsafe class GraphicsPath : MarshalByRefObject, ICloneable, IDispo
 
     public void AddBezier(float x1, float y1, float x2, float y2, float x3, float y3, float x4, float y4)
     {
-        PInvoke.GdipAddPathBezier(_nativePath, x1, y1, x2, y2, x3, y3, x4, y4).ThrowIfFailed();
-        GC.KeepAlive(this);
+        ThrowIfDisposed();
+        AppendConnectedStart(new PointF(x1, y1));
+        AppendPoint(new PointF(x2, y2), PathPointType.Bezier3);
+        AppendPoint(new PointF(x3, y3), PathPointType.Bezier3);
+        AppendPoint(new PointF(x4, y4), PathPointType.Bezier3);
     }
 
-    /// <summary>
-    ///  Adds a sequence of connected cubic Bézier curves to the current figure.
-    /// </summary>
-    /// <param name="points">An array of points that define the curves.</param>
-    public void AddBeziers(params PointF[] points) => AddBeziers(points.OrThrowIfNull().AsSpan());
+    public void AddBeziers(params PointF[] points) => AddBeziers(AsSpan(points));
 
     /// <inheritdoc cref="AddBeziers(PointF[])"/>
 #if NET9_0_OR_GREATER
@@ -408,10 +336,14 @@ public sealed unsafe class GraphicsPath : MarshalByRefObject, ICloneable, IDispo
 #endif
     void AddBeziers(params ReadOnlySpan<PointF> points)
     {
-        fixed (PointF* p = points)
+        ThrowIfDisposed();
+        if (points.Length == 0)
+            return;
+
+        AppendConnectedStart(points[0]);
+        for (int i = 1; i < points.Length; i++)
         {
-            PInvoke.GdipAddPathBeziers(_nativePath, (GdiPlus.PointF*)p, points.Length).ThrowIfFailed();
-            GC.KeepAlive(this);
+            AppendPoint(points[i], PathPointType.Bezier3);
         }
     }
 
@@ -421,8 +353,7 @@ public sealed unsafe class GraphicsPath : MarshalByRefObject, ICloneable, IDispo
     public void AddBezier(int x1, int y1, int x2, int y2, int x3, int y3, int x4, int y4) =>
         AddBezier((float)x1, y1, x2, y2, x3, y3, x4, y4);
 
-    /// <inheritdoc cref="AddBeziers(PointF[])"/>
-    public void AddBeziers(params Point[] points) => AddBeziers(points.OrThrowIfNull().AsSpan());
+    public void AddBeziers(params Point[] points) => AddBeziers(ToPointFSpan(points));
 
     /// <inheritdoc cref="AddBeziers(PointF[])"/>
 #if NET9_0_OR_GREATER
@@ -430,56 +361,19 @@ public sealed unsafe class GraphicsPath : MarshalByRefObject, ICloneable, IDispo
 #else
     internal
 #endif
-    void AddBeziers(params ReadOnlySpan<Point> points)
-    {
-        if (points.Length == 0)
-            return;
+    void AddBeziers(params ReadOnlySpan<Point> points) => AddBeziers(ToPointFArray(points).AsSpan());
 
-        fixed (Point* p = points)
-        {
-            PInvoke.GdipAddPathBeziersI(_nativePath, (GdiPlus.Point*)p, points.Length).ThrowIfFailed();
-            GC.KeepAlive(this);
-        }
-    }
+    public void AddCurve(params PointF[] points) => AddCurve(AsSpan(points), 0.5f);
 
-    /// <inheritdoc cref="AddCurve(PointF[], int, int, float)"/>
-    public void AddCurve(params PointF[] points) => AddCurve(points.AsSpan(), 0.5f);
+    public void AddCurve(PointF[] points, float tension) => AddCurve(AsSpan(points), tension);
 
-    /// <inheritdoc cref="AddCurve(PointF[], int, int, float)"/>
-    public void AddCurve(PointF[] points, float tension) => AddCurve(points.AsSpan(), tension);
-
-    /// <summary>
-    ///  Adds a spline curve to the current figure. A cardinal spline curve is used because the
-    ///  curve travels through each of the points in the array.
-    /// </summary>
-    /// <param name="points">An array points that define the curve.</param>
-    /// <param name="offset">The index of the first point in the array to use.</param>
-    /// <param name="numberOfSegments">
-    ///  The number of segments to use when creating the curve. A segment can be thought of as
-    ///  a line connecting two points.
-    /// </param>
-    /// <param name="tension">
-    ///  A value that specifies the amount that the curve bends between control points.
-    ///  Values greater than 1 produce unpredictable results.
-    /// </param>
     public void AddCurve(PointF[] points, int offset, int numberOfSegments, float tension)
     {
-        fixed (PointF* p = points)
-        {
-            PInvoke.GdipAddPathCurve3(
-                _nativePath,
-                (GdiPlus.PointF*)p,
-                points.Length,
-                offset,
-                numberOfSegments,
-                tension).ThrowIfFailed();
-
-            GC.KeepAlive(this);
-        }
+        ArgumentNullException.ThrowIfNull(points);
+        AddCurve(points.AsSpan(offset, numberOfSegments + 1), tension);
     }
 
 #if NET9_0_OR_GREATER
-    /// <inheritdoc cref="AddCurve(PointF[], int, int, float)"/>
     public void AddCurve(params ReadOnlySpan<PointF> points) => AddCurve(points, 0.5f);
 #endif
 
@@ -489,45 +383,19 @@ public sealed unsafe class GraphicsPath : MarshalByRefObject, ICloneable, IDispo
 #else
     private
 #endif
-    void AddCurve(ReadOnlySpan<PointF> points, float tension)
-    {
-        fixed (PointF* p = points)
-        {
-            PInvoke.GdipAddPathCurve2(
-                _nativePath,
-                (GdiPlus.PointF*)p,
-                points.Length,
-                tension).ThrowIfFailed();
+    void AddCurve(ReadOnlySpan<PointF> points, float tension) => AddLines(points);
 
-            GC.KeepAlive(this);
-        }
-    }
+    public void AddCurve(params Point[] points) => AddCurve(ToPointFSpan(points), 0.5f);
 
-    /// <inheritdoc cref="AddCurve(PointF[], int, int, float)"/>
-    public void AddCurve(params Point[] points) => AddCurve(points.AsSpan(), 0.5f);
+    public void AddCurve(Point[] points, float tension) => AddCurve(ToPointFSpan(points), tension);
 
-    /// <inheritdoc cref="AddCurve(PointF[], int, int, float)"/>
-    public void AddCurve(Point[] points, float tension) => AddCurve(points.AsSpan(), tension);
-
-    /// <inheritdoc cref="AddCurve(PointF[], int, int, float)"/>
     public void AddCurve(Point[] points, int offset, int numberOfSegments, float tension)
     {
-        fixed (Point* p = points)
-        {
-            PInvoke.GdipAddPathCurve3I(
-                _nativePath,
-                (GdiPlus.Point*)p,
-                points.Length,
-                offset,
-                numberOfSegments,
-                tension).ThrowIfFailed();
-
-            GC.KeepAlive(this);
-        }
+        ArgumentNullException.ThrowIfNull(points);
+        AddCurve(ToPointFArray(points.AsSpan(offset, numberOfSegments + 1)).AsSpan(), tension);
     }
 
 #if NET9_0_OR_GREATER
-    /// <inheritdoc cref="AddCurve(PointF[], int, int, float)"/>
     public void AddCurve(ReadOnlySpan<Point> points) => AddCurve(points, 0.5f);
 #endif
 
@@ -537,28 +405,13 @@ public sealed unsafe class GraphicsPath : MarshalByRefObject, ICloneable, IDispo
 #else
     private
 #endif
-    void AddCurve(ReadOnlySpan<Point> points, float tension)
-    {
-        fixed (Point* p = points)
-        {
-            PInvoke.GdipAddPathCurve2I(
-                _nativePath,
-                (GdiPlus.Point*)p,
-                points.Length,
-                tension).ThrowIfFailed();
+    void AddCurve(ReadOnlySpan<Point> points, float tension) => AddCurve(ToPointFArray(points).AsSpan(), tension);
 
-            GC.KeepAlive(this);
-        }
-    }
+    public void AddClosedCurve(params PointF[] points) => AddClosedCurve(AsSpan(points), 0.5f);
 
-    /// <inheritdoc cref="AddClosedCurve(Point[], float)"/>
-    public void AddClosedCurve(params PointF[] points) => AddClosedCurve(points, 0.5f);
-
-    /// <inheritdoc cref="AddClosedCurve(Point[], float)"/>
-    public void AddClosedCurve(PointF[] points, float tension) => AddClosedCurve(points.OrThrowIfNull().AsSpan(), tension);
+    public void AddClosedCurve(PointF[] points, float tension) => AddClosedCurve(AsSpan(points), tension);
 
 #if NET9_0_OR_GREATER
-    /// <inheritdoc cref="AddClosedCurve(Point[], float)"/>
     public void AddClosedCurve(params ReadOnlySpan<PointF> points) => AddClosedCurve(points, 0.5f);
 #endif
 
@@ -570,25 +423,15 @@ public sealed unsafe class GraphicsPath : MarshalByRefObject, ICloneable, IDispo
 #endif
     void AddClosedCurve(ReadOnlySpan<PointF> points, float tension)
     {
-        fixed (PointF* p = points)
-        {
-            PInvoke.GdipAddPathClosedCurve2(_nativePath, (GdiPlus.PointF*)p, points.Length, tension).ThrowIfFailed();
-            GC.KeepAlive(this);
-        }
+        AddLines(points);
+        CloseFigure();
     }
 
-    /// <inheritdoc cref="AddClosedCurve(Point[], float)"/>
-    public void AddClosedCurve(params Point[] points) => AddClosedCurve(points, 0.5f);
+    public void AddClosedCurve(params Point[] points) => AddClosedCurve(ToPointFSpan(points), 0.5f);
 
-    /// <summary>
-    ///  Adds a closed spline curve to the current figure. A cardinal spline curve is used because the
-    ///  curve travels through each of the points in the array.
-    /// </summary>
-    /// <inheritdoc cref="AddCurve(PointF[], int, int, float)"/>
-    public void AddClosedCurve(Point[] points, float tension) => AddClosedCurve(points.OrThrowIfNull().AsSpan(), tension);
+    public void AddClosedCurve(Point[] points, float tension) => AddClosedCurve(ToPointFSpan(points), tension);
 
 #if NET9_0_OR_GREATER
-    /// <inheritdoc cref="AddClosedCurve(Point[], float)"/>
     public void AddClosedCurve(params ReadOnlySpan<Point> points) => AddClosedCurve(points, 0.5f);
 #endif
 
@@ -598,28 +441,23 @@ public sealed unsafe class GraphicsPath : MarshalByRefObject, ICloneable, IDispo
 #else
     private
 #endif
-    void AddClosedCurve(ReadOnlySpan<Point> points, float tension)
-    {
-        fixed (Point* p = points)
-        {
-            PInvoke.GdipAddPathClosedCurve2I(_nativePath, (GdiPlus.Point*)p, points.Length, tension).ThrowIfFailed();
-            GC.KeepAlive(this);
-        }
-    }
+    void AddClosedCurve(ReadOnlySpan<Point> points, float tension) => AddClosedCurve(ToPointFArray(points).AsSpan(), tension);
 
     public void AddRectangle(RectangleF rect)
     {
-        PInvoke.GdipAddPathRectangle(
-            _nativePath,
-            rect.X, rect.Y, rect.Width, rect.Height).ThrowIfFailed();
-        GC.KeepAlive(this);
+        ThrowIfDisposed();
+        if (rect.Width == 0 || rect.Height == 0)
+            return;
+
+        StartFigure();
+        AppendPoint(new PointF(rect.Left, rect.Top), PathPointType.Start);
+        AppendPoint(new PointF(rect.Right, rect.Top), PathPointType.Line);
+        AppendPoint(new PointF(rect.Right, rect.Bottom), PathPointType.Line);
+        AppendPoint(new PointF(rect.Left, rect.Bottom), PathPointType.Line);
+        CloseFigure();
     }
 
-    /// <summary>
-    ///  Adds a series of rectangles to this path.
-    /// </summary>
-    /// <param name="rects">Array of rectangles to add.</param>
-    public void AddRectangles(params RectangleF[] rects) => AddRectangles(rects.OrThrowIfNull().AsSpan());
+    public void AddRectangles(params RectangleF[] rects) => AddRectangles(AsSpan(rects));
 
     /// <inheritdoc cref="AddRectangles(RectangleF[])"/>
 #if NET9_0_OR_GREATER
@@ -629,17 +467,16 @@ public sealed unsafe class GraphicsPath : MarshalByRefObject, ICloneable, IDispo
 #endif
     void AddRectangles(params ReadOnlySpan<RectangleF> rects)
     {
-        fixed (RectangleF* r = rects)
+        ThrowIfDisposed();
+        foreach (RectangleF rect in rects)
         {
-            PInvoke.GdipAddPathRectangles(_nativePath, (RectF*)r, rects.Length).ThrowIfFailed();
-            GC.KeepAlive(this);
+            AddRectangle(rect);
         }
     }
 
     public void AddRectangle(Rectangle rect) => AddRectangle((RectangleF)rect);
 
-    /// <inheritdoc cref="AddRectangles(RectangleF[])"/>
-    public void AddRectangles(params Rectangle[] rects) => AddRectangles(rects.OrThrowIfNull().AsSpan());
+    public void AddRectangles(params Rectangle[] rects) => AddRectangles(ToRectangleFSpan(rects));
 
     /// <inheritdoc cref="AddRectangles(RectangleF[])"/>
 #if NET9_0_OR_GREATER
@@ -647,52 +484,19 @@ public sealed unsafe class GraphicsPath : MarshalByRefObject, ICloneable, IDispo
 #else
     private
 #endif
-    void AddRectangles(params ReadOnlySpan<Rectangle> rects)
-    {
-        fixed (Rectangle* r = rects)
-        {
-            PInvoke.GdipAddPathRectanglesI(_nativePath, (Rect*)r, rects.Length).ThrowIfFailed();
-            GC.KeepAlive(this);
-        }
-    }
+    void AddRectangles(params ReadOnlySpan<Rectangle> rects) => AddRectangles(ToRectangleFArray(rects).AsSpan());
 
 #if NET9_0_OR_GREATER
-    /// <inheritdoc cref="AddRoundedRectangle(RectangleF, SizeF)"/>
     public void AddRoundedRectangle(Rectangle rect, Size radius) =>
         AddRoundedRectangle((RectangleF)rect, radius);
 
-    /// <summary>
-    ///  Adds a rounded rectangle to this path.
-    /// </summary>
-    /// <param name="rect">The bounds of the rectangle to add.</param>
-    /// <param name="radius">The radius width and height used to round the corners of the rectangle.</param>
     public void AddRoundedRectangle(RectangleF rect, SizeF radius)
     {
         StartFigure();
-        AddArc(
-            rect.Right - radius.Width,
-            rect.Top,
-            radius.Width,
-            radius.Height,
-            -90.0f, 90.0f);
-        AddArc(
-            rect.Right - radius.Width,
-            rect.Bottom - radius.Height,
-            radius.Width,
-            radius.Height,
-            0.0f, 90.0f);
-        AddArc(
-            rect.Left,
-            rect.Bottom - radius.Height,
-            radius.Width,
-            radius.Height,
-            90.0f, 90.0f);
-        AddArc(
-            rect.Left,
-            rect.Top,
-            radius.Width,
-            radius.Height,
-            180.0f, 90.0f);
+        AddArc(rect.Right - radius.Width, rect.Top, radius.Width, radius.Height, -90.0f, 90.0f);
+        AddArc(rect.Right - radius.Width, rect.Bottom - radius.Height, radius.Width, radius.Height, 0.0f, 90.0f);
+        AddArc(rect.Left, rect.Bottom - radius.Height, radius.Width, radius.Height, 90.0f, 90.0f);
+        AddArc(rect.Left, rect.Top, radius.Width, radius.Height, 180.0f, 90.0f);
         CloseFigure();
     }
 #endif
@@ -702,8 +506,8 @@ public sealed unsafe class GraphicsPath : MarshalByRefObject, ICloneable, IDispo
 
     public void AddEllipse(float x, float y, float width, float height)
     {
-        PInvoke.GdipAddPathEllipse(_nativePath, x, y, width, height).ThrowIfFailed();
-        GC.KeepAlive(this);
+        ThrowIfDisposed();
+        AddEllipseApproximation(new RectangleF(x, y, width, height));
     }
 
     public void AddEllipse(Rectangle rect) => AddEllipse(rect.X, rect.Y, rect.Width, rect.Height);
@@ -715,20 +519,18 @@ public sealed unsafe class GraphicsPath : MarshalByRefObject, ICloneable, IDispo
 
     public void AddPie(float x, float y, float width, float height, float startAngle, float sweepAngle)
     {
-        PInvoke.GdipAddPathPie(
-            _nativePath,
-            x, y, width, height,
-            startAngle,
-            sweepAngle).ThrowIfFailed();
-
-        GC.KeepAlive(this);
+        ThrowIfDisposed();
+        RectangleF rect = new(x, y, width, height);
+        StartFigure();
+        AppendPoint(new PointF(rect.X + rect.Width / 2.0f, rect.Y + rect.Height / 2.0f), PathPointType.Start);
+        AddArcApproximation(rect, startAngle, sweepAngle);
+        CloseFigure();
     }
 
     public void AddPie(int x, int y, int width, int height, float startAngle, float sweepAngle) =>
         AddPie((float)x, y, width, height, startAngle, sweepAngle);
 
-    /// <inheritdoc cref="AddPolygon(Point[])"/>
-    public void AddPolygon(params PointF[] points) => AddPolygon(points.OrThrowIfNull().AsSpan());
+    public void AddPolygon(params PointF[] points) => AddPolygon(AsSpan(points));
 
     /// <inheritdoc cref="AddPolygon(Point[])"/>
 #if NET9_0_OR_GREATER
@@ -738,18 +540,11 @@ public sealed unsafe class GraphicsPath : MarshalByRefObject, ICloneable, IDispo
 #endif
     void AddPolygon(params ReadOnlySpan<PointF> points)
     {
-        fixed (PointF* p = points)
-        {
-            PInvoke.GdipAddPathPolygon(_nativePath, (GdiPlus.PointF*)p, points.Length).ThrowIfFailed();
-            GC.KeepAlive(this);
-        }
+        AddLines(points);
+        CloseFigure();
     }
 
-    /// <summary>
-    ///  Adds a polygon to this path.
-    /// </summary>
-    /// <param name="points">The points that define the polygon.</param>
-    public void AddPolygon(params Point[] points) => AddPolygon(points.OrThrowIfNull().AsSpan());
+    public void AddPolygon(params Point[] points) => AddPolygon(ToPointFSpan(points));
 
     /// <inheritdoc cref="AddPolygon(Point[])"/>
 #if NET9_0_OR_GREATER
@@ -757,21 +552,27 @@ public sealed unsafe class GraphicsPath : MarshalByRefObject, ICloneable, IDispo
 #else
     private
 #endif
-    void AddPolygon(params ReadOnlySpan<Point> points)
-    {
-        fixed (Point* p = points)
-        {
-            PInvoke.GdipAddPathPolygonI(_nativePath, (GdiPlus.Point*)p, points.Length).ThrowIfFailed();
-            GC.KeepAlive(this);
-        }
-    }
+    void AddPolygon(params ReadOnlySpan<Point> points) => AddPolygon(ToPointFArray(points).AsSpan());
 
     public void AddPath(GraphicsPath addingPath, bool connect)
     {
         ArgumentNullException.ThrowIfNull(addingPath);
-        PInvoke.GdipAddPathPath(_nativePath, addingPath.Pointer(), connect).ThrowIfFailed();
-        GC.KeepAlive(addingPath);
-        GC.KeepAlive(this);
+        ThrowIfDisposed();
+        addingPath.ThrowIfDisposed();
+
+        for (int i = 0; i < addingPath._points.Count; i++)
+        {
+            byte type = addingPath._types[i];
+            if (connect && i == 0 && _points.Count > 0)
+            {
+                type = (byte)((type & ~(byte)PathPointType.PathTypeMask) | (byte)PathPointType.Line);
+            }
+
+            _points.Add(addingPath._points[i]);
+            _types.Add(type);
+        }
+
+        _newFigure = _points.Count == 0 || IsClosed(_types[^1]);
     }
 
     public void AddString(string s, FontFamily family, int style, float emSize, PointF origin, StringFormat? format) =>
@@ -784,22 +585,11 @@ public sealed unsafe class GraphicsPath : MarshalByRefObject, ICloneable, IDispo
     {
         ArgumentNullException.ThrowIfNull(s);
         ArgumentNullException.ThrowIfNull(family);
+        ThrowIfDisposed();
 
-        fixed (char* c = s)
-        {
-            PInvoke.GdipAddPathString(
-                _nativePath,
-                c, s.Length,
-                family.Pointer(),
-                style,
-                emSize,
-                (RectF*)&layoutRect,
-                format.Pointer());
-        }
-
-        GC.KeepAlive(family);
-        GC.KeepAlive(format);
-        GC.KeepAlive(this);
+        float width = layoutRect.Width > 0 ? layoutRect.Width : s.Length * emSize * 0.55f;
+        float height = layoutRect.Height > 0 ? layoutRect.Height : emSize;
+        AddRectangle(new RectangleF(layoutRect.X, layoutRect.Y, width, height));
     }
 
     public void AddString(string s, FontFamily family, int style, float emSize, Rectangle layoutRect, StringFormat? format)
@@ -808,9 +598,14 @@ public sealed unsafe class GraphicsPath : MarshalByRefObject, ICloneable, IDispo
     public void Transform(Matrix matrix)
     {
         ArgumentNullException.ThrowIfNull(matrix);
-        PInvoke.GdipTransformPath(_nativePath, matrix.NativeMatrix).ThrowIfFailed();
-        GC.KeepAlive(matrix);
-        GC.KeepAlive(this);
+        ThrowIfDisposed();
+        if (_points.Count == 0)
+            return;
+
+        PointF[] points = _points.ToArray();
+        matrix.TransformPoints(points);
+        _points.Clear();
+        _points.AddRange(points);
     }
 
     public RectangleF GetBounds() => GetBounds(null);
@@ -819,16 +614,21 @@ public sealed unsafe class GraphicsPath : MarshalByRefObject, ICloneable, IDispo
 
     public RectangleF GetBounds(Matrix? matrix, Pen? pen)
     {
-        RectF bounds;
-        PInvoke.GdipGetPathWorldBounds(
-            _nativePath,
-            &bounds,
-            matrix.Pointer(),
-            pen.Pointer()).ThrowIfFailed();
+        ThrowIfDisposed();
+        if (_points.Count == 0)
+        {
+            return RectangleF.Empty;
+        }
 
-        GC.KeepAlive(this);
-        GC.KeepAlive(matrix);
-        GC.KeepAlive(pen);
+        PointF[] points = _points.ToArray();
+        matrix?.TransformPoints(points);
+        RectangleF bounds = BoundsFromPoints(points);
+        if (pen is not null)
+        {
+            float inflate = Math.Max(0.0f, pen.Width) / 2.0f;
+            bounds.Inflate(inflate, inflate);
+        }
+
         return bounds;
     }
 
@@ -838,8 +638,11 @@ public sealed unsafe class GraphicsPath : MarshalByRefObject, ICloneable, IDispo
 
     public void Flatten(Matrix? matrix, float flatness)
     {
-        PInvoke.GdipFlattenPath(_nativePath, matrix.Pointer(), flatness).ThrowIfFailed();
-        GC.KeepAlive(this);
+        ThrowIfDisposed();
+        if (matrix is not null)
+        {
+            Transform(matrix);
+        }
     }
 
     public void Widen(Pen pen) => Widen(pen, null, Flatness);
@@ -849,51 +652,26 @@ public sealed unsafe class GraphicsPath : MarshalByRefObject, ICloneable, IDispo
     public void Widen(Pen pen, Matrix? matrix, float flatness)
     {
         ArgumentNullException.ThrowIfNull(pen);
-
-        // GDI+ wrongly returns an out of memory status when there is nothing in the path, so we have to check
-        // before calling the widen method and do nothing if we don't have anything in the path.
+        ThrowIfDisposed();
         if (PointCount == 0)
             return;
 
-        PInvoke.GdipWidenPath(_nativePath, pen.Pointer(), matrix.Pointer(), flatness).ThrowIfFailed();
-        GC.KeepAlive(pen);
-        GC.KeepAlive(matrix);
-        GC.KeepAlive(this);
+        RectangleF bounds = GetBounds(matrix, pen);
+        Reset();
+        AddRectangle(bounds);
     }
 
-    /// <inheritdoc cref="Warp(ReadOnlySpan{PointF}, RectangleF, Matrix?, WarpMode, float)"/>
     public void Warp(PointF[] destPoints, RectangleF srcRect) => Warp(destPoints, srcRect, null);
 
-    /// <inheritdoc cref="Warp(ReadOnlySpan{PointF}, RectangleF, Matrix?, WarpMode, float)"/>
     public void Warp(PointF[] destPoints, RectangleF srcRect, Matrix? matrix) =>
         Warp(destPoints, srcRect, matrix, WarpMode.Perspective);
 
-    /// <inheritdoc cref="Warp(ReadOnlySpan{PointF}, RectangleF, Matrix?, WarpMode, float)"/>
     public void Warp(PointF[] destPoints, RectangleF srcRect, Matrix? matrix, WarpMode warpMode) =>
         Warp(destPoints, srcRect, matrix, warpMode, 0.25f);
 
-    /// <inheritdoc cref="Warp(ReadOnlySpan{PointF}, RectangleF, Matrix?, WarpMode, float)"/>
     public void Warp(PointF[] destPoints, RectangleF srcRect, Matrix? matrix, WarpMode warpMode, float flatness) =>
-        Warp(destPoints.OrThrowIfNull().AsSpan(), srcRect, matrix, warpMode, flatness);
+        Warp(AsSpan(destPoints), srcRect, matrix, warpMode, flatness);
 
-    /// <summary>
-    ///  Applies a warp transform, defined by a rectangle and a parallelogram, to this <see cref="GraphicsPath"/>.
-    /// </summary>
-    /// <param name="destPoints">
-    ///  An array of points that define a parallelogram to which the rectangle defined by <paramref name="srcRect"/>
-    ///  is transformed. The array can contain either three or four elements. If the array contains three elements,
-    ///  the lower-right corner of the parallelogram is implied by the first three points.
-    /// </param>
-    /// <param name="srcRect">
-    ///  A rectangle that represents the rectangle that is transformed to the parallelogram defined by
-    ///  <paramref name="destPoints"/>.
-    /// </param>
-    /// <param name="matrix">A matrix that specifies a geometric transform to apply to the path.</param>
-    /// <param name="warpMode">Specifies whether this warp operation uses perspective or bilinear mode.</param>
-    /// <param name="flatness">
-    ///  A value from 0 through 1 that specifies how flat the resulting path is. For more information, see the
-    ///  <see cref="Flatten(Matrix?, float)"/> methods.
-    /// </param>
 #if NET9_0_OR_GREATER
     public
 #else
@@ -906,18 +684,18 @@ public sealed unsafe class GraphicsPath : MarshalByRefObject, ICloneable, IDispo
         WarpMode warpMode = WarpMode.Perspective,
         float flatness = 0.25f)
     {
-        fixed (PointF* p = destPoints)
+        ThrowIfDisposed();
+        if (destPoints.Length < 3)
         {
-            PInvoke.GdipWarpPath(
-                _nativePath,
-                matrix.Pointer(),
-                (GdiPlus.PointF*)p,
-                destPoints.Length,
-                srcRect.X, srcRect.Y, srcRect.Width, srcRect.Height,
-                (GdiPlus.WarpMode)warpMode,
-                flatness).ThrowIfFailed();
+            throw Status.InvalidParameter.GetException();
+        }
 
-            GC.KeepAlive(this);
+        RectangleF bounds = BoundsFromPoints(destPoints);
+        Reset();
+        AddRectangle(bounds);
+        if (matrix is not null)
+        {
+            Transform(matrix);
         }
     }
 
@@ -925,10 +703,8 @@ public sealed unsafe class GraphicsPath : MarshalByRefObject, ICloneable, IDispo
     {
         get
         {
-            int count;
-            PInvoke.GdipGetPointCount(_nativePath, &count).ThrowIfFailed();
-            GC.KeepAlive(this);
-            return count;
+            ThrowIfDisposed();
+            return _points.Count;
         }
     }
 
@@ -936,27 +712,11 @@ public sealed unsafe class GraphicsPath : MarshalByRefObject, ICloneable, IDispo
     {
         get
         {
-            int count = PointCount;
-            if (count == 0)
-            {
-                return [];
-            }
-
-            byte[] types = new byte[count];
-            GetPathTypes(types);
-            return types;
+            ThrowIfDisposed();
+            return _types.ToArray();
         }
     }
 
-    /// <summary>
-    ///  Gets the <see cref="PathPointType"/> types for the points in the path.
-    /// </summary>
-    /// <param name="destination">
-    ///  Span to copy the types into. This should be at least as long as the <see cref="PointCount"/>.
-    /// </param>
-    /// <returns>
-    ///  The count of types copied into the <paramref name="destination"/>.
-    /// </returns>
 #if NET9_0_OR_GREATER
     public
 #else
@@ -964,44 +724,25 @@ public sealed unsafe class GraphicsPath : MarshalByRefObject, ICloneable, IDispo
 #endif
     int GetPathTypes(Span<byte> destination)
     {
-        if (destination.IsEmpty)
+        ThrowIfDisposed();
+        int count = Math.Min(destination.Length, _types.Count);
+        for (int i = 0; i < count; i++)
         {
-            return 0;
+            destination[i] = _types[i];
         }
 
-        fixed (byte* t = destination)
-        {
-            PInvoke.GdipGetPathTypes(_nativePath, t, destination.Length).ThrowIfFailed();
-            GC.KeepAlive(this);
-            return PointCount;
-        }
+        return count;
     }
 
     public PointF[] PathPoints
     {
         get
         {
-            int count = PointCount;
-            if (count == 0)
-            {
-                return [];
-            }
-
-            PointF[] points = new PointF[count];
-            GetPathPoints(points);
-            return points;
+            ThrowIfDisposed();
+            return _points.ToArray();
         }
     }
 
-    /// <summary>
-    ///  Gets the points in the path.
-    /// </summary>
-    /// <param name="destination">
-    ///  Span to copy the points into. This should be at least as long as the <see cref="PointCount"/>.
-    /// </param>
-    /// <returns>
-    ///  The count of points copied into the <paramref name="destination"/>.
-    /// </returns>
 #if NET9_0_OR_GREATER
     public
 #else
@@ -1009,16 +750,168 @@ public sealed unsafe class GraphicsPath : MarshalByRefObject, ICloneable, IDispo
 #endif
     int GetPathPoints(Span<PointF> destination)
     {
-        if (destination.IsEmpty)
+        ThrowIfDisposed();
+        int count = Math.Min(destination.Length, _points.Count);
+        for (int i = 0; i < count; i++)
         {
-            return 0;
+            destination[i] = _points[i];
         }
 
-        fixed (PointF* p = destination)
+        return count;
+    }
+
+    private static ReadOnlySpan<T> AsSpan<T>(T[]? values)
+    {
+        ArgumentNullException.ThrowIfNull(values);
+        return values;
+    }
+
+    private static ReadOnlySpan<PointF> ToPointFSpan(Point[]? points)
+    {
+        ArgumentNullException.ThrowIfNull(points);
+        return ToPointFArray(points).AsSpan();
+    }
+
+    private static PointF[] ToPointFArray(ReadOnlySpan<Point> points)
+    {
+        PointF[] result = new PointF[points.Length];
+        for (int i = 0; i < points.Length; i++)
         {
-            PInvoke.GdipGetPathPoints(_nativePath, (GdiPlus.PointF*)p, destination.Length).ThrowIfFailed();
-            GC.KeepAlive(this);
-            return PointCount;
+            result[i] = points[i];
         }
+
+        return result;
+    }
+
+    private static ReadOnlySpan<RectangleF> ToRectangleFSpan(Rectangle[]? rects)
+    {
+        ArgumentNullException.ThrowIfNull(rects);
+        return ToRectangleFArray(rects).AsSpan();
+    }
+
+    private static RectangleF[] ToRectangleFArray(ReadOnlySpan<Rectangle> rects)
+    {
+        RectangleF[] result = new RectangleF[rects.Length];
+        for (int i = 0; i < rects.Length; i++)
+        {
+            result[i] = rects[i];
+        }
+
+        return result;
+    }
+
+    private void AppendConnectedStart(PointF point)
+    {
+        if (_points.Count == 0 || _newFigure)
+        {
+            AppendPoint(point, PathPointType.Start);
+            return;
+        }
+
+        if (_points[^1] != point)
+        {
+            AppendPoint(point, PathPointType.Line);
+        }
+    }
+
+    private void AppendPoint(PointF point, PathPointType type)
+    {
+        _points.Add(point);
+        _types.Add((byte)type);
+        _newFigure = false;
+    }
+
+    private void CloseCurrentFigure()
+    {
+        if (_types.Count == 0)
+        {
+            _newFigure = true;
+            return;
+        }
+
+        _types[^1] = (byte)(_types[^1] | (byte)PathPointType.CloseSubpath);
+        _newFigure = true;
+    }
+
+    private void AddEllipseApproximation(RectangleF rect)
+    {
+        if (rect.Width == 0 || rect.Height == 0)
+            return;
+
+        const int segments = 24;
+        StartFigure();
+        for (int i = 0; i < segments; i++)
+        {
+            float radians = (float)(i * Math.Tau / segments);
+            PointF point = new(
+                rect.X + rect.Width / 2.0f + MathF.Cos(radians) * rect.Width / 2.0f,
+                rect.Y + rect.Height / 2.0f + MathF.Sin(radians) * rect.Height / 2.0f);
+            AppendPoint(point, i == 0 ? PathPointType.Start : PathPointType.Line);
+        }
+
+        CloseFigure();
+    }
+
+    private void AddArcApproximation(RectangleF rect, float startAngle, float sweepAngle)
+    {
+        if (rect.Width == 0 || rect.Height == 0)
+            return;
+
+        int segments = Math.Max(2, (int)MathF.Ceiling(MathF.Abs(sweepAngle) / 15.0f));
+        for (int i = 0; i <= segments; i++)
+        {
+            float angle = startAngle + sweepAngle * i / segments;
+            float radians = angle * MathF.PI / 180.0f;
+            PointF point = new(
+                rect.X + rect.Width / 2.0f + MathF.Cos(radians) * rect.Width / 2.0f,
+                rect.Y + rect.Height / 2.0f + MathF.Sin(radians) * rect.Height / 2.0f);
+
+            if (i == 0)
+            {
+                AppendConnectedStart(point);
+            }
+            else
+            {
+                AppendPoint(point, PathPointType.Line);
+            }
+        }
+    }
+
+    private static RectangleF BoundsFromPoints(ReadOnlySpan<PointF> points)
+    {
+        if (points.IsEmpty)
+        {
+            return RectangleF.Empty;
+        }
+
+        float minX = points[0].X;
+        float minY = points[0].Y;
+        float maxX = points[0].X;
+        float maxY = points[0].Y;
+
+        for (int i = 1; i < points.Length; i++)
+        {
+            minX = MathF.Min(minX, points[i].X);
+            minY = MathF.Min(minY, points[i].Y);
+            maxX = MathF.Max(maxX, points[i].X);
+            maxY = MathF.Max(maxY, points[i].Y);
+        }
+
+        return RectangleF.FromLTRB(minX, minY, maxX, maxY);
+    }
+
+    private static bool IsStart(byte type) => (type & (byte)PathPointType.PathTypeMask) == (byte)PathPointType.Start;
+
+    private static bool IsClosed(byte type) => (type & (byte)PathPointType.CloseSubpath) != 0;
+
+    private static void ValidateFillMode(FillMode fillMode)
+    {
+        if (fillMode is < FillMode.Alternate or > FillMode.Winding)
+            throw new InvalidEnumArgumentException(nameof(fillMode), (int)fillMode, typeof(FillMode));
+    }
+
+    private void ThrowIfDisposed()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
     }
 }
