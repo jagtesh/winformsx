@@ -654,9 +654,19 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
             case StatusStrip:
                 FillRect(g, bounds, Color.FromArgb(36, 42, 52));
                 StrokeRect(g, bounds, Color.FromArgb(24, 26, 32));
+                if (control is StatusStrip statusStrip)
+                {
+                    DrawStatusItems(g, statusStrip, bounds);
+                }
+
                 return;
 
-            case MenuStrip:
+            case MenuStrip menuStrip:
+                FillRect(g, bounds, Color.FromArgb(48, 54, 66));
+                StrokeRect(g, bounds, Color.FromArgb(24, 26, 32));
+                DrawMenuItems(g, menuStrip, bounds);
+                return;
+
             case ToolStrip:
                 FillRect(g, bounds, Color.FromArgb(48, 54, 66));
                 StrokeRect(g, bounds, Color.FromArgb(24, 26, 32));
@@ -697,6 +707,75 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
             DrawText(g, page.Text, tabControl.Font, Color.White, tabRect, ContentAlignment.MiddleCenter);
             x += tabWidth + 6;
             if (x > bounds.Right - 90)
+            {
+                break;
+            }
+        }
+    }
+
+    private static void DrawMenuItems(System.Drawing.Graphics g, MenuStrip menuStrip, Rectangle bounds)
+    {
+        int x = bounds.X + 6;
+        int y = bounds.Y + 2;
+        int h = Math.Max(18, bounds.Height - 4);
+        Font? menuFont = SafeGet(() => menuStrip.Font, (Font?)null);
+
+        int count = SafeGet(() => menuStrip.Items.Count, 0);
+        for (int i = 0; i < count; i++)
+        {
+            ToolStripItem? item = SafeGet(() => menuStrip.Items[i], null);
+            if (item is null)
+            {
+                continue;
+            }
+
+            string text = SafeGet(() => item.Text, string.Empty);
+            int w = SafeGet(() => item.Width, 0);
+            if (w <= 0)
+            {
+                w = Math.Max(48, (text?.Length ?? 0) * 9 + 20);
+            }
+
+            Rectangle itemRect = new(x, y, w, h);
+            Color bg = SafeGet(() => item.Selected, false) ? Color.FromArgb(74, 139, 255) : Color.FromArgb(63, 70, 84);
+            FillRect(g, itemRect, bg);
+            StrokeRect(g, itemRect, Color.FromArgb(42, 46, 56));
+            DrawText(g, text, menuFont, Color.White, itemRect, ContentAlignment.MiddleCenter);
+            x += w + 6;
+            if (x > bounds.Right - 40)
+            {
+                break;
+            }
+        }
+    }
+
+    private static void DrawStatusItems(System.Drawing.Graphics g, StatusStrip statusStrip, Rectangle bounds)
+    {
+        int x = bounds.X + 8;
+        int y = bounds.Y + 2;
+        int h = Math.Max(16, bounds.Height - 4);
+        Font? statusFont = SafeGet(() => statusStrip.Font, (Font?)null);
+
+        int count = SafeGet(() => statusStrip.Items.Count, 0);
+        for (int i = 0; i < count; i++)
+        {
+            ToolStripItem? item = SafeGet(() => statusStrip.Items[i], null);
+            if (item is null)
+            {
+                continue;
+            }
+
+            string text = SafeGet(() => item.Text, string.Empty);
+            int w = SafeGet(() => item.Width, 0);
+            if (w <= 0)
+            {
+                w = Math.Max(80, (text?.Length ?? 0) * 8 + 20);
+            }
+
+            Rectangle textRect = new(x, y, w, h);
+            DrawText(g, text, statusFont, Color.FromArgb(220, 225, 235), textRect, ContentAlignment.MiddleLeft);
+            x += w + 12;
+            if (x > bounds.Right - 40)
             {
                 break;
             }
