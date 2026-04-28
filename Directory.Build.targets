@@ -7,6 +7,12 @@
   <Import Project="$(RepositoryEngineeringDir)ApiCompatibility\PublicApiAnalyzer.targets" />
   <Import Project="$(RepositoryEngineeringDir)Test.targets" Condition="'$(IsTestProject)' == 'true' "/>
 
+  <Target Name="VerifyImpellerOnlyArchitecture"
+          BeforeTargets="CoreCompile"
+          Condition="'$(EnforceImpellerOnlyArchitecture)' == 'true' and '$(MSBuildProjectName)' == 'System.Windows.Forms'">
+    <Exec Command="bash &quot;$(RepoRoot)eng/verify-impeller-only.sh&quot;" />
+  </Target>
+
   <!-- CA1416 Validate platform compatibility. Do not apply to netstandard as it does not have the attribute. -->
   <ItemGroup>
     <AssemblyAttribute Include="System.Runtime.Versioning.SupportedOSPlatform" Condition="!$(TargetFramework.StartsWith('netstandard'))">

@@ -84,9 +84,4 @@
     </EmbeddedResource>
   </ItemGroup>
 
-  <ItemGroup Condition="Exists('comctl32.dll')">
-    <None Update="comctl32.dll">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-  </ItemGroup>
 </Project>

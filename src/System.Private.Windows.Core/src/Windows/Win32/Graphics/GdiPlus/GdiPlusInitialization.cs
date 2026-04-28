@@ -14,20 +14,10 @@ internal static partial class GdiPlusInitialization
     {
         Debug.Assert(s_initToken == 0, "GdiplusInitialization: Initialize should not be called more than once!");
 
-        // WinFormsX PAL mode must not bind to native GDI+ on non-Windows hosts.
-        // Return a non-zero sentinel so EnsureInitialized() succeeds without loading gdiplus.
-        if (!OperatingSystem.IsWindows())
-        {
-            return 1;
-        }
-
-        // GDI+ ref counts multiple calls to Startup in the same process, so calls from multiple
-        // domains are ok, just make sure to pair each w/GdiplusShutdown
-
-        nuint token;
-        GdiplusStartupInputEx startup = GdiplusStartupInputEx.GetDefault();
-        PInvokeCore.GdiplusStartup(&token, (GdiplusStartupInput*)&startup, null).ThrowIfFailed();
-        return token;
+        // WinFormsX is Impeller-only on every host OS, including Windows.
+        // Never bind gdiplus.dll; return a non-zero sentinel so legacy callers
+        // do not trigger native startup while they are being migrated to PAL.
+        return 1;
     }
 
     /// <summary>

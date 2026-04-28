@@ -12,11 +12,12 @@ namespace System.Drawing;
 /// rendering via Vulkan or Metal.
 /// </summary>
 internal sealed class ImpellerRenderingBackend : IRenderingBackend
-{
-    private readonly IPlatformBackend _platformBackend;
-    private readonly nint _impellerContext;
-    private DisplayListBuilder? _builder;
-    private nint _frameSurface;
+    {
+        private readonly IPlatformBackend _platformBackend;
+        private readonly nint _impellerContext;
+        private static readonly HarfBuzzTextEngine s_textEngine = new();
+        private DisplayListBuilder? _builder;
+        private nint _frameSurface;
 
     public ImpellerRenderingBackend(IPlatformBackend platformBackend, nint impellerContext)
     {
@@ -227,181 +228,22 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend
 
     // ─── Text ───────────────────────────────────────────────────────────
 
-    public void DrawString(string text, float x, float y, Color color,
-                           string fontFamily, float fontSize, bool bold, bool italic)
-    {
-        if (_builder is null || string.IsNullOrEmpty(text))
-            return;
-        text = text.Replace("\r\n", "\n");
-        var typoCtx = TypographyProvider.Context;
-        if (typoCtx == nint.Zero)
-            return;
-
-        var paintHandle = CreateFillPaint(color);
-        var style = NativeMethods.ImpellerParagraphStyleNew();
-        if (style == nint.Zero)
-        { NativeMethods.ImpellerPaintRelease(paintHandle); return; }
-        try
+        public void DrawString(string text, float x, float y, Color color,
+                               string fontFamily, float fontSize, bool bold, bool italic)
         {
-            NativeMethods.ImpellerParagraphStyleSetForeground(style, paintHandle);
-            NativeMethods.ImpellerParagraphStyleSetFontSize(style, fontSize);
-            string? resolvedFamily = TypographyProvider.ResolveFontFamily(fontFamily, bold, italic);
-            if (!string.IsNullOrEmpty(resolvedFamily))
-                NativeMethods.ImpellerParagraphStyleSetFontFamily(style, resolvedFamily);
-            if (bold)
-                NativeMethods.ImpellerParagraphStyleSetFontWeight(style, ImpellerFontWeight.W700);
-            if (italic)
-                NativeMethods.ImpellerParagraphStyleSetFontStyle(style, ImpellerFontStyle.Italic);
-            NativeMethods.ImpellerParagraphStyleSetTextAlignment(style, ImpellerTextAlignment.Left);
-
-            var builder = NativeMethods.ImpellerParagraphBuilderNew(typoCtx);
-            if (builder == nint.Zero)
-                return;
-            try
-            {
-                NativeMethods.ImpellerParagraphBuilderPushStyle(builder, style);
-                var utf8 = System.Text.Encoding.UTF8.GetBytes(text);
-                unsafe
-                { fixed (byte* p = utf8) { NativeMethods.ImpellerParagraphBuilderAddText(builder, (nint)p, (uint)utf8.Length); } }
-                NativeMethods.ImpellerParagraphBuilderPopStyle(builder);
-                var paragraph = NativeMethods.ImpellerParagraphBuilderBuildParagraphNew(builder, 10000f);
-                if (paragraph == nint.Zero)
-                    return;
-                try
-                {
-                    var point = new ImpellerPoint(x, y);
-                    _builder.DrawParagraph(paragraph, ref point);
-                }
-                finally { NativeMethods.ImpellerParagraphRelease(paragraph); }
-            }
-            finally { NativeMethods.ImpellerParagraphBuilderRelease(builder); }
+            s_textEngine.DrawString(this, text, x, y, color, fontFamily, fontSize, bold, italic);
         }
-        finally
+
+        public void DrawStringAligned(string text, RectangleF bounds, ContentAlignment alignment,
+                                      Color color, string fontFamily, float fontSize, bool bold, bool italic)
         {
-            NativeMethods.ImpellerParagraphStyleRelease(style);
-            NativeMethods.ImpellerPaintRelease(paintHandle);
+            s_textEngine.DrawStringAligned(this, text, bounds, alignment, color, fontFamily, fontSize, bold, italic);
         }
-    }
 
-    public void DrawStringAligned(string text, RectangleF bounds, ContentAlignment alignment,
-                                  Color color, string fontFamily, float fontSize, bool bold, bool italic)
-    {
-        if (_builder is null || string.IsNullOrEmpty(text))
-            return;
-        text = text.Replace("\r\n", "\n");
-        var typoCtx = TypographyProvider.Context;
-        if (typoCtx == nint.Zero)
-            return;
-
-        var paintHandle = CreateFillPaint(color);
-        var style = NativeMethods.ImpellerParagraphStyleNew();
-        if (style == nint.Zero)
-        { NativeMethods.ImpellerPaintRelease(paintHandle); return; }
-        try
+        public SizeF MeasureString(string text, string fontFamily, float fontSize, bool bold, bool italic)
         {
-            NativeMethods.ImpellerParagraphStyleSetForeground(style, paintHandle);
-            NativeMethods.ImpellerParagraphStyleSetFontSize(style, fontSize);
-            string? resolvedFamily = TypographyProvider.ResolveFontFamily(fontFamily, bold, italic);
-            if (!string.IsNullOrEmpty(resolvedFamily))
-                NativeMethods.ImpellerParagraphStyleSetFontFamily(style, resolvedFamily);
-            if (bold)
-                NativeMethods.ImpellerParagraphStyleSetFontWeight(style, ImpellerFontWeight.W700);
-            if (italic)
-                NativeMethods.ImpellerParagraphStyleSetFontStyle(style, ImpellerFontStyle.Italic);
-
-            var hAlign = alignment switch
-            {
-                ContentAlignment.TopCenter or ContentAlignment.MiddleCenter or ContentAlignment.BottomCenter => ImpellerTextAlignment.Center,
-                ContentAlignment.TopRight or ContentAlignment.MiddleRight or ContentAlignment.BottomRight => ImpellerTextAlignment.Right,
-                _ => ImpellerTextAlignment.Left
-            };
-            NativeMethods.ImpellerParagraphStyleSetTextAlignment(style, hAlign);
-
-            var builder = NativeMethods.ImpellerParagraphBuilderNew(typoCtx);
-            if (builder == nint.Zero)
-                return;
-            try
-            {
-                NativeMethods.ImpellerParagraphBuilderPushStyle(builder, style);
-                var utf8 = System.Text.Encoding.UTF8.GetBytes(text);
-                unsafe
-                { fixed (byte* p = utf8) { NativeMethods.ImpellerParagraphBuilderAddText(builder, (nint)p, (uint)utf8.Length); } }
-                NativeMethods.ImpellerParagraphBuilderPopStyle(builder);
-                var layoutWidth = bounds.Width > 0 ? bounds.Width : 10000f;
-                var paragraph = NativeMethods.ImpellerParagraphBuilderBuildParagraphNew(builder, layoutWidth);
-                if (paragraph == nint.Zero)
-                    return;
-                try
-                {
-                    float pHeight = NativeMethods.ImpellerParagraphGetHeight(paragraph);
-                    float yOffset = alignment switch
-                    {
-                        ContentAlignment.MiddleLeft or ContentAlignment.MiddleCenter or ContentAlignment.MiddleRight => (bounds.Height - pHeight) / 2f,
-                        ContentAlignment.BottomLeft or ContentAlignment.BottomCenter or ContentAlignment.BottomRight => bounds.Height - pHeight,
-                        _ => 0f
-                    };
-                    var point = new ImpellerPoint(bounds.X, bounds.Y + yOffset);
-                    _builder.DrawParagraph(paragraph, ref point);
-                }
-                finally { NativeMethods.ImpellerParagraphRelease(paragraph); }
-            }
-            finally { NativeMethods.ImpellerParagraphBuilderRelease(builder); }
+            return s_textEngine.MeasureString(text, fontFamily, fontSize, bold, italic);
         }
-        finally
-        {
-            NativeMethods.ImpellerParagraphStyleRelease(style);
-            NativeMethods.ImpellerPaintRelease(paintHandle);
-        }
-    }
-
-    public SizeF MeasureString(string text, string fontFamily, float fontSize, bool bold, bool italic)
-    {
-        if (string.IsNullOrEmpty(text))
-            return SizeF.Empty;
-        text = text.Replace("\r\n", "\n");
-        var typoCtx = TypographyProvider.Context;
-        if (typoCtx == nint.Zero)
-            return SizeF.Empty;
-
-        var style = NativeMethods.ImpellerParagraphStyleNew();
-        if (style == nint.Zero)
-            return SizeF.Empty;
-        try
-        {
-            NativeMethods.ImpellerParagraphStyleSetFontSize(style, fontSize);
-            string? resolvedFamily = TypographyProvider.ResolveFontFamily(fontFamily, bold, italic);
-            if (!string.IsNullOrEmpty(resolvedFamily))
-                NativeMethods.ImpellerParagraphStyleSetFontFamily(style, resolvedFamily);
-            if (bold)
-                NativeMethods.ImpellerParagraphStyleSetFontWeight(style, ImpellerFontWeight.W700);
-            if (italic)
-                NativeMethods.ImpellerParagraphStyleSetFontStyle(style, ImpellerFontStyle.Italic);
-
-            var builder = NativeMethods.ImpellerParagraphBuilderNew(typoCtx);
-            if (builder == nint.Zero)
-                return SizeF.Empty;
-            try
-            {
-                NativeMethods.ImpellerParagraphBuilderPushStyle(builder, style);
-                var utf8 = System.Text.Encoding.UTF8.GetBytes(text);
-                unsafe
-                { fixed (byte* p = utf8) { NativeMethods.ImpellerParagraphBuilderAddText(builder, (nint)p, (uint)utf8.Length); } }
-                NativeMethods.ImpellerParagraphBuilderPopStyle(builder);
-                var paragraph = NativeMethods.ImpellerParagraphBuilderBuildParagraphNew(builder, 10000f);
-                if (paragraph == nint.Zero)
-                    return SizeF.Empty;
-                try
-                {
-                    float width = NativeMethods.ImpellerParagraphGetMaxIntrinsicWidth(paragraph);
-                    float height = NativeMethods.ImpellerParagraphGetHeight(paragraph);
-                    return new SizeF(width, height);
-                }
-                finally { NativeMethods.ImpellerParagraphRelease(paragraph); }
-            }
-            finally { NativeMethods.ImpellerParagraphBuilderRelease(builder); }
-        }
-        finally { NativeMethods.ImpellerParagraphStyleRelease(style); }
-    }
 
     // ─── Paths ──────────────────────────────────────────────────────────
 

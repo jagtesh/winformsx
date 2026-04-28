@@ -128,6 +128,8 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
             {
                 return CreateBackendBacked(backend);
             }
+
+            ThrowImpellerBackendUnavailable(nameof(FromHdcInternal));
         }
 
         GpGraphics* nativeGraphics;
@@ -151,6 +153,17 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     [EditorBrowsable(EditorBrowsableState.Advanced)]
     public static Graphics FromHdc(IntPtr hdc, IntPtr hdevice)
     {
+        if (BackendFactory is not null)
+        {
+            IRenderingBackend? backend = BackendFactory(IntPtr.Zero);
+            if (backend is not null)
+            {
+                return CreateBackendBacked(backend);
+            }
+
+            ThrowImpellerBackendUnavailable(nameof(FromHdc));
+        }
+
         GpGraphics* nativeGraphics;
         Gdip.CheckStatus(PInvoke.GdipCreateFromHDC2((HDC)hdc, (HANDLE)hdevice, &nativeGraphics));
         return new Graphics(nativeGraphics);
@@ -174,6 +187,8 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
             {
                 return CreateBackendBacked(backend);
             }
+
+            ThrowImpellerBackendUnavailable(nameof(FromHwndInternal));
         }
 
         GpGraphics* nativeGraphics;
@@ -184,6 +199,13 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
         GdiPlusInitialization.EnsureInitialized();
         Gdip.CheckStatus(PInvokeCore.GdipCreateFromHWND((HWND)hwnd, &nativeGraphics));
         return new Graphics(nativeGraphics);
+    }
+
+    private static void ThrowImpellerBackendUnavailable(string api)
+    {
+        throw new InvalidOperationException(
+            $"{api} cannot use native GDI/GDI+. WinFormsX is Impeller-only; " +
+            "the Impeller backend was not available for this drawing request.");
     }
 
     /// <summary>

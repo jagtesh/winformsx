@@ -61,6 +61,13 @@ internal static class PlatformApi
     public static void Initialize(IPlatformProvider provider)
     {
         ArgumentNullException.ThrowIfNull(provider);
+        if (!string.Equals(provider.Name, "Impeller", StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                $"WinFormsX only supports the Impeller/Silk.NET/Vulkan platform provider. " +
+                $"Provider '{provider.Name}' is not allowed.");
+        }
+
         s_provider = provider;
     }
 }
