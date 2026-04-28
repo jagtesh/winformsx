@@ -332,18 +332,26 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend
         }
     }
 
-    internal void FillGlyphOutline(TrueTypeGlyphOutline outline, float x, float baselineY, float scale, Color color)
+    internal void FillGlyphOutlines(IReadOnlyList<PositionedGlyphOutline> glyphs, Color color)
     {
-        if (_builder is null || outline.IsEmpty || scale <= 0f)
+        if (_builder is null || glyphs.Count == 0)
             return;
 
         nint pathBuilder = NativeMethods.ImpellerPathBuilderNew();
         nint path = nint.Zero;
         try
         {
-            foreach (TrueTypeGlyphPoint[] contour in outline.Contours)
+            foreach (PositionedGlyphOutline glyph in glyphs)
             {
-                AppendGlyphContour(pathBuilder, contour, x, baselineY, scale);
+                if (glyph.Outline.IsEmpty || glyph.Scale <= 0f)
+                {
+                    continue;
+                }
+
+                foreach (TrueTypeGlyphPoint[] contour in glyph.Outline.Contours)
+                {
+                    AppendGlyphContour(pathBuilder, contour, glyph.X, glyph.BaselineY, glyph.Scale);
+                }
             }
 
             path = NativeMethods.ImpellerPathBuilderCopyPathNew(pathBuilder, ImpellerFillType.NonZero);

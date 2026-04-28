@@ -6,6 +6,8 @@ namespace System.Drawing;
 
 internal readonly record struct TrueTypeGlyphPoint(float X, float Y, bool OnCurve);
 
+internal readonly record struct PositionedGlyphOutline(TrueTypeGlyphOutline Outline, float X, float BaselineY, float Scale);
+
 internal sealed class TrueTypeGlyphOutline
 {
     public TrueTypeGlyphOutline(TrueTypeGlyphPoint[][] contours) => Contours = contours;

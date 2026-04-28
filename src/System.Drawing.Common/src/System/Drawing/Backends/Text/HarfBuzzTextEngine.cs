@@ -94,9 +94,13 @@ internal sealed class HarfBuzzTextEngine : ITextEngine
         float currentY = y;
         ShapedFontMetrics metrics = shaper.GetMetrics();
         TrueTypeGlyphOutlineProvider? outlineProvider = null;
-        if (backend is ImpellerRenderingBackend)
+        ImpellerRenderingBackend? impellerBackend = null;
+        List<PositionedGlyphOutline>? glyphRun = null;
+        if (backend is ImpellerRenderingBackend activeImpellerBackend)
         {
+            impellerBackend = activeImpellerBackend;
             outlineProvider = TrueTypeGlyphOutlineProvider.GetOrCreate(shaper.FontPath);
+            glyphRun = [];
         }
 
         foreach (string line in lines)
@@ -108,14 +112,13 @@ internal sealed class HarfBuzzTextEngine : ITextEngine
                 float glyphX = cursorX + glyph.XOffset;
                 float glyphY = baselineY - glyph.YOffset;
 
-                if (outlineProvider is not null && backend is ImpellerRenderingBackend impellerBackend)
+                if (outlineProvider is not null && glyphRun is not null)
                 {
-                    impellerBackend.FillGlyphOutline(
+                    glyphRun.Add(new PositionedGlyphOutline(
                         outlineProvider.GetGlyph(glyph.GlyphId),
                         glyphX,
                         glyphY,
-                        shaper.FontSize / outlineProvider.UnitsPerEm,
-                        color);
+                        shaper.FontSize / outlineProvider.UnitsPerEm));
                 }
                 else if (glyph.Cluster < line.Length)
                 {
@@ -128,6 +131,11 @@ internal sealed class HarfBuzzTextEngine : ITextEngine
             }
 
             currentY += lineHeight;
+        }
+
+        if (impellerBackend is not null && glyphRun is { Count: > 0 })
+        {
+            impellerBackend.FillGlyphOutlines(glyphRun, color);
         }
     }
 
