@@ -1,8 +1,16 @@
-# Windows Forms
+# WinFormsX
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://github.com/dotnet/winforms/blob/main/LICENSE.TXT)
 
-Windows Forms (WinForms) is a UI framework for building Windows desktop applications. It is a .NET wrapper over Windows user interface libraries, such as User32 and GDI+. It also offers controls and other functionality that is unique to Windows Forms.
+WinFormsX is a fork of `dotnet/winforms` that preserves the public Windows Forms
+API and Windows-style behavior while replacing the Windows-native runtime with a
+managed PAL, Impeller rendering, Silk.NET hosting, and a Vulkan backing.
+
+This repository is intentionally different from upstream Windows Forms. See
+[WinFormsX Compared With Upstream Windows Forms](docs/winformsx-upstream-comparison.md)
+before making runtime, drawing, dialog, or control changes.
+
+Upstream Windows Forms (WinForms) is a UI framework for building Windows desktop applications. It is a .NET wrapper over Windows user interface libraries, such as User32 and GDI+. WinFormsX keeps the public API surface and compatibility target, but replaces those runtime dependencies with the Impeller-only architecture described above.
 
 Windows Forms also provides one of the most productive ways to create desktop applications based on the visual designer provided in Visual Studio. It enables drag-and-drop of visual controls and other similar functionality that make it easy to build desktop applications.
 
@@ -93,4 +101,3 @@ See the [.NET home repository](https://github.com/Microsoft/dotnet) to find oth
 [getting-started]: docs/getting-started.md
 [net-contributing]: https://github.com/dotnet/runtime/blob/master/CONTRIBUTING.md
 [porting-guidelines]: docs/porting-guidelines.md
-

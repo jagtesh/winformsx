@@ -1,5 +1,9 @@
 # UniWinForms Architecture & Design Principles
 
+For a contributor-focused comparison with the Microsoft `dotnet/winforms`
+repository, read
+[WinFormsX Compared With Upstream Windows Forms](docs/winformsx-upstream-comparison.md).
+
 ## Core Tenet: Cross-Platform Abstraction
 UniWinForms is designed to be a true, cross-platform fork of the `dotnet/winforms` framework. The central architectural intent of this project is to create a seamless **Platform Abstraction Layer (PAL)** that transparently handles underlying OS specifics (like rendering, windowing, and message dispatch) without altering the core WinForms control implementations.
 
