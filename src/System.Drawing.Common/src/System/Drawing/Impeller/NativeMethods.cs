@@ -212,8 +212,8 @@ public static partial class NativeMethods
     public static partial void ImpellerDisplayListBuilderDrawDisplayList(
         nint builder, nint displayList, float opacity);
 
-    [DllImport(ImpellerLib, EntryPoint = "ImpellerDisplayListBuilderDrawParagraph")]
-    public static extern void ImpellerDisplayListBuilderDrawParagraph(
+    [LibraryImport(ImpellerLib, EntryPoint = "ImpellerDisplayListBuilderDrawParagraph")]
+    public static partial void ImpellerDisplayListBuilderDrawParagraph(
         nint builder, nint paragraph, ref ImpellerPoint point);
 
     // SaveLayer for compositing effects
@@ -384,10 +384,10 @@ public static partial class NativeMethods
     [LibraryImport(ImpellerLib, EntryPoint = "ImpellerParagraphStyleSetFontStyle")]
     public static partial void ImpellerParagraphStyleSetFontStyle(nint paragraphStyle, ImpellerFontStyle style);
 
-    [DllImport(ImpellerLib, EntryPoint = "ImpellerParagraphStyleSetFontFamily")]
-    public static extern void ImpellerParagraphStyleSetFontFamily(
+    [LibraryImport(ImpellerLib, EntryPoint = "ImpellerParagraphStyleSetFontFamily")]
+    public static unsafe partial void ImpellerParagraphStyleSetFontFamily(
         nint paragraphStyle,
-        [MarshalAs(UnmanagedType.LPUTF8Str)] string familyName);
+        byte* familyName);
 
     [LibraryImport(ImpellerLib, EntryPoint = "ImpellerParagraphStyleSetFontSize")]
     public static partial void ImpellerParagraphStyleSetFontSize(nint paragraphStyle, float size);

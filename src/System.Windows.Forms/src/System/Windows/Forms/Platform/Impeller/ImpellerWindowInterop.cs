@@ -524,8 +524,12 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                                     || ctrl is ToolStrip
                                     || ctrl is TextBoxBase
                                     || IsManagedClickControl(ctrl));
-                            bool paintsPressedState = ctrl is ButtonBase or IButtonControl;
-                            if (!managedMouseDown || paintsPressedState)
+                            bool paintsPressedState = IsManagedPushButton(ctrl);
+                            if (paintsPressedState)
+                            {
+                                MarkDirtyImmediate(handle);
+                            }
+                            else if (!managedMouseDown)
                             {
                                 MarkDirty(handle);
                             }
@@ -612,9 +616,10 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
 
                             if (msg == WM_LBUTTONUP && _windows.TryGetValue(handle, out var mouseUpState))
                             {
-                                if (mouseUpState.PressedControl is not null)
+                                Control? releasedPressedControl = mouseUpState.PressedControl;
+                                if (releasedPressedControl is not null)
                                 {
-                                    s_pressedControls.Remove(mouseUpState.PressedControl);
+                                    s_pressedControls.Remove(releasedPressedControl);
                                     mouseUpState.PressedControl = null;
                                 }
 
@@ -623,7 +628,11 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                                 PlatformApi.Input.ReleaseCapture();
                                 bool handledManagedClick = clickMatchesMouseDown
                                     && TryPerformManagedControlClick(handle, target, clientPt);
-                                if (!handledManagedClick)
+                                if (IsManagedPushButton(releasedPressedControl))
+                                {
+                                    MarkDirtyImmediate(handle);
+                                }
+                                else if (!handledManagedClick)
                                 {
                                     MarkDirty(handle);
                                 }
@@ -884,7 +893,10 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
             var state = g.Save();
             g.TranslateTransform(child.Left, child.Top);
             var childClip = new System.Drawing.Rectangle(0, 0, child.Width, child.Height);
-            g.IntersectClip(childClip);
+            if (RequiresChildClip(control, child))
+            {
+                g.IntersectClip(childClip);
+            }
 
             PaintControlTree(child, g, childClip, isRoot: false);
 
@@ -2212,9 +2224,32 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
             or ListView
             or DataGridView;
 
+    private static bool IsManagedPushButton(Control? control)
+        => control is System.Windows.Forms.Button;
+
     private static bool IsUserPaintControl(Control control)
         => control.GetType().Assembly != typeof(Control).Assembly
             && control is not Form;
+
+    private static bool RequiresChildClip(Control parent, Control child)
+    {
+        if (child.Left < 0
+            || child.Top < 0
+            || child.Right > parent.ClientSize.Width
+            || child.Bottom > parent.ClientSize.Height)
+        {
+            return true;
+        }
+
+        return child is TextBoxBase
+            or ListBox
+            or ComboBox
+            or TreeView
+            or ListView
+            or DataGridView
+            or TabControl
+            or ScrollableControl { AutoScroll: true };
+    }
 
     private static LPARAM PackMouseLParam(System.Drawing.Point point)
         => (LPARAM)(nint)SafeArithmetic.PackSignedLowHigh16(point.X, point.Y);
@@ -2384,7 +2419,11 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
         if (TryGetTopLevelWindowState(hWnd, out var state))
         {
             state.Dirty = true;
-            if (deferMs > 0 && state.HasPresentedFrame)
+            if (deferMs <= 0)
+            {
+                state.DeferRenderUntilTickMs = 0;
+            }
+            else if (state.HasPresentedFrame)
             {
                 state.DeferRenderUntilTickMs = Environment.TickCount64 + deferMs;
             }

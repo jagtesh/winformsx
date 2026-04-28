@@ -56,7 +56,9 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend
         _framePaintCache.Clear();
         _frameGlyphBatches.Clear();
         ResetTrackedTransform();
-        _builder = new DisplayListBuilder();
+        _builder = width > 0 && height > 0
+            ? new DisplayListBuilder(width, height)
+            : new DisplayListBuilder();
         return true;
     }
 
@@ -329,22 +331,206 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend
 
     // ─── Text ───────────────────────────────────────────────────────────
 
-        public void DrawString(string text, float x, float y, Color color,
-                               string fontFamily, float fontSize, bool bold, bool italic)
+    public void DrawString(string text, float x, float y, Color color,
+                           string fontFamily, float fontSize, bool bold, bool italic)
+    {
+        DrawNativeParagraphText(text, x, y, color, fontFamily, fontSize, bold, italic);
+    }
+
+    public void DrawStringAligned(string text, RectangleF bounds, ContentAlignment alignment,
+                                  Color color, string fontFamily, float fontSize, bool bold, bool italic)
+    {
+        if (string.IsNullOrEmpty(text))
         {
-            s_textEngine.DrawString(this, text, x, y, color, fontFamily, fontSize, bold, italic);
+            return;
         }
 
-        public void DrawStringAligned(string text, RectangleF bounds, ContentAlignment alignment,
-                                      Color color, string fontFamily, float fontSize, bool bold, bool italic)
+        SizeF measured = MeasureString(text, fontFamily, fontSize, bold, italic);
+        float x = bounds.X;
+        float y = bounds.Y;
+
+        if (alignment is ContentAlignment.TopCenter or ContentAlignment.MiddleCenter or ContentAlignment.BottomCenter)
         {
-            s_textEngine.DrawStringAligned(this, text, bounds, alignment, color, fontFamily, fontSize, bold, italic);
+            x += MathF.Max(0f, (bounds.Width - measured.Width) / 2f);
+        }
+        else if (alignment is ContentAlignment.TopRight or ContentAlignment.MiddleRight or ContentAlignment.BottomRight)
+        {
+            x += MathF.Max(0f, bounds.Width - measured.Width);
         }
 
-        public SizeF MeasureString(string text, string fontFamily, float fontSize, bool bold, bool italic)
+        if (alignment is ContentAlignment.MiddleLeft or ContentAlignment.MiddleCenter or ContentAlignment.MiddleRight)
         {
-            return s_textEngine.MeasureString(text, fontFamily, fontSize, bold, italic);
+            y += MathF.Max(0f, (bounds.Height - measured.Height) / 2f);
         }
+        else if (alignment is ContentAlignment.BottomLeft or ContentAlignment.BottomCenter or ContentAlignment.BottomRight)
+        {
+            y += MathF.Max(0f, bounds.Height - measured.Height);
+        }
+
+        DrawNativeParagraphText(text, x, y, color, fontFamily, fontSize, bold, italic);
+    }
+
+    public SizeF MeasureString(string text, string fontFamily, float fontSize, bool bold, bool italic)
+    {
+        return s_textEngine.MeasureString(text, fontFamily, fontSize, bold, italic);
+    }
+
+    private void DrawNativeParagraphText(
+        string text,
+        float x,
+        float y,
+        Color color,
+        string fontFamily,
+        float fontSize,
+        bool bold,
+        bool italic)
+    {
+        if (string.IsNullOrEmpty(text) || !PrepareNonTextDraw())
+        {
+            return;
+        }
+
+        string normalized = SanitizeNativeText(text).Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n');
+        string[] lines = normalized.Split('\n');
+        float lineHeight = MathF.Max(1f, MeasureString("Ag", fontFamily, fontSize, bold, italic).Height);
+        string? resolvedFamily = TypographyProvider.ResolveFontFamily(fontFamily, bold, italic);
+        if (string.IsNullOrWhiteSpace(resolvedFamily))
+        {
+            WinFormsXCompatibilityWarning.Once(
+                "ImpellerRenderingBackend.NativeText.NoFont",
+                $"No Impeller font could be resolved for '{fontFamily}'; the text draw command was ignored.");
+            return;
+        }
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            string line = lines[i];
+            if (line.Length == 0)
+            {
+                continue;
+            }
+
+            DrawNativeParagraphLine(
+                line,
+                x,
+                y + (i * lineHeight),
+                color,
+                resolvedFamily,
+                fontSize,
+                bold,
+                italic);
+        }
+    }
+
+    private void DrawNativeParagraphLine(
+        string line,
+        float x,
+        float y,
+        Color color,
+        string fontFamily,
+        float fontSize,
+        bool bold,
+        bool italic)
+    {
+        nint typography = TypographyProvider.Context;
+        if (typography == nint.Zero || _builder is null)
+        {
+            return;
+        }
+
+        nint paragraphStyle = NativeMethods.ImpellerParagraphStyleNew();
+        if (paragraphStyle == nint.Zero)
+        {
+            return;
+        }
+
+        nint paragraphBuilder = nint.Zero;
+        nint paragraph = nint.Zero;
+        try
+        {
+            NativeMethods.ImpellerParagraphStyleSetForeground(paragraphStyle, GetFillPaint(color));
+            byte[] familyUtf8 = System.Text.Encoding.UTF8.GetBytes(fontFamily + '\0');
+            unsafe
+            {
+                fixed (byte* pFamily = familyUtf8)
+                {
+                    NativeMethods.ImpellerParagraphStyleSetFontFamily(paragraphStyle, pFamily);
+                }
+            }
+
+            NativeMethods.ImpellerParagraphStyleSetFontSize(paragraphStyle, MathF.Max(1f, fontSize));
+            NativeMethods.ImpellerParagraphStyleSetFontWeight(
+                paragraphStyle,
+                bold ? ImpellerFontWeight.Bold : ImpellerFontWeight.Regular);
+            NativeMethods.ImpellerParagraphStyleSetFontStyle(
+                paragraphStyle,
+                italic ? ImpellerFontStyle.Italic : ImpellerFontStyle.Normal);
+            NativeMethods.ImpellerParagraphStyleSetTextDirection(paragraphStyle, ImpellerTextDirection.LeftToRight);
+            NativeMethods.ImpellerParagraphStyleSetTextAlignment(paragraphStyle, ImpellerTextAlignment.Left);
+
+            paragraphBuilder = NativeMethods.ImpellerParagraphBuilderNew(typography);
+            if (paragraphBuilder == nint.Zero)
+            {
+                return;
+            }
+
+            NativeMethods.ImpellerParagraphBuilderPushStyle(paragraphBuilder, paragraphStyle);
+            byte[] utf8 = System.Text.Encoding.UTF8.GetBytes(line);
+            unsafe
+            {
+                fixed (byte* pText = utf8)
+                {
+                    NativeMethods.ImpellerParagraphBuilderAddText(paragraphBuilder, pText, (uint)utf8.Length);
+                }
+            }
+
+            NativeMethods.ImpellerParagraphBuilderPopStyle(paragraphBuilder);
+            paragraph = NativeMethods.ImpellerParagraphBuilderBuildParagraphNew(paragraphBuilder, 100_000f);
+            if (paragraph == nint.Zero)
+            {
+                return;
+            }
+
+            var point = new ImpellerPoint(x, y);
+            _builder.DrawParagraph(paragraph, ref point);
+        }
+        finally
+        {
+            if (paragraph != nint.Zero)
+            {
+                NativeMethods.ImpellerParagraphRelease(paragraph);
+            }
+
+            if (paragraphBuilder != nint.Zero)
+            {
+                NativeMethods.ImpellerParagraphBuilderRelease(paragraphBuilder);
+            }
+
+            NativeMethods.ImpellerParagraphStyleRelease(paragraphStyle);
+        }
+    }
+
+    private static string SanitizeNativeText(string text)
+    {
+        char[] chars = text.ToCharArray();
+        bool changed = false;
+        for (int i = 0; i < chars.Length; i++)
+        {
+            char c = chars[i];
+            if (c is '\r' or '\n' or '\t')
+            {
+                continue;
+            }
+
+            if (c < 32 || c > 126)
+            {
+                chars[i] = '?';
+                changed = true;
+            }
+        }
+
+        return changed ? new string(chars) : text;
+    }
 
     // ─── Paths ──────────────────────────────────────────────────────────
 

@@ -26,6 +26,14 @@ public sealed class DisplayListBuilder : IDisposable
             throw new InvalidOperationException("Failed to create Impeller DisplayListBuilder.");
     }
 
+    public DisplayListBuilder(float width, float height)
+    {
+        var cullRect = new ImpellerRect(0, 0, MathF.Max(1f, width), MathF.Max(1f, height));
+        _handle = NativeMethods.ImpellerDisplayListBuilderNew(ref cullRect);
+        if (_handle == nint.Zero)
+            throw new InvalidOperationException("Failed to create Impeller DisplayListBuilder.");
+    }
+
     internal nint Handle => _disposed
         ? throw new ObjectDisposedException(nameof(DisplayListBuilder))
         : _handle;
@@ -76,6 +84,8 @@ public sealed class DisplayListBuilder : IDisposable
         NativeMethods.ImpellerDisplayListBuilderDrawLine(_handle, ref from, ref to, paintHandle);
     public void DrawPath(nint pathHandle, nint paintHandle) =>
         NativeMethods.ImpellerDisplayListBuilderDrawPath(_handle, pathHandle, paintHandle);
+    public void DrawParagraph(nint paragraphHandle, ref ImpellerPoint point) =>
+        NativeMethods.ImpellerDisplayListBuilderDrawParagraph(_handle, paragraphHandle, ref point);
     public void DrawTexture(nint textureHandle, ref ImpellerPoint point, nint paintHandle) =>
         NativeMethods.ImpellerDisplayListBuilderDrawTexture(_handle, textureHandle, ref point, paintHandle);
     public void DrawTextureRect(nint textureHandle,
