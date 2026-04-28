@@ -10,198 +10,60 @@ namespace System.Drawing;
 ///  Abstracts a group of type faces having a similar basic design but having certain variation in styles.
 /// </summary>
 public sealed unsafe class FontFamily : MarshalByRefObject, IDisposable
+{
+    private const int NeutralLanguage = 0;
+    private readonly string _name;
+
+    internal FontFamily(GpFontFamily* family)
     {
-        private const int NeutralLanguage = 0;
-        private GpFontFamily* _nativeFamily;
-        private readonly bool _createDefaultOnFail;
-        private string? _name;
-
-#if DEBUG
-    private static readonly object s_lockObj = new();
-    private static int s_idCount;
-    private int _id;
-#endif
-
-    private void SetNativeFamily(GpFontFamily* family)
-    {
-        Debug.Assert(_nativeFamily is null, "Setting GDI+ native font family when already initialized.");
-
-        _nativeFamily = family;
-#if DEBUG
-        lock (s_lockObj)
-        {
-            _id = ++s_idCount;
-        }
-#endif
+        Debug.Assert(family is not null, "Initializing native font family with null.");
+        _name = "SansSerif";
     }
 
-    internal FontFamily(GpFontFamily* family) => SetNativeFamily(family);
-
-    /// <summary>
-    ///  Initializes a new instance of the <see cref='FontFamily'/> class with the specified name.
-    /// </summary>
-    /// <param name="createDefaultOnFail">
-    ///  Determines how errors are handled when creating a font based on a font family that does not exist on the end
-    ///  user's system at run time. If this parameter is true, then a fall-back font will always be used instead.
-    ///  If this parameter is false, an exception will be thrown.
-    /// </param>
     internal FontFamily(string name, bool createDefaultOnFail)
     {
-        _createDefaultOnFail = createDefaultOnFail;
-        if (!OperatingSystem.IsWindows())
-        {
-            _name = name;
-            return;
-        }
-
-        CreateFontFamily(name, null);
+        _name = string.IsNullOrWhiteSpace(name) && createDefaultOnFail ? "SansSerif" : name;
     }
 
-    /// <summary>
-    ///  Initializes a new instance of the <see cref='FontFamily'/> class with the specified name.
-    /// </summary>
     public FontFamily(string name)
     {
-        if (!OperatingSystem.IsWindows())
-        {
-            _name = name;
-            return;
-        }
-
-        CreateFontFamily(name, null);
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        _name = name;
     }
 
-    /// <summary>
-    ///  Initializes a new instance of the <see cref='FontFamily'/> class in the specified
-    ///  <see cref='FontCollection'/> and with the specified name.
-    /// </summary>
     public FontFamily(string name, FontCollection? fontCollection)
     {
-        if (!OperatingSystem.IsWindows())
-        {
-            _name = name;
-            return;
-        }
-
-        CreateFontFamily(name, fontCollection);
-    }
-
-    // Creates the native font family object.
-    // Note: GDI+ creates singleton font family objects (from the corresponding font file) and reference count them.
-    private void CreateFontFamily(string name, FontCollection? fontCollection)
-    {
-        GpFontFamily* fontFamily;
-        GpFontCollection* nativeFontCollection = fontCollection is null ? null : fontCollection._nativeFontCollection;
-
-        Status status = Status.Ok;
-        fixed (char* n = name)
-        {
-            status = PInvoke.GdipCreateFontFamilyFromName(n, nativeFontCollection, &fontFamily);
-        }
-
-        if (status != Status.Ok)
-        {
-            if (_createDefaultOnFail)
-            {
-                fontFamily = GetGdipGenericSansSerif(); // This throws if failed.
-            }
-            else
-            {
-                // Special case this incredibly common error message to give more information.
-                if (status == Status.FontFamilyNotFound)
-                {
-                    throw new ArgumentException(SR.Format(SR.GdiplusFontFamilyNotFound, name));
-                }
-                else if (status == Status.NotTrueTypeFont)
-                {
-                    throw new ArgumentException(SR.Format(SR.GdiplusNotTrueTypeFont, name));
-                }
-                else
-                {
-                    status.ThrowIfFailed();
-                }
-            }
-        }
-
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        _name = name;
         GC.KeepAlive(fontCollection);
-        SetNativeFamily(fontFamily);
     }
 
-    /// <summary>
-    ///  Initializes a new instance of the <see cref='FontFamily'/> class from the specified generic font family.
-    /// </summary>
     public FontFamily(GenericFontFamilies genericFamily)
     {
-        if (!OperatingSystem.IsWindows())
+        _name = genericFamily switch
         {
-            _name = genericFamily switch
-            {
-                GenericFontFamilies.Serif => "Serif",
-                GenericFontFamilies.Monospace => "Monospace",
-                _ => "SansSerif",
-            };
-
-            return;
-        }
-
-        GpFontFamily* nativeFamily;
-
-        switch (genericFamily)
-        {
-            case GenericFontFamilies.Serif:
-                PInvoke.GdipGetGenericFontFamilySerif(&nativeFamily).ThrowIfFailed();
-                break;
-            case GenericFontFamilies.SansSerif:
-                PInvoke.GdipGetGenericFontFamilySansSerif(&nativeFamily).ThrowIfFailed();
-                break;
-            case GenericFontFamilies.Monospace:
-            default:
-                PInvoke.GdipGetGenericFontFamilyMonospace(&nativeFamily).ThrowIfFailed();
-                break;
-        }
-
-        SetNativeFamily(nativeFamily);
+            GenericFontFamilies.Serif => "Serif",
+            GenericFontFamilies.Monospace => "Monospace",
+            _ => "SansSerif",
+        };
     }
 
     ~FontFamily() => Dispose(disposing: false);
 
-    internal GpFontFamily* NativeFamily => _nativeFamily;
+    internal GpFontFamily* NativeFamily => null;
 
-    /// <summary>
-    /// Converts this <see cref='FontFamily'/> to a human-readable string.
-    /// </summary>
     public override string ToString() => $"[{GetType().Name}: Name={Name}]";
 
     public override bool Equals([NotNullWhen(true)] object? obj)
     {
-        if (obj == this)
-        {
-            return true;
-        }
-
-        // if obj = null then (obj is FontFamily) = false.
-        if (obj is not FontFamily otherFamily)
-        {
-            return false;
-        }
-
-        // We can safely use the ptr to the native GDI+ FontFamily because in windows it is common to
-        // all objects of the same family (singleton RO object).
-        return OperatingSystem.IsWindows()
-            ? otherFamily.NativeFamily == NativeFamily
-            : string.Equals(otherFamily.Name, Name, StringComparison.OrdinalIgnoreCase);
+        return obj is FontFamily otherFamily
+            && string.Equals(otherFamily.Name, Name, StringComparison.OrdinalIgnoreCase);
     }
 
-    /// <summary>
-    ///  Gets a hash code for this <see cref='FontFamily'/>.
-    /// </summary>
-    public override int GetHashCode() => GetName(NeutralLanguage).GetHashCode();
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(GetName(NeutralLanguage));
 
     private static int CurrentLanguage => CultureInfo.CurrentUICulture.LCID;
 
-    /// <summary>
-    ///  Disposes of this <see cref='FontFamily'/>.
-    /// </summary>
     public void Dispose()
     {
         Dispose(true);
@@ -210,77 +72,20 @@ public sealed unsafe class FontFamily : MarshalByRefObject, IDisposable
 
     private void Dispose(bool disposing)
     {
-        if (_nativeFamily is not null)
-        {
-            try
-            {
-#if DEBUG
-                Status status = !Gdip.Initialized ? Status.Ok :
-#endif
-                PInvoke.GdipDeleteFontFamily(_nativeFamily);
-#if DEBUG
-                Debug.Assert(status == Status.Ok, $"GDI+ returned an error status: {status}");
-#endif
-            }
-            catch (Exception ex) when (!ClientUtils.IsCriticalException(ex))
-            {
-            }
-            finally
-            {
-                _nativeFamily = null;
-            }
-        }
     }
 
-    /// <summary>
-    ///  Gets the name of this <see cref='FontFamily'/>.
-    /// </summary>
-    public string Name => OperatingSystem.IsWindows() ? GetName(CurrentLanguage) : _name ?? "SansSerif";
+    public string Name => _name;
 
-    /// <summary>
-    ///  Returns the name of this <see cref='FontFamily'/> in the specified language.
-    /// </summary>
-    public unsafe string GetName(int language)
-    {
-        char* name = stackalloc char[33]; // LF_FACESIZE is 32, leave one extra for null terminator.
-        PInvoke.GdipGetFamilyName(NativeFamily, name, (ushort)language).ThrowIfFailed();
-        return new(name);
-    }
+    public string GetName(int language) => _name;
 
-    /// <summary>
-    ///  Returns an array that contains all of the <see cref='FontFamily'/> objects associated with the current
-    ///  graphics context.
-    /// </summary>
     public static FontFamily[] Families => new InstalledFontCollection().Families;
 
-    /// <summary>
-    ///  Gets a generic SansSerif <see cref='FontFamily'/>.
-    /// </summary>
-    public static FontFamily GenericSansSerif => OperatingSystem.IsWindows()
-        ? new(GetGdipGenericSansSerif())
-        : new(GenericFontFamilies.SansSerif);
+    public static FontFamily GenericSansSerif => new(GenericFontFamilies.SansSerif);
 
-    private static GpFontFamily* GetGdipGenericSansSerif()
-    {
-        GpFontFamily* nativeFamily;
-        PInvoke.GdipGetGenericFontFamilySansSerif(&nativeFamily).ThrowIfFailed();
-        return nativeFamily;
-    }
-
-    /// <summary>
-    ///  Gets a generic Serif <see cref='FontFamily'/>.
-    /// </summary>
     public static FontFamily GenericSerif => new(GenericFontFamilies.Serif);
 
-    /// <summary>
-    ///  Gets a generic monospace <see cref='FontFamily'/>.
-    /// </summary>
     public static FontFamily GenericMonospace => new(GenericFontFamilies.Monospace);
 
-    /// <summary>
-    ///  Returns an array that contains all of the <see cref='FontFamily'/> objects associated with the specified
-    ///  graphics context.
-    /// </summary>
     [Obsolete("FontFamily.GetFamilies has been deprecated. Use Families instead.")]
     public static FontFamily[] GetFamilies(Graphics graphics)
     {
@@ -288,84 +93,13 @@ public sealed unsafe class FontFamily : MarshalByRefObject, IDisposable
         return new InstalledFontCollection().Families;
     }
 
-    /// <summary>
-    ///  Indicates whether the specified <see cref='FontStyle'/> is available.
-    /// </summary>
-    public bool IsStyleAvailable(FontStyle style)
-    {
-        if (!OperatingSystem.IsWindows())
-        {
-            return true;
-        }
+    public bool IsStyleAvailable(FontStyle style) => true;
 
-        BOOL isStyleAvailable;
-        PInvoke.GdipIsStyleAvailable(NativeFamily, (int)style, &isStyleAvailable).ThrowIfFailed();
-        GC.KeepAlive(this);
-        return isStyleAvailable;
-    }
+    public int GetEmHeight(FontStyle style) => 2048;
 
-    /// <summary>
-    ///  Gets the size of the Em square for the specified style in font design units.
-    /// </summary>
-    public int GetEmHeight(FontStyle style)
-    {
-        if (!OperatingSystem.IsWindows())
-        {
-            return 2048;
-        }
+    public int GetCellAscent(FontStyle style) => 1854;
 
-        ushort emHeight;
-        PInvoke.GdipGetEmHeight(NativeFamily, (int)style, &emHeight).ThrowIfFailed();
-        GC.KeepAlive(this);
-        return emHeight;
-    }
+    public int GetCellDescent(FontStyle style) => 434;
 
-    /// <summary>
-    ///  Returns the ascender metric for Windows.
-    /// </summary>
-    public int GetCellAscent(FontStyle style)
-    {
-        if (!OperatingSystem.IsWindows())
-        {
-            return 1854;
-        }
-
-        ushort cellAscent;
-        PInvoke.GdipGetCellAscent(NativeFamily, (int)style, &cellAscent).ThrowIfFailed();
-        GC.KeepAlive(this);
-        return cellAscent;
-    }
-
-    /// <summary>
-    ///  Returns the descender metric for Windows.
-    /// </summary>
-    public int GetCellDescent(FontStyle style)
-    {
-        if (!OperatingSystem.IsWindows())
-        {
-            return 434;
-        }
-
-        ushort cellDescent;
-        PInvoke.GdipGetCellDescent(NativeFamily, (int)style, &cellDescent).ThrowIfFailed();
-        GC.KeepAlive(this);
-        return cellDescent;
-    }
-
-    /// <summary>
-    ///  Returns the distance between two consecutive lines of text for this <see cref='FontFamily'/> with the
-    ///  specified <see cref='FontStyle'/>.
-    /// </summary>
-    public int GetLineSpacing(FontStyle style)
-    {
-        if (!OperatingSystem.IsWindows())
-        {
-            return 2355;
-        }
-
-        ushort lineSpacing;
-        PInvoke.GdipGetLineSpacing(NativeFamily, (int)style, &lineSpacing).ThrowIfFailed();
-        GC.KeepAlive(this);
-        return lineSpacing;
-    }
+    public int GetLineSpacing(FontStyle style) => 2355;
 }
