@@ -8,7 +8,6 @@ using System.Drawing.Imaging;
 using System.Drawing.Imaging.Effects;
 #endif
 using System.Numerics;
-using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 
 namespace System.Drawing;
@@ -52,6 +51,21 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
 
     // pointer back to the Image backing a specific graphic object
     private Image? _backingImage;
+    private Region? _clip;
+    private RectangleF _clipBounds = new(0, 0, int.MaxValue, int.MaxValue);
+    private Drawing2D.CompositingMode _compositingMode = Drawing2D.CompositingMode.SourceOver;
+    private Drawing2D.CompositingQuality _compositingQuality = Drawing2D.CompositingQuality.Default;
+    private Drawing2D.InterpolationMode _interpolationMode = Drawing2D.InterpolationMode.Bilinear;
+    private float _pageScale = 1f;
+    private GraphicsUnit _pageUnit = GraphicsUnit.Display;
+    private PixelOffsetMode _pixelOffsetMode = PixelOffsetMode.Default;
+    private Point _renderingOrigin;
+    private Drawing2D.SmoothingMode _smoothingMode = Drawing2D.SmoothingMode.Default;
+    private int _textContrast;
+    private TextRenderingHint _textRenderingHint = TextRenderingHint.SystemDefault;
+    private Matrix _transform = new();
+    private Matrix3x2 _transformElements = Matrix3x2.Identity;
+    private int _nextContextState = 1;
 
     /// <summary>
     ///  Handle to native DC - obtained from the GDI+ graphics object. We need to cache it to implement
@@ -60,6 +74,16 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     private HDC _nativeHdc;
 
     public delegate bool DrawImageAbort(IntPtr callbackdata);
+
+    private static NotSupportedException GdiPlusRemoved(string api) =>
+        new($"{api} requires a Drawing PAL implementation. WinFormsX is Impeller-only and cannot use native GDI+.");
+
+    private static Color BrushColor(Brush brush) => brush switch
+    {
+        SolidBrush solidBrush => solidBrush.Color,
+        Drawing2D.LinearGradientBrush linearGradientBrush => linearGradientBrush.LinearColors[0],
+        _ => Color.Transparent,
+    };
 
     /// <summary>
     /// Callback for EnumerateMetafile methods.
@@ -132,9 +156,8 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
             ThrowImpellerBackendUnavailable(nameof(FromHdcInternal));
         }
 
-        GpGraphics* nativeGraphics;
-        Gdip.CheckStatus(PInvoke.GdipCreateFromHDC((HDC)hdc, &nativeGraphics));
-        return new Graphics(nativeGraphics);
+        ThrowImpellerBackendUnavailable(nameof(FromHdcInternal));
+        throw null!;
     }
 
     /// <summary>
@@ -164,9 +187,8 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
             ThrowImpellerBackendUnavailable(nameof(FromHdc));
         }
 
-        GpGraphics* nativeGraphics;
-        Gdip.CheckStatus(PInvoke.GdipCreateFromHDC2((HDC)hdc, (HANDLE)hdevice, &nativeGraphics));
-        return new Graphics(nativeGraphics);
+        ThrowImpellerBackendUnavailable(nameof(FromHdc));
+        throw null!;
     }
 
     /// <summary>
@@ -191,14 +213,8 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
             ThrowImpellerBackendUnavailable(nameof(FromHwndInternal));
         }
 
-        GpGraphics* nativeGraphics;
-
-        // This is one of the few places we need to manually ensure GDI+ is initialized. Other calls to PInvoke will do
-        // this automatically, PInvokeCore cannot and as such needs to be manually initialized if we've never called
-        // another PInvoke method.
-        GdiPlusInitialization.EnsureInitialized();
-        Gdip.CheckStatus(PInvokeCore.GdipCreateFromHWND((HWND)hwnd, &nativeGraphics));
-        return new Graphics(nativeGraphics);
+        ThrowImpellerBackendUnavailable(nameof(FromHwndInternal));
+        throw null!;
     }
 
     private static void ThrowImpellerBackendUnavailable(string api)
@@ -236,7 +252,6 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     [EditorBrowsable(EditorBrowsableState.Never)]
     public void ReleaseHdcInternal(IntPtr hdc)
     {
-        CheckStatus(!Gdip.Initialized ? Status.Ok : PInvoke.GdipReleaseDC(NativeGraphics, (HDC)hdc));
         _nativeHdc = HDC.Null;
     }
 
@@ -273,12 +288,7 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
             ReleaseHdc();
         }
 
-        if (NativeGraphics is not null)
-        {
-            Status status = !Gdip.Initialized ? Status.Ok : PInvokeCore.GdipDeleteGraphics(NativeGraphics);
-            NativeGraphics = null;
-            Debug.Assert(status == Status.Ok, $"GDI+ returned an error status: {status}");
-        }
+        NativeGraphics = null;
     }
 
     ~Graphics() => Dispose(disposing: false);
@@ -306,212 +316,115 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     {
         get
         {
-            Region region = new();
-            CheckStatus(PInvoke.GdipGetClip(NativeGraphics, region.NativeRegion));
-            return region;
+            return _clip?.Clone() ?? new Region(_clipBounds);
         }
         set => SetClip(value, Drawing2D.CombineMode.Replace);
     }
 
-    public RectangleF ClipBounds
-    {
-        get
-        {
-            RectF rect;
-            CheckStatus(PInvoke.GdipGetClipBounds(NativeGraphics, &rect));
-            return rect;
-        }
-    }
+    public RectangleF ClipBounds => _clipBounds;
 
     /// <summary>
     /// Gets or sets the <see cref='Drawing2D.CompositingMode'/> associated with this <see cref='Graphics'/>.
     /// </summary>
     public Drawing2D.CompositingMode CompositingMode
     {
-        get
-        {
-            GdiPlus.CompositingMode mode;
-            CheckStatus(PInvoke.GdipGetCompositingMode(NativeGraphics, &mode));
-            return (Drawing2D.CompositingMode)mode;
-        }
+        get => _compositingMode;
         set
         {
             if (value is < Drawing2D.CompositingMode.SourceOver or > Drawing2D.CompositingMode.SourceCopy)
                 throw new InvalidEnumArgumentException(nameof(value), (int)value, typeof(Drawing2D.CompositingMode));
 
-            CheckStatus(PInvoke.GdipSetCompositingMode(NativeGraphics, (GdiPlus.CompositingMode)value));
+            _compositingMode = value;
         }
     }
 
     public Drawing2D.CompositingQuality CompositingQuality
     {
-        get
-        {
-            GdiPlus.CompositingQuality quality;
-            CheckStatus(PInvoke.GdipGetCompositingQuality(NativeGraphics, &quality));
-            return (Drawing2D.CompositingQuality)quality;
-        }
+        get => _compositingQuality;
         set
         {
             if (value is < Drawing2D.CompositingQuality.Invalid or > Drawing2D.CompositingQuality.AssumeLinear)
                 throw new InvalidEnumArgumentException(nameof(value), (int)value, typeof(Drawing2D.CompositingQuality));
 
-            CheckStatus(PInvoke.GdipSetCompositingQuality(NativeGraphics, (GdiPlus.CompositingQuality)value));
+            _compositingQuality = value;
         }
     }
 
-    public float DpiX
-    {
-        get
-        {
-            if (IsBackendOnly)
-            {
-                return 96f;
-            }
+    public float DpiX => 96f;
 
-            float dpi;
-            CheckStatus(PInvoke.GdipGetDpiX(NativeGraphics, &dpi));
-            return dpi;
-        }
-    }
-
-    public float DpiY
-    {
-        get
-        {
-            if (IsBackendOnly)
-            {
-                return 96f;
-            }
-
-            float dpi;
-            CheckStatus(PInvoke.GdipGetDpiY(NativeGraphics, &dpi));
-            return dpi;
-        }
-    }
+    public float DpiY => 96f;
 
     /// <summary>
     /// Gets or sets the interpolation mode associated with this Graphics.
     /// </summary>
     public Drawing2D.InterpolationMode InterpolationMode
     {
-        get
-        {
-            GdiPlus.InterpolationMode mode;
-            CheckStatus(PInvoke.GdipGetInterpolationMode(NativeGraphics, &mode));
-            return (Drawing2D.InterpolationMode)mode;
-        }
+        get => _interpolationMode;
         set
         {
             if (value is < Drawing2D.InterpolationMode.Invalid or > Drawing2D.InterpolationMode.HighQualityBicubic)
                 throw new InvalidEnumArgumentException(nameof(value), (int)value, typeof(Drawing2D.InterpolationMode));
 
-            CheckStatus(PInvoke.GdipSetInterpolationMode(NativeGraphics, (GdiPlus.InterpolationMode)value));
+            _interpolationMode = value;
         }
     }
 
-    public bool IsClipEmpty
-    {
-        get
-        {
-            BOOL isEmpty;
-            CheckStatus(PInvoke.GdipIsClipEmpty(NativeGraphics, &isEmpty));
-            return isEmpty;
-        }
-    }
+    public bool IsClipEmpty => _clipBounds.Width <= 0 || _clipBounds.Height <= 0;
 
-    public bool IsVisibleClipEmpty
-    {
-        get
-        {
-            BOOL isEmpty;
-            CheckStatus(PInvoke.GdipIsVisibleClipEmpty(NativeGraphics, &isEmpty));
-            return isEmpty;
-        }
-    }
+    public bool IsVisibleClipEmpty => IsClipEmpty;
 
     public float PageScale
     {
-        get
-        {
-            float scale;
-            CheckStatus(PInvoke.GdipGetPageScale(NativeGraphics, &scale));
-            return scale;
-        }
-        set => CheckStatus(PInvoke.GdipSetPageScale(NativeGraphics, value));
+        get => _pageScale;
+        set => _pageScale = value;
     }
 
     public GraphicsUnit PageUnit
     {
-        get
-        {
-            Unit unit;
-            CheckStatus(PInvoke.GdipGetPageUnit(NativeGraphics, &unit));
-            return (GraphicsUnit)unit;
-        }
+        get => _pageUnit;
         set
         {
             if (value is < GraphicsUnit.World or > GraphicsUnit.Millimeter)
                 throw new InvalidEnumArgumentException(nameof(value), (int)value, typeof(GraphicsUnit));
 
-            CheckStatus(PInvoke.GdipSetPageUnit(NativeGraphics, (Unit)value));
+            _pageUnit = value;
         }
     }
 
     public PixelOffsetMode PixelOffsetMode
     {
-        get
-        {
-            GdiPlus.PixelOffsetMode mode;
-            CheckStatus(PInvoke.GdipGetPixelOffsetMode(NativeGraphics, &mode));
-            return (PixelOffsetMode)mode;
-        }
+        get => _pixelOffsetMode;
         set
         {
             if (value is < PixelOffsetMode.Invalid or > PixelOffsetMode.Half)
                 throw new InvalidEnumArgumentException(nameof(value), (int)value, typeof(PixelOffsetMode));
 
-            CheckStatus(PInvoke.GdipSetPixelOffsetMode(NativeGraphics, (GdiPlus.PixelOffsetMode)value));
+            _pixelOffsetMode = value;
         }
     }
 
     public Point RenderingOrigin
     {
-        get
-        {
-            int x, y;
-            CheckStatus(PInvoke.GdipGetRenderingOrigin(NativeGraphics, &x, &y));
-            return new Point(x, y);
-        }
-        set => CheckStatus(PInvoke.GdipSetRenderingOrigin(NativeGraphics, value.X, value.Y));
+        get => _renderingOrigin;
+        set => _renderingOrigin = value;
     }
 
     public Drawing2D.SmoothingMode SmoothingMode
     {
-        get
-        {
-            GdiPlus.SmoothingMode mode;
-            CheckStatus(PInvoke.GdipGetSmoothingMode(NativeGraphics, &mode));
-            return (Drawing2D.SmoothingMode)mode;
-        }
+        get => _smoothingMode;
         set
         {
             if (value is < Drawing2D.SmoothingMode.Invalid or > Drawing2D.SmoothingMode.AntiAlias)
                 throw new InvalidEnumArgumentException(nameof(value), (int)value, typeof(Drawing2D.SmoothingMode));
 
-            CheckStatus(PInvoke.GdipSetSmoothingMode(NativeGraphics, (GdiPlus.SmoothingMode)value));
+            _smoothingMode = value;
         }
     }
 
     public int TextContrast
     {
-        get
-        {
-            uint textContrast;
-            CheckStatus(PInvoke.GdipGetTextContrast(NativeGraphics, &textContrast));
-            return (int)textContrast;
-        }
-        set => CheckStatus(PInvoke.GdipSetTextContrast(NativeGraphics, (uint)value));
+        get => _textContrast;
+        set => _textContrast = value;
     }
 
     /// <summary>
@@ -519,18 +432,13 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     /// </summary>
     public TextRenderingHint TextRenderingHint
     {
-        get
-        {
-            GdiPlus.TextRenderingHint hint;
-            CheckStatus(PInvoke.GdipGetTextRenderingHint(NativeGraphics, &hint));
-            return (TextRenderingHint)hint;
-        }
+        get => _textRenderingHint;
         set
         {
             if (value is < TextRenderingHint.SystemDefault or > TextRenderingHint.ClearTypeGridFit)
                 throw new InvalidEnumArgumentException(nameof(value), (int)value, typeof(TextRenderingHint));
 
-            CheckStatus(PInvoke.GdipSetTextRenderingHint(NativeGraphics, (GdiPlus.TextRenderingHint)value));
+            _textRenderingHint = value;
         }
     }
 
@@ -539,16 +447,16 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     /// </summary>
     public Matrix Transform
     {
-        get
-        {
-            Matrix matrix = new();
-            CheckStatus(PInvoke.GdipGetWorldTransform(NativeGraphics, matrix.NativeMatrix));
-            return matrix;
-        }
+        get => _transform.Clone();
         set
         {
-            CheckStatus(PInvoke.GdipSetWorldTransform(NativeGraphics, value.NativeMatrix));
-            GC.KeepAlive(value);
+            ArgumentNullException.ThrowIfNull(value);
+            _transform = value.Clone();
+            _transformElements = value.Elements.AsSpan() switch
+            {
+                [float m11, float m12, float m21, float m22, float dx, float dy] => new Matrix3x2(m11, m12, m21, m22, dx, dy),
+                _ => Matrix3x2.Identity,
+            };
         }
     }
 
@@ -562,42 +470,11 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     /// </remarks>
     public Matrix3x2 TransformElements
     {
-        get
-        {
-            GdiPlus.Matrix* nativeMatrix;
-            CheckStatus(PInvoke.GdipCreateMatrix(&nativeMatrix));
-
-            try
-            {
-                CheckStatus(PInvoke.GdipGetWorldTransform(NativeGraphics, nativeMatrix));
-
-                Matrix3x2 matrix = default;
-                CheckStatus(PInvoke.GdipGetMatrixElements(nativeMatrix, (float*)&matrix));
-                return matrix;
-            }
-            finally
-            {
-                if (nativeMatrix is not null)
-                {
-                    PInvoke.GdipDeleteMatrix(nativeMatrix);
-                }
-            }
-        }
+        get => _transformElements;
         set
         {
-            GdiPlus.Matrix* nativeMatrix = Matrix.CreateNativeHandle(value);
-
-            try
-            {
-                CheckStatus(PInvoke.GdipSetWorldTransform(NativeGraphics, nativeMatrix));
-            }
-            finally
-            {
-                if (nativeMatrix is not null)
-                {
-                    PInvoke.GdipDeleteMatrix(nativeMatrix);
-                }
-            }
+            _transformElements = value;
+            _transform = new Matrix(value.M11, value.M12, value.M21, value.M22, value.M31, value.M32);
         }
     }
 
@@ -605,11 +482,7 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
 
     public IntPtr GetHdc()
     {
-        HDC hdc;
-        CheckStatus(PInvoke.GdipGetDC(NativeGraphics, &hdc));
-
-        // Need to cache the hdc to be able to release with a call to IDeviceContext.ReleaseHdc().
-        _nativeHdc = hdc;
+        _nativeHdc = new HDC(unchecked((nint)0x1DCC1DCC));
         return _nativeHdc;
     }
 
@@ -626,17 +499,17 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     /// <summary>
     ///  Forces execution of all operations currently on the stack.
     /// </summary>
-    public void Flush(Drawing2D.FlushIntention intention) =>
-        CheckStatus(PInvoke.GdipFlush(NativeGraphics, (GdiPlus.FlushIntention)intention));
+    public void Flush(Drawing2D.FlushIntention intention)
+    {
+    }
 
     public void SetClip(Graphics g) => SetClip(g, Drawing2D.CombineMode.Replace);
 
     public void SetClip(Graphics g, Drawing2D.CombineMode combineMode)
     {
         ArgumentNullException.ThrowIfNull(g);
-
-        CheckStatus(PInvoke.GdipSetClipGraphics(NativeGraphics, g.NativeGraphics, (GdiPlus.CombineMode)combineMode));
-        GC.KeepAlive(g);
+        _clipBounds = g.ClipBounds;
+        _clip = g.Clip;
     }
 
     public void SetClip(Rectangle rect) => SetClip(rect, Drawing2D.CombineMode.Replace);
@@ -649,15 +522,17 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     {
         if (combineMode == Drawing2D.CombineMode.Intersect || combineMode == Drawing2D.CombineMode.Replace)
         {
-             _backend?.ClipRect(rect.X, rect.Y, rect.Width, rect.Height);
+            _backend?.ClipRect(rect.X, rect.Y, rect.Width, rect.Height);
         }
 
-        if (IsBackendOnly)
+        if (combineMode == Drawing2D.CombineMode.Intersect)
         {
-            return;
+            _clipBounds = RectangleF.Intersect(_clipBounds, rect);
         }
-
-        CheckStatus(PInvoke.GdipSetClipRect(NativeGraphics, rect.X, rect.Y, rect.Width, rect.Height, (GdiPlus.CombineMode)combineMode));
+        else if (combineMode == Drawing2D.CombineMode.Replace)
+        {
+            _clipBounds = rect;
+        }
     }
 
     public void SetClip(GraphicsPath path) => SetClip(path, Drawing2D.CombineMode.Replace);
@@ -665,15 +540,13 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     public void SetClip(GraphicsPath path, Drawing2D.CombineMode combineMode)
     {
         ArgumentNullException.ThrowIfNull(path);
-        CheckStatus(PInvoke.GdipSetClipPath(NativeGraphics, path._nativePath, (GdiPlus.CombineMode)combineMode));
-        GC.KeepAlive(path);
+        throw GdiPlusRemoved(nameof(SetClip));
     }
 
     public void SetClip(Region region, Drawing2D.CombineMode combineMode)
     {
         ArgumentNullException.ThrowIfNull(region);
-        CheckStatus(PInvoke.GdipSetClipRegion(NativeGraphics, region.NativeRegion, (GdiPlus.CombineMode)combineMode));
-        GC.KeepAlive(region);
+        _clip = region.Clone();
     }
 
     public void IntersectClip(Rectangle rect) => IntersectClip((RectangleF)rect);
@@ -681,42 +554,29 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     public void IntersectClip(RectangleF rect)
     {
         _backend?.ClipRect(rect.X, rect.Y, rect.Width, rect.Height);
-        if (IsBackendOnly)
-        {
-            return;
-        }
-
-        CheckStatus(PInvoke.GdipSetClipRect(
-            NativeGraphics,
-            rect.X, rect.Y, rect.Width, rect.Height,
-            GdiPlus.CombineMode.CombineModeIntersect));
+        _clipBounds = RectangleF.Intersect(_clipBounds, rect);
     }
 
     public void IntersectClip(Region region)
     {
         ArgumentNullException.ThrowIfNull(region);
-        CheckStatus(PInvoke.GdipSetClipRegion(NativeGraphics, region.NativeRegion, GdiPlus.CombineMode.CombineModeIntersect));
-        GC.KeepAlive(region);
+        _clip = region.Clone();
     }
 
     public void ExcludeClip(Rectangle rect) =>
-        CheckStatus(PInvoke.GdipSetClipRect(
-            NativeGraphics,
-            rect.X, rect.Y, rect.Width, rect.Height,
-            GdiPlus.CombineMode.CombineModeExclude));
+        throw GdiPlusRemoved(nameof(ExcludeClip));
 
     public void ExcludeClip(Region region)
     {
         ArgumentNullException.ThrowIfNull(region);
-        CheckStatus(PInvoke.GdipSetClipRegion(NativeGraphics, region.NativeRegion, GdiPlus.CombineMode.CombineModeExclude));
-        GC.KeepAlive(region);
+        throw GdiPlusRemoved(nameof(ExcludeClip));
     }
 
-    public void ResetClip() => CheckStatus(PInvoke.GdipResetClip(NativeGraphics));
+    public void ResetClip() => _clipBounds = new RectangleF(0, 0, int.MaxValue, int.MaxValue);
 
-    public void TranslateClip(float dx, float dy) => CheckStatus(PInvoke.GdipTranslateClip(NativeGraphics, dx, dy));
+    public void TranslateClip(float dx, float dy) => _clipBounds.Offset(dx, dy);
 
-    public void TranslateClip(int dx, int dy) => CheckStatus(PInvoke.GdipTranslateClip(NativeGraphics, dx, dy));
+    public void TranslateClip(int dx, int dy) => TranslateClip((float)dx, dy);
 
     public bool IsVisible(int x, int y) => IsVisible((float)x, y);
 
@@ -724,9 +584,7 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
 
     public bool IsVisible(float x, float y)
     {
-        BOOL isVisible;
-        CheckStatus(PInvoke.GdipIsVisiblePoint(NativeGraphics, x, y, &isVisible));
-        return isVisible;
+        return _clipBounds.Contains(x, y);
     }
 
     public bool IsVisible(PointF point) => IsVisible(point.X, point.Y);
@@ -737,9 +595,7 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
 
     public bool IsVisible(float x, float y, float width, float height)
     {
-        BOOL isVisible;
-        CheckStatus(PInvoke.GdipIsVisibleRect(NativeGraphics, x, y, width, height, &isVisible));
-        return isVisible;
+        return _clipBounds.IntersectsWith(new RectangleF(x, y, width, height));
     }
 
     public bool IsVisible(RectangleF rect) => IsVisible(rect.X, rect.Y, rect.Width, rect.Height);
@@ -747,7 +603,12 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     /// <summary>
     ///  Resets the world transform to identity.
     /// </summary>
-    public void ResetTransform() => CheckStatus(PInvoke.GdipResetWorldTransform(NativeGraphics));
+    public void ResetTransform()
+    {
+        _transform.Reset();
+        _transformElements = Matrix3x2.Identity;
+        _backend?.ResetTransform();
+    }
 
     /// <summary>
     ///  Multiplies the <see cref='Matrix'/> that represents the world transform and <paramref name="matrix"/>.
@@ -760,8 +621,7 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     public void MultiplyTransform(Matrix matrix, MatrixOrder order)
     {
         ArgumentNullException.ThrowIfNull(matrix);
-        CheckStatus(PInvoke.GdipMultiplyWorldTransform(NativeGraphics, matrix.NativeMatrix, (GdiPlus.MatrixOrder)order));
-        GC.KeepAlive(matrix);
+        _transform.Multiply(matrix, order);
     }
 
     public void TranslateTransform(float dx, float dy) => TranslateTransform(dx, dy, MatrixOrder.Prepend);
@@ -769,12 +629,8 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     public void TranslateTransform(float dx, float dy, MatrixOrder order)
     {
         _backend?.Translate(dx, dy);
-        if (IsBackendOnly)
-        {
-            return;
-        }
-
-        CheckStatus(PInvoke.GdipTranslateWorldTransform(NativeGraphics, dx, dy, (GdiPlus.MatrixOrder)order));
+        _transform.Translate(dx, dy, order);
+        _transformElements = Matrix3x2.Multiply(_transformElements, Matrix3x2.CreateTranslation(dx, dy));
     }
 
     public void ScaleTransform(float sx, float sy) => ScaleTransform(sx, sy, MatrixOrder.Prepend);
@@ -782,18 +638,18 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     public void ScaleTransform(float sx, float sy, MatrixOrder order)
     {
         _backend?.Scale(sx, sy);
-        if (IsBackendOnly)
-        {
-            return;
-        }
-
-        CheckStatus(PInvoke.GdipScaleWorldTransform(NativeGraphics, sx, sy, (GdiPlus.MatrixOrder)order));
+        _transform.Scale(sx, sy, order);
+        _transformElements = Matrix3x2.Multiply(_transformElements, Matrix3x2.CreateScale(sx, sy));
     }
 
     public void RotateTransform(float angle) => RotateTransform(angle, MatrixOrder.Prepend);
 
-    public void RotateTransform(float angle, MatrixOrder order) =>
-        CheckStatus(PInvoke.GdipRotateWorldTransform(NativeGraphics, angle, (GdiPlus.MatrixOrder)order));
+    public void RotateTransform(float angle, MatrixOrder order)
+    {
+        _backend?.Rotate(angle * MathF.PI / 180f);
+        _transform.Rotate(angle, order);
+        _transformElements = Matrix3x2.Multiply(_transformElements, Matrix3x2.CreateRotation(angle * MathF.PI / 180f));
+    }
 
     /// <summary>
     ///  Draws an arc from the specified ellipse.
@@ -801,15 +657,7 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     public void DrawArc(Pen pen, float x, float y, float width, float height, float startAngle, float sweepAngle)
     {
         ArgumentNullException.ThrowIfNull(pen);
-
-        CheckErrorStatus(PInvoke.GdipDrawArc(
-            NativeGraphics,
-            pen.NativePen,
-            x, y, width, height,
-            startAngle,
-            sweepAngle));
-
-        GC.KeepAlive(pen);
+        throw GdiPlusRemoved(nameof(DrawArc));
     }
 
     /// <summary>
@@ -836,13 +684,7 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     public void DrawBezier(Pen pen, float x1, float y1, float x2, float y2, float x3, float y3, float x4, float y4)
     {
         ArgumentNullException.ThrowIfNull(pen);
-
-        CheckErrorStatus(PInvoke.GdipDrawBezier(
-            NativeGraphics,
-            pen.NativePen,
-            x1, y1, x2, y2, x3, y3, x4, y4));
-
-        GC.KeepAlive(pen);
+        _backend?.StrokeLine(x1, y1, x4, y4, pen.Color, pen.Width);
     }
 
     /// <summary>
@@ -901,8 +743,7 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
             return;
         }
 
-        CheckErrorStatus(PInvoke.GdipDrawRectangle(NativeGraphics, pen.NativePen, x, y, width, height));
-        GC.KeepAlive(pen);
+        throw GdiPlusRemoved(nameof(DrawRectangle));
     }
 
     /// <summary>
@@ -924,12 +765,10 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     {
         ArgumentNullException.ThrowIfNull(pen);
 
-        fixed (RectangleF* r = rects)
+        foreach (RectangleF rect in rects)
         {
-            CheckErrorStatus(PInvoke.GdipDrawRectangles(NativeGraphics, pen.NativePen, (RectF*)r, rects.Length));
+            _backend?.StrokeRect(rect.X, rect.Y, rect.Width, rect.Height, pen.Color, pen.Width);
         }
-
-        GC.KeepAlive(pen);
     }
 
     /// <summary>
@@ -949,12 +788,10 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     {
         ArgumentNullException.ThrowIfNull(pen);
 
-        fixed (Rectangle* r = rects)
+        foreach (Rectangle rect in rects)
         {
-            CheckErrorStatus(PInvoke.GdipDrawRectanglesI(NativeGraphics, pen.NativePen, (Rect*)r, rects.Length));
+            _backend?.StrokeRect(rect.X, rect.Y, rect.Width, rect.Height, pen.Color, pen.Width);
         }
-
-        GC.KeepAlive(pen);
     }
 
     /// <summary>
@@ -975,8 +812,7 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
             return;
         }
 
-        CheckErrorStatus(PInvoke.GdipDrawEllipse(NativeGraphics, pen.NativePen, x, y, width, height));
-        GC.KeepAlive(pen);
+        throw GdiPlusRemoved(nameof(DrawEllipse));
     }
 
     /// <summary>
@@ -1001,8 +837,7 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     public void DrawPie(Pen pen, float x, float y, float width, float height, float startAngle, float sweepAngle)
     {
         ArgumentNullException.ThrowIfNull(pen);
-        CheckErrorStatus(PInvoke.GdipDrawPie(NativeGraphics, pen.NativePen, x, y, width, height, startAngle, sweepAngle));
-        GC.KeepAlive(pen);
+        throw GdiPlusRemoved(nameof(DrawPie));
     }
 
     /// <summary>
@@ -1030,12 +865,15 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     {
         ArgumentNullException.ThrowIfNull(pen);
 
-        fixed (PointF* p = points)
+        for (int i = 1; i < points.Length; i++)
         {
-            CheckErrorStatus(PInvoke.GdipDrawPolygon(NativeGraphics, pen.NativePen, (GdiPlus.PointF*)p, points.Length));
+            _backend?.StrokeLine(points[i - 1].X, points[i - 1].Y, points[i].X, points[i].Y, pen.Color, pen.Width);
         }
 
-        GC.KeepAlive(pen);
+        if (points.Length > 2)
+        {
+            _backend?.StrokeLine(points[^1].X, points[^1].Y, points[0].X, points[0].Y, pen.Color, pen.Width);
+        }
     }
 
     /// <summary>
@@ -1055,12 +893,15 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     {
         ArgumentNullException.ThrowIfNull(pen);
 
-        fixed (Point* p = points)
+        for (int i = 1; i < points.Length; i++)
         {
-            CheckErrorStatus(PInvoke.GdipDrawPolygonI(NativeGraphics, pen.NativePen, (GdiPlus.Point*)p, points.Length));
+            _backend?.StrokeLine(points[i - 1].X, points[i - 1].Y, points[i].X, points[i].Y, pen.Color, pen.Width);
         }
 
-        GC.KeepAlive(pen);
+        if (points.Length > 2)
+        {
+            _backend?.StrokeLine(points[^1].X, points[^1].Y, points[0].X, points[0].Y, pen.Color, pen.Width);
+        }
     }
 
     /// <summary>
@@ -1070,11 +911,7 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     {
         ArgumentNullException.ThrowIfNull(pen);
         ArgumentNullException.ThrowIfNull(path);
-
-        CheckErrorStatus(PInvoke.GdipDrawPath(NativeGraphics, pen.NativePen, path._nativePath));
-
-        GC.KeepAlive(pen);
-        GC.KeepAlive(path);
+        throw GdiPlusRemoved(nameof(DrawPath));
     }
 
     /// <inheritdoc cref="DrawCurve(Pen, Point[], int, int, float)"/>
@@ -1090,12 +927,10 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     {
         ArgumentNullException.ThrowIfNull(pen);
 
-        fixed (PointF* p = points)
+        for (int i = 1; i < points.Length; i++)
         {
-            CheckErrorStatus(PInvoke.GdipDrawCurve(NativeGraphics, pen.NativePen, (GdiPlus.PointF*)p, points.Length));
+            _backend?.StrokeLine(points[i - 1].X, points[i - 1].Y, points[i].X, points[i].Y, pen.Color, pen.Width);
         }
-
-        GC.KeepAlive(pen);
     }
 
     /// <inheritdoc cref="DrawCurve(Pen, Point[], int, int, float)"/>
@@ -1111,17 +946,7 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     void DrawCurve(Pen pen, ReadOnlySpan<PointF> points, float tension)
     {
         ArgumentNullException.ThrowIfNull(pen);
-
-        fixed (PointF* p = points)
-        {
-            CheckErrorStatus(PInvoke.GdipDrawCurve2(
-                NativeGraphics,
-                pen.NativePen,
-                (GdiPlus.PointF*)p, points.Length,
-                tension));
-        }
-
-        GC.KeepAlive(pen);
+        DrawCurve(pen, points);
     }
 
     /// <inheritdoc cref="DrawCurve(Pen, Point[], int, int, float)"/>
@@ -1147,19 +972,8 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     void DrawCurve(Pen pen, ReadOnlySpan<PointF> points, int offset, int numberOfSegments, float tension)
     {
         ArgumentNullException.ThrowIfNull(pen);
-
-        fixed (PointF* p = points)
-        {
-            CheckErrorStatus(PInvoke.GdipDrawCurve3(
-                NativeGraphics,
-                pen.NativePen,
-                (GdiPlus.PointF*)p, points.Length,
-                offset,
-                numberOfSegments,
-                tension));
-        }
-
-        GC.KeepAlive(pen);
+        ReadOnlySpan<PointF> segment = points.Slice(offset, Math.Min(numberOfSegments + 1, points.Length - offset));
+        DrawCurve(pen, segment);
     }
 
     /// <inheritdoc cref="DrawCurve(Pen, Point[], int, int, float)"/>
@@ -1175,12 +989,10 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     {
         ArgumentNullException.ThrowIfNull(pen);
 
-        fixed (Point* p = points)
+        for (int i = 1; i < points.Length; i++)
         {
-            CheckErrorStatus(PInvoke.GdipDrawCurveI(NativeGraphics, pen.NativePen, (GdiPlus.Point*)p, points.Length));
+            _backend?.StrokeLine(points[i - 1].X, points[i - 1].Y, points[i].X, points[i].Y, pen.Color, pen.Width);
         }
-
-        GC.KeepAlive(pen);
     }
 
     /// <inheritdoc cref="DrawCurve(Pen, Point[], int, int, float)"/>
@@ -1196,17 +1008,7 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     void DrawCurve(Pen pen, ReadOnlySpan<Point> points, float tension)
     {
         ArgumentNullException.ThrowIfNull(pen);
-
-        fixed (Point* p = points)
-        {
-            CheckErrorStatus(PInvoke.GdipDrawCurve2I(
-                NativeGraphics,
-                pen.NativePen,
-                (GdiPlus.Point*)p, points.Length,
-                tension));
-        }
-
-        GC.KeepAlive(pen);
+        DrawCurve(pen, points);
     }
 
     /// <summary>
@@ -1229,19 +1031,8 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     void DrawCurve(Pen pen, ReadOnlySpan<Point> points, int offset, int numberOfSegments, float tension)
     {
         ArgumentNullException.ThrowIfNull(pen);
-
-        fixed (Point* p = points)
-        {
-            CheckErrorStatus(PInvoke.GdipDrawCurve3I(
-                NativeGraphics,
-                pen.NativePen,
-                (GdiPlus.Point*)p, points.Length,
-                offset,
-                numberOfSegments,
-                tension));
-        }
-
-        GC.KeepAlive(pen);
+        ReadOnlySpan<Point> segment = points.Slice(offset, Math.Min(numberOfSegments + 1, points.Length - offset));
+        DrawCurve(pen, segment);
     }
 
     /// <inheritdoc cref="DrawClosedCurve(Pen, PointF[], float, FillMode)"/>
@@ -1257,16 +1048,7 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     void DrawClosedCurve(Pen pen, params ReadOnlySpan<PointF> points)
     {
         ArgumentNullException.ThrowIfNull(pen);
-
-        fixed (PointF* p = points)
-        {
-            CheckErrorStatus(PInvoke.GdipDrawClosedCurve(
-                NativeGraphics,
-                pen.NativePen,
-                (GdiPlus.PointF*)p, points.Length));
-        }
-
-        GC.KeepAlive(pen);
+        DrawPolygon(pen, points);
     }
 
     /// <summary>
@@ -1288,17 +1070,7 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     void DrawClosedCurve(Pen pen, ReadOnlySpan<PointF> points, float tension, FillMode fillmode)
     {
         ArgumentNullException.ThrowIfNull(pen);
-
-        fixed (PointF* p = points)
-        {
-            CheckErrorStatus(PInvoke.GdipDrawClosedCurve2(
-                NativeGraphics,
-                pen.NativePen,
-                (GdiPlus.PointF*)p, points.Length,
-                tension));
-        }
-
-        GC.KeepAlive(pen);
+        DrawPolygon(pen, points);
     }
 
     /// <inheritdoc cref="DrawClosedCurve(Pen, PointF[], float, FillMode)"/>
@@ -1313,16 +1085,7 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     void DrawClosedCurve(Pen pen, params ReadOnlySpan<Point> points)
     {
         ArgumentNullException.ThrowIfNull(pen);
-
-        fixed (Point* p = points)
-        {
-            CheckErrorStatus(PInvoke.GdipDrawClosedCurveI(
-                NativeGraphics,
-                pen.NativePen,
-                (GdiPlus.Point*)p, points.Length));
-        }
-
-        GC.KeepAlive(pen);
+        DrawPolygon(pen, points);
     }
 
     /// <inheritdoc cref="DrawClosedCurve(Pen, PointF[], float, FillMode)"/>
@@ -1339,17 +1102,7 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     void DrawClosedCurve(Pen pen, ReadOnlySpan<Point> points, float tension, FillMode fillmode)
     {
         ArgumentNullException.ThrowIfNull(pen);
-
-        fixed (Point* p = points)
-        {
-            CheckErrorStatus(PInvoke.GdipDrawClosedCurve2I(
-                NativeGraphics,
-                pen.NativePen,
-                (GdiPlus.Point*)p, points.Length,
-                tension));
-        }
-
-        GC.KeepAlive(pen);
+        DrawPolygon(pen, points);
     }
 
     /// <summary>
@@ -1363,7 +1116,7 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
             return;
         }
 
-        CheckStatus(PInvoke.GdipGraphicsClear(NativeGraphics, (uint)color.ToArgb()));
+        throw GdiPlusRemoved(nameof(Clear));
     }
 
 #if NET9_0_OR_GREATER
@@ -1399,16 +1152,7 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
 
         if (_backend is not null)
         {
-            Color color = Color.Transparent;
-            if (brush is SolidBrush sb)
-            {
-                color = sb.Color;
-            }
-            else if (brush is System.Drawing.Drawing2D.LinearGradientBrush lgb)
-            {
-                color = lgb.LinearColors[0];
-            }
-            
+            Color color = BrushColor(brush);
             if (color != Color.Transparent)
             {
                 _backend.FillRect(x, y, width, height, color);
@@ -1417,12 +1161,7 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
             return;
         }
 
-        CheckErrorStatus(PInvoke.GdipFillRectangle(
-            NativeGraphics,
-            brush.NativeBrush,
-            x, y, width, height));
-
-        GC.KeepAlive(brush);
+        throw GdiPlusRemoved(nameof(FillRectangle));
     }
 
     /// <summary>
@@ -1467,12 +1206,7 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
             return;
         }
 
-        fixed (RectangleF* r = rects)
-        {
-            CheckErrorStatus(PInvoke.GdipFillRectangles(NativeGraphics, brush.NativeBrush, (RectF*)r, rects.Length));
-        }
-
-        GC.KeepAlive(brush);
+        throw GdiPlusRemoved(nameof(FillRectangles));
     }
 
     /// <inheritdoc cref="FillRectangles(Brush, RectangleF[])"/>
@@ -1500,12 +1234,7 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
             return;
         }
 
-        fixed (Rectangle* r = rects)
-        {
-            CheckErrorStatus(PInvoke.GdipFillRectanglesI(NativeGraphics, brush.NativeBrush, (Rect*)r, rects.Length));
-        }
-
-        GC.KeepAlive(brush);
+        throw GdiPlusRemoved(nameof(FillRectangles));
     }
 
     /// <inheritdoc cref="FillPolygon(Brush, Point[], FillMode)"/>
@@ -1530,16 +1259,7 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     {
         ArgumentNullException.ThrowIfNull(brush);
 
-        fixed (PointF* p = points)
-        {
-            CheckErrorStatus(PInvoke.GdipFillPolygon(
-                NativeGraphics,
-                brush.NativeBrush,
-                (GdiPlus.PointF*)p, points.Length,
-                (GdiPlus.FillMode)fillMode));
-        }
-
-        GC.KeepAlive(brush);
+        throw GdiPlusRemoved(nameof(FillPolygon));
     }
 
     /// <inheritdoc cref="FillPolygon(Brush, Point[], FillMode)"/>
@@ -1569,16 +1289,7 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     {
         ArgumentNullException.ThrowIfNull(brush);
 
-        fixed (Point* p = points)
-        {
-            CheckErrorStatus(PInvoke.GdipFillPolygonI(
-                NativeGraphics,
-                brush.NativeBrush,
-                (GdiPlus.Point*)p, points.Length,
-                (GdiPlus.FillMode)fillMode));
-        }
-
-        GC.KeepAlive(brush);
+        throw GdiPlusRemoved(nameof(FillPolygon));
     }
 
     /// <summary>
@@ -1595,22 +1306,11 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
 
         if (_backend is not null)
         {
-            Color color = Color.Transparent;
-            if (brush is SolidBrush sb)
-            {
-                color = sb.Color;
-            }
-
-            _backend.FillEllipse(x, y, width, height, color);
+            _backend.FillEllipse(x, y, width, height, BrushColor(brush));
             return;
         }
 
-        CheckErrorStatus(PInvoke.GdipFillEllipse(
-            NativeGraphics,
-            brush.NativeBrush,
-            x, y, width, height));
-
-        GC.KeepAlive(brush);
+        throw GdiPlusRemoved(nameof(FillEllipse));
     }
 
     /// <summary>
@@ -1646,14 +1346,7 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     {
         ArgumentNullException.ThrowIfNull(brush);
 
-        CheckErrorStatus(PInvoke.GdipFillPie(
-            NativeGraphics,
-            brush.NativeBrush,
-            x, y, width, height,
-            startAngle,
-            sweepAngle));
-
-        GC.KeepAlive(brush);
+        throw GdiPlusRemoved(nameof(FillPie));
     }
 
     /// <summary>
@@ -1676,15 +1369,7 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     {
         ArgumentNullException.ThrowIfNull(brush);
 
-        fixed (PointF* p = points)
-        {
-            CheckErrorStatus(PInvoke.GdipFillClosedCurve(
-                NativeGraphics,
-                brush.NativeBrush,
-                (GdiPlus.PointF*)p, points.Length));
-        }
-
-        GC.KeepAlive(brush);
+        throw GdiPlusRemoved(nameof(FillClosedCurve));
     }
 
     /// <inheritdoc cref="FillClosedCurve(Brush, PointF[], FillMode, float)"/>
@@ -1717,17 +1402,7 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     {
         ArgumentNullException.ThrowIfNull(brush);
 
-        fixed (PointF* p = points)
-        {
-            CheckErrorStatus(PInvoke.GdipFillClosedCurve2(
-                NativeGraphics,
-                brush.NativeBrush,
-                (GdiPlus.PointF*)p, points.Length,
-                tension,
-                (GdiPlus.FillMode)fillmode));
-        }
-
-        GC.KeepAlive(brush);
+        throw GdiPlusRemoved(nameof(FillClosedCurve));
     }
 
     /// <inheritdoc cref="FillClosedCurve(Brush, PointF[], FillMode, float)"/>
@@ -1744,15 +1419,7 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     {
         ArgumentNullException.ThrowIfNull(brush);
 
-        fixed (Point* p = points)
-        {
-            CheckErrorStatus(PInvoke.GdipFillClosedCurveI(
-                NativeGraphics,
-                brush.NativeBrush,
-                (GdiPlus.Point*)p, points.Length));
-        }
-
-        GC.KeepAlive(brush);
+        throw GdiPlusRemoved(nameof(FillClosedCurve));
     }
 
     /// <inheritdoc cref="FillClosedCurve(Brush, PointF[], FillMode, float)"/>
@@ -1780,17 +1447,7 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     {
         ArgumentNullException.ThrowIfNull(brush);
 
-        fixed (Point* p = points)
-        {
-            CheckErrorStatus(PInvoke.GdipFillClosedCurve2I(
-                NativeGraphics,
-                brush.NativeBrush,
-                (GdiPlus.Point*)p, points.Length,
-                tension,
-                (GdiPlus.FillMode)fillmode));
-        }
-
-        GC.KeepAlive(brush);
+        throw GdiPlusRemoved(nameof(FillClosedCurve));
     }
 
     /// <summary>
@@ -1996,20 +1653,7 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
             return;
         }
 
-        fixed (char* c = s)
-        {
-            CheckErrorStatus(PInvoke.GdipDrawString(
-                NativeGraphics,
-                c, s.Length,
-                font.NativeFont,
-                (RectF*)&layoutRectangle,
-                format.Pointer(),
-                brush.NativeBrush));
-        }
-
-        GC.KeepAlive(font);
-        GC.KeepAlive(brush);
-        GC.KeepAlive(format);
+        throw GdiPlusRemoved(nameof(DrawString));
     }
 
     /// <param name="charactersFitted">Number of characters in the text.</param>
@@ -2065,28 +1709,10 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
             return size;
         }
 
-        RectF boundingBox = default;
-
-        fixed (char* c = text)
-        fixed (int* fitted = &charactersFitted)
-        fixed (int* filled = &linesFilled)
-        {
-            CheckStatus(PInvoke.GdipMeasureString(
-                NativeGraphics,
-                c,
-                text.Length,
-                font.NativeFont,
-                (RectF*)&layoutArea,
-                stringFormat.Pointer(),
-                &boundingBox,
-                fitted,
-                filled));
-        }
-
-        GC.KeepAlive(font);
-        GC.KeepAlive(stringFormat);
-
-        return new SizeF(boundingBox.Width, boundingBox.Height);
+        charactersFitted = text.Length;
+        linesFilled = 1;
+        float measuredFontSizePixels = font.SizeInPoints * (DpiY / 72.0f);
+        return new SizeF(text.Length * measuredFontSizePixels * 0.55f, font.GetHeight(this));
     }
 
     /// <param name="origin"><see cref="PointF"/> structure that represents the upper-left corner of the text.</param>
@@ -2211,41 +1837,7 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
 
         ArgumentNullException.ThrowIfNull(font);
 
-        int count;
-        CheckStatus(PInvoke.GdipGetStringFormatMeasurableCharacterRangeCount(stringFormat.Pointer(), &count));
-
-        if (count == 0)
-        {
-            return [];
-        }
-
-        GpRegion*[] gpRegions = new GpRegion*[count];
-        Region[] regions = new Region[count];
-
-        for (int f = 0; f < count; f++)
-        {
-            regions[f] = new Region();
-            gpRegions[f] = regions[f].NativeRegion;
-        }
-
-        fixed (char* c = text)
-        fixed (GpRegion** r = gpRegions)
-        {
-            CheckStatus(PInvoke.GdipMeasureCharacterRanges(
-                NativeGraphics,
-                c,
-                text.Length,
-                font.NativeFont,
-                &layoutRect,
-                stringFormat.Pointer(),
-                count,
-                r));
-        }
-
-        GC.KeepAlive(stringFormat);
-        GC.KeepAlive(font);
-
-        return regions;
+        return [new Region(layoutRect)];
     }
 
     /// <summary>
@@ -2256,9 +1848,7 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     public void DrawImage(Image image, float x, float y)
     {
         ArgumentNullException.ThrowIfNull(image);
-        Status status = PInvoke.GdipDrawImage(NativeGraphics, image.Pointer(), x, y);
-        IgnoreMetafileErrors(image, ref status);
-        CheckErrorStatus(status);
+        DrawImage(image, x, y, image.Width, image.Height);
     }
 
     public void DrawImage(Image image, RectangleF rect) => DrawImage(image, rect.X, rect.Y, rect.Width, rect.Height);
@@ -2266,9 +1856,13 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     public void DrawImage(Image image, float x, float y, float width, float height)
     {
         ArgumentNullException.ThrowIfNull(image);
-        Status status = PInvoke.GdipDrawImageRect(NativeGraphics, image.Pointer(), x, y, width, height);
-        IgnoreMetafileErrors(image, ref status);
-        CheckErrorStatus(status);
+        if (_backend is not null)
+        {
+            _backend.DrawImageRect(image, 0, 0, image.Width, image.Height, x, y, width, height);
+            return;
+        }
+
+        throw GdiPlusRemoved(nameof(DrawImage));
     }
 
     public void DrawImage(Image image, Point point) => DrawImage(image, (float)point.X, point.Y);
@@ -2319,12 +1913,7 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
         if (count is not 3 and not 4)
             throw new ArgumentException(SR.GdiplusDestPointsInvalidLength);
 
-        fixed (PointF* p = destPoints)
-        {
-            Status status = PInvoke.GdipDrawImagePoints(NativeGraphics, image.Pointer(), (GdiPlus.PointF*)p, count);
-            IgnoreMetafileErrors(image, ref status);
-            CheckErrorStatus(status);
-        }
+        throw GdiPlusRemoved(nameof(DrawImage));
     }
 
     public void DrawImage(Image image, Point[] destPoints)
@@ -2336,27 +1925,20 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
         if (count is not 3 and not 4)
             throw new ArgumentException(SR.GdiplusDestPointsInvalidLength);
 
-        fixed (Point* p = destPoints)
-        {
-            Status status = PInvoke.GdipDrawImagePointsI(NativeGraphics, image.Pointer(), (GdiPlus.Point*)p, count);
-            IgnoreMetafileErrors(image, ref status);
-            CheckErrorStatus(status);
-        }
+        throw GdiPlusRemoved(nameof(DrawImage));
     }
 
     public void DrawImage(Image image, float x, float y, RectangleF srcRect, GraphicsUnit srcUnit)
     {
         ArgumentNullException.ThrowIfNull(image);
 
-        Status status = PInvoke.GdipDrawImagePointRect(
-            NativeGraphics,
-            image.Pointer(),
-            x, y,
-            srcRect.X, srcRect.Y, srcRect.Width, srcRect.Height,
-            (Unit)srcUnit);
+        if (_backend is not null)
+        {
+            _backend.DrawImageRect(image, srcRect.X, srcRect.Y, srcRect.Width, srcRect.Height, x, y, srcRect.Width, srcRect.Height);
+            return;
+        }
 
-        IgnoreMetafileErrors(image, ref status);
-        CheckErrorStatus(status);
+        throw GdiPlusRemoved(nameof(DrawImage));
     }
 
     public void DrawImage(Image image, int x, int y, Rectangle srcRect, GraphicsUnit srcUnit)
@@ -2372,18 +1954,7 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
             return;
         }
 
-        Status status = PInvoke.GdipDrawImageRectRect(
-            NativeGraphics,
-            image.Pointer(),
-            destRect.X, destRect.Y, destRect.Width, destRect.Height,
-            srcRect.X, srcRect.Y, srcRect.Width, srcRect.Height,
-            (Unit)srcUnit,
-            imageAttributes: null,
-            callback: 0,
-            callbackData: null);
-
-        IgnoreMetafileErrors(image, ref status);
-        CheckErrorStatus(status);
+        throw GdiPlusRemoved(nameof(DrawImage));
     }
 
     public void DrawImage(Image image, Rectangle destRect, Rectangle srcRect, GraphicsUnit srcUnit)
@@ -2398,21 +1969,7 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
         if (count is not 3 and not 4)
             throw new ArgumentException(SR.GdiplusDestPointsInvalidLength);
 
-        fixed (PointF* p = destPoints)
-        {
-            Status status = PInvoke.GdipDrawImagePointsRect(
-                NativeGraphics,
-                image.Pointer(),
-                (GdiPlus.PointF*)p, destPoints.Length,
-                srcRect.X, srcRect.Y, srcRect.Width, srcRect.Height,
-                (Unit)srcUnit,
-                imageAttributes: null,
-                callback: 0,
-                callbackData: null);
-
-            IgnoreMetafileErrors(image, ref status);
-            CheckErrorStatus(status);
-        }
+        throw GdiPlusRemoved(nameof(DrawImage));
     }
 
     public void DrawImage(Image image, PointF[] destPoints, RectangleF srcRect, GraphicsUnit srcUnit, ImageAttributes? imageAttr) =>
@@ -2443,23 +2000,7 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
         if (count is not 3 and not 4)
             throw new ArgumentException(SR.GdiplusDestPointsInvalidLength);
 
-        fixed (PointF* p = destPoints)
-        {
-            Status status = PInvoke.GdipDrawImagePointsRect(
-                NativeGraphics,
-                image.Pointer(),
-                (GdiPlus.PointF*)p, destPoints.Length,
-                srcRect.X, srcRect.Y, srcRect.Width, srcRect.Height,
-                (Unit)srcUnit,
-                imageAttr.Pointer(),
-                callback is null ? 0 : Marshal.GetFunctionPointerForDelegate(callback),
-                (void*)(nint)callbackData);
-
-            GC.KeepAlive(imageAttr);
-            GC.KeepAlive(callback);
-            IgnoreMetafileErrors(image, ref status);
-            CheckErrorStatus(status);
-        }
+        throw GdiPlusRemoved(nameof(DrawImage));
     }
 
     public void DrawImage(Image image, Point[] destPoints, Rectangle srcRect, GraphicsUnit srcUnit) =>
@@ -2496,24 +2037,7 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
         if (count is not 3 and not 4)
             throw new ArgumentException(SR.GdiplusDestPointsInvalidLength);
 
-        fixed (Point* p = destPoints)
-        {
-            Status status = PInvoke.GdipDrawImagePointsRectI(
-                NativeGraphics,
-                image.Pointer(),
-                (GdiPlus.Point*)p, destPoints.Length,
-                srcRect.X, srcRect.Y, srcRect.Width, srcRect.Height,
-                (Unit)srcUnit,
-                imageAttr.Pointer(),
-                callback is null ? 0 : Marshal.GetFunctionPointerForDelegate(callback),
-                (void*)(nint)callbackData);
-
-            GC.KeepAlive(imageAttr);
-            GC.KeepAlive(callback);
-
-            IgnoreMetafileErrors(image, ref status);
-            CheckErrorStatus(status);
-        }
+        throw GdiPlusRemoved(nameof(DrawImage));
     }
 
     public void DrawImage(
@@ -2560,20 +2084,18 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     {
         ArgumentNullException.ThrowIfNull(image);
 
-        Status status = PInvoke.GdipDrawImageRectRect(
-            NativeGraphics,
-            image.Pointer(),
-            destRect.X, destRect.Y, destRect.Width, destRect.Height,
-            srcX, srcY, srcWidth, srcHeight,
-            (Unit)srcUnit,
-            imageAttrs.Pointer(),
-            callback is null ? 0 : Marshal.GetFunctionPointerForDelegate(callback),
-            (void*)callbackData);
+        if (imageAttrs is not null || callback is not null)
+        {
+            throw GdiPlusRemoved(nameof(DrawImage));
+        }
 
-        GC.KeepAlive(imageAttrs);
-        GC.KeepAlive(callback);
-        IgnoreMetafileErrors(image, ref status);
-        CheckErrorStatus(status);
+        if (_backend is not null)
+        {
+            _backend.DrawImageRect(image, srcX, srcY, srcWidth, srcHeight, destRect.X, destRect.Y, destRect.Width, destRect.Height);
+            return;
+        }
+
+        throw GdiPlusRemoved(nameof(DrawImage));
     }
 
     public void DrawImage(
@@ -2636,12 +2158,15 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     {
         ArgumentNullException.ThrowIfNull(pen);
 
-        fixed (PointF* p = points)
+        for (int i = 1; i < points.Length; i++)
         {
-            CheckErrorStatus(PInvoke.GdipDrawLines(NativeGraphics, pen.NativePen, (GdiPlus.PointF*)p, points.Length));
+            _backend?.StrokeLine(points[i - 1].X, points[i - 1].Y, points[i].X, points[i].Y, pen.Color, pen.Width);
         }
 
-        GC.KeepAlive(pen);
+        if (_backend is null)
+        {
+            throw GdiPlusRemoved(nameof(DrawLines));
+        }
     }
 
     /// <summary>
@@ -2664,13 +2189,7 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     {
         ArgumentNullException.ThrowIfNull(pen);
         ArgumentNullException.ThrowIfNull(points);
-
-        fixed (Point* p = points)
-        {
-            CheckErrorStatus(PInvoke.GdipDrawLinesI(NativeGraphics, pen.NativePen, (GdiPlus.Point*)p, points.Length));
-        }
-
-        GC.KeepAlive(pen);
+        DrawLines(pen, points.AsSpan());
     }
 
     /// <inheritdoc cref="DrawLines(Pen, Point[])"/>
@@ -2683,12 +2202,15 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     {
         ArgumentNullException.ThrowIfNull(pen);
 
-        fixed (Point* p = points)
+        for (int i = 1; i < points.Length; i++)
         {
-            CheckErrorStatus(PInvoke.GdipDrawLinesI(NativeGraphics, pen.NativePen, (GdiPlus.Point*)p, points.Length));
+            _backend?.StrokeLine(points[i - 1].X, points[i - 1].Y, points[i].X, points[i].Y, pen.Color, pen.Width);
         }
 
-        GC.KeepAlive(pen);
+        if (_backend is null)
+        {
+            throw GdiPlusRemoved(nameof(DrawLines));
+        }
     }
 
     /// <summary>
@@ -2849,7 +2371,7 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     public void TransformPoints(Drawing2D.CoordinateSpace destSpace, Drawing2D.CoordinateSpace srcSpace, params PointF[] pts)
     {
         ArgumentNullException.ThrowIfNull(pts);
-        TransformPoints(destSpace, srcSpace, pts.AsSpan());
+        TransformPointSpan(destSpace, srcSpace, pts.AsSpan());
     }
 
     /// <inheritdoc cref="TransformPoints(Drawing2D.CoordinateSpace, Drawing2D.CoordinateSpace, PointF[])"/>
@@ -2860,22 +2382,15 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
 #endif
     void TransformPoints(Drawing2D.CoordinateSpace destSpace, Drawing2D.CoordinateSpace srcSpace, params ReadOnlySpan<PointF> pts)
     {
-        fixed (PointF* p = pts)
-        {
-            CheckStatus(PInvoke.GdipTransformPoints(
-                NativeGraphics,
-                (GdiPlus.CoordinateSpace)destSpace,
-                (GdiPlus.CoordinateSpace)srcSpace,
-                (GdiPlus.PointF*)p,
-                pts.Length));
-        }
+        if (srcSpace != destSpace && !_transformElements.IsIdentity)
+            throw GdiPlusRemoved(nameof(TransformPoints));
     }
 
     /// <inheritdoc cref="TransformPoints(Drawing2D.CoordinateSpace, Drawing2D.CoordinateSpace, PointF[])"/>
     public void TransformPoints(Drawing2D.CoordinateSpace destSpace, Drawing2D.CoordinateSpace srcSpace, params Point[] pts)
     {
         ArgumentNullException.ThrowIfNull(pts);
-        TransformPoints(destSpace, srcSpace, pts.AsSpan());
+        TransformPointSpan(destSpace, srcSpace, pts.AsSpan());
     }
 
     /// <inheritdoc cref="TransformPoints(Drawing2D.CoordinateSpace, Drawing2D.CoordinateSpace, PointF[])"/>
@@ -2886,14 +2401,35 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
 #endif
     void TransformPoints(Drawing2D.CoordinateSpace destSpace, Drawing2D.CoordinateSpace srcSpace, params ReadOnlySpan<Point> pts)
     {
-        fixed (Point* p = pts)
+        if (srcSpace != destSpace && !_transformElements.IsIdentity)
+            throw GdiPlusRemoved(nameof(TransformPoints));
+    }
+
+    private void TransformPointSpan(Drawing2D.CoordinateSpace destSpace, Drawing2D.CoordinateSpace srcSpace, Span<PointF> pts)
+    {
+        if (srcSpace == destSpace || _transformElements.IsIdentity)
         {
-            CheckStatus(PInvoke.GdipTransformPointsI(
-                NativeGraphics,
-                (GdiPlus.CoordinateSpace)destSpace,
-                (GdiPlus.CoordinateSpace)srcSpace,
-                (GdiPlus.Point*)p,
-                pts.Length));
+            return;
+        }
+
+        for (int i = 0; i < pts.Length; i++)
+        {
+            Vector2 transformed = Vector2.Transform(new Vector2(pts[i].X, pts[i].Y), _transformElements);
+            pts[i] = new PointF(transformed.X, transformed.Y);
+        }
+    }
+
+    private void TransformPointSpan(Drawing2D.CoordinateSpace destSpace, Drawing2D.CoordinateSpace srcSpace, Span<Point> pts)
+    {
+        if (srcSpace == destSpace || _transformElements.IsIdentity)
+        {
+            return;
+        }
+
+        for (int i = 0; i < pts.Length; i++)
+        {
+            Vector2 transformed = Vector2.Transform(new Vector2(pts[i].X, pts[i].Y), _transformElements);
+            pts[i] = new Point((int)MathF.Round(transformed.X), (int)MathF.Round(transformed.Y));
         }
     }
 
@@ -2917,36 +2453,7 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     /// </summary>
     internal Region? GetRegionIfNotInfinite()
     {
-        GpRegion* regionHandle;
-        CheckStatus(PInvoke.GdipCreateRegion(&regionHandle));
-
-        try
-        {
-            BOOL isInfinite;
-            PInvoke.GdipGetClip(NativeGraphics, regionHandle);
-
-            CheckStatus(PInvokeCore.GdipIsInfiniteRegion(
-                regionHandle,
-                NativeGraphics,
-                &isInfinite));
-
-            if (isInfinite)
-            {
-                // Infinite
-                return null;
-            }
-
-            Region region = new(regionHandle);
-            regionHandle = null;
-            return region;
-        }
-        finally
-        {
-            if (regionHandle is not null)
-            {
-                PInvoke.GdipDeleteRegion(regionHandle);
-            }
-        }
+        return _clip?.Clone();
     }
 
     /// <summary>
@@ -2993,50 +2500,12 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
                 throw new InvalidEnumArgumentException(nameof(copyPixelOperation), (int)copyPixelOperation, typeof(CopyPixelOperation));
         }
 
-        int destWidth = blockRegionSize.Width;
-        int destHeight = blockRegionSize.Height;
-
-        using var screenDC = GetDcScope.ScreenDC;
-        if (screenDC == 0)
-        {
-            // ERROR_INVALID_HANDLE - if you pass an empty handle to BitBlt you'll get this error.
-            // Checking here to better describe test failures (and avoids taking the Graphics HDC lock).
-            throw new Win32Exception(6);
-        }
-
-        HDC targetDC = (HDC)GetHdc();
-        try
-        {
-            BOOL result = PInvokeCore.BitBlt(
-                targetDC,
-                destinationX,
-                destinationY,
-                destWidth,
-                destHeight,
-                screenDC,
-                sourceX,
-                sourceY,
-                (ROP_CODE)copyPixelOperation);
-
-            if (!result)
-            {
-                throw new Win32Exception();
-            }
-        }
-        finally
-        {
-            if (!targetDC.IsNull)
-            {
-                ReleaseHdc();
-            }
-        }
+        throw GdiPlusRemoved(nameof(CopyFromScreen));
     }
 
     public Color GetNearestColor(Color color)
     {
-        uint nearest = (uint)color.ToArgb();
-        CheckStatus(PInvoke.GdipGetNearestColor(NativeGraphics, &nearest));
-        return Color.FromArgb((int)nearest);
+        return color;
     }
 
     /// <summary>
@@ -3054,8 +2523,7 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
             return;
         }
 
-        CheckErrorStatus(PInvoke.GdipDrawLine(NativeGraphics, pen.NativePen, x1, y1, x2, y2));
-        GC.KeepAlive(pen);
+        throw GdiPlusRemoved(nameof(DrawLine));
     }
 
     /// <inheritdoc cref="DrawBeziers(Pen, Point[])"/>
@@ -3072,15 +2540,7 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     {
         ArgumentNullException.ThrowIfNull(pen);
 
-        fixed (PointF* p = points)
-        {
-            CheckErrorStatus(PInvoke.GdipDrawBeziers(
-                NativeGraphics,
-                pen.NativePen,
-                (GdiPlus.PointF*)p, points.Length));
-        }
-
-        GC.KeepAlive(pen);
+        DrawLines(pen, points);
     }
 
     /// <summary>
@@ -3103,16 +2563,7 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     {
         ArgumentNullException.ThrowIfNull(pen);
 
-        fixed (Point* p = points)
-        {
-            CheckErrorStatus(PInvoke.GdipDrawBeziersI(
-                NativeGraphics,
-                pen.NativePen,
-                (GdiPlus.Point*)p,
-                points.Length));
-        }
-
-        GC.KeepAlive(pen);
+        DrawLines(pen, points);
     }
 
     /// <summary>
@@ -3123,13 +2574,7 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
         ArgumentNullException.ThrowIfNull(brush);
         ArgumentNullException.ThrowIfNull(path);
 
-        CheckErrorStatus(PInvoke.GdipFillPath(
-            NativeGraphics,
-            brush.NativeBrush,
-            path._nativePath));
-
-        GC.KeepAlive(brush);
-        GC.KeepAlive(path);
+        throw GdiPlusRemoved(nameof(FillPath));
     }
 
     /// <summary>
@@ -3140,13 +2585,7 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
         ArgumentNullException.ThrowIfNull(brush);
         ArgumentNullException.ThrowIfNull(region);
 
-        CheckErrorStatus(PInvoke.GdipFillRegion(
-            NativeGraphics,
-            brush.NativeBrush,
-            region.NativeRegion));
-
-        GC.KeepAlive(brush);
-        GC.KeepAlive(region);
+        throw GdiPlusRemoved(nameof(FillRegion));
     }
 
     public void DrawIcon(Icon icon, int x, int y)
@@ -3216,18 +2655,9 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
         IntPtr callbackData,
         ImageAttributes? imageAttr)
     {
-        using EnumerateMetafileDataAdapter adapter = new(callback);
-        PInvoke.GdipEnumerateMetafileDestPoint(
-            NativeGraphics,
-            metafile.Pointer(),
-            (GdiPlus.PointF*)&destPoint,
-            adapter.NativeCallback,
-            (void*)callbackData,
-            imageAttr.Pointer()).ThrowIfFailed();
-
-        GC.KeepAlive(imageAttr);
-        GC.KeepAlive(metafile);
-        GC.KeepAlive(this);
+        ArgumentNullException.ThrowIfNull(metafile);
+        ArgumentNullException.ThrowIfNull(callback);
+        throw GdiPlusRemoved(nameof(EnumerateMetafile));
     }
 
     public void EnumerateMetafile(
@@ -3245,18 +2675,9 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
         IntPtr callbackData,
         ImageAttributes? imageAttr)
     {
-        using EnumerateMetafileDataAdapter adapter = new(callback);
-        PInvoke.GdipEnumerateMetafileDestRect(
-            NativeGraphics,
-            metafile.Pointer(),
-            (RectF*)&destRect,
-            adapter.NativeCallback,
-            (void*)callbackData,
-            imageAttr.Pointer()).ThrowIfFailed();
-
-        GC.KeepAlive(imageAttr);
-        GC.KeepAlive(metafile);
-        GC.KeepAlive(this);
+        ArgumentNullException.ThrowIfNull(metafile);
+        ArgumentNullException.ThrowIfNull(callback);
+        throw GdiPlusRemoved(nameof(EnumerateMetafile));
     }
 
     public void EnumerateMetafile(
@@ -3278,21 +2699,9 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
         if (destPoints.Length != 3)
             throw new ArgumentException(SR.GdiplusDestPointsInvalidParallelogram);
 
-        fixed (PointF* p = destPoints)
-        {
-            using EnumerateMetafileDataAdapter adapter = new(callback);
-            PInvoke.GdipEnumerateMetafileDestPoints(
-                NativeGraphics,
-                metafile.Pointer(),
-                (GdiPlus.PointF*)p, destPoints.Length,
-                adapter.NativeCallback,
-                (void*)callbackData,
-                imageAttr.Pointer()).ThrowIfFailed();
-
-            GC.KeepAlive(imageAttr);
-            GC.KeepAlive(metafile);
-            GC.KeepAlive(this);
-        }
+        ArgumentNullException.ThrowIfNull(metafile);
+        ArgumentNullException.ThrowIfNull(callback);
+        throw GdiPlusRemoved(nameof(EnumerateMetafile));
     }
 
     public void EnumerateMetafile(
@@ -3307,21 +2716,9 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
         if (destPoints.Length != 3)
             throw new ArgumentException(SR.GdiplusDestPointsInvalidParallelogram);
 
-        fixed (Point* p = destPoints)
-        {
-            using EnumerateMetafileDataAdapter adapter = new(callback);
-            PInvoke.GdipEnumerateMetafileDestPointsI(
-                NativeGraphics,
-                metafile.Pointer(),
-                (GdiPlus.Point*)p, destPoints.Length,
-                adapter.NativeCallback,
-                (void*)callbackData,
-                imageAttr.Pointer()).ThrowIfFailed();
-
-            GC.KeepAlive(imageAttr);
-            GC.KeepAlive(metafile);
-            GC.KeepAlive(this);
-        }
+        ArgumentNullException.ThrowIfNull(metafile);
+        ArgumentNullException.ThrowIfNull(callback);
+        throw GdiPlusRemoved(nameof(EnumerateMetafile));
     }
 
     public void EnumerateMetafile(
@@ -3333,20 +2730,9 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
         IntPtr callbackData,
         ImageAttributes? imageAttr)
     {
-        using EnumerateMetafileDataAdapter adapter = new(callback);
-        PInvoke.GdipEnumerateMetafileSrcRectDestPoint(
-            NativeGraphics,
-            metafile.Pointer(),
-            (GdiPlus.PointF*)&destPoint,
-            (RectF*)&srcRect,
-            (Unit)unit,
-            adapter.NativeCallback,
-            (void*)callbackData,
-            imageAttr.Pointer()).ThrowIfFailed();
-
-        GC.KeepAlive(imageAttr);
-        GC.KeepAlive(metafile);
-        GC.KeepAlive(this);
+        ArgumentNullException.ThrowIfNull(metafile);
+        ArgumentNullException.ThrowIfNull(callback);
+        throw GdiPlusRemoved(nameof(EnumerateMetafile));
     }
 
     public void EnumerateMetafile(
@@ -3374,20 +2760,9 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
         IntPtr callbackData,
         ImageAttributes? imageAttr)
     {
-        using EnumerateMetafileDataAdapter adapter = new(callback);
-        PInvoke.GdipEnumerateMetafileSrcRectDestRect(
-            NativeGraphics,
-            metafile.Pointer(),
-            (RectF*)&destRect,
-            (RectF*)&srcRect,
-            (Unit)unit,
-            adapter.NativeCallback,
-            (void*)callbackData,
-            imageAttr.Pointer()).ThrowIfFailed();
-
-        GC.KeepAlive(imageAttr);
-        GC.KeepAlive(metafile);
-        GC.KeepAlive(this);
+        ArgumentNullException.ThrowIfNull(metafile);
+        ArgumentNullException.ThrowIfNull(callback);
+        throw GdiPlusRemoved(nameof(EnumerateMetafile));
     }
 
     public void EnumerateMetafile(
@@ -3413,23 +2788,9 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
         if (destPoints.Length != 3)
             throw new ArgumentException(SR.GdiplusDestPointsInvalidParallelogram);
 
-        fixed (PointF* p = destPoints)
-        {
-            using EnumerateMetafileDataAdapter adapter = new(callback);
-            PInvoke.GdipEnumerateMetafileSrcRectDestPoints(
-                NativeGraphics,
-                metafile.Pointer(),
-                (GdiPlus.PointF*)p, destPoints.Length,
-                (RectF*)&srcRect,
-                (Unit)unit,
-                adapter.NativeCallback,
-                (void*)callbackData,
-                imageAttr.Pointer()).ThrowIfFailed();
-
-            GC.KeepAlive(imageAttr);
-            GC.KeepAlive(metafile);
-            GC.KeepAlive(this);
-        }
+        ArgumentNullException.ThrowIfNull(metafile);
+        ArgumentNullException.ThrowIfNull(callback);
+        throw GdiPlusRemoved(nameof(EnumerateMetafile));
     }
 
     public void EnumerateMetafile(
@@ -3446,23 +2807,9 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
         if (destPoints.Length != 3)
             throw new ArgumentException(SR.GdiplusDestPointsInvalidParallelogram);
 
-        fixed (Point* p = destPoints)
-        {
-            using EnumerateMetafileDataAdapter adapter = new(callback);
-            PInvoke.GdipEnumerateMetafileSrcRectDestPointsI(
-                NativeGraphics,
-                metafile.Pointer(),
-                (GdiPlus.Point*)p, destPoints.Length,
-                (Rect*)&srcRect,
-                (Unit)unit,
-                adapter.NativeCallback,
-                (void*)callbackData,
-                imageAttr.Pointer()).ThrowIfFailed();
-
-            GC.KeepAlive(imageAttr);
-            GC.KeepAlive(metafile);
-            GC.KeepAlive(this);
-        }
+        ArgumentNullException.ThrowIfNull(metafile);
+        ArgumentNullException.ThrowIfNull(callback);
+        throw GdiPlusRemoved(nameof(EnumerateMetafile));
     }
 
     /// <summary>
@@ -3559,70 +2906,7 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
 
     (HDC hdc, int saveState) IGraphicsContextInfo.GetHdc(ApplyGraphicsProperties apply, bool alwaysSaveState)
     {
-        bool applyTransform = apply.HasFlag(ApplyGraphicsProperties.TranslateTransform);
-        bool applyClipping = apply.HasFlag(ApplyGraphicsProperties.Clipping);
-
-        int saveState = 0;
-        HDC hdc = HDC.Null;
-
-        Region? clipRegion = null;
-        PointF offset = default;
-        if (applyClipping)
-        {
-            GetContextInfo(out offset, out clipRegion);
-        }
-        else if (applyTransform)
-        {
-            GetContextInfo(out offset);
-        }
-
-        using (clipRegion)
-        {
-            applyTransform = applyTransform && !offset.IsEmpty;
-            applyClipping = clipRegion is not null;
-
-            using var graphicsRegion = applyClipping ? new RegionScope(clipRegion!, this) : default;
-            applyClipping = applyClipping && !graphicsRegion!.Region.IsNull;
-
-            hdc = (HDC)GetHdc();
-
-            if (alwaysSaveState || applyClipping || applyTransform)
-            {
-                saveState = PInvokeCore.SaveDC(hdc);
-            }
-
-            if (applyClipping)
-            {
-                // If the Graphics object was created from a native DC the actual clipping region is the intersection
-                // between the original DC clip region and the GDI+ one - for display Graphics it is the same as
-                // Graphics.VisibleClipBounds.
-
-                GDI_REGION_TYPE type;
-
-                using RegionScope dcRegion = new(hdc);
-                if (!dcRegion.IsNull)
-                {
-                    type = PInvokeCore.CombineRgn(graphicsRegion!, dcRegion, graphicsRegion!, RGN_COMBINE_MODE.RGN_AND);
-                    if (type == GDI_REGION_TYPE.RGN_ERROR)
-                    {
-                        throw new Win32Exception();
-                    }
-                }
-
-                type = PInvokeCore.SelectClipRgn(hdc, graphicsRegion!);
-                if (type == GDI_REGION_TYPE.RGN_ERROR)
-                {
-                    throw new Win32Exception();
-                }
-            }
-
-            if (applyTransform)
-            {
-                PInvokeCore.OffsetViewportOrgEx(hdc, (int)offset.X, (int)offset.Y, lppt: null);
-            }
-        }
-
-        return (hdc, saveState);
+        return ((HDC)GetHdc(), 0);
     }
 
     /// <summary>
@@ -3659,9 +2943,7 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
             if (PrintingHelper is PrintPreviewGraphics ppGraphics)
                 return ppGraphics.VisibleClipBounds;
 
-            RectF rect;
-            CheckStatus(PInvoke.GdipGetVisibleClipBounds(NativeGraphics, &rect));
-            return rect;
+            return _clipBounds;
         }
     }
 
@@ -3711,84 +2993,41 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     public GraphicsState Save()
     {
         _backend?.Save();
-        if (IsBackendOnly)
-        {
-            return new GraphicsState(0);
-        }
-
         GraphicsContext context = new(this);
-        uint state;
-        Status status = PInvoke.GdipSaveGraphics(NativeGraphics, &state);
-        GC.KeepAlive(this);
-
-        if (status != Status.Ok)
-        {
-            context.Dispose();
-            throw Gdip.StatusException(status);
-        }
-
-        context.State = (int)state;
+        int state = _nextContextState++;
+        context.State = state;
         context.IsCumulative = true;
         PushContext(context);
-
-        return new GraphicsState((int)state);
+        return new GraphicsState(state);
     }
 
     public void Restore(GraphicsState gstate)
     {
         _backend?.Restore(); // WinForms usually restores in order, so Restore() is typically enough. If it's a deep restore, this might need RestoreToCount, but Impeller backend does not have a 1:1 mapping of state IDs.
-        if (IsBackendOnly)
-        {
-            return;
-        }
-
-        CheckStatus(PInvoke.GdipRestoreGraphics(NativeGraphics, (uint)gstate._nativeState));
         PopContext(gstate._nativeState);
     }
 
     public GraphicsContainer BeginContainer(RectangleF dstrect, RectangleF srcrect, GraphicsUnit unit)
     {
         GraphicsContext context = new(this);
-
-        uint state;
-        Status status = PInvoke.GdipBeginContainer(NativeGraphics, (RectF*)&dstrect, (RectF*)&srcrect, (Unit)unit, &state);
-        GC.KeepAlive(this);
-
-        if (status != Status.Ok)
-        {
-            context.Dispose();
-            throw Gdip.StatusException(status);
-        }
-
-        context.State = (int)state;
+        int state = _nextContextState++;
+        context.State = state;
         PushContext(context);
-
-        return new GraphicsContainer((int)state);
+        return new GraphicsContainer(state);
     }
 
     public GraphicsContainer BeginContainer()
     {
         GraphicsContext context = new(this);
-        uint state;
-        Status status = PInvoke.GdipBeginContainer2(NativeGraphics, &state);
-        GC.KeepAlive(this);
-
-        if (status != Status.Ok)
-        {
-            context.Dispose();
-            throw Gdip.StatusException(status);
-        }
-
-        context.State = (int)state;
+        int state = _nextContextState++;
+        context.State = state;
         PushContext(context);
-
-        return new GraphicsContainer((int)state);
+        return new GraphicsContainer(state);
     }
 
     public void EndContainer(GraphicsContainer container)
     {
         ArgumentNullException.ThrowIfNull(container);
-        CheckStatus(PInvoke.GdipEndContainer(NativeGraphics, (uint)container._nativeGraphicsContainer));
         PopContext(container._nativeGraphicsContainer);
     }
 
@@ -3798,10 +3037,7 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     public void AddMetafileComment(byte[] data)
     {
         ArgumentNullException.ThrowIfNull(data);
-        fixed (byte* b = data)
-        {
-            CheckStatus(PInvoke.GdipComment(NativeGraphics, (uint)data.Length, b));
-        }
+        throw GdiPlusRemoved(nameof(AddMetafileComment));
     }
 
     public static IntPtr GetHalftonePalette()
@@ -3812,10 +3048,7 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
             {
                 if (s_halftonePalette == IntPtr.Zero)
                 {
-                    AppDomain.CurrentDomain.DomainUnload += OnDomainUnload;
-                    AppDomain.CurrentDomain.ProcessExit += OnDomainUnload;
-
-                    s_halftonePalette = PInvoke.GdipCreateHalftonePalette();
+                    s_halftonePalette = HPALETTE.Null;
                 }
             }
         }
@@ -3826,11 +3059,7 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     // This is called from AppDomain.ProcessExit and AppDomain.DomainUnload.
     private static void OnDomainUnload(object? sender, EventArgs e)
     {
-        if (!s_halftonePalette.IsNull)
-        {
-            PInvokeCore.DeleteObject(s_halftonePalette);
-            s_halftonePalette = HPALETTE.Null;
-        }
+        s_halftonePalette = HPALETTE.Null;
     }
 
     /// <summary>
@@ -3853,22 +3082,7 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
             return;
         }
 
-        // Generic error from GDI+ can be GenericError or Win32Error.
-        if (status is Status.GenericError or Status.Win32Error)
-        {
-            WIN32_ERROR error = (WIN32_ERROR)Marshal.GetLastWin32Error();
-            if (error == WIN32_ERROR.ERROR_ACCESS_DENIED || error == WIN32_ERROR.ERROR_PROC_NOT_FOUND ||
-                    // Here, we'll check to see if we are in a terminal services session.
-                    (((PInvokeCore.GetSystemMetrics(SYSTEM_METRICS_INDEX.SM_REMOTESESSION) & 0x00000001) != 0) && (error == 0)))
-            {
-                return;
-            }
-        }
-
-        GC.KeepAlive(this);
-
-        // Legitimate error, throw our status exception.
-        throw Gdip.StatusException(status);
+        throw new InvalidOperationException($"Drawing PAL operation failed with status {status}.");
     }
 
 #if NET8_0_OR_GREATER
@@ -3896,13 +3110,7 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     public void DrawCachedBitmap(CachedBitmap cachedBitmap, int x, int y)
     {
         ArgumentNullException.ThrowIfNull(cachedBitmap);
-
-        CheckStatus(PInvoke.GdipDrawCachedBitmap(
-            NativeGraphics,
-            (GpCachedBitmap*)cachedBitmap.Handle,
-            x, y));
-
-        GC.KeepAlive(cachedBitmap);
+        throw GdiPlusRemoved(nameof(DrawCachedBitmap));
     }
 #endif
 
@@ -3929,19 +3137,9 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
         GraphicsUnit srcUnit = GraphicsUnit.Pixel,
         ImageAttributes? imageAttr = default)
     {
-        PInvoke.GdipDrawImageFX(
-            NativeGraphics,
-            image.Pointer(),
-            srcRect.IsEmpty ? null : (RectF*)&srcRect,
-            transform.Pointer(),
-            effect.Pointer(),
-            imageAttr.Pointer(),
-            (Unit)srcUnit).ThrowIfFailed();
-
-        GC.KeepAlive(effect);
-        GC.KeepAlive(imageAttr);
-        GC.KeepAlive(image);
-        GC.KeepAlive(this);
+        ArgumentNullException.ThrowIfNull(image);
+        ArgumentNullException.ThrowIfNull(effect);
+        throw GdiPlusRemoved(nameof(DrawImage));
     }
 #endif
 
