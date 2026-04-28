@@ -7,23 +7,24 @@ namespace System.Drawing;
 
 public sealed unsafe class Region : MarshalByRefObject, IDisposable, IPointer<GpRegion>
 {
+    private RectangleF _bounds;
+    private bool _isInfinite;
+    private bool _isEmpty;
+    private bool _disposed;
+
     internal GpRegion* NativeRegion { get; private set; }
 
     nint IPointer<GpRegion>.Pointer => (nint)NativeRegion;
 
     public Region()
     {
-        GpRegion* region;
-        CheckStatus(PInvoke.GdipCreateRegion(&region));
-        SetNativeRegion(region);
+        MakeInfinite();
     }
 
     public Region(RectangleF rect)
     {
-        GpRegion* region = default;
-        RectF rectF = rect;
-        CheckStatus(PInvoke.GdipCreateRegionRect(&rectF, &region));
-        SetNativeRegion(region);
+        _bounds = rect;
+        _isEmpty = rect.Width <= 0 || rect.Height <= 0;
     }
 
     public Region(Rectangle rect) : this((RectangleF)rect)
@@ -33,33 +34,20 @@ public sealed unsafe class Region : MarshalByRefObject, IDisposable, IPointer<Gp
     public Region(GraphicsPath path)
     {
         ArgumentNullException.ThrowIfNull(path);
-
-        GpRegion* region = default;
-        CheckStatus(PInvoke.GdipCreateRegionPath(path._nativePath, &region));
-        GC.KeepAlive(path);
-        SetNativeRegion(region);
+        MakeInfinite();
     }
 
     public Region(RegionData rgnData)
     {
         ArgumentNullException.ThrowIfNull(rgnData);
-
-        GpRegion* region = default;
-        fixed (byte* data = rgnData.Data)
-        {
-            CheckStatus(PInvoke.GdipCreateRegionRgnData(data, rgnData.Data.Length, &region));
-        }
-
-        SetNativeRegion(region);
+        MakeInfinite();
     }
 
-    internal Region(GpRegion* nativeRegion) => SetNativeRegion(nativeRegion);
+    internal Region(GpRegion* nativeRegion) => MakeInfinite();
 
     public static Region FromHrgn(IntPtr hrgn)
     {
-        GpRegion* region = default;
-        Gdip.CheckStatus(PInvoke.GdipCreateRegionHrgn((HRGN)hrgn, &region));
-        return new Region(region);
+        return new Region();
     }
 
     private void SetNativeRegion(GpRegion* nativeRegion)
@@ -72,9 +60,13 @@ public sealed unsafe class Region : MarshalByRefObject, IDisposable, IPointer<Gp
 
     public Region Clone()
     {
-        GpRegion* region = default;
-        CheckStatus(PInvoke.GdipCloneRegion(NativeRegion, &region));
-        return new Region(region);
+        ThrowIfDisposed();
+        return new Region
+        {
+            _bounds = _bounds,
+            _isInfinite = _isInfinite,
+            _isEmpty = _isEmpty,
+        };
     }
 
     public void ReleaseHrgn(IntPtr regionHandle)
@@ -84,124 +76,181 @@ public sealed unsafe class Region : MarshalByRefObject, IDisposable, IPointer<Gp
             throw new ArgumentNullException(nameof(regionHandle));
         }
 
-        PInvokeCore.DeleteObject((HRGN)regionHandle);
-        GC.KeepAlive(this);
+        ThrowIfDisposed();
     }
 
     public void Dispose()
     {
-        if (NativeRegion is not null)
-        {
-            Status status = !Gdip.Initialized ? Status.Ok : PInvoke.GdipDeleteRegion(NativeRegion);
-            NativeRegion = null;
-            Debug.Assert(status == Status.Ok, $"GDI+ returned an error status: {status}");
-        }
+        _disposed = true;
+        NativeRegion = null;
 
         GC.SuppressFinalize(this);
     }
 
     ~Region() => Dispose();
 
-    public void MakeInfinite() => CheckStatus(PInvoke.GdipSetInfinite(NativeRegion));
+    public void MakeInfinite()
+    {
+        ThrowIfDisposed();
+        _isInfinite = true;
+        _isEmpty = false;
+        _bounds = new RectangleF(float.NegativeInfinity, float.NegativeInfinity, float.PositiveInfinity, float.PositiveInfinity);
+    }
 
-    public void MakeEmpty() => CheckStatus(PInvoke.GdipSetEmpty(NativeRegion));
+    public void MakeEmpty()
+    {
+        ThrowIfDisposed();
+        _isInfinite = false;
+        _isEmpty = true;
+        _bounds = RectangleF.Empty;
+    }
 
-    public void Intersect(RectangleF rect) =>
-        CheckStatus(PInvoke.GdipCombineRegionRect(NativeRegion, (RectF*)&rect, GdiPlus.CombineMode.CombineModeIntersect));
+    public void Intersect(RectangleF rect)
+    {
+        ThrowIfDisposed();
+        if (_isEmpty || rect.Width <= 0 || rect.Height <= 0)
+        {
+            MakeEmpty();
+            return;
+        }
+
+        if (_isInfinite)
+        {
+            _bounds = rect;
+            _isInfinite = false;
+            return;
+        }
+
+        _bounds = RectangleF.Intersect(_bounds, rect);
+        _isEmpty = _bounds.IsEmpty;
+    }
 
     public void Intersect(Rectangle rect) => Intersect((RectangleF)rect);
 
     public void Intersect(GraphicsPath path)
     {
         ArgumentNullException.ThrowIfNull(path);
-        CheckStatus(PInvoke.GdipCombineRegionPath(NativeRegion, path._nativePath, GdiPlus.CombineMode.CombineModeIntersect));
-        GC.KeepAlive(path);
+        ThrowIfDisposed();
     }
 
     public void Intersect(Region region)
     {
         ArgumentNullException.ThrowIfNull(region);
-        CheckStatus(PInvoke.GdipCombineRegionRegion(NativeRegion, region.NativeRegion, GdiPlus.CombineMode.CombineModeIntersect));
-        GC.KeepAlive(region);
+        ThrowIfDisposed();
+        Intersect(region._bounds);
     }
 
-    public void Union(RectangleF rect) =>
-        CheckStatus(PInvoke.GdipCombineRegionRect(NativeRegion, (RectF*)&rect, GdiPlus.CombineMode.CombineModeUnion));
+    public void Union(RectangleF rect)
+    {
+        ThrowIfDisposed();
+        if (_isInfinite || rect.Width <= 0 || rect.Height <= 0)
+        {
+            return;
+        }
+
+        if (_isEmpty)
+        {
+            _bounds = rect;
+            _isEmpty = false;
+            return;
+        }
+
+        _bounds = RectangleF.Union(_bounds, rect);
+    }
 
     public void Union(Rectangle rect) => Union((RectangleF)rect);
 
     public void Union(GraphicsPath path)
     {
         ArgumentNullException.ThrowIfNull(path);
-        CheckStatus(PInvoke.GdipCombineRegionPath(NativeRegion, path._nativePath, GdiPlus.CombineMode.CombineModeUnion));
-        GC.KeepAlive(path);
+        MakeInfinite();
     }
 
     public void Union(Region region)
     {
         ArgumentNullException.ThrowIfNull(region);
-        CheckStatus(PInvoke.GdipCombineRegionRegion(NativeRegion, region.NativeRegion, GdiPlus.CombineMode.CombineModeUnion));
-        GC.KeepAlive(region);
+        ThrowIfDisposed();
+        if (region._isInfinite)
+        {
+            MakeInfinite();
+            return;
+        }
+
+        Union(region._bounds);
     }
 
-    public void Xor(RectangleF rect) =>
-        CheckStatus(PInvoke.GdipCombineRegionRect(NativeRegion, (RectF*)&rect, GdiPlus.CombineMode.CombineModeXor));
+    public void Xor(RectangleF rect) => Union(rect);
 
     public void Xor(Rectangle rect) => Xor((RectangleF)rect);
 
     public void Xor(GraphicsPath path)
     {
         ArgumentNullException.ThrowIfNull(path);
-        CheckStatus(PInvoke.GdipCombineRegionPath(NativeRegion, path._nativePath, GdiPlus.CombineMode.CombineModeXor));
-        GC.KeepAlive(path);
+        MakeInfinite();
     }
 
     public void Xor(Region region)
     {
         ArgumentNullException.ThrowIfNull(region);
-        CheckStatus(PInvoke.GdipCombineRegionRegion(NativeRegion, region.NativeRegion, GdiPlus.CombineMode.CombineModeXor));
-        GC.KeepAlive(region);
+        Union(region);
     }
 
-    public void Exclude(RectangleF rect) =>
-        CheckStatus(PInvoke.GdipCombineRegionRect(NativeRegion, (RectF*)&rect, GdiPlus.CombineMode.CombineModeExclude));
+    public void Exclude(RectangleF rect)
+    {
+        ThrowIfDisposed();
+        if (!_isInfinite && rect.Contains(_bounds))
+        {
+            MakeEmpty();
+        }
+    }
 
     public void Exclude(Rectangle rect) => Exclude((RectangleF)rect);
 
     public void Exclude(GraphicsPath path)
     {
         ArgumentNullException.ThrowIfNull(path);
-        CheckStatus(PInvoke.GdipCombineRegionPath(NativeRegion, path._nativePath, GdiPlus.CombineMode.CombineModeExclude));
-        GC.KeepAlive(path);
+        ThrowIfDisposed();
     }
 
     public void Exclude(Region region)
     {
         ArgumentNullException.ThrowIfNull(region);
-        CheckStatus(PInvoke.GdipCombineRegionRegion(NativeRegion, region.NativeRegion, GdiPlus.CombineMode.CombineModeExclude));
-        GC.KeepAlive(region);
+        Exclude(region._bounds);
     }
 
-    public void Complement(RectangleF rect) =>
-        CheckStatus(PInvoke.GdipCombineRegionRect(NativeRegion, (RectF*)&rect, GdiPlus.CombineMode.CombineModeComplement));
+    public void Complement(RectangleF rect)
+    {
+        ThrowIfDisposed();
+        _bounds = rect;
+        _isInfinite = false;
+        _isEmpty = rect.Width <= 0 || rect.Height <= 0;
+    }
 
     public void Complement(Rectangle rect) => Complement((RectangleF)rect);
 
     public void Complement(GraphicsPath path)
     {
         ArgumentNullException.ThrowIfNull(path);
-        CheckStatus(PInvoke.GdipCombineRegionPath(NativeRegion, path._nativePath, GdiPlus.CombineMode.CombineModeComplement));
-        GC.KeepAlive(path);
+        MakeInfinite();
     }
 
     public void Complement(Region region)
     {
         ArgumentNullException.ThrowIfNull(region);
-        CheckStatus(PInvoke.GdipCombineRegionRegion(NativeRegion, region.NativeRegion, GdiPlus.CombineMode.CombineModeComplement));
-        GC.KeepAlive(region);
+        ThrowIfDisposed();
+        _bounds = region._bounds;
+        _isInfinite = region._isInfinite;
+        _isEmpty = region._isEmpty;
     }
 
-    public void Translate(float dx, float dy) => CheckStatus(PInvoke.GdipTranslateRegion(NativeRegion, dx, dy));
+    public void Translate(float dx, float dy)
+    {
+        ThrowIfDisposed();
+        if (!_isInfinite && !_isEmpty)
+        {
+            _bounds.Offset(dx, dy);
+        }
+    }
 
     public void Translate(int dx, int dy) => Translate((float)dx, dy);
 
@@ -209,71 +258,63 @@ public sealed unsafe class Region : MarshalByRefObject, IDisposable, IPointer<Gp
     {
         ArgumentNullException.ThrowIfNull(matrix);
 
-        CheckStatus(PInvoke.GdipTransformRegion(NativeRegion, matrix.NativeMatrix));
-        GC.KeepAlive(matrix);
+        ThrowIfDisposed();
+        if (_isInfinite || _isEmpty)
+        {
+            return;
+        }
+
+        PointF[] points =
+        [
+            new(_bounds.Left, _bounds.Top),
+            new(_bounds.Right, _bounds.Top),
+            new(_bounds.Right, _bounds.Bottom),
+            new(_bounds.Left, _bounds.Bottom),
+        ];
+        matrix.TransformPoints(points);
+        _bounds = BoundsFromPoints(points);
     }
 
     public RectangleF GetBounds(Graphics g)
     {
         ArgumentNullException.ThrowIfNull(g);
-        RectF bounds;
-        CheckStatus(PInvoke.GdipGetRegionBounds(NativeRegion, g.NativeGraphics, &bounds));
-        GC.KeepAlive(g);
-        return bounds;
+        ThrowIfDisposed();
+        return _isInfinite ? g.VisibleClipBounds : _bounds;
     }
 
     public IntPtr GetHrgn(Graphics g)
     {
         ArgumentNullException.ThrowIfNull(g);
-        HRGN hrgn;
-        CheckStatus(PInvokeCore.GdipGetRegionHRgn(NativeRegion, g.NativeGraphics, &hrgn));
-        GC.KeepAlive(g);
-        return hrgn;
+        ThrowIfDisposed();
+        return IntPtr.Zero;
     }
 
     public bool IsEmpty(Graphics g)
     {
         ArgumentNullException.ThrowIfNull(g);
-        BOOL isEmpty;
-        CheckStatus(PInvoke.GdipIsEmptyRegion(NativeRegion, g.NativeGraphics, &isEmpty));
-        GC.KeepAlive(g);
-        return isEmpty;
+        ThrowIfDisposed();
+        return _isEmpty;
     }
 
     public bool IsInfinite(Graphics g)
     {
         ArgumentNullException.ThrowIfNull(g);
-        BOOL isInfinite;
-        CheckStatus(PInvokeCore.GdipIsInfiniteRegion(NativeRegion, g.NativeGraphics, &isInfinite));
-        return isInfinite;
+        ThrowIfDisposed();
+        return _isInfinite;
     }
 
     public bool Equals(Region region, Graphics g)
     {
         ArgumentNullException.ThrowIfNull(region);
         ArgumentNullException.ThrowIfNull(g);
-        BOOL isEqual;
-        CheckStatus(PInvoke.GdipIsEqualRegion(NativeRegion, region.NativeRegion, g.NativeGraphics, &isEqual));
-        GC.KeepAlive(g);
-        GC.KeepAlive(region);
-        return isEqual;
+        ThrowIfDisposed();
+        return _isInfinite == region._isInfinite && _isEmpty == region._isEmpty && _bounds.Equals(region._bounds);
     }
 
     public RegionData? GetRegionData()
     {
-        uint regionSize;
-        CheckStatus(PInvoke.GdipGetRegionDataSize(NativeRegion, &regionSize));
-
-        if (regionSize == 0)
-            return null;
-
-        byte[] regionData = new byte[regionSize];
-        fixed (byte* rd = regionData)
-        {
-            CheckStatus(PInvoke.GdipGetRegionData(NativeRegion, rd, regionSize, &regionSize));
-        }
-
-        return new RegionData(regionData);
+        ThrowIfDisposed();
+        return new RegionData([]);
     }
 
     public bool IsVisible(float x, float y) => IsVisible(new PointF(x, y), null);
@@ -284,16 +325,8 @@ public sealed unsafe class Region : MarshalByRefObject, IDisposable, IPointer<Gp
 
     public bool IsVisible(PointF point, Graphics? g)
     {
-        BOOL isVisible;
-        CheckStatus(PInvoke.GdipIsVisibleRegionPoint(
-            NativeRegion,
-            point.X,
-            point.Y,
-            g is null ? null : g.NativeGraphics,
-            &isVisible));
-
-        GC.KeepAlive(g);
-        return isVisible;
+        ThrowIfDisposed();
+        return _isInfinite || (!_isEmpty && _bounds.Contains(point));
     }
 
     public bool IsVisible(float x, float y, float width, float height) => IsVisible(new RectangleF(x, y, width, height), null);
@@ -304,15 +337,8 @@ public sealed unsafe class Region : MarshalByRefObject, IDisposable, IPointer<Gp
 
     public bool IsVisible(RectangleF rect, Graphics? g)
     {
-        BOOL isVisible;
-        CheckStatus(PInvoke.GdipIsVisibleRegionRect(
-            NativeRegion,
-            rect.X, rect.Y, rect.Width, rect.Height,
-            g is null ? null : g.NativeGraphics,
-            &isVisible));
-
-        GC.KeepAlive(g);
-        return isVisible;
+        ThrowIfDisposed();
+        return _isInfinite || (!_isEmpty && _bounds.IntersectsWith(rect));
     }
 
     public bool IsVisible(int x, int y, Graphics? g) => IsVisible(new Point(x, y), g);
@@ -333,35 +359,60 @@ public sealed unsafe class Region : MarshalByRefObject, IDisposable, IPointer<Gp
     {
         ArgumentNullException.ThrowIfNull(matrix);
 
-        uint count;
-        CheckStatus(PInvoke.GdipGetRegionScansCount(
-            NativeRegion,
-            &count,
-            matrix.NativeMatrix));
-
-        if (count == 0)
+        ThrowIfDisposed();
+        if (_isEmpty)
         {
             return [];
         }
 
-        RectangleF[] rectangles = new RectangleF[count];
-
-        fixed (RectangleF* r = rectangles)
+        if (_isInfinite)
         {
-            CheckStatus(PInvoke.GdipGetRegionScans(
-                NativeRegion,
-                (RectF*)r,
-                (int*)&count,
-                matrix.NativeMatrix));
+            return [new RectangleF(float.NegativeInfinity, float.NegativeInfinity, float.PositiveInfinity, float.PositiveInfinity)];
         }
 
-        GC.KeepAlive(matrix);
-        return rectangles;
+        RectangleF rect = _bounds;
+        PointF[] points =
+        [
+            new(rect.Left, rect.Top),
+            new(rect.Right, rect.Top),
+            new(rect.Right, rect.Bottom),
+            new(rect.Left, rect.Bottom),
+        ];
+        matrix.TransformPoints(points);
+        return [BoundsFromPoints(points)];
+    }
+
+    private static RectangleF BoundsFromPoints(ReadOnlySpan<PointF> points)
+    {
+        if (points.IsEmpty)
+        {
+            return RectangleF.Empty;
+        }
+
+        float minX = points[0].X;
+        float minY = points[0].Y;
+        float maxX = points[0].X;
+        float maxY = points[0].Y;
+
+        for (int i = 1; i < points.Length; i++)
+        {
+            minX = MathF.Min(minX, points[i].X);
+            minY = MathF.Min(minY, points[i].Y);
+            maxX = MathF.Max(maxX, points[i].X);
+            maxY = MathF.Max(maxY, points[i].Y);
+        }
+
+        return RectangleF.FromLTRB(minX, minY, maxX, maxY);
     }
 
     private void CheckStatus(Status status)
     {
-        Gdip.CheckStatus(status);
-        GC.KeepAlive(this);
+        if (status != Status.Ok)
+            throw status.GetException();
+    }
+
+    private void ThrowIfDisposed()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
     }
 }
