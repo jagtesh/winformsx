@@ -13,6 +13,13 @@ using Silk.NET.Windowing;
 /// </summary>
 internal sealed class ImpellerWindowInterop : IWindowInterop
 {
+    private enum HiDpiMode
+    {
+        Auto,
+        Off,
+        On,
+    }
+
     // Managed Win32 message IDs used by the Impeller PAL path.
     // Keep these local so this interop never touches Windows.Win32.PInvoke.
     private const uint WM_MOVE = 0x0003;
@@ -35,6 +42,7 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
     // Internal window registry: HWND -> ImpellerSurface mapping
     private static long s_nextHandle = 0x10000;
     private static readonly string? s_traceFile = Environment.GetEnvironmentVariable("WINFORMSX_TRACE_FILE");
+    private static readonly HiDpiMode s_hiDpiMode = ParseHiDpiMode();
     private HWND _activeWindow;
     private readonly Dictionary<nint, ImpellerWindowState> _windows = [];
 
@@ -215,6 +223,16 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                 {
                     ws.Width = logicalW;
                     ws.Height = logicalH;
+                    if (ws.LastLogicalWidth != logicalW || ws.LastLogicalHeight != logicalH
+                        || ws.LastFramebufferWidth != framebufferW || ws.LastFramebufferHeight != framebufferH)
+                    {
+                        ws.LastLogicalWidth = logicalW;
+                        ws.LastLogicalHeight = logicalH;
+                        ws.LastFramebufferWidth = framebufferW;
+                        ws.LastFramebufferHeight = framebufferH;
+                        ws.Dirty = true;
+                    }
+
                     long now = Environment.TickCount64;
                     if (now - ws.LastRenderTickMs < 33)
                     {
@@ -266,6 +284,14 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                         else
                         {
                             g.Clear(root.BackColor);
+                            // Render in logical WinForms units and scale to framebuffer pixels.
+                            // On Retina this keeps layout semantics while preserving sharp output.
+                            var (sx, sy) = ResolveHiDpiScale(logicalW, logicalH, framebufferW, framebufferH);
+                            if (sx != 1f || sy != 1f)
+                            {
+                                g.ScaleTransform(sx, sy);
+                            }
+
                             FixupTabPages(root);
                             var clip = new System.Drawing.Rectangle(0, 0, logicalW, logicalH);
                             PaintControlTree(root, g, clip, isRoot: true);
@@ -671,6 +697,46 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
         catch
         {
         }
+    }
+
+    private static HiDpiMode ParseHiDpiMode()
+    {
+        string? raw = Environment.GetEnvironmentVariable("WINFORMSX_HIDPI_MODE");
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return HiDpiMode.Auto;
+        }
+
+        return raw.Trim().ToLowerInvariant() switch
+        {
+            "0" or "off" or "false" => HiDpiMode.Off,
+            "1" or "on" or "true" or "hidpi" => HiDpiMode.On,
+            _ => HiDpiMode.Auto,
+        };
+    }
+
+    private static (float ScaleX, float ScaleY) ResolveHiDpiScale(int logicalW, int logicalH, int framebufferW, int framebufferH)
+    {
+        if (s_hiDpiMode == HiDpiMode.Off)
+        {
+            return (1f, 1f);
+        }
+
+        float sx = logicalW > 0 ? framebufferW / (float)logicalW : 1f;
+        float sy = logicalH > 0 ? framebufferH / (float)logicalH : 1f;
+
+        if (s_hiDpiMode == HiDpiMode.On)
+        {
+            return (sx <= 0f ? 1f : sx, sy <= 0f ? 1f : sy);
+        }
+
+        // Auto: only scale when framebuffer diverges from logical size.
+        if (Math.Abs(sx - 1f) < 0.01f && Math.Abs(sy - 1f) < 0.01f)
+        {
+            return (1f, 1f);
+        }
+
+        return (sx <= 0f ? 1f : sx, sy <= 0f ? 1f : sy);
     }
 
     private void MarkDirty(HWND hWnd)
@@ -1206,4 +1272,8 @@ internal sealed class ImpellerWindowState
     public HWND NativeHwnd;
     public long LastRenderTickMs;
     public bool Dirty = true;
+    public int LastLogicalWidth;
+    public int LastLogicalHeight;
+    public int LastFramebufferWidth;
+    public int LastFramebufferHeight;
 }
