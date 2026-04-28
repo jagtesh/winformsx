@@ -81,7 +81,11 @@ public partial class ListView
                 ArgumentOutOfRangeException.ThrowIfNegative(index);
                 ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(index, _owner._itemCount);
 
-                if (_owner.IsHandleCreated && !_owner.ListViewHandleDestroyed)
+                if (System.Drawing.Graphics.IsBackendActive && _owner._listViewItems is not null)
+                {
+                    return _owner._listViewItems[index];
+                }
+                else if (_owner.IsHandleCreated && !_owner.ListViewHandleDestroyed)
                 {
                     _owner._listItemsTable.TryGetValue(DisplayIndexToID(index), out ListViewItem? item);
                     return item!;
@@ -190,7 +194,11 @@ public partial class ListView
         private int DisplayIndexToID(int displayIndex)
         {
             Debug.Assert(!_owner.VirtualMode, "in virtual mode, this method does not make any sense");
-            if (_owner.IsHandleCreated && !_owner.ListViewHandleDestroyed)
+            if (System.Drawing.Graphics.IsBackendActive && _owner._listViewItems is not null)
+            {
+                return _owner._listViewItems[displayIndex]._id;
+            }
+            else if (_owner.IsHandleCreated && !_owner.ListViewHandleDestroyed)
             {
                 // Obtain internal index of the item
                 LVITEMW lvItem = new()
@@ -217,7 +225,7 @@ public partial class ListView
 
             _owner.ApplyUpdateCachedItems();
 
-            if (_owner.IsHandleCreated && !_owner.ListViewHandleDestroyed)
+            if (_owner.IsHandleCreated && !_owner.ListViewHandleDestroyed && !System.Drawing.Graphics.IsBackendActive)
             {
                 // Walk the items to see which ones are selected.
                 // We use the LVM_GETNEXTITEM message to see what the next selected item is
@@ -284,8 +292,7 @@ public partial class ListView
                     item?.UnHost(i, true);
                 }
 
-                Debug.Assert(_owner._listViewItems is not null, "listItemsArray is null, but the handle isn't created");
-                _owner._listViewItems.Clear();
+                _owner._listViewItems?.Clear();
             }
 
             _owner._listItemsTable.Clear();
@@ -413,7 +420,7 @@ public partial class ListView
             this[index].Focused = false;
             this[index].UnHost(true);
 
-            if (_owner.IsHandleCreated)
+            if (_owner.IsHandleCreated && !System.Drawing.Graphics.IsBackendActive)
             {
                 Debug.Assert(_owner._listViewItems is null, "listItemsArray not null, even though handle created");
                 if (PInvoke.SendMessage(_owner, PInvoke.LVM_DELETEITEM, (WPARAM)index) == 0)
@@ -423,8 +430,7 @@ public partial class ListView
             }
             else
             {
-                Debug.Assert(_owner._listViewItems is not null, "listItemsArray is null, but the handle isn't created");
-                _owner._listViewItems.RemoveAt(index);
+                _owner._listViewItems?.RemoveAt(index);
             }
 
             _owner._itemCount--;

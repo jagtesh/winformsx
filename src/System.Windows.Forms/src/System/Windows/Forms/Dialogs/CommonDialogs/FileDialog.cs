@@ -725,6 +725,21 @@ public abstract partial class FileDialog : CommonDialog
     protected override bool RunDialog(IntPtr hWndOwner)
 #pragma warning restore CA1725
     {
+        if (System.Drawing.Graphics.IsBackendActive)
+        {
+            string? selected = this is SaveFileDialog
+                ? Platform.PlatformApi.Dialog.ShowSaveFileDialog(Title, Filter, InitialDirectory)
+                : Platform.PlatformApi.Dialog.ShowOpenFileDialog(Title, Filter, InitialDirectory);
+
+            if (string.IsNullOrEmpty(selected))
+            {
+                return false;
+            }
+
+            FileName = selected;
+            return true;
+        }
+
         if (Control.CheckForIllegalCrossThreadCalls && Application.OleRequired() != ApartmentState.STA)
         {
             throw new ThreadStateException(string.Format(SR.DebuggingExceptionOnly, SR.ThreadMustBeSTA));

@@ -1102,6 +1102,11 @@ public partial class TreeView : Control
     {
         get
         {
+            if (Graphics.IsBackendActive)
+            {
+                return _selectedNode is not null && _selectedNode.TreeView == this ? _selectedNode : null;
+            }
+
             if (IsHandleCreated)
             {
                 IntPtr hItem = PInvoke.SendMessage(this, PInvoke.TVM_GETNEXTITEM, (WPARAM)PInvoke.TVGN_CARET);
@@ -1123,6 +1128,27 @@ public partial class TreeView : Control
         }
         set
         {
+            if (Graphics.IsBackendActive)
+            {
+                if (value is not null && value.TreeView != this)
+                {
+                    return;
+                }
+
+                if (!ReferenceEquals(_selectedNode, value))
+                {
+                    _selectedNode = value;
+                    if (value is not null)
+                    {
+                        OnAfterSelect(new TreeViewEventArgs(value, TreeViewAction.ByMouse));
+                    }
+
+                    Invalidate();
+                }
+
+                return;
+            }
+
             if (IsHandleCreated && (value is null || value.TreeView == this))
             {
                 // This class invariant is not quite correct -- if the selected node does not belong to this TreeView,

@@ -27,6 +27,11 @@ public partial class ListView
         {
             get
             {
+                if (System.Drawing.Graphics.IsBackendActive)
+                {
+                    return _owner._selectedItem is null ? 0 : 1;
+                }
+
                 if (_owner.IsHandleCreated)
                 {
                     return (int)PInvoke.SendMessage(_owner, PInvoke.LVM_GETSELECTEDCOUNT);
@@ -50,7 +55,14 @@ public partial class ListView
                 int count = Count;
                 int[] indices = new int[count];
 
-                if (_owner.IsHandleCreated)
+                if (System.Drawing.Graphics.IsBackendActive)
+                {
+                    if (_owner._selectedItem is not null)
+                    {
+                        indices[0] = _owner.ManagedIndexOf(_owner._selectedItem);
+                    }
+                }
+                else if (_owner.IsHandleCreated)
                 {
                     int displayIndex = -1;
                     for (int i = 0; i < count; i++)
@@ -97,7 +109,11 @@ public partial class ListView
                 ArgumentOutOfRangeException.ThrowIfNegative(index);
                 ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(index, Count);
 
-                if (_owner.IsHandleCreated)
+                if (System.Drawing.Graphics.IsBackendActive)
+                {
+                    return _owner._selectedItem is null ? -1 : _owner.ManagedIndexOf(_owner._selectedItem);
+                }
+                else if (_owner.IsHandleCreated)
                 {
                     // Count through the selected items in the ListView, until we reach the 'index'th selected item.
                     int fidx = -1;

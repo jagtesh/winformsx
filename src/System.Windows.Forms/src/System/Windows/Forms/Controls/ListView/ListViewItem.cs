@@ -359,6 +359,11 @@ public partial class ListViewItem : ICloneable, ISerializable
     {
         get
         {
+            if (_listView is not null && System.Drawing.Graphics.IsBackendActive)
+            {
+                return _listView.FocusedItem == this;
+            }
+
             if (_listView is not null && _listView.IsHandleCreated)
             {
                 return _listView.GetItemState(Index, LIST_VIEW_ITEM_STATE_FLAGS.LVIS_FOCUSED) != 0;
@@ -369,6 +374,21 @@ public partial class ListViewItem : ICloneable, ISerializable
 
         set
         {
+            if (_listView is not null && System.Drawing.Graphics.IsBackendActive)
+            {
+                if (value)
+                {
+                    _listView._selectedItem = this;
+                }
+                else if (_listView._selectedItem == this)
+                {
+                    _listView._selectedItem = null;
+                }
+
+                _listView.Invalidate();
+                return;
+            }
+
             if (_listView is not null && _listView.IsHandleCreated)
             {
                 _listView.SetItemState(Index, value ? LIST_VIEW_ITEM_STATE_FLAGS.LVIS_FOCUSED : 0, LIST_VIEW_ITEM_STATE_FLAGS.LVIS_FOCUSED);
@@ -574,6 +594,11 @@ public partial class ListViewItem : ICloneable, ISerializable
         {
             if (_listView is not null)
             {
+                if (System.Drawing.Graphics.IsBackendActive)
+                {
+                    return _listView.ManagedIndexOf(this);
+                }
+
                 // if the list is virtual, the ComCtrl control does not keep any information
                 // about any list view items, so we use our cache instead.
                 if (!_listView.VirtualMode)
@@ -682,6 +707,11 @@ public partial class ListViewItem : ICloneable, ISerializable
     {
         get
         {
+            if (_listView is not null && System.Drawing.Graphics.IsBackendActive)
+            {
+                return StateSelected;
+            }
+
             if (_listView is not null && _listView.IsHandleCreated)
             {
                 return _listView.GetItemState(Index, LIST_VIEW_ITEM_STATE_FLAGS.LVIS_SELECTED) != 0;
@@ -691,6 +721,22 @@ public partial class ListViewItem : ICloneable, ISerializable
         }
         set
         {
+            if (_listView is not null && System.Drawing.Graphics.IsBackendActive)
+            {
+                StateSelected = value;
+                if (value)
+                {
+                    _listView._selectedItem = this;
+                }
+                else if (_listView._selectedItem == this)
+                {
+                    _listView._selectedItem = null;
+                }
+
+                _listView.Invalidate();
+                return;
+            }
+
             if (_listView is not null && _listView.IsHandleCreated)
             {
                 _listView.SetItemState(Index, value ? LIST_VIEW_ITEM_STATE_FLAGS.LVIS_SELECTED : 0, LIST_VIEW_ITEM_STATE_FLAGS.LVIS_SELECTED);
@@ -782,6 +828,28 @@ public partial class ListViewItem : ICloneable, ISerializable
 
             return _listViewSubItemCollection ??= new ListViewSubItemCollection(this);
         }
+    }
+
+    internal int ManagedSubItemCount => SubItemCount;
+
+    internal string GetManagedSubItemText(int index)
+    {
+        if ((uint)index >= (uint)SubItemCount || index >= _subItems.Count)
+        {
+            return string.Empty;
+        }
+
+        return _subItems[index].Text ?? string.Empty;
+    }
+
+    internal void SetManagedFocused(bool focused)
+    {
+        if (_listView is null || !System.Drawing.Graphics.IsBackendActive)
+        {
+            return;
+        }
+
+        Focused = focused;
     }
 
     [SRCategory(nameof(SR.CatData))]

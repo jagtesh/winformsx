@@ -39,6 +39,24 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
     private const uint WM_MOUSEWHEEL = 0x020A;
     private const uint WM_MOUSEHWHEEL = 0x020E;
     private const int DefaultTargetFrameRate = 60;
+    private const int ManagedTabHeaderHeight = 30;
+    private const int ManagedTabHeaderLeft = 8;
+    private const int ManagedTabHeaderWidth = 128;
+    private const int ManagedTabHeaderGap = 4;
+    private const int ManagedMenuItemLeft = 12;
+    private const int ManagedMenuItemWidth = 68;
+    private const int ManagedMenuItemHeight = 24;
+    private const int ManagedMenuDropDownWidth = 190;
+    private const int ManagedMenuDropDownRowHeight = 26;
+    private const int ManagedTextPadding = 4;
+    private const int ManagedCheckGlyphSize = 14;
+    private const int ManagedListItemHeight = 22;
+    private const int ManagedComboItemHeight = 24;
+    private const int ManagedComboDropDownMaxVisibleItems = 8;
+    private const int ManagedTreeItemHeight = 22;
+    private const int ManagedListViewHeaderHeight = 24;
+    private const int ManagedDataGridHeaderHeight = 24;
+    private const int ManagedDataGridRowHeight = 24;
 
     // Internal window registry: HWND -> ImpellerSurface mapping
     private static long s_nextHandle = 0x10000;
@@ -46,6 +64,8 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
     private static readonly HiDpiMode s_hiDpiMode = ParseHiDpiMode();
     private static readonly float s_hiDpiScaleOverride = ParseHiDpiScaleOverride();
     private static readonly long s_targetFrameIntervalMs = ParseTargetFrameIntervalMs();
+    private static readonly Dictionary<ListView, int> s_managedListViewSelection = [];
+    private static readonly Dictionary<DataGridView, int> s_managedDataGridViewSelection = [];
     private HWND _activeWindow;
     private readonly Dictionary<nint, ImpellerWindowState> _windows = [];
 
@@ -271,6 +291,7 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                     if (!beganFrame)
                         return;
 
+                    bool paintSucceeded = false;
                     try
                     {
                         // TODO: apply explicit logical->framebuffer scaling here once the
@@ -300,11 +321,30 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                             FixupTabPages(root);
                             var clip = new System.Drawing.Rectangle(0, 0, logicalW, logicalH);
                             PaintControlTree(root, g, clip, isRoot: true);
+                            if (_windows.TryGetValue(handle, out var menuState))
+                            {
+                                g.FlushPending();
+                                DrawManagedMenuDropDown(menuState, g);
+                                DrawManagedComboDropDown(menuState, g);
+                            }
                         }
+
+                        paintSucceeded = true;
                     }
                     catch (Exception ex)
                     {
                         Console.Error.WriteLine($"[Render] Paint error: {ex}");
+                    }
+
+                    if (!paintSucceeded)
+                    {
+                        g.AbortFrame();
+                        if (_windows.TryGetValue(handle, out var failed))
+                        {
+                            failed.Dirty = true;
+                        }
+
+                        return;
                     }
 
                     try
@@ -381,7 +421,6 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                     };
                     mouse.MouseDown += (m, button) =>
                     {
-                        MarkDirty(handle);
                         uint msg = button switch
                         {
                             MouseButton.Left => WM_LBUTTONDOWN,
@@ -392,7 +431,22 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                         if (msg != 0)
                         {
                             var pt = GetLogicalMousePoint(handle, m);
+                            if (msg == WM_LBUTTONDOWN && TryHandleManagedComboOverlayClick(handle, pt))
+                            {
+                                return;
+                            }
+
+                            if (msg == WM_LBUTTONDOWN && TryHandleManagedMenuOverlayClick(handle, pt))
+                            {
+                                return;
+                            }
+
                             HWND target = HitTest(handle, pt, out var clientPt);
+                            TraceInput($"[MouseDown] button={button} pt={pt} target=0x{(nint)target:X} control={Control.FromHandle(target)?.GetType().Name ?? "<none>"} client={clientPt}");
+                            if (msg == WM_LBUTTONDOWN && _windows.TryGetValue(handle, out var mouseDownState))
+                            {
+                                mouseDownState.MouseDownTarget = target;
+                            }
 
                             // Intercept TabControl click because we don't have native SysTabControl32 to process it
                             if (msg == WM_LBUTTONDOWN)
@@ -402,13 +456,12 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                                 {
                                     ctrl.BeginInvoke(new Action(() =>
                                     {
-                                        for (int i = 0; i < tabControl.TabCount; i++)
+                                        int tabIndex = GetManagedTabIndexAtPoint(tabControl, clientPt);
+                                        if (tabIndex >= 0)
                                         {
-                                            if (tabControl.GetTabRect(i).Contains(clientPt))
-                                            {
-                                                SelectTabSafe(tabControl, i);
-                                                break;
-                                            }
+                                            TraceInput($"[TabClick] index={tabIndex} text={tabControl.TabPages[tabIndex].Text}");
+                                            SelectTabSafe(tabControl, tabIndex);
+                                            MarkDirty(handle);
                                         }
                                     }));
                                 }
@@ -416,23 +469,31 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                                 {
                                     ctrl.BeginInvoke(new Action(() =>
                                     {
-                                        ToolStripItem? item = toolStrip.GetItemAt(clientPt);
+                                        ToolStripItem? item = GetManagedMenuItemAtPoint(toolStrip, clientPt) ?? toolStrip.GetItemAt(clientPt);
+                                        TraceInput($"[ToolStripClick] point={clientPt} item={item?.GetType().Name ?? "<none>"} text={item?.Text ?? string.Empty}");
                                         if (item is null || !item.Enabled)
                                         {
                                             return;
                                         }
 
-                                        // Trigger standard ToolStrip behavior for menus/buttons.
-                                        // This avoids relying on Win32 menu/message plumbing.
                                         if (item is ToolStripMenuItem menuItem)
                                         {
-                                            menuItem.ShowDropDown();
+                                            if (menuItem.HasDropDownItems)
+                                            {
+                                                ShowManagedMenuDropDown(handle, toolStrip, menuItem, clientPt);
+                                            }
+                                            else
+                                            {
+                                                PerformToolStripItemClick(handle, menuItem);
+                                            }
                                         }
                                         else
                                         {
-                                            item.PerformClick();
+                                            PerformToolStripItemClick(handle, item);
                                         }
                                     }));
+
+                                    return;
                                 }
                             }
 
@@ -441,7 +502,6 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                     };
                     mouse.MouseUp += (m, button) =>
                     {
-                        MarkDirty(handle);
                         uint msg = button switch
                         {
                             MouseButton.Left => WM_LBUTTONUP,
@@ -453,6 +513,21 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                         {
                             var pt = GetLogicalMousePoint(handle, m);
                             HWND target = HitTest(handle, pt, out var clientPt);
+                            if (msg == WM_LBUTTONUP && _windows.TryGetValue(handle, out var mouseUpState))
+                            {
+                                bool clickMatchesMouseDown = mouseUpState.MouseDownTarget == target;
+                                mouseUpState.MouseDownTarget = HWND.Null;
+                                if (clickMatchesMouseDown && TryPerformManagedControlClick(handle, target, clientPt))
+                                {
+                                    return;
+                                }
+                            }
+
+                            if (Control.FromHandle(target) is ToolStrip)
+                            {
+                                return;
+                            }
+
                             PostMessageToControl(target, handle, msg, (WPARAM)0, (LPARAM)(nint)(((int)clientPt.Y << 16) | ((int)clientPt.X & 0xFFFF)));
                         }
                     };
@@ -531,12 +606,11 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
 
                 if (selectedIndex >= 0 && selectedIndex < tc.TabPages.Count)
                 {
-                    const int tabHeaderHeight = 24;
                     var selectedBounds = new System.Drawing.Rectangle(
                         0,
-                        tabHeaderHeight,
+                        ManagedTabHeaderHeight,
                         tc.Width,
-                        Math.Max(1, tc.Height - tabHeaderHeight));
+                        Math.Max(1, tc.Height - ManagedTabHeaderHeight));
 
                     for (int i = 0; i < tc.TabPages.Count; i++)
                     {
@@ -608,9 +682,49 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
             {
                 DrawButton(button, g);
             }
+            else if (control is TextBoxBase textBoxBase)
+            {
+                DrawTextBox(textBoxBase, g);
+            }
+            else if (control is CheckBox checkBox)
+            {
+                DrawCheckBox(checkBox, g);
+            }
+            else if (control is RadioButton radioButton)
+            {
+                DrawRadioButton(radioButton, g);
+            }
+            else if (control is GroupBox groupBox)
+            {
+                DrawGroupBox(groupBox, g);
+            }
+            else if (control is ListBox listBox)
+            {
+                DrawListBox(listBox, g);
+            }
+            else if (control is ComboBox comboBox)
+            {
+                DrawComboBox(comboBox, g);
+            }
+            else if (control is TreeView treeView)
+            {
+                DrawTreeView(treeView, g);
+            }
+            else if (control is ListView listView)
+            {
+                DrawListView(listView, g);
+            }
+            else if (control is DataGridView dataGridView)
+            {
+                DrawDataGridView(dataGridView, g);
+            }
             else if (control is MenuStrip menuStrip)
             {
                 DrawMenuStrip(menuStrip, g);
+            }
+            else if (control is StatusStrip statusStrip)
+            {
+                DrawStatusStrip(statusStrip, g);
             }
             else if (control is TabControl tabControl)
             {
@@ -622,7 +736,7 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"[Paint ERROR] {control.GetType().Name}: {ex.Message}");
+            Console.Error.WriteLine($"[Paint ERROR] {control.GetType().Name}: {ex}");
         }
 
         // Recurse into children (bottom-to-top Z-order)
@@ -676,12 +790,410 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
         }
     }
 
+    private static void DrawTextBox(TextBoxBase textBox, System.Drawing.Graphics g)
+    {
+        using var bg = new System.Drawing.SolidBrush(textBox.BackColor.A == 0 ? System.Drawing.SystemColors.Window : textBox.BackColor);
+        g.FillRectangle(bg, 0, 0, Math.Max(1, textBox.Width), Math.Max(1, textBox.Height));
+        DrawSimpleBorder(g, 0, 0, textBox.Width, textBox.Height, System.Drawing.Color.FromArgb(170, 170, 170));
+
+        string text = textBox.Text;
+        if (textBox is TextBox tb && tb.PasswordChar != '\0' && text.Length > 0)
+        {
+            text = new string(tb.PasswordChar, text.Length);
+        }
+
+        if (text.Length == 0)
+        {
+            return;
+        }
+
+        using var textBrush = new System.Drawing.SolidBrush(textBox.ForeColor.A == 0 ? System.Drawing.SystemColors.WindowText : textBox.ForeColor);
+        var rect = new System.Drawing.RectangleF(
+            ManagedTextPadding,
+            Math.Max(1, (textBox.Height - textBox.Font.Height) / 2),
+            Math.Max(1, textBox.Width - ManagedTextPadding * 2),
+            Math.Max(1, textBox.Height - 2));
+        g.DrawString(SanitizeTextForImpeller(text), textBox.Font, textBrush, rect);
+    }
+
+    private static void DrawCheckBox(CheckBox checkBox, System.Drawing.Graphics g)
+    {
+        int glyphY = Math.Max(0, (checkBox.Height - ManagedCheckGlyphSize) / 2);
+        using var boxBg = new System.Drawing.SolidBrush(checkBox.Enabled ? System.Drawing.Color.White : System.Drawing.Color.FromArgb(235, 235, 235));
+        g.FillRectangle(boxBg, 0, glyphY, ManagedCheckGlyphSize, ManagedCheckGlyphSize);
+        DrawSimpleBorder(g, 0, glyphY, ManagedCheckGlyphSize, ManagedCheckGlyphSize, System.Drawing.Color.FromArgb(90, 90, 90));
+
+        if (checkBox.CheckState == CheckState.Checked)
+        {
+            using var pen = new System.Drawing.Pen(System.Drawing.Color.FromArgb(20, 110, 20), 2);
+            g.DrawLine(pen, 3, glyphY + 7, 6, glyphY + 10);
+            g.DrawLine(pen, 6, glyphY + 10, 12, glyphY + 3);
+        }
+        else if (checkBox.CheckState == CheckState.Indeterminate)
+        {
+            using var mark = new System.Drawing.SolidBrush(System.Drawing.Color.FromArgb(90, 90, 90));
+            g.FillRectangle(mark, 3, glyphY + 6, ManagedCheckGlyphSize - 6, 3);
+        }
+
+        DrawGlyphLabel(checkBox, g, ManagedCheckGlyphSize + 6);
+    }
+
+    private static void DrawRadioButton(RadioButton radioButton, System.Drawing.Graphics g)
+    {
+        int glyphY = Math.Max(0, (radioButton.Height - ManagedCheckGlyphSize) / 2);
+        using var boxBg = new System.Drawing.SolidBrush(radioButton.Enabled ? System.Drawing.Color.White : System.Drawing.Color.FromArgb(235, 235, 235));
+        g.FillEllipse(boxBg, 0, glyphY, ManagedCheckGlyphSize, ManagedCheckGlyphSize);
+        using var border = new System.Drawing.Pen(System.Drawing.Color.FromArgb(90, 90, 90));
+        g.DrawEllipse(border, 0, glyphY, ManagedCheckGlyphSize, ManagedCheckGlyphSize);
+
+        if (radioButton.Checked)
+        {
+            using var dot = new System.Drawing.SolidBrush(System.Drawing.Color.FromArgb(0, 120, 215));
+            g.FillEllipse(dot, 4, glyphY + 4, ManagedCheckGlyphSize - 8, ManagedCheckGlyphSize - 8);
+        }
+
+        DrawGlyphLabel(radioButton, g, ManagedCheckGlyphSize + 6);
+    }
+
+    private static void DrawGlyphLabel(Control control, System.Drawing.Graphics g, int textX)
+    {
+        if (string.IsNullOrEmpty(control.Text))
+        {
+            return;
+        }
+
+        using var brush = new System.Drawing.SolidBrush(control.Enabled
+            ? (control.ForeColor.A == 0 ? System.Drawing.SystemColors.ControlText : control.ForeColor)
+            : System.Drawing.Color.FromArgb(130, 130, 130));
+        var rect = new System.Drawing.RectangleF(
+            textX,
+            Math.Max(0, (control.Height - control.Font.Height) / 2),
+            Math.Max(1, control.Width - textX),
+            Math.Max(1, control.Height));
+        g.DrawString(SanitizeTextForImpeller(control.Text), control.Font, brush, rect);
+    }
+
+    private static void DrawGroupBox(GroupBox groupBox, System.Drawing.Graphics g)
+    {
+        int titleWidth = Math.Min(Math.Max(1, groupBox.Width - 20), Math.Max(24, groupBox.Text.Length * 8 + 12));
+        int lineY = Math.Max(8, groupBox.Font.Height / 2 + 2);
+
+        using var pen = new System.Drawing.Pen(System.Drawing.Color.FromArgb(150, 150, 140));
+        g.DrawLine(pen, 0, lineY, 8, lineY);
+        g.DrawLine(pen, titleWidth, lineY, Math.Max(titleWidth, groupBox.Width - 1), lineY);
+        g.DrawLine(pen, 0, lineY, 0, Math.Max(lineY, groupBox.Height - 1));
+        g.DrawLine(pen, groupBox.Width - 1, lineY, groupBox.Width - 1, Math.Max(lineY, groupBox.Height - 1));
+        g.DrawLine(pen, 0, groupBox.Height - 1, Math.Max(0, groupBox.Width - 1), groupBox.Height - 1);
+
+        if (!string.IsNullOrEmpty(groupBox.Text))
+        {
+            using var brush = new System.Drawing.SolidBrush(groupBox.ForeColor.A == 0 ? System.Drawing.SystemColors.ControlText : groupBox.ForeColor);
+            g.DrawString(SanitizeTextForImpeller(groupBox.Text), groupBox.Font, brush, new System.Drawing.PointF(10, 0));
+        }
+    }
+
+    private static void DrawListBox(ListBox listBox, System.Drawing.Graphics g)
+    {
+        using var bg = new System.Drawing.SolidBrush(listBox.BackColor.A == 0 ? System.Drawing.SystemColors.Window : listBox.BackColor);
+        g.FillRectangle(bg, 0, 0, Math.Max(1, listBox.Width), Math.Max(1, listBox.Height));
+        DrawSimpleBorder(g, 0, 0, listBox.Width, listBox.Height, System.Drawing.Color.FromArgb(160, 160, 160));
+
+        int itemHeight = Math.Max(ManagedListItemHeight, listBox.ItemHeight);
+        int topIndex = 0;
+        try
+        {
+            topIndex = Math.Max(0, listBox.TopIndex);
+        }
+        catch
+        {
+        }
+
+        int visibleCount = Math.Max(1, (listBox.Height - 2) / itemHeight);
+        for (int visible = 0; visible < visibleCount; visible++)
+        {
+            int itemIndex = topIndex + visible;
+            if (itemIndex < 0 || itemIndex >= listBox.Items.Count)
+            {
+                break;
+            }
+
+            int y = 1 + visible * itemHeight;
+            bool selected = listBox.SelectedIndices.Contains(itemIndex);
+            DrawListItemBackground(g, selected, 1, y, Math.Max(1, listBox.Width - 2), itemHeight);
+            DrawListText(g, listBox.GetItemText(listBox.Items[itemIndex]), listBox.Font, selected ? System.Drawing.Color.White : listBox.ForeColor, 5, y + 3, listBox.Width - 8, itemHeight);
+        }
+    }
+
+    private static void DrawComboBox(ComboBox comboBox, System.Drawing.Graphics g)
+    {
+        using var bg = new System.Drawing.SolidBrush(comboBox.BackColor.A == 0 ? System.Drawing.SystemColors.Window : comboBox.BackColor);
+        g.FillRectangle(bg, 0, 0, Math.Max(1, comboBox.Width), Math.Max(1, comboBox.Height));
+        DrawSimpleBorder(g, 0, 0, comboBox.Width, comboBox.Height, System.Drawing.Color.FromArgb(150, 150, 150));
+
+        string text = (comboBox.SelectedIndex >= 0 && comboBox.SelectedIndex < comboBox.Items.Count
+            ? comboBox.GetItemText(comboBox.Items[comboBox.SelectedIndex])
+            : comboBox.Text) ?? string.Empty;
+        DrawListText(g, text, comboBox.Font, comboBox.ForeColor, 5, Math.Max(1, (comboBox.Height - comboBox.Font.Height) / 2), Math.Max(1, comboBox.Width - 28), comboBox.Height);
+
+        int buttonX = Math.Max(0, comboBox.Width - 22);
+        using var buttonBg = new System.Drawing.SolidBrush(System.Drawing.Color.FromArgb(235, 235, 235));
+        g.FillRectangle(buttonBg, buttonX, 1, 21, Math.Max(1, comboBox.Height - 2));
+        using var pen = new System.Drawing.Pen(System.Drawing.Color.FromArgb(80, 80, 80));
+        g.DrawLine(pen, buttonX + 6, comboBox.Height / 2 - 2, buttonX + 11, comboBox.Height / 2 + 3);
+        g.DrawLine(pen, buttonX + 11, comboBox.Height / 2 + 3, buttonX + 16, comboBox.Height / 2 - 2);
+    }
+
+    private static void DrawTreeView(TreeView treeView, System.Drawing.Graphics g)
+    {
+        using var bg = new System.Drawing.SolidBrush(treeView.BackColor.A == 0 ? System.Drawing.SystemColors.Window : treeView.BackColor);
+        g.FillRectangle(bg, 0, 0, Math.Max(1, treeView.Width), Math.Max(1, treeView.Height));
+        DrawSimpleBorder(g, 0, 0, treeView.Width, treeView.Height, System.Drawing.Color.FromArgb(170, 170, 170));
+
+        var rows = new List<(TreeNode Node, int Depth)>();
+        foreach (TreeNode node in treeView.Nodes)
+        {
+            AddVisibleTreeRows(node, 0, rows, treeView.Height / ManagedTreeItemHeight + 2);
+        }
+
+        TreeNode? selected = treeView.SelectedNode;
+        for (int i = 0; i < rows.Count; i++)
+        {
+            int y = 1 + i * ManagedTreeItemHeight;
+            if (y > treeView.Height - ManagedTreeItemHeight)
+            {
+                break;
+            }
+
+            var (node, depth) = rows[i];
+            bool isSelected = ReferenceEquals(node, selected);
+            DrawListItemBackground(g, isSelected, 1, y, Math.Max(1, treeView.Width - 2), ManagedTreeItemHeight);
+            int x = 4 + depth * 18;
+            if (node.Nodes.Count > 0)
+            {
+                DrawSimpleBorder(g, x, y + 5, 10, 10, System.Drawing.Color.FromArgb(120, 120, 120));
+                using var glyphPen = new System.Drawing.Pen(System.Drawing.Color.FromArgb(60, 60, 60));
+                g.DrawLine(glyphPen, x + 2, y + 10, x + 8, y + 10);
+                if (!node.IsExpanded)
+                {
+                    g.DrawLine(glyphPen, x + 5, y + 7, x + 5, y + 13);
+                }
+            }
+
+            DrawListText(g, node.Text, treeView.Font, isSelected ? System.Drawing.Color.White : treeView.ForeColor, x + 16, y + 3, Math.Max(1, treeView.Width - x - 18), ManagedTreeItemHeight);
+        }
+    }
+
+    private static void DrawListView(ListView listView, System.Drawing.Graphics g)
+    {
+        using var bg = new System.Drawing.SolidBrush(listView.BackColor.A == 0 ? System.Drawing.SystemColors.Window : listView.BackColor);
+        g.FillRectangle(bg, 0, 0, Math.Max(1, listView.Width), Math.Max(1, listView.Height));
+        DrawSimpleBorder(g, 0, 0, listView.Width, listView.Height, System.Drawing.Color.FromArgb(170, 170, 170));
+
+        int x = 1;
+        using var headerBg = new System.Drawing.SolidBrush(System.Drawing.Color.FromArgb(235, 235, 235));
+        g.FillRectangle(headerBg, 1, 1, Math.Max(1, listView.Width - 2), ManagedListViewHeaderHeight);
+        foreach (ColumnHeader column in listView.Columns)
+        {
+            int width = Math.Max(40, column.Width);
+            DrawSimpleBorder(g, x, 1, width, ManagedListViewHeaderHeight, System.Drawing.Color.FromArgb(190, 190, 190));
+            DrawListText(g, column.Text, listView.Font, System.Drawing.SystemColors.ControlText, x + 4, 4, width - 8, ManagedListViewHeaderHeight);
+            x += width;
+            if (x > listView.Width)
+            {
+                break;
+            }
+        }
+
+        int rowY = ManagedListViewHeaderHeight + 1;
+        for (int row = 0; row < listView.Items.Count && rowY < listView.Height - ManagedListItemHeight; row++)
+        {
+            ListViewItem item = listView.Items[row];
+            if (item is null)
+            {
+                continue;
+            }
+
+            bool selected = item.Selected || (s_managedListViewSelection.TryGetValue(listView, out int selectedIndex) && selectedIndex == row);
+            DrawListItemBackground(g, selected, 1, rowY, Math.Max(1, listView.Width - 2), ManagedListItemHeight);
+
+            x = 1;
+            int subItemCount = Math.Max(1, item.ManagedSubItemCount);
+            for (int col = 0; col < Math.Max(1, listView.Columns.Count); col++)
+            {
+                int width = col < listView.Columns.Count ? Math.Max(40, listView.Columns[col].Width) : listView.Width - 2;
+                string text = col < subItemCount ? item.GetManagedSubItemText(col) : string.Empty;
+                DrawListText(g, text, listView.Font, selected ? System.Drawing.Color.White : listView.ForeColor, x + 4, rowY + 3, width - 8, ManagedListItemHeight);
+                x += width;
+                if (x > listView.Width)
+                {
+                    break;
+                }
+            }
+
+            rowY += ManagedListItemHeight;
+        }
+    }
+
+    private static void DrawDataGridView(DataGridView dataGridView, System.Drawing.Graphics g)
+    {
+        using var bg = new System.Drawing.SolidBrush(dataGridView.BackgroundColor.A == 0 ? System.Drawing.SystemColors.Window : dataGridView.BackgroundColor);
+        g.FillRectangle(bg, 0, 0, Math.Max(1, dataGridView.Width), Math.Max(1, dataGridView.Height));
+        DrawSimpleBorder(g, 0, 0, dataGridView.Width, dataGridView.Height, System.Drawing.Color.FromArgb(170, 170, 170));
+
+        int rowHeaderWidth = dataGridView.RowHeadersVisible ? Math.Max(36, dataGridView.RowHeadersWidth) : 0;
+        int x = rowHeaderWidth;
+        using var headerBg = new System.Drawing.SolidBrush(System.Drawing.Color.FromArgb(235, 235, 235));
+        g.FillRectangle(headerBg, 1, 1, Math.Max(1, dataGridView.Width - 2), ManagedDataGridHeaderHeight);
+
+        foreach (DataGridViewColumn column in dataGridView.Columns)
+        {
+            if (!column.Visible)
+            {
+                continue;
+            }
+
+            int width = Math.Max(40, column.Width);
+            DrawSimpleBorder(g, x, 1, width, ManagedDataGridHeaderHeight, System.Drawing.Color.FromArgb(190, 190, 190));
+            DrawListText(g, column.HeaderText, dataGridView.Font, System.Drawing.SystemColors.ControlText, x + 4, 4, width - 8, ManagedDataGridHeaderHeight);
+            x += width;
+            if (x > dataGridView.Width)
+            {
+                break;
+            }
+        }
+
+        int rowY = ManagedDataGridHeaderHeight + 1;
+        int visibleRows = Math.Max(1, (dataGridView.Height - rowY) / ManagedDataGridRowHeight);
+        for (int i = 0; i < dataGridView.Rows.Count && i < visibleRows; i++)
+        {
+            DataGridViewRow row = dataGridView.Rows[i];
+            if (row.IsNewRow)
+            {
+                continue;
+            }
+
+            bool selected = row.Selected
+                || (s_managedDataGridViewSelection.TryGetValue(dataGridView, out int selectedRow) && selectedRow == i);
+            DrawListItemBackground(g, selected, 1, rowY, Math.Max(1, dataGridView.Width - 2), ManagedDataGridRowHeight);
+            x = rowHeaderWidth;
+            foreach (DataGridViewColumn column in dataGridView.Columns)
+            {
+                if (!column.Visible)
+                {
+                    continue;
+                }
+
+                int width = Math.Max(40, column.Width);
+                string text = string.Empty;
+                if (column.Index >= 0 && column.Index < row.Cells.Count)
+                {
+                    text = row.Cells[column.Index].FormattedValue?.ToString() ?? row.Cells[column.Index].Value?.ToString() ?? string.Empty;
+                }
+
+                DrawSimpleBorder(g, x, rowY, width, ManagedDataGridRowHeight, System.Drawing.Color.FromArgb(220, 220, 220));
+                DrawListText(g, text, dataGridView.Font, selected ? System.Drawing.Color.White : dataGridView.ForeColor, x + 4, rowY + 3, width - 8, ManagedDataGridRowHeight);
+                x += width;
+                if (x > dataGridView.Width)
+                {
+                    break;
+                }
+            }
+
+            rowY += ManagedDataGridRowHeight;
+        }
+    }
+
+    private static void DrawStatusStrip(StatusStrip statusStrip, System.Drawing.Graphics g)
+    {
+        using var bg = new System.Drawing.SolidBrush(System.Drawing.Color.FromArgb(230, 230, 220));
+        g.FillRectangle(bg, 0, 0, Math.Max(1, statusStrip.Width), Math.Max(1, statusStrip.Height));
+        using var border = new System.Drawing.Pen(System.Drawing.Color.FromArgb(180, 180, 170));
+        g.DrawLine(border, 0, 0, Math.Max(1, statusStrip.Width), 0);
+
+        int x = 8;
+        foreach (ToolStripItem item in statusStrip.Items)
+        {
+            string text = SanitizeTextForImpeller(item.Text);
+            if (string.IsNullOrEmpty(text))
+            {
+                continue;
+            }
+
+            using var brush = new System.Drawing.SolidBrush(System.Drawing.Color.FromArgb(40, 40, 40));
+            g.DrawString(text, statusStrip.Font, brush, new System.Drawing.PointF(x, 4));
+            x += Math.Max(80, text.Length * 7 + 24);
+        }
+    }
+
+    private static void DrawSimpleBorder(System.Drawing.Graphics g, int x, int y, int width, int height, System.Drawing.Color color)
+    {
+        using var pen = new System.Drawing.Pen(color);
+        g.DrawRectangle(pen, x, y, Math.Max(0, width - 1), Math.Max(0, height - 1));
+    }
+
+    private static void DrawListItemBackground(System.Drawing.Graphics g, bool selected, int x, int y, int width, int height)
+    {
+        if (!selected)
+        {
+            return;
+        }
+
+        using var selectedBg = new System.Drawing.SolidBrush(System.Drawing.Color.FromArgb(0, 120, 215));
+        g.FillRectangle(selectedBg, x, y, width, height);
+    }
+
+    private static void DrawListText(
+        System.Drawing.Graphics g,
+        string? text,
+        System.Drawing.Font font,
+        System.Drawing.Color color,
+        int x,
+        int y,
+        int width,
+        int height)
+    {
+        if (string.IsNullOrEmpty(text) || width <= 0 || height <= 0)
+        {
+            return;
+        }
+
+        using var brush = new System.Drawing.SolidBrush(color.A == 0 ? System.Drawing.SystemColors.ControlText : color);
+        using var sf = new System.Drawing.StringFormat
+        {
+            Trimming = System.Drawing.StringTrimming.EllipsisCharacter,
+        };
+        g.DrawString(SanitizeTextForImpeller(text), font, brush, new System.Drawing.RectangleF(x, y, width, height), sf);
+    }
+
+    private static void AddVisibleTreeRows(TreeNode node, int depth, List<(TreeNode Node, int Depth)> rows, int maxRows)
+    {
+        if (rows.Count >= maxRows)
+        {
+            return;
+        }
+
+        rows.Add((node, depth));
+        if (!node.IsExpanded)
+        {
+            return;
+        }
+
+        foreach (TreeNode child in node.Nodes)
+        {
+            AddVisibleTreeRows(child, depth + 1, rows, maxRows);
+            if (rows.Count >= maxRows)
+            {
+                return;
+            }
+        }
+    }
+
     private static void DrawMenuStrip(MenuStrip menuStrip, System.Drawing.Graphics g)
     {
         using var bg = new System.Drawing.SolidBrush(System.Drawing.Color.FromArgb(55, 55, 55));
         g.FillRectangle(bg, 0, 0, Math.Max(1, menuStrip.Width), Math.Max(1, menuStrip.Height));
 
-        int x = 12;
+        int x = ManagedMenuItemLeft;
         foreach (ToolStripItem item in menuStrip.Items)
         {
             string text = SanitizeTextForImpeller(item.Text);
@@ -692,24 +1204,109 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
 
             using var brush = new System.Drawing.SolidBrush(System.Drawing.Color.FromArgb(235, 235, 235));
             g.DrawString(text, menuStrip.Font, brush, new System.Drawing.PointF(x, 4));
-            x += 68;
+            x += ManagedMenuItemWidth;
+        }
+    }
+
+    private static void DrawManagedMenuDropDown(ImpellerWindowState state, System.Drawing.Graphics g)
+    {
+        ToolStripMenuItem? menuItem = state.ActiveMenuItem;
+        if (menuItem is null || state.ActiveMenuBounds.Width <= 0 || state.ActiveMenuBounds.Height <= 0)
+        {
+            return;
+        }
+
+        var bounds = state.ActiveMenuBounds;
+        using var shadow = new System.Drawing.SolidBrush(System.Drawing.Color.FromArgb(80, 0, 0, 0));
+        g.FillRectangle(shadow, bounds.X + 3, bounds.Y + 3, bounds.Width, bounds.Height);
+
+        using var bg = new System.Drawing.SolidBrush(System.Drawing.Color.FromArgb(252, 252, 252));
+        g.FillRectangle(bg, bounds);
+
+        using var border = new System.Drawing.Pen(System.Drawing.Color.FromArgb(90, 90, 90));
+        g.DrawRectangle(border, bounds.X, bounds.Y, bounds.Width - 1, bounds.Height - 1);
+
+        int y = bounds.Y;
+        foreach (ToolStripItem item in menuItem.DropDownItems)
+        {
+            var row = new System.Drawing.Rectangle(bounds.X, y, bounds.Width, ManagedMenuDropDownRowHeight);
+            if (item is ToolStripSeparator)
+            {
+                using var line = new System.Drawing.Pen(System.Drawing.Color.FromArgb(210, 210, 210));
+                int lineY = row.Top + row.Height / 2;
+                g.DrawLine(line, row.Left + 8, lineY, row.Right - 8, lineY);
+            }
+            else
+            {
+                using var textBrush = new System.Drawing.SolidBrush(item.Enabled
+                    ? System.Drawing.Color.FromArgb(35, 35, 35)
+                    : System.Drawing.Color.FromArgb(140, 140, 140));
+                g.DrawString(SanitizeTextForImpeller(item.Text), menuItem.Font, textBrush, new System.Drawing.PointF(row.Left + 12, row.Top + 5));
+
+                string shortcutText = item is ToolStripMenuItem childMenuItem
+                    ? childMenuItem.ShortcutKeyDisplayString ?? string.Empty
+                    : string.Empty;
+                if (!string.IsNullOrEmpty(shortcutText))
+                {
+                    using var shortcutBrush = new System.Drawing.SolidBrush(System.Drawing.Color.FromArgb(90, 90, 90));
+                    g.DrawString(SanitizeTextForImpeller(shortcutText), menuItem.Font, shortcutBrush, new System.Drawing.PointF(row.Right - 58, row.Top + 5));
+                }
+            }
+
+            y += ManagedMenuDropDownRowHeight;
+        }
+    }
+
+    private static void DrawManagedComboDropDown(ImpellerWindowState state, System.Drawing.Graphics g)
+    {
+        ComboBox? comboBox = state.ActiveComboBox;
+        if (comboBox is null || state.ActiveComboBounds.Width <= 0 || state.ActiveComboBounds.Height <= 0)
+        {
+            return;
+        }
+
+        var bounds = state.ActiveComboBounds;
+        using var shadow = new System.Drawing.SolidBrush(System.Drawing.Color.FromArgb(70, 0, 0, 0));
+        g.FillRectangle(shadow, bounds.X + 3, bounds.Y + 3, bounds.Width, bounds.Height);
+
+        using var bg = new System.Drawing.SolidBrush(System.Drawing.Color.White);
+        g.FillRectangle(bg, bounds);
+        DrawSimpleBorder(g, bounds.X, bounds.Y, bounds.Width, bounds.Height, System.Drawing.Color.FromArgb(90, 90, 90));
+
+        int visibleCount = Math.Min(comboBox.Items.Count, ManagedComboDropDownMaxVisibleItems);
+        for (int i = 0; i < visibleCount; i++)
+        {
+            var row = new System.Drawing.Rectangle(
+                bounds.X,
+                bounds.Y + i * ManagedComboItemHeight,
+                bounds.Width,
+                ManagedComboItemHeight);
+            bool selected = i == comboBox.SelectedIndex;
+            DrawListItemBackground(g, selected, row.X + 1, row.Y + 1, row.Width - 2, row.Height - 2);
+            DrawListText(
+                g,
+                comboBox.GetItemText(comboBox.Items[i]),
+                comboBox.Font,
+                selected ? System.Drawing.Color.White : comboBox.ForeColor,
+                row.X + 5,
+                row.Y + 4,
+                row.Width - 10,
+                row.Height - 2);
         }
     }
 
     private static void DrawTabHeaders(TabControl tabControl, System.Drawing.Graphics g)
     {
-        const int headerHeight = 30;
         int width = Math.Max(1, tabControl.Width);
         using var stripBg = new System.Drawing.SolidBrush(System.Drawing.Color.FromArgb(230, 228, 212));
-        g.FillRectangle(stripBg, 0, 0, width, headerHeight);
+        g.FillRectangle(stripBg, 0, 0, width, ManagedTabHeaderHeight);
 
-        int x = 8;
+        int x = ManagedTabHeaderLeft;
         int selected = GetSelectedTabIndexSafe(tabControl);
         for (int i = 0; i < tabControl.TabPages.Count; i++)
         {
             var tab = tabControl.TabPages[i];
-            int tabWidth = 128;
-            var rect = new System.Drawing.Rectangle(x, 2, tabWidth, headerHeight - 4);
+            var rect = new System.Drawing.Rectangle(x, 2, ManagedTabHeaderWidth, ManagedTabHeaderHeight - 4);
             bool isSelected = i == selected;
 
             using var fill = new System.Drawing.SolidBrush(isSelected
@@ -728,7 +1325,7 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                 Trimming = System.Drawing.StringTrimming.EllipsisCharacter,
             };
             g.DrawString(SanitizeTextForImpeller(tab.Text), tabControl.Font, brush, rect, sf);
-            x += tabWidth + 4;
+            x += ManagedTabHeaderWidth + ManagedTabHeaderGap;
             if (x >= width - 40)
             {
                 break;
@@ -776,8 +1373,7 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
             page.Visible = visible;
             if (visible)
             {
-                const int tabHeaderHeight = 24;
-                page.SetBounds(0, tabHeaderHeight, tabControl.Width, Math.Max(1, tabControl.Height - tabHeaderHeight));
+                page.SetBounds(0, ManagedTabHeaderHeight, tabControl.Width, Math.Max(1, tabControl.Height - ManagedTabHeaderHeight));
             }
         }
 
@@ -794,6 +1390,423 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
         tabControl.Invalidate();
     }
 
+    private static int GetManagedTabIndexAtPoint(TabControl tabControl, System.Drawing.Point clientPoint)
+    {
+        if (clientPoint.Y < 0 || clientPoint.Y >= ManagedTabHeaderHeight)
+        {
+            return -1;
+        }
+
+        int x = ManagedTabHeaderLeft;
+        int width = Math.Max(1, tabControl.Width);
+        for (int i = 0; i < tabControl.TabPages.Count; i++)
+        {
+            var rect = new System.Drawing.Rectangle(x, 2, ManagedTabHeaderWidth, ManagedTabHeaderHeight - 4);
+            if (rect.Contains(clientPoint))
+            {
+                return i;
+            }
+
+            x += ManagedTabHeaderWidth + ManagedTabHeaderGap;
+            if (x >= width - 40)
+            {
+                break;
+            }
+        }
+
+        return -1;
+    }
+
+    private static ToolStripItem? GetManagedMenuItemAtPoint(ToolStrip toolStrip, System.Drawing.Point clientPoint)
+    {
+        if (clientPoint.Y < 0 || clientPoint.Y >= Math.Max(ManagedMenuItemHeight, toolStrip.Height))
+        {
+            return null;
+        }
+
+        int x = ManagedMenuItemLeft;
+        foreach (ToolStripItem item in toolStrip.Items)
+        {
+            if (!item.Available)
+            {
+                continue;
+            }
+
+            var rect = new System.Drawing.Rectangle(x, 0, ManagedMenuItemWidth, Math.Max(ManagedMenuItemHeight, toolStrip.Height));
+            if (rect.Contains(clientPoint))
+            {
+                return item;
+            }
+
+            x += ManagedMenuItemWidth;
+        }
+
+        return null;
+    }
+
+    private void ShowManagedMenuDropDown(HWND handle, ToolStrip toolStrip, ToolStripMenuItem menuItem, System.Drawing.Point clientPoint)
+    {
+        if (!_windows.TryGetValue(handle, out var state))
+        {
+            return;
+        }
+
+        var origin = GetRootRelativeLocation(toolStrip);
+        int menuIndex = Math.Max(0, toolStrip.Items.IndexOf(menuItem));
+        int dropDownX = origin.X + ManagedMenuItemLeft + menuIndex * ManagedMenuItemWidth;
+        int dropDownY = origin.Y + Math.Max(ManagedMenuItemHeight, toolStrip.Height);
+        int rowCount = Math.Max(1, menuItem.DropDownItems.Count);
+
+        state.ActiveMenuItem = menuItem;
+        state.ActiveMenuOwner = (HWND)(nint)toolStrip.Handle;
+        state.ActiveMenuBounds = new System.Drawing.Rectangle(
+            dropDownX,
+            dropDownY,
+            ManagedMenuDropDownWidth,
+            rowCount * ManagedMenuDropDownRowHeight);
+
+        TraceInput($"[ManagedMenuOpen] text={menuItem.Text} bounds={state.ActiveMenuBounds} client={clientPoint}");
+        MarkDirty(handle);
+    }
+
+    private bool TryHandleManagedMenuOverlayClick(HWND handle, System.Drawing.Point rootPoint)
+    {
+        if (!_windows.TryGetValue(handle, out var state) || state.ActiveMenuItem is null)
+        {
+            return false;
+        }
+
+        var bounds = state.ActiveMenuBounds;
+        ToolStripMenuItem menuItem = state.ActiveMenuItem;
+        if (bounds.Contains(rootPoint))
+        {
+            int row = (rootPoint.Y - bounds.Y) / ManagedMenuDropDownRowHeight;
+            ToolStripItem? item = row >= 0 && row < menuItem.DropDownItems.Count
+                ? menuItem.DropDownItems[row]
+                : null;
+
+            state.ActiveMenuItem = null;
+            state.ActiveMenuBounds = System.Drawing.Rectangle.Empty;
+            MarkDirty(handle);
+
+            if (item is not null && item is not ToolStripSeparator && item.Enabled)
+            {
+                TraceInput($"[ManagedMenuClick] parent={menuItem.Text} item={item.Text}");
+                PerformToolStripItemClick(handle, item);
+            }
+
+            return true;
+        }
+
+        if (Control.FromHandle(state.ActiveMenuOwner) is ToolStrip owner)
+        {
+            var ownerOrigin = GetRootRelativeLocation(owner);
+            var ownerBounds = new System.Drawing.Rectangle(ownerOrigin.X, ownerOrigin.Y, owner.Width, owner.Height);
+            if (ownerBounds.Contains(rootPoint))
+            {
+                return false;
+            }
+        }
+
+        state.ActiveMenuItem = null;
+        state.ActiveMenuBounds = System.Drawing.Rectangle.Empty;
+        MarkDirty(handle);
+        return true;
+    }
+
+    private void ShowManagedComboDropDown(HWND handle, ComboBox comboBox)
+    {
+        if (!_windows.TryGetValue(handle, out var state))
+        {
+            return;
+        }
+
+        int visibleCount = Math.Min(comboBox.Items.Count, ManagedComboDropDownMaxVisibleItems);
+        if (visibleCount <= 0)
+        {
+            return;
+        }
+
+        var origin = GetRootRelativeLocation(comboBox);
+        state.ActiveMenuItem = null;
+        state.ActiveMenuBounds = System.Drawing.Rectangle.Empty;
+        state.ActiveComboBox = comboBox;
+        state.ActiveComboBounds = new System.Drawing.Rectangle(
+            origin.X,
+            origin.Y + Math.Max(1, comboBox.Height),
+            Math.Max(1, comboBox.Width),
+            visibleCount * ManagedComboItemHeight);
+
+        TraceInput($"[ManagedComboOpen] text={comboBox.Text} bounds={state.ActiveComboBounds}");
+        MarkDirty(handle);
+    }
+
+    private bool TryHandleManagedComboOverlayClick(HWND handle, System.Drawing.Point rootPoint)
+    {
+        if (!_windows.TryGetValue(handle, out var state) || state.ActiveComboBox is null)
+        {
+            return false;
+        }
+
+        ComboBox comboBox = state.ActiveComboBox;
+        var bounds = state.ActiveComboBounds;
+        if (bounds.Contains(rootPoint))
+        {
+            int row = (rootPoint.Y - bounds.Y) / ManagedComboItemHeight;
+            state.ActiveComboBox = null;
+            state.ActiveComboBounds = System.Drawing.Rectangle.Empty;
+
+            if (row >= 0 && row < comboBox.Items.Count)
+            {
+                InvokeManagedInteraction(handle, comboBox, () =>
+                {
+                    comboBox.SelectedIndex = row;
+                    TraceInput($"[ManagedComboSelect] index={row} text={comboBox.GetItemText(comboBox.Items[row])}");
+                });
+            }
+            else
+            {
+                MarkDirty(handle);
+            }
+
+            return true;
+        }
+
+        var comboOrigin = GetRootRelativeLocation(comboBox);
+        var comboBounds = new System.Drawing.Rectangle(comboOrigin.X, comboOrigin.Y, comboBox.Width, comboBox.Height);
+        if (comboBounds.Contains(rootPoint))
+        {
+            return false;
+        }
+
+        state.ActiveComboBox = null;
+        state.ActiveComboBounds = System.Drawing.Rectangle.Empty;
+        MarkDirty(handle);
+        return true;
+    }
+
+    private void PerformToolStripItemClick(HWND handle, ToolStripItem item)
+    {
+        Control? invoker = Control.FromHandle(handle) ?? ResolveTopLevelControl(handle);
+        if (invoker is null)
+        {
+            return;
+        }
+
+        invoker.BeginInvoke(new Action(() =>
+        {
+            try
+            {
+                item.PerformClick();
+            }
+            catch (Exception ex)
+            {
+                Application.OnThreadException(ex);
+            }
+            finally
+            {
+                MarkDirty(handle);
+            }
+        }));
+    }
+
+    private bool TryPerformManagedControlClick(HWND rootHandle, HWND target, System.Drawing.Point clientPoint)
+    {
+        Control? control = Control.FromHandle(target);
+        if (control is null || !control.Enabled)
+        {
+            return false;
+        }
+
+        switch (control)
+        {
+            case IButtonControl buttonControl:
+                InvokeManagedInteraction(rootHandle, control, buttonControl.PerformClick);
+                return true;
+            case CheckBox checkBox:
+                InvokeManagedInteraction(rootHandle, control, () =>
+                {
+                    if (checkBox.ThreeState)
+                    {
+                        checkBox.CheckState = checkBox.CheckState switch
+                        {
+                            CheckState.Unchecked => CheckState.Checked,
+                            CheckState.Checked => CheckState.Indeterminate,
+                            _ => CheckState.Unchecked,
+                        };
+                    }
+                    else
+                    {
+                        checkBox.Checked = !checkBox.Checked;
+                    }
+
+                    TraceInput($"[ManagedCheckBoxClick] text={checkBox.Text} state={checkBox.CheckState}");
+                });
+                return true;
+            case RadioButton radioButton:
+                InvokeManagedInteraction(rootHandle, control, () =>
+                {
+                    radioButton.Checked = true;
+                    TraceInput($"[ManagedRadioButtonClick] text={radioButton.Text}");
+                });
+                return true;
+            case ListBox listBox:
+                InvokeManagedInteraction(rootHandle, control, () =>
+                {
+                    int itemHeight = Math.Max(ManagedListItemHeight, listBox.ItemHeight);
+                    int topIndex = 0;
+                    try
+                    {
+                        topIndex = Math.Max(0, listBox.TopIndex);
+                    }
+                    catch
+                    {
+                    }
+
+                    int index = topIndex + Math.Max(0, clientPoint.Y - 1) / itemHeight;
+                    if (index >= 0 && index < listBox.Items.Count)
+                    {
+                        listBox.SelectedIndex = index;
+                        TraceInput($"[ManagedListBoxSelect] index={index} text={listBox.GetItemText(listBox.Items[index])}");
+                    }
+                });
+                return true;
+            case ComboBox comboBox:
+                ShowManagedComboDropDown(rootHandle, comboBox);
+                return true;
+            case TreeView treeView:
+                InvokeManagedInteraction(rootHandle, control, () => SelectManagedTreeNode(treeView, clientPoint));
+                return true;
+            case ListView listView:
+                InvokeManagedInteraction(rootHandle, control, () => SelectManagedListViewItem(listView, clientPoint));
+                return true;
+            case DataGridView dataGridView:
+                InvokeManagedInteraction(rootHandle, control, () => SelectManagedDataGridViewRow(dataGridView, clientPoint));
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    private void InvokeManagedInteraction(HWND rootHandle, Control invoker, Action action)
+    {
+        invoker.BeginInvoke(new Action(() =>
+        {
+            try
+            {
+                action();
+            }
+            catch (Exception ex)
+            {
+                Application.OnThreadException(ex);
+            }
+            finally
+            {
+                MarkDirty(rootHandle);
+            }
+        }));
+    }
+
+    private static void SelectManagedTreeNode(TreeView treeView, System.Drawing.Point clientPoint)
+    {
+        var rows = new List<(TreeNode Node, int Depth)>();
+        foreach (TreeNode node in treeView.Nodes)
+        {
+            AddVisibleTreeRows(node, 0, rows, treeView.Height / ManagedTreeItemHeight + 2);
+        }
+
+        int row = Math.Max(0, clientPoint.Y - 1) / ManagedTreeItemHeight;
+        if (row < 0 || row >= rows.Count)
+        {
+            return;
+        }
+
+        var (selectedNode, depth) = rows[row];
+        int toggleX = 4 + depth * 18;
+        if (selectedNode.Nodes.Count > 0 && clientPoint.X >= toggleX && clientPoint.X <= toggleX + 14)
+        {
+            if (selectedNode.IsExpanded)
+            {
+                selectedNode.Collapse();
+            }
+            else
+            {
+                selectedNode.Expand();
+            }
+        }
+
+        treeView.SelectedNode = selectedNode;
+        TraceInput($"[ManagedTreeSelect] text={selectedNode.Text}");
+    }
+
+    private static void SelectManagedListViewItem(ListView listView, System.Drawing.Point clientPoint)
+    {
+        int row = (clientPoint.Y - ManagedListViewHeaderHeight - 1) / ManagedListItemHeight;
+        if (row < 0 || row >= listView.Items.Count)
+        {
+            return;
+        }
+
+        ListViewItem selected = listView.Items[row];
+        if (listView.FocusedItem is { } previous && previous != selected)
+        {
+            previous.Selected = false;
+            previous.Focused = false;
+        }
+
+        selected.Selected = true;
+        selected.Focused = true;
+        listView.FocusedItem = selected;
+        s_managedListViewSelection[listView] = row;
+        InvokeProtectedEvent(listView, "OnSelectedIndexChanged", EventArgs.Empty);
+        TraceInput($"[ManagedListViewSelect] index={row} text={selected.Text}");
+    }
+
+    private static void SelectManagedDataGridViewRow(DataGridView dataGridView, System.Drawing.Point clientPoint)
+    {
+        int rowIndex = (clientPoint.Y - ManagedDataGridHeaderHeight - 1) / ManagedDataGridRowHeight;
+        if (rowIndex < 0 || rowIndex >= dataGridView.Rows.Count || dataGridView.Rows[rowIndex].IsNewRow)
+        {
+            return;
+        }
+
+        dataGridView.ClearSelection();
+        dataGridView.Rows[rowIndex].Selected = true;
+        s_managedDataGridViewSelection[dataGridView] = rowIndex;
+
+        TraceInput($"[ManagedDataGridViewSelect] row={rowIndex}");
+    }
+
+    private static void InvokeProtectedEvent(Control control, string methodName, EventArgs args)
+    {
+        try
+        {
+            control.GetType().GetMethod(
+                methodName,
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)?
+                .Invoke(control, [args]);
+        }
+        catch (Exception ex)
+        {
+            Application.OnThreadException(ex);
+        }
+    }
+
+    private static System.Drawing.Point GetRootRelativeLocation(Control control)
+    {
+        int x = control.Left;
+        int y = control.Top;
+        Control? parent = control.Parent;
+        while (parent is not null && parent.Parent is not null)
+        {
+            x += parent.Left;
+            y += parent.Top;
+            parent = parent.Parent;
+        }
+
+        return new System.Drawing.Point(x, y);
+    }
+
     private static void TracePaint(string message)
     {
         if (string.IsNullOrWhiteSpace(s_traceFile))
@@ -808,6 +1821,11 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
         catch
         {
         }
+    }
+
+    private static void TraceInput(string message)
+    {
+        TracePaint(message);
     }
 
     private static HiDpiMode ParseHiDpiMode()
@@ -857,39 +1875,25 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
 
         if (_windows.TryGetValue(handle, out var state))
         {
-            // Prefer the exact dimensions used during the last successful render pass.
+            // Silk input coordinates are logical window coordinates. Do not divide
+            // by framebuffer scale here; doing so makes hit testing drift on HiDPI.
             int logicalW = state.LastLogicalWidth;
             int logicalH = state.LastLogicalHeight;
-            int fbW = state.LastFramebufferWidth;
-            int fbH = state.LastFramebufferHeight;
 
-            // Fallback if the first render has not populated cached sizes yet.
             if ((logicalW <= 0 || logicalH <= 0) && state.Width > 0 && state.Height > 0)
             {
                 logicalW = state.Width;
                 logicalH = state.Height;
             }
 
-            if ((fbW <= 0 || fbH <= 0) && state.SilkWindow is not null && logicalW > 0 && logicalH > 0)
+            if (logicalW > 0)
             {
-                var resolved = ResolveFramebufferSize(state.SilkWindow, logicalW, logicalH);
-                fbW = resolved.Width;
-                fbH = resolved.Height;
+                x = Math.Clamp(x, 0, logicalW - 1);
             }
 
-            if (logicalW > 0 && logicalH > 0 && fbW > 0 && fbH > 0)
+            if (logicalH > 0)
             {
-                // Only apply scale conversion if framebuffer is materially larger than logical.
-                // This avoids over-correcting when the input subsystem already reports logical coords.
-                if (fbW > logicalW + 1)
-                {
-                    x = x * logicalW / fbW;
-                }
-
-                if (fbH > logicalH + 1)
-                {
-                    y = y * logicalH / fbH;
-                }
+                y = Math.Clamp(y, 0, logicalH - 1);
             }
         }
 
@@ -1477,6 +2481,11 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
             var ctrl = Control.FromHandle(current);
             if (ctrl is object)
             {
+                if (ctrl is TabControl && clientPt.Y >= 0 && clientPt.Y < ManagedTabHeaderHeight)
+                {
+                    break;
+                }
+
                 // In WinForms, Controls[0] is at the top of the Z-order
                 for (int i = 0; i < ctrl.Controls.Count; i++)
                 {
@@ -1564,4 +2573,10 @@ internal sealed class ImpellerWindowState
     public int LastLogicalHeight;
     public int LastFramebufferWidth;
     public int LastFramebufferHeight;
+    public ToolStripMenuItem? ActiveMenuItem;
+    public HWND ActiveMenuOwner;
+    public System.Drawing.Rectangle ActiveMenuBounds;
+    public ComboBox? ActiveComboBox;
+    public System.Drawing.Rectangle ActiveComboBounds;
+    public HWND MouseDownTarget;
 }

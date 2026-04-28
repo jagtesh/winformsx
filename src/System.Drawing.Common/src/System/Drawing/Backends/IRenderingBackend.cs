@@ -18,6 +18,12 @@ public interface IRenderingBackend
     /// <summary>Commit the frame — present to screen (Impeller) or execute JS (Canvas2D).</summary>
     void EndFrame(int width, int height);
 
+    /// <summary>Discard an in-progress frame without presenting it.</summary>
+    void AbortFrame();
+
+    /// <summary>Flush backend-local batched drawing that must appear before later commands.</summary>
+    void FlushPending();
+
     // ─── State Stack ────────────────────────────────────────────────────
 
     void Save();

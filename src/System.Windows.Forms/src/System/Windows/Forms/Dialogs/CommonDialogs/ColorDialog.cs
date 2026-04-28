@@ -157,6 +157,18 @@ public class ColorDialog : CommonDialog
 
     protected override unsafe bool RunDialog(IntPtr hwndOwner)
     {
+        if (Graphics.IsBackendActive)
+        {
+            Color color = _color;
+            if (!Platform.PlatformApi.Dialog.ShowColorDialog(ref color))
+            {
+                return false;
+            }
+
+            _color = color;
+            return true;
+        }
+
         CHOOSECOLOR_FLAGS flags = (CHOOSECOLOR_FLAGS)Options | CHOOSECOLOR_FLAGS.CC_RGBINIT | CHOOSECOLOR_FLAGS.CC_ENABLEHOOK;
 
         // Our docs say AllowFullOpen takes precedence over FullOpen; ChooseColor implements the opposite

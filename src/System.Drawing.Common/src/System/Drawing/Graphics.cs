@@ -325,6 +325,12 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     [EditorBrowsable(EditorBrowsableState.Advanced)]
     public void EndFrame(int width, int height) => _backend?.EndFrame(width, height);
 
+    [EditorBrowsable(EditorBrowsableState.Advanced)]
+    public void AbortFrame() => _backend?.AbortFrame();
+
+    [EditorBrowsable(EditorBrowsableState.Advanced)]
+    public void FlushPending() => _backend?.FlushPending();
+
     public Region Clip
     {
         get

@@ -269,13 +269,26 @@ public sealed class FolderBrowserDialog : CommonDialog
     /// <returns>
     ///  <see langword="true" /> if the folder browser dialog was successfully run; otherwise, <see langword="false" />.
     /// </returns>
-    protected override bool RunDialog(IntPtr hwndOwner) =>
+    protected override bool RunDialog(IntPtr hwndOwner)
+    {
+        if (System.Drawing.Graphics.IsBackendActive)
+        {
+            string? selected = Platform.PlatformApi.Dialog.ShowFolderBrowserDialog(Description);
+            if (string.IsNullOrEmpty(selected))
+            {
+                return false;
+            }
+
+            SelectedPath = selected;
+            return true;
+        }
 
         // If running the Vista dialog fails (e.g. on Server Core), we fall back to the
         // legacy dialog.
-        UseVistaDialogInternal && TryRunDialogVista((HWND)hwndOwner, out bool returnValue)
+        return UseVistaDialogInternal && TryRunDialogVista((HWND)hwndOwner, out bool returnValue)
             ? returnValue
             : RunDialogOld((HWND)hwndOwner);
+    }
 
     private unsafe bool TryRunDialogVista(HWND owner, out bool returnValue)
     {

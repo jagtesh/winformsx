@@ -842,7 +842,26 @@ public partial class ListBox : ListControl
                 return -1;
             }
 
-            if (current == SelectionMode.One && IsHandleCreated)
+            if (Graphics.IsBackendActive)
+            {
+                if (_itemsCollection is null)
+                {
+                    return -1;
+                }
+
+                ItemArray items = Items.InnerArray;
+                for (int i = 0; i < _itemsCollection.Count; i++)
+                {
+                    if (items.GetState(i, SelectedObjectCollection.SelectedObjectMask))
+                    {
+                        return i;
+                    }
+                }
+
+                return -1;
+            }
+
+            if (current == SelectionMode.One && IsHandleCreated && !Graphics.IsBackendActive)
             {
                 return (int)PInvoke.SendMessage(this, PInvoke.LB_GETCURSEL);
             }
@@ -878,7 +897,7 @@ public partial class ListBox : ListControl
 
                     SelectedItems.SetSelected(value, true);
 
-                    if (IsHandleCreated)
+                    if (IsHandleCreated && !Graphics.IsBackendActive)
                     {
                         NativeSetSelected(value, true);
                     }
@@ -901,7 +920,7 @@ public partial class ListBox : ListControl
                     // Select this item while keeping any previously selected items selected.
                     //
                     SelectedItems.SetSelected(value, true);
-                    if (IsHandleCreated)
+                    if (IsHandleCreated && !Graphics.IsBackendActive)
                     {
                         NativeSetSelected(value, true);
                     }
@@ -1502,7 +1521,8 @@ public partial class ListBox : ListControl
     {
         if (Graphics.IsBackendActive)
         {
-            return SelectedIndices.Contains(index);
+            return _itemsCollection is not null
+                && Items.InnerArray.GetState(index, SelectedObjectCollection.SelectedObjectMask);
         }
 
         if (IsHandleCreated)
@@ -1728,6 +1748,11 @@ public partial class ListBox : ListControl
     private unsafe void NativeUpdateSelection()
     {
         Debug.Assert(IsHandleCreated, "Should only call native methods if handle is created");
+
+        if (Graphics.IsBackendActive)
+        {
+            return;
+        }
 
         // Clear the selection state.
         int cnt = Items.Count;

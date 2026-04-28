@@ -587,7 +587,7 @@ public partial class TreeNode : MarshalByRefObject, ICloneable, ISerializable
     ///  Specifies whether this node is in the expanded state.
     /// </summary>
     [Browsable(false)]
-    public bool IsExpanded => HTREEITEMInternal == 0
+    public bool IsExpanded => Graphics.IsBackendActive || HTREEITEMInternal == 0
         ? _expandOnRealization
         : (State & TREE_VIEW_ITEM_STATE_FLAGS.TVIS_EXPANDED) != 0;
 
@@ -947,6 +947,11 @@ public partial class TreeNode : MarshalByRefObject, ICloneable, ISerializable
     {
         get
         {
+            if (Graphics.IsBackendActive)
+            {
+                return _expandOnRealization ? TREE_VIEW_ITEM_STATE_FLAGS.TVIS_EXPANDED : 0;
+            }
+
             if (HTREEITEMInternal == IntPtr.Zero)
             {
                 return 0;
@@ -1401,6 +1406,20 @@ public partial class TreeNode : MarshalByRefObject, ICloneable, ISerializable
         _collapseOnRealization = false;
         _expandOnRealization = false;
 
+        if (Graphics.IsBackendActive)
+        {
+            if (!ignoreChildren)
+            {
+                for (int i = 0; i < _childCount; i++)
+                {
+                    _children[i].Collapse();
+                }
+            }
+
+            tv?.Invalidate();
+            return;
+        }
+
         if (tv is null || !tv.IsHandleCreated)
         {
             _collapseOnRealization = true;
@@ -1666,6 +1685,13 @@ public partial class TreeNode : MarshalByRefObject, ICloneable, ISerializable
     public void Expand()
     {
         TreeView? tv = TreeView;
+        if (Graphics.IsBackendActive)
+        {
+            _expandOnRealization = true;
+            tv?.Invalidate();
+            return;
+        }
+
         if (tv is null || !tv.IsHandleCreated)
         {
             _expandOnRealization = true;

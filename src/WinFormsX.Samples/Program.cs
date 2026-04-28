@@ -138,7 +138,7 @@ public class KitchenSinkForm : Form
         txtInput.TextChanged += (_, _) => SetStatus($"TextBox.TextChanged: \"{txtInput.Text}\"");
 
         var lblPassword = new Label { Text = "Password:", AutoSize = true, Margin = new Padding(0, 0, 0, 4) };
-        var txtPassword = new TextBox { Text = "secret", Width = 220, Height = 25, PasswordChar = '●', Margin = new Padding(0, 0, 0, 20) };
+        var txtPassword = new TextBox { Text = "secret", Width = 220, Height = 25, PasswordChar = '*', Margin = new Padding(0, 0, 0, 20) };
 
         var grpButtons = new GroupBox { Text = "Buttons", Size = new Size(320, 150), Margin = new Padding(0, 0, 0, 16) };
         var btnFlow = new FlowLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(8) };
@@ -269,8 +269,8 @@ public class KitchenSinkForm : Form
         var manageFlow = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, Padding = new Padding(16) };
 
         var lblCount = new Label { Text = "Count: Available: 10  Team: 0", AutoSize = true, Margin = new Padding(0, 0, 0, 16) };
-        var btnAssign = new Button { Text = "Assign →", Width = 200, Height = 28, Margin = new Padding(0, 0, 0, 8) };
-        var btnUnassign = new Button { Text = "← Unassign", Width = 200, Height = 28, Margin = new Padding(0, 0, 0, 16) };
+        var btnAssign = new Button { Text = "Assign ->", Width = 200, Height = 28, Margin = new Padding(0, 0, 0, 8) };
+        var btnUnassign = new Button { Text = "<- Unassign", Width = 200, Height = 28, Margin = new Padding(0, 0, 0, 16) };
         
         var flowHire = new FlowLayoutPanel { AutoSize = true, Margin = new Padding(0, 0, 0, 16) };
         var txtNewEmp = new TextBox { Width = 120, Text = "New Hire" };
@@ -437,7 +437,7 @@ public class KitchenSinkForm : Form
         var mainFlow = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, Padding = new Padding(16) };
 
         var lblTitle = new Label { Text = "Common Dialogs", Font = new Font("Segoe UI", 14, FontStyle.Bold), AutoSize = true, ForeColor = Color.FromArgb(0, 120, 215), Margin = new Padding(0, 0, 0, 4) };
-        var lblDesc = new Label { Text = "These dialogs delegate to the native OS dialog (comdlg32.dll on Windows).", AutoSize = true, Margin = new Padding(0, 0, 0, 16) };
+        var lblDesc = new Label { Text = "These dialogs route through the managed WinFormsX dialog PAL.", AutoSize = true, Margin = new Padding(0, 0, 0, 16) };
 
         var buttonFlow = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = new Padding(0, 0, 0, 16) };
 
@@ -446,7 +446,7 @@ public class KitchenSinkForm : Form
         resultPanel.Controls.Add(resultLabel);
 
         // ── OpenFileDialog ──
-        var btnOpen = new Button { Text = "📂  Open File...", Size = new Size(180, 40), BackColor = Color.FromArgb(0, 120, 215), ForeColor = Color.White, Margin = new Padding(0, 0, 16, 0) };
+        var btnOpen = new Button { Text = "Open File...", Size = new Size(180, 40), BackColor = Color.FromArgb(0, 120, 215), ForeColor = Color.White, Margin = new Padding(0, 0, 16, 0) };
         btnOpen.Click += (_, _) => {
             var dlg = new OpenFileDialog { Title = "Open a File", Filter = "Text Files|*.txt|C# Files|*.cs|All Files|*.*", FilterIndex = 1 };
             var result = dlg.ShowDialog();
@@ -455,7 +455,7 @@ public class KitchenSinkForm : Form
         };
 
         // ── SaveFileDialog ──
-        var btnSave = new Button { Text = "💾  Save File...", Size = new Size(180, 40), BackColor = Color.FromArgb(56, 142, 60), ForeColor = Color.White, Margin = new Padding(0, 0, 16, 0) };
+        var btnSave = new Button { Text = "Save File...", Size = new Size(180, 40), BackColor = Color.FromArgb(56, 142, 60), ForeColor = Color.White, Margin = new Padding(0, 0, 16, 0) };
         btnSave.Click += (_, _) => {
             var dlg = new SaveFileDialog { Title = "Save a File", Filter = "Text Files|*.txt|All Files|*.*", FileName = "untitled.txt" };
             var result = dlg.ShowDialog();
@@ -464,7 +464,7 @@ public class KitchenSinkForm : Form
         };
 
         // ── ColorDialog ──
-        var btnColor = new Button { Text = "🎨  Pick Color...", Size = new Size(180, 40), BackColor = Color.FromArgb(171, 71, 188), ForeColor = Color.White, Margin = new Padding(0, 0, 16, 0) };
+        var btnColor = new Button { Text = "Pick Color...", Size = new Size(180, 40), BackColor = Color.FromArgb(171, 71, 188), ForeColor = Color.White, Margin = new Padding(0, 0, 16, 0) };
         var colorPreview = new Panel { Size = new Size(160, 40), BorderStyle = BorderStyle.FixedSingle, BackColor = Color.FromArgb(100, 149, 237), Margin = new Padding(0, 0, 16, 0) };
         var colorLabel = new Label { Text = "CornflowerBlue\n#6495ED", Size = new Size(150, 36), ForeColor = Color.White, Location = new Point(4, 2) };
         colorPreview.Controls.Add(colorLabel);
@@ -481,7 +481,7 @@ public class KitchenSinkForm : Form
         };
 
         // ── FontDialog ──
-        var btnFont = new Button { Text = "🔤  Font...", Size = new Size(180, 40), BackColor = Color.FromArgb(255, 167, 38), ForeColor = Color.White };
+        var btnFont = new Button { Text = "Font...", Size = new Size(180, 40), BackColor = Color.FromArgb(255, 167, 38), ForeColor = Color.White };
         btnFont.Click += (_, _) => {
             var dlg = new FontDialog();
             var result = dlg.ShowDialog();
@@ -765,4 +765,3 @@ public class DrawingCanvas : Control
         base.OnPaint(e);
     }
 }
-

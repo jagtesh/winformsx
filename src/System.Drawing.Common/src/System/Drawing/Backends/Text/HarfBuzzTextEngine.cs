@@ -135,7 +135,7 @@ internal sealed class HarfBuzzTextEngine : ITextEngine
 
         if (impellerBackend is not null && glyphRun is { Count: > 0 })
         {
-            impellerBackend.FillGlyphOutlines(glyphRun, color);
+            impellerBackend.EnqueueGlyphOutlines(glyphRun, color);
         }
     }
 

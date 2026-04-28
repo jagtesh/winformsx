@@ -171,6 +171,11 @@ public abstract class CommonDialog : Component
             throw new InvalidOperationException(SR.CantShowModalOnNonInteractive);
         }
 
+        if (System.Drawing.Graphics.IsBackendActive)
+        {
+            return RunDialog(IntPtr.Zero) ? DialogResult.OK : DialogResult.Cancel;
+        }
+
         // This will be used if there is no owner or active window.
         // Declared here so it can be kept alive.
         NativeWindow? nativeWindow = null;

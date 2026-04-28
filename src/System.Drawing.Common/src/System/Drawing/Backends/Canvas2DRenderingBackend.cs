@@ -31,6 +31,16 @@ internal sealed class Canvas2DRenderingBackend : IRenderingBackend
         _buffer = null;
     }
 
+    public void AbortFrame()
+    {
+        WasmDrawCommandBuffer.Current = null;
+        _buffer = null;
+    }
+
+    public void FlushPending()
+    {
+    }
+
     // ─── State Stack ────────────────────────────────────────────────────
 
     public void Save() { _saveCount++; _buffer?.Save(); }

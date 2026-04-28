@@ -136,6 +136,8 @@ public partial class ListView : Control
     private readonly Dictionary<int, ListViewItem> _listItemsTable = []; // elements are ListViewItem's
     private List<ListViewItem>? _listViewItems = [];
 
+    internal int ManagedIndexOf(ListViewItem item) => _listViewItems?.IndexOf(item) ?? -1;
+
     private Size _tileSize = Size.Empty;
 
     // when we are in delayed update mode (that is when BeginUpdate has been called, we want to cache the items to
@@ -823,6 +825,11 @@ public partial class ListView : Control
     {
         get
         {
+            if (Graphics.IsBackendActive)
+            {
+                return _selectedItem;
+            }
+
             if (IsHandleCreated)
             {
                 int displayIndex = (int)PInvoke.SendMessage(
@@ -841,6 +848,14 @@ public partial class ListView : Control
         }
         set
         {
+            if (Graphics.IsBackendActive)
+            {
+                _selectedItem = value;
+                value?.SetManagedFocused(true);
+                Invalidate();
+                return;
+            }
+
             if (IsHandleCreated && value is not null)
             {
                 value.Focused = true;
@@ -4128,17 +4143,17 @@ public partial class ListView : Control
             _itemCount++;
             item.Host(this, itemID, -1);
 
-            // if there's no handle created, just ad them to our list items array.
-            if (!IsHandleCreated)
+            // WinFormsX has no native COMCTL32 ListView, so managed items stay authoritative.
+            if (!IsHandleCreated || Graphics.IsBackendActive)
             {
-                Debug.Assert(_listViewItems is not null, "listItemsArray is null, but the handle isn't created");
+                _listViewItems ??= [];
                 _listViewItems.Insert(displayIndex + i, item);
             }
         }
 
         // finally if the handle is created, do the actual add into the real list view
         //
-        if (IsHandleCreated)
+        if (IsHandleCreated && !Graphics.IsBackendActive)
         {
             InsertItemsNative(displayIndex, items);
         }
@@ -4613,6 +4628,13 @@ public partial class ListView : Control
         FlipViewToLargeIconAndSmallIcon = false;
 
         base.OnHandleCreated(e);
+
+        if (Graphics.IsBackendActive)
+        {
+            ListViewHandleDestroyed = false;
+            Invalidate();
+            return;
+        }
 
         int version = (int)PInvoke.SendMessage(this, PInvoke.CCM_GETVERSION);
         if (version < 5)

@@ -33,6 +33,16 @@ public partial class ListBox
         {
             get
             {
+                if (System.Drawing.Graphics.IsBackendActive)
+                {
+                    if (_owner._selectionMode == SelectionMode.None || _owner._itemsCollection is null)
+                    {
+                        return 0;
+                    }
+
+                    return _owner.Items.InnerArray.GetCount(SelectedObjectMask);
+                }
+
                 if (_owner.IsHandleCreated)
                 {
                     SelectionMode current = _owner._selectionModeChanging ? _owner._cachedSelectionMode : _owner._selectionMode;
@@ -124,7 +134,7 @@ public partial class ListBox
             if (_stateDirty)
             {
                 _stateDirty = false;
-                if (_owner.IsHandleCreated)
+                if (_owner.IsHandleCreated && !System.Drawing.Graphics.IsBackendActive)
                 {
                     _owner.NativeUpdateSelection();
                 }

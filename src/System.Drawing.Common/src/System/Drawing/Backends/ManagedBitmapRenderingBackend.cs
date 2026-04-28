@@ -18,6 +18,14 @@ internal sealed class ManagedBitmapRenderingBackend(Bitmap bitmap) : IRenderingB
     {
     }
 
+    public void AbortFrame()
+    {
+    }
+
+    public void FlushPending()
+    {
+    }
+
     public void Save() => _transforms.Push(_transform);
 
     public void Restore()

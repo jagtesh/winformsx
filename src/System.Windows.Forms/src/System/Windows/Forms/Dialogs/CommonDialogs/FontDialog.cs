@@ -379,6 +379,18 @@ public class FontDialog : CommonDialog
 
     protected override unsafe bool RunDialog(IntPtr hWndOwner)
     {
+        if (Graphics.IsBackendActive)
+        {
+            Font font = Font;
+            if (!Platform.PlatformApi.Dialog.ShowFontDialog(ref font))
+            {
+                return false;
+            }
+
+            Font = font;
+            return true;
+        }
+
         using var dc = GetDcScope.ScreenDC;
         using Graphics graphics = Graphics.FromHdcInternal(dc);
         LOGFONTW logFont = Font.ToLogicalFont(graphics);

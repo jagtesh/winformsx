@@ -20,13 +20,20 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend
         }
 
         private readonly record struct PaintKey(int Argb, PaintKind Kind, int StrokeWidthBits);
+        private readonly record struct TransformSnapshot(float ScaleX, float ScaleY, float OffsetX, float OffsetY);
 
         private readonly IPlatformBackend _platformBackend;
         private readonly nint _impellerContext;
         private static readonly HarfBuzzTextEngine s_textEngine = new();
         private readonly Dictionary<PaintKey, nint> _framePaintCache = [];
+        private readonly Dictionary<int, List<PositionedGlyphOutline>> _frameGlyphBatches = [];
+        private readonly Stack<TransformSnapshot> _transformStack = [];
         private DisplayListBuilder? _builder;
         private nint _frameSurface;
+        private float _scaleX = 1f;
+        private float _scaleY = 1f;
+        private float _offsetX;
+        private float _offsetY;
 
     public ImpellerRenderingBackend(IPlatformBackend platformBackend, nint impellerContext)
     {
@@ -45,6 +52,8 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend
         if (_frameSurface == nint.Zero)
             return false;
         _framePaintCache.Clear();
+        _frameGlyphBatches.Clear();
+        ResetTrackedTransform();
         _builder = new DisplayListBuilder();
         return true;
     }
@@ -66,6 +75,7 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend
         nint displayList = nint.Zero;
         try
         {
+            FlushGlyphBatches();
             displayList = _builder.Build();
             if (!NativeMethods.ImpellerSurfaceDrawDisplayList(_frameSurface, displayList))
             {
@@ -87,24 +97,102 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend
             NativeMethods.ImpellerSurfaceRelease(_frameSurface);
             _frameSurface = nint.Zero;
             ReleaseFramePaints();
+            _frameGlyphBatches.Clear();
+            ResetTrackedTransform();
             _builder.Dispose();
             _builder = null;
         }
     }
 
+    public void AbortFrame()
+    {
+        if (_frameSurface != nint.Zero)
+        {
+            NativeMethods.ImpellerSurfaceRelease(_frameSurface);
+            _frameSurface = nint.Zero;
+        }
+
+        ReleaseFramePaints();
+        _frameGlyphBatches.Clear();
+        ResetTrackedTransform();
+        _builder?.Dispose();
+        _builder = null;
+    }
+
+    public void FlushPending()
+    {
+        FlushGlyphBatches();
+    }
+
     // ─── State Stack ────────────────────────────────────────────────────
 
-    public void Save() => _builder?.Save();
-    public void Restore() => _builder?.Restore();
+    public void Save()
+    {
+        _transformStack.Push(new TransformSnapshot(_scaleX, _scaleY, _offsetX, _offsetY));
+        _builder?.Save();
+    }
+
+    public void Restore()
+    {
+        _builder?.Restore();
+        if (_transformStack.TryPop(out TransformSnapshot transform))
+        {
+            ApplyTrackedTransform(transform);
+        }
+    }
+
     public uint SaveCount => _builder?.SaveCount ?? 0;
-    public void RestoreToCount(uint count) => _builder?.RestoreToCount(count);
+    public void RestoreToCount(uint count)
+    {
+        _builder?.RestoreToCount(count);
+        while (_transformStack.Count > count)
+        {
+            _transformStack.Pop();
+        }
+
+        if (_transformStack.TryPeek(out TransformSnapshot transform))
+        {
+            ApplyTrackedTransform(transform);
+        }
+        else
+        {
+            ResetTrackedTransform();
+        }
+    }
 
     // ─── Transforms ─────────────────────────────────────────────────────
 
-    public void Translate(float dx, float dy) => _builder?.Translate(dx, dy);
-    public void Scale(float sx, float sy) => _builder?.Scale(sx, sy);
-    public void Rotate(float radians) => _builder?.Rotate(radians * 180f / MathF.PI); // Impeller uses degrees
-    public void ResetTransform() => _builder?.ResetTransform();
+    public void Translate(float dx, float dy)
+    {
+        _offsetX += dx * _scaleX;
+        _offsetY += dy * _scaleY;
+        _builder?.Translate(dx, dy);
+    }
+
+    public void Scale(float sx, float sy)
+    {
+        FlushGlyphBatches();
+        _scaleX *= sx;
+        _scaleY *= sy;
+        _offsetX *= sx;
+        _offsetY *= sy;
+        _builder?.Scale(sx, sy);
+    }
+
+    public void Rotate(float radians)
+    {
+        FlushGlyphBatches();
+        _builder?.Rotate(radians * 180f / MathF.PI); // Impeller uses degrees
+    }
+
+    public void ResetTransform()
+    {
+        _scaleX = 1f;
+        _scaleY = 1f;
+        _offsetX = 0f;
+        _offsetY = 0f;
+        _builder?.ResetTransform();
+    }
 
     // ─── Clipping ───────────────────────────────────────────────────────
 
@@ -357,7 +445,10 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend
             path = NativeMethods.ImpellerPathBuilderCopyPathNew(pathBuilder, ImpellerFillType.NonZero);
             if (path != nint.Zero)
             {
+                _builder.Save();
+                _builder.ResetTransform();
                 _builder.DrawPath(path, GetFillPaint(color));
+                _builder.Restore();
             }
         }
         finally
@@ -369,6 +460,59 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend
 
             NativeMethods.ImpellerPathBuilderRelease(pathBuilder);
         }
+    }
+
+    internal void EnqueueGlyphOutlines(IReadOnlyList<PositionedGlyphOutline> glyphs, Color color)
+    {
+        if (_builder is null || glyphs.Count == 0)
+            return;
+
+        int key = color.ToArgb();
+        if (!_frameGlyphBatches.TryGetValue(key, out List<PositionedGlyphOutline>? batch))
+        {
+            batch = [];
+            _frameGlyphBatches[key] = batch;
+        }
+
+        foreach (PositionedGlyphOutline glyph in glyphs)
+        {
+            batch.Add(glyph with
+            {
+                X = glyph.X * _scaleX + _offsetX,
+                BaselineY = glyph.BaselineY * _scaleY + _offsetY,
+                Scale = glyph.Scale * _scaleX
+            });
+        }
+    }
+
+    private void FlushGlyphBatches()
+    {
+        if (_frameGlyphBatches.Count == 0)
+            return;
+
+        foreach ((int argb, List<PositionedGlyphOutline> glyphs) in _frameGlyphBatches)
+        {
+            FillGlyphOutlines(glyphs, Color.FromArgb(argb));
+        }
+
+        _frameGlyphBatches.Clear();
+    }
+
+    private void ResetTrackedTransform()
+    {
+        _transformStack.Clear();
+        _scaleX = 1f;
+        _scaleY = 1f;
+        _offsetX = 0f;
+        _offsetY = 0f;
+    }
+
+    private void ApplyTrackedTransform(TransformSnapshot transform)
+    {
+        _scaleX = transform.ScaleX;
+        _scaleY = transform.ScaleY;
+        _offsetX = transform.OffsetX;
+        _offsetY = transform.OffsetY;
     }
 
     private static void AppendGlyphContour(nint pathBuilder, TrueTypeGlyphPoint[] contour, float x, float baselineY, float scale)
