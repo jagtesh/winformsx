@@ -218,11 +218,19 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
         if ((image.PixelFormat & PixelFormat.Indexed) != 0)
             throw new ArgumentException(SR.GdiplusCannotCreateGraphicsFromIndexedPixelFormat, nameof(image));
 
-        GpGraphics* nativeGraphics;
-        Gdip.CheckStatus(PInvoke.GdipGetImageGraphicsContext(image.Pointer(), &nativeGraphics));
-        GC.KeepAlive(image);
+        if (BackendFactory is not null)
+        {
+            IRenderingBackend? backend = BackendFactory(IntPtr.Zero);
+            if (backend is not null)
+            {
+                Graphics graphics = CreateBackendBacked(backend);
+                graphics._backingImage = image;
+                return graphics;
+            }
+        }
 
-        return new Graphics(nativeGraphics) { _backingImage = image };
+        ThrowImpellerBackendUnavailable(nameof(FromImage));
+        throw null!;
     }
 
     [EditorBrowsable(EditorBrowsableState.Never)]
