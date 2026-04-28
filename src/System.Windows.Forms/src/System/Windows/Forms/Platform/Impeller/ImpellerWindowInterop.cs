@@ -6,6 +6,11 @@ namespace System.Windows.Forms.Platform;
 using Silk.NET.Input;
 using Silk.NET.Maths;
 using Silk.NET.Windowing;
+using Color = System.Drawing.Color;
+using ContentAlignment = System.Drawing.ContentAlignment;
+using Font = System.Drawing.Font;
+using Point = System.Drawing.Point;
+using Rectangle = System.Drawing.Rectangle;
 
 /// <summary>
 /// Impeller window management — manages virtual windows backed by Impeller surfaces.
@@ -231,14 +236,18 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
 
                     try
                     {
-                        // Strict Impeller-only bootstrap mode:
-                        // Render a deterministic solid color and avoid all Win32/GDI-style
-                        // control paint dispatch until the frame pipeline is validated.
-                        g.Clear(System.Drawing.Color.FromArgb(34, 120, 255));
+                        g.Clear(System.Drawing.Color.FromArgb(28, 34, 46));
+
+                        var root = ResolveOpenControl(handle);
+                        if (root is not null)
+                        {
+                            FixupTabPages(root);
+                            PaintControlTree(root, g, 0, 0, new Rectangle(0, 0, w, h), isRoot: true);
+                        }
                     }
                     catch (Exception ex)
                     {
-                        Console.Error.WriteLine($"[Render] Clear error: {ex}");
+                        Console.Error.WriteLine($"[Render] Paint error: {ex}");
                     }
 
                     try
@@ -420,9 +429,6 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
         {
             if (c is TabControl tc)
             {
-                if (s_firstPaint)
-                    Console.Error.WriteLine($"[FixupTabPages] Found TabControl. TabPages.Count={tc.TabPages.Count}");
-
                 int selectedIndex = tc.SelectedIndex;
                 if (selectedIndex < 0 && tc.TabPages.Count > 0)
                 {
@@ -436,8 +442,6 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                     const int tabHeaderHeight = 24;
                     page.SetBounds(0, tabHeaderHeight, tc.Width, tc.Height - tabHeaderHeight);
                     page.Visible = true;
-                    if (s_firstPaint)
-                        Console.Error.WriteLine($"[FixupTabPages] Made '{page.Text}' visible: {page.Bounds}. Page Controls Count={page.Controls.Count}");
                     // Recurse into the now-visible page
                     FixupTabPages(page);
                 }
@@ -450,60 +454,304 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
     }
 
     /// <summary>
-    /// Recursively paint a control and all its children using the shared
-    /// Impeller-backed Graphics object from the Render event handler.
+    /// Recursively paint a control and all its children using deterministic
+    /// Impeller primitives (no Win32 paint dispatch).
     /// </summary>
-    private static bool s_firstPaint = true;
-    private static void PaintControlTree(Control control, System.Drawing.Graphics g, System.Drawing.Rectangle clipRect, bool isRoot = true)
+    private static void PaintControlTree(Control control, System.Drawing.Graphics g, int offsetX, int offsetY, Rectangle viewport, bool isRoot = false)
     {
+        if (!isRoot && (!control.Visible || control.Width <= 0 || control.Height <= 0))
+        {
+            return;
+        }
+
+        int x = isRoot ? viewport.X : offsetX + control.Left;
+        int y = isRoot ? viewport.Y : offsetY + control.Top;
+        int w = isRoot ? viewport.Width : control.Width;
+        int h = isRoot ? viewport.Height : control.Height;
+
+        if (w <= 0 || h <= 0)
+        {
+            return;
+        }
+
+        Rectangle bounds = new(x, y, w, h);
+
         try
         {
-            TracePaint($"[Paint] {control.GetType().Name} visible={control.Visible} bounds={control.Bounds} children={control.Controls.Count}");
-            if (s_firstPaint)
-                Console.Error.WriteLine($"[Paint] {control.GetType().Name} @ ({control.Left},{control.Top}) {control.Width}x{control.Height} children={control.Controls.Count}");
-
-            // PAL fallback paint: always draw control background via backend so controls
-            // remain visible even when Win32/GDI-dependent paint paths throw on macOS.
-            var bg = control.BackColor;
-            if (bg.A > 0)
-            {
-                g.Clear(bg);
-            }
-
-            // Impeller-first clean-room mode: do not call Win32/GDI-dependent paint
-            // dispatch for now. We recurse and paint primitive surfaces through backend.
+            TracePaint($"[Paint] {control.GetType().Name} bounds={bounds} children={control.Controls.Count}");
+            DrawControlPrimitive(control, g, bounds, isRoot);
         }
         catch (Exception ex)
         {
             Console.Error.WriteLine($"[Paint ERROR] {control.GetType().Name}: {ex.Message}");
         }
 
-        // Recurse into children (bottom-to-top Z-order)
+        // Draw children in bottom->top paint order.
         for (int i = control.Controls.Count - 1; i >= 0; i--)
         {
             var child = control.Controls[i];
-
-            if (s_firstPaint)
-                Console.Error.WriteLine($"  child[{i}] {child.GetType().Name} Visible={child.Visible} Bounds={child.Bounds}");
-
-            if (!child.Visible || child.Width <= 0 || child.Height <= 0)
+            if (!child.Visible)
             {
-                TracePaint($"[PaintChildSkip] {child.GetType().Name} visible={child.Visible} bounds={child.Bounds}");
                 continue;
             }
 
-            var state = g.Save();
-            g.TranslateTransform(child.Left, child.Top);
-            var childClip = new System.Drawing.Rectangle(0, 0, child.Width, child.Height);
-            g.IntersectClip(childClip);
+            PaintControlTree(child, g, x, y, bounds, isRoot: false);
+        }
+    }
 
-            PaintControlTree(child, g, childClip, isRoot: false);
+    private static void DrawControlPrimitive(Control control, System.Drawing.Graphics g, Rectangle bounds, bool isRoot)
+    {
+        if (isRoot)
+        {
+            Color rootColor = SafeGet(() => control.BackColor, Color.FromArgb(28, 34, 46));
+            if (rootColor.IsEmpty || rootColor == Color.Transparent)
+            {
+                rootColor = Color.FromArgb(28, 34, 46);
+            }
 
-            g.Restore(state);
+            FillRect(g, bounds, rootColor);
+            return;
         }
 
-        if (isRoot)
-            s_firstPaint = false;
+        switch (control)
+        {
+            case Label label:
+                Color labelBack = SafeGet(() => label.BackColor, Color.Transparent);
+                if (!labelBack.IsEmpty && labelBack != Color.Transparent && labelBack.A > 0)
+                {
+                    FillRect(g, bounds, labelBack);
+                }
+
+                DrawText(g, SafeGet(() => label.Text, string.Empty), SafeGet(() => label.Font, (Font?)null), SafeGet(() => label.ForeColor, Color.White), bounds, ContentAlignment.MiddleLeft);
+                return;
+
+            case System.Windows.Forms.Button button:
+                {
+                    Color buttonBack = SafeGet(() => button.BackColor, Color.FromArgb(58, 96, 160));
+                    bool buttonEnabled = SafeGet(() => button.Enabled, true);
+                    Color face = buttonEnabled
+                        ? (buttonBack.IsEmpty || buttonBack == Color.Transparent ? Color.FromArgb(58, 96, 160) : buttonBack)
+                        : Color.FromArgb(88, 92, 100);
+                    FillRect(g, bounds, face);
+                    StrokeRect(g, bounds, Color.FromArgb(20, 24, 30));
+                    Color fore = SafeGet(() => button.ForeColor, Color.White);
+                    DrawText(g, SafeGet(() => button.Text, string.Empty), SafeGet(() => button.Font, (Font?)null), fore.IsEmpty ? Color.White : fore, bounds, ContentAlignment.MiddleCenter);
+                    return;
+                }
+
+            case TextBox textBox:
+                {
+                    bool enabled = SafeGet(() => textBox.Enabled, true);
+                    FillRect(g, bounds, enabled ? Color.White : Color.FromArgb(215, 215, 215));
+                    StrokeRect(g, bounds, Color.FromArgb(70, 70, 70));
+                    Rectangle textRect = Shrink(bounds, 6, 3);
+                    bool password = SafeGet(() => textBox.UseSystemPasswordChar, false) || SafeGet(() => textBox.PasswordChar, '\0') != '\0';
+                    char passChar = SafeGet(() => textBox.PasswordChar, '\u2022');
+                    string rawText = SafeGet(() => textBox.Text, string.Empty);
+                    string text = password ? new string(passChar == '\0' ? '\u2022' : passChar, rawText.Length) : rawText;
+                    DrawText(g, text, SafeGet(() => textBox.Font, (Font?)null), Color.Black, textRect, ContentAlignment.MiddleLeft);
+                    return;
+                }
+
+            case CheckBox checkBox:
+                {
+                    int boxSize = 14;
+                    Rectangle box = new(bounds.X + 2, bounds.Y + Math.Max(0, (bounds.Height - boxSize) / 2), boxSize, boxSize);
+                    FillRect(g, box, Color.White);
+                    StrokeRect(g, box, Color.FromArgb(70, 70, 70));
+                    if (SafeGet(() => checkBox.CheckState, CheckState.Unchecked) != CheckState.Unchecked)
+                    {
+                        g.DrawLine(Color.FromArgb(24, 116, 242), 2f, box.X + 3, box.Y + 7, box.X + 6, box.Y + 10);
+                        g.DrawLine(Color.FromArgb(24, 116, 242), 2f, box.X + 6, box.Y + 10, box.X + 11, box.Y + 4);
+                    }
+
+                    Rectangle textRect = new(box.Right + 6, bounds.Y, Math.Max(0, bounds.Width - (boxSize + 8)), bounds.Height);
+                    Color checkFore = SafeGet(() => checkBox.ForeColor, Color.White);
+                    DrawText(g, SafeGet(() => checkBox.Text, string.Empty), SafeGet(() => checkBox.Font, (Font?)null), checkFore.IsEmpty ? Color.White : checkFore, textRect, ContentAlignment.MiddleLeft);
+                    return;
+                }
+
+            case RadioButton radioButton:
+                {
+                    int dotSize = 14;
+                    Rectangle dot = new(bounds.X + 2, bounds.Y + Math.Max(0, (bounds.Height - dotSize) / 2), dotSize, dotSize);
+                    g.FillEllipse(Color.White, dot);
+                    g.DrawEllipse(Color.FromArgb(70, 70, 70), 1f, dot);
+                    if (SafeGet(() => radioButton.Checked, false))
+                    {
+                        Rectangle inner = Shrink(dot, 4, 4);
+                        g.FillEllipse(Color.FromArgb(24, 116, 242), inner);
+                    }
+
+                    Rectangle textRect = new(dot.Right + 6, bounds.Y, Math.Max(0, bounds.Width - (dotSize + 8)), bounds.Height);
+                    Color radioFore = SafeGet(() => radioButton.ForeColor, Color.White);
+                    DrawText(g, SafeGet(() => radioButton.Text, string.Empty), SafeGet(() => radioButton.Font, (Font?)null), radioFore.IsEmpty ? Color.White : radioFore, textRect, ContentAlignment.MiddleLeft);
+                    return;
+                }
+
+            case ComboBox comboBox:
+                {
+                    FillRect(g, bounds, Color.White);
+                    StrokeRect(g, bounds, Color.FromArgb(70, 70, 70));
+
+                    Rectangle buttonRect = new(bounds.Right - 24, bounds.Y + 1, 23, Math.Max(0, bounds.Height - 2));
+                    FillRect(g, buttonRect, Color.FromArgb(236, 236, 236));
+                    StrokeRect(g, buttonRect, Color.FromArgb(180, 180, 180));
+
+                    Point[] arrow =
+                    [
+                        new(buttonRect.X + 7, buttonRect.Y + (buttonRect.Height / 2) - 2),
+                        new(buttonRect.X + 15, buttonRect.Y + (buttonRect.Height / 2) - 2),
+                        new(buttonRect.X + 11, buttonRect.Y + (buttonRect.Height / 2) + 3)
+                    ];
+                    g.FillPolygon(Color.FromArgb(30, 30, 30), arrow);
+
+                    string selectedText = SafeGet(() => comboBox.SelectedItem?.ToString(), null) ?? SafeGet(() => comboBox.Text, string.Empty);
+                    Rectangle textRect = new(bounds.X + 6, bounds.Y + 2, Math.Max(0, bounds.Width - 32), Math.Max(0, bounds.Height - 4));
+                    DrawText(g, selectedText, SafeGet(() => comboBox.Font, (Font?)null), Color.Black, textRect, ContentAlignment.MiddleLeft);
+                    return;
+                }
+
+            case ListBox listBox:
+                {
+                    FillRect(g, bounds, Color.White);
+                    StrokeRect(g, bounds, Color.FromArgb(70, 70, 70));
+                    Font? listFont = SafeGet(() => listBox.Font, (Font?)null);
+                    int rowHeight = listFont is null ? 20 : Math.Max(18, (int)(listFont.Size + 10));
+                    int y = bounds.Y + 3;
+                    int count = SafeGet(() => listBox.Items.Count, 0);
+                    int selected = SafeGet(() => listBox.SelectedIndex, -1);
+                    for (int i = 0; i < count && y + rowHeight <= bounds.Bottom - 2; i++)
+                    {
+                        Rectangle row = new(bounds.X + 2, y, Math.Max(0, bounds.Width - 4), rowHeight);
+                        if (i == selected)
+                        {
+                            FillRect(g, row, Color.FromArgb(74, 139, 255));
+                        }
+
+                        Color textColor = i == selected ? Color.White : Color.Black;
+                        object? item = SafeGet(() => listBox.Items[i], null);
+                        DrawText(g, item?.ToString() ?? string.Empty, listFont, textColor, Shrink(row, 4, 2), ContentAlignment.MiddleLeft);
+                        y += rowHeight;
+                    }
+
+                    return;
+                }
+
+            case TabControl tabControl:
+                DrawTabHeaders(g, tabControl, bounds);
+                return;
+
+            case GroupBox groupBox:
+                Color groupBack = SafeGet(() => groupBox.BackColor, Color.FromArgb(40, 48, 62));
+                FillRect(g, bounds, groupBack.IsEmpty || groupBack == Color.Transparent ? Color.FromArgb(40, 48, 62) : groupBack);
+                StrokeRect(g, bounds, Color.FromArgb(110, 120, 140));
+                Rectangle titleRect = new(bounds.X + 10, bounds.Y + 2, Math.Max(0, bounds.Width - 20), 20);
+                Color groupFore = SafeGet(() => groupBox.ForeColor, Color.White);
+                DrawText(g, SafeGet(() => groupBox.Text, string.Empty), SafeGet(() => groupBox.Font, (Font?)null), groupFore.IsEmpty ? Color.White : groupFore, titleRect, ContentAlignment.MiddleLeft);
+                return;
+
+            case StatusStrip:
+                FillRect(g, bounds, Color.FromArgb(36, 42, 52));
+                StrokeRect(g, bounds, Color.FromArgb(24, 26, 32));
+                return;
+
+            case MenuStrip:
+            case ToolStrip:
+                FillRect(g, bounds, Color.FromArgb(48, 54, 66));
+                StrokeRect(g, bounds, Color.FromArgb(24, 26, 32));
+                return;
+
+            default:
+                Color back = SafeGet(() => control.BackColor, Color.Transparent);
+                if (!back.IsEmpty && back != Color.Transparent && back.A > 0)
+                {
+                    FillRect(g, bounds, back);
+                }
+
+                if (control is Panel)
+                {
+                    StrokeRect(g, bounds, Color.FromArgb(70, 80, 96));
+                }
+
+                return;
+        }
+    }
+
+    private static void DrawTabHeaders(System.Drawing.Graphics g, TabControl tabControl, Rectangle bounds)
+    {
+        const int headerHeight = 28;
+        Rectangle headerBand = new(bounds.X, bounds.Y, bounds.Width, headerHeight);
+        FillRect(g, headerBand, Color.FromArgb(44, 50, 62));
+        StrokeRect(g, headerBand, Color.FromArgb(30, 36, 46));
+
+        int x = bounds.X + 6;
+        for (int i = 0; i < tabControl.TabPages.Count; i++)
+        {
+            TabPage page = tabControl.TabPages[i];
+            int tabWidth = Math.Max(90, Math.Min(200, (page.Text?.Length ?? 0) * 8 + 28));
+            Rectangle tabRect = new(x, bounds.Y + 3, tabWidth, headerHeight - 6);
+            bool selected = i == tabControl.SelectedIndex;
+            FillRect(g, tabRect, selected ? Color.FromArgb(74, 139, 255) : Color.FromArgb(63, 70, 84));
+            StrokeRect(g, tabRect, selected ? Color.FromArgb(110, 170, 255) : Color.FromArgb(42, 46, 56));
+            DrawText(g, page.Text, tabControl.Font, Color.White, tabRect, ContentAlignment.MiddleCenter);
+            x += tabWidth + 6;
+            if (x > bounds.Right - 90)
+            {
+                break;
+            }
+        }
+    }
+
+    private static void FillRect(System.Drawing.Graphics g, Rectangle rect, Color color)
+    {
+        if (rect.Width <= 0 || rect.Height <= 0)
+        {
+            return;
+        }
+
+        g.FillRectangle(color, rect);
+    }
+
+    private static void StrokeRect(System.Drawing.Graphics g, Rectangle rect, Color color)
+    {
+        if (rect.Width <= 1 || rect.Height <= 1)
+        {
+            return;
+        }
+
+        g.DrawRectangle(color, 1f, new Rectangle(rect.X, rect.Y, rect.Width - 1, rect.Height - 1));
+    }
+
+    private static Rectangle Shrink(Rectangle rect, int dx, int dy)
+    {
+        int w = Math.Max(0, rect.Width - (dx * 2));
+        int h = Math.Max(0, rect.Height - (dy * 2));
+        return new Rectangle(rect.X + dx, rect.Y + dy, w, h);
+    }
+
+    private static void DrawText(System.Drawing.Graphics g, string? text, Font? font, Color color, Rectangle rect, ContentAlignment alignment)
+    {
+        // Temporarily disabled for PAL-only bootstrap: StringFormat/Font shaping still reaches GDI+ on macOS.
+        // Keep primitive control rendering unblocked first; re-enable after text pipeline is fully PAL-backed.
+        _ = g;
+        _ = text;
+        _ = font;
+        _ = color;
+        _ = rect;
+        _ = alignment;
+    }
+
+    private static T SafeGet<T>(Func<T> getter, T fallback)
+    {
+        try
+        {
+            return getter();
+        }
+        catch
+        {
+            return fallback;
+        }
     }
 
     private static void TracePaint(string message)
@@ -968,9 +1216,9 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
         return current;
     }
 
-    private void PostMessageToControl(HWND targetWindow, HWND fallbackTopLevel, uint msg, WPARAM wParam, LPARAM lParam)
+    private void PostMessageToControl(HWND targetWindow, HWND topLevelWindow, uint msg, WPARAM wParam, LPARAM lParam)
     {
-        var ctrl = Control.FromHandle(targetWindow) ?? Control.FromHandle(fallbackTopLevel) ?? ResolveTopLevelControl(fallbackTopLevel);
+        var ctrl = Control.FromHandle(targetWindow) ?? Control.FromHandle(topLevelWindow) ?? ResolveOpenControl(topLevelWindow);
 
         if (ctrl is object)
         {
@@ -984,7 +1232,7 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
         }
     }
 
-    private static Control? ResolveTopLevelControl(HWND preferredHandle)
+    private static Control? ResolveOpenControl(HWND preferredHandle)
     {
         Control? resolved = Control.FromHandle(preferredHandle);
         if (resolved is not null)

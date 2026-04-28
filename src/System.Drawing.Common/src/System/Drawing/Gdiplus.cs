@@ -3,6 +3,7 @@
 
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.IO;
 
 namespace System.Drawing;
 
@@ -17,8 +18,39 @@ internal static partial class Gdip
     {
         if (!OperatingSystem.IsWindows())
         {
-            NativeLibrary.SetDllImportResolver(Assembly.GetExecutingAssembly(), static (_, _, _) =>
-                throw new PlatformNotSupportedException(SR.PlatformNotSupported_Unix));
+            NativeLibrary.SetDllImportResolver(Assembly.GetExecutingAssembly(), static (libraryName, assembly, searchPath) =>
+            {
+                if (libraryName.Equals("impeller", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (NativeLibrary.TryLoad(libraryName, assembly, searchPath, out nint handle))
+                    {
+                        return handle;
+                    }
+
+                    string[] candidates =
+                    [
+                        Path.Combine(AppContext.BaseDirectory, "libimpeller.dylib"),
+                        Path.Combine(AppContext.BaseDirectory, "libimpeller.so"),
+                        Path.Combine(AppContext.BaseDirectory, "impeller.dll"),
+                        Path.Combine(AppContext.BaseDirectory, "runtimes", "osx-arm64", "native", "libimpeller.dylib"),
+                        Path.Combine(AppContext.BaseDirectory, "runtimes", "osx-x64", "native", "libimpeller.dylib"),
+                        Path.Combine(AppContext.BaseDirectory, "runtimes", "linux-x64", "native", "libimpeller.so"),
+                        Path.Combine(AppContext.BaseDirectory, "runtimes", "linux-arm64", "native", "libimpeller.so"),
+                        Path.Combine(AppContext.BaseDirectory, "runtimes", "win-x64", "native", "impeller.dll"),
+                        Path.Combine(AppContext.BaseDirectory, "runtimes", "win-arm64", "native", "impeller.dll"),
+                    ];
+
+                    foreach (string candidate in candidates)
+                    {
+                        if (File.Exists(candidate) && NativeLibrary.TryLoad(candidate, out handle))
+                        {
+                            return handle;
+                        }
+                    }
+                }
+
+                throw new PlatformNotSupportedException(SR.PlatformNotSupported_Unix);
+            });
         }
 
         return GdiPlusInitialization.EnsureInitialized();

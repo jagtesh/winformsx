@@ -863,6 +863,22 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     public void DrawRectangle(Pen pen, int x, int y, int width, int height)
         => DrawRectangle(pen, (float)x, y, width, height);
 
+    /// <summary>
+    ///  Backend-friendly rectangle stroke overload that avoids constructing <see cref="Pen"/> when possible.
+    /// </summary>
+    [EditorBrowsable(EditorBrowsableState.Advanced)]
+    public void DrawRectangle(Color color, float lineWidth, Rectangle rect)
+    {
+        if (_backend is not null)
+        {
+            _backend.StrokeRect(rect.X, rect.Y, rect.Width, rect.Height, color, lineWidth);
+            return;
+        }
+
+        using Pen pen = new(color, lineWidth);
+        DrawRectangle(pen, rect);
+    }
+
     /// <inheritdoc cref="DrawRectangles(Pen, Rectangle[])"/>
     public void DrawRectangles(Pen pen, params RectangleF[] rects) => DrawRectangles(pen, rects.OrThrowIfNull().AsSpan());
 
@@ -940,6 +956,22 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     ///  Draws the outline of an ellipse defined by a bounding rectangle.
     /// </summary>
     public void DrawEllipse(Pen pen, int x, int y, int width, int height) => DrawEllipse(pen, (float)x, y, width, height);
+
+    /// <summary>
+    ///  Backend-friendly ellipse stroke overload that avoids constructing <see cref="Pen"/> when possible.
+    /// </summary>
+    [EditorBrowsable(EditorBrowsableState.Advanced)]
+    public void DrawEllipse(Color color, float lineWidth, Rectangle rect)
+    {
+        if (_backend is not null)
+        {
+            _backend.StrokeEllipse(rect.X, rect.Y, rect.Width, rect.Height, color, lineWidth);
+            return;
+        }
+
+        using Pen pen = new(color, lineWidth);
+        DrawEllipse(pen, rect);
+    }
 
     /// <summary>
     ///  Draws the outline of a pie section defined by an ellipse and two radial lines.
@@ -1388,6 +1420,22 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     public void FillRectangle(Brush brush, int x, int y, int width, int height) => FillRectangle(brush, (float)x, y, width, height);
 
     /// <summary>
+    ///  Backend-friendly rectangle fill overload that avoids constructing <see cref="Brush"/> when possible.
+    /// </summary>
+    [EditorBrowsable(EditorBrowsableState.Advanced)]
+    public void FillRectangle(Color color, Rectangle rect)
+    {
+        if (_backend is not null)
+        {
+            _backend.FillRect(rect.X, rect.Y, rect.Width, rect.Height, color);
+            return;
+        }
+
+        using SolidBrush brush = new(color);
+        FillRectangle(brush, rect);
+    }
+
+    /// <summary>
     ///  Fills the interiors of a series of rectangles with a <see cref='Brush'/>.
     /// </summary>
     /// <param name="brush">The <see cref="Brush"/> to fill the rectangles with.</param>
@@ -1503,6 +1551,23 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
 #endif
 
     /// <summary>
+    ///  Backend-friendly polygon fill overload that avoids constructing <see cref="Brush"/> when possible.
+    /// </summary>
+    [EditorBrowsable(EditorBrowsableState.Advanced)]
+    public void FillPolygon(Color color, Point[] points)
+    {
+        ArgumentNullException.ThrowIfNull(points);
+        if (_backend is not null)
+        {
+            _backend.FillPolygon(points, color);
+            return;
+        }
+
+        using SolidBrush brush = new(color);
+        FillPolygon(brush, points, FillMode.Alternate);
+    }
+
+    /// <summary>
     ///  Fills the interior of a polygon defined by an array of points.
     /// </summary>
     /// <param name="brush">The <see cref="Brush"/> to fill the polygon with.</param>
@@ -1574,6 +1639,22 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     ///  Fills the interior of an ellipse defined by a bounding rectangle.
     /// </summary>
     public void FillEllipse(Brush brush, int x, int y, int width, int height) => FillEllipse(brush, (float)x, y, width, height);
+
+    /// <summary>
+    ///  Backend-friendly ellipse fill overload that avoids constructing <see cref="Brush"/> when possible.
+    /// </summary>
+    [EditorBrowsable(EditorBrowsableState.Advanced)]
+    public void FillEllipse(Color color, Rectangle rect)
+    {
+        if (_backend is not null)
+        {
+            _backend.FillEllipse(rect.X, rect.Y, rect.Width, rect.Height, color);
+            return;
+        }
+
+        using SolidBrush brush = new(color);
+        FillEllipse(brush, rect);
+    }
 
     /// <summary>
     ///  Fills the interior of a pie section defined by an ellipse and two radial lines.
@@ -1898,11 +1979,60 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     public void DrawString(string? s, Font font, Brush brush, RectangleF layoutRectangle, StringFormat? format) =>
         DrawStringInternal(s, font, brush, layoutRectangle, format);
 
+    /// <summary>
+    ///  Backend-friendly text overload that avoids constructing <see cref="Brush"/> when possible.
+    /// </summary>
+    [EditorBrowsable(EditorBrowsableState.Advanced)]
+    public void DrawString(string? s, Font font, Color color, RectangleF layoutRectangle, StringFormat? format) =>
+        DrawStringColorInternal(s, font, color, layoutRectangle, format);
+
 #if NET8_0_OR_GREATER
     /// <inheritdoc cref="DrawString(string?, Font, Brush, RectangleF, StringFormat?)"/>
     public void DrawString(ReadOnlySpan<char> s, Font font, Brush brush, RectangleF layoutRectangle, StringFormat? format) =>
         DrawStringInternal(s, font, brush, layoutRectangle, format);
 #endif
+
+    private void DrawStringColorInternal(ReadOnlySpan<char> s, Font font, Color color, RectangleF layoutRectangle, StringFormat? format)
+    {
+        if (_backend is not null)
+        {
+            if (s.IsEmpty)
+            {
+                return;
+            }
+
+            ArgumentNullException.ThrowIfNull(font);
+            bool bold = font.Style.HasFlag(FontStyle.Bold);
+            bool italic = font.Style.HasFlag(FontStyle.Italic);
+            float fontSizePixels = font.SizeInPoints * 96.0f / 72.0f;
+
+            ContentAlignment alignment = ContentAlignment.TopLeft;
+            if (format is not null)
+            {
+                if (format.Alignment == StringAlignment.Center) alignment = ContentAlignment.TopCenter;
+                else if (format.Alignment == StringAlignment.Far) alignment = ContentAlignment.TopRight;
+
+                if (format.LineAlignment == StringAlignment.Center)
+                {
+                    if (alignment == ContentAlignment.TopLeft) alignment = ContentAlignment.MiddleLeft;
+                    else if (alignment == ContentAlignment.TopCenter) alignment = ContentAlignment.MiddleCenter;
+                    else if (alignment == ContentAlignment.TopRight) alignment = ContentAlignment.MiddleRight;
+                }
+                else if (format.LineAlignment == StringAlignment.Far)
+                {
+                    if (alignment == ContentAlignment.TopLeft) alignment = ContentAlignment.BottomLeft;
+                    else if (alignment == ContentAlignment.TopCenter) alignment = ContentAlignment.BottomCenter;
+                    else if (alignment == ContentAlignment.TopRight) alignment = ContentAlignment.BottomRight;
+                }
+            }
+
+            _backend.DrawStringAligned(s.ToString(), layoutRectangle, alignment, color, font.FontFamily.Name, fontSizePixels, bold, italic);
+            return;
+        }
+
+        using SolidBrush brush = new(color);
+        DrawStringInternal(s, font, brush, layoutRectangle, format);
+    }
 
     private void DrawStringInternal(ReadOnlySpan<char> s, Font font, Brush brush, RectangleF layoutRectangle, StringFormat? format)
     {
@@ -2601,6 +2731,22 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     /// </summary>
     public void DrawLine(Pen pen, int x1, int y1, int x2, int y2) =>
         DrawLine(pen, (float)x1, y1, x2, y2);
+
+    /// <summary>
+    ///  Backend-friendly line stroke overload that avoids constructing <see cref="Pen"/> when possible.
+    /// </summary>
+    [EditorBrowsable(EditorBrowsableState.Advanced)]
+    public void DrawLine(Color color, float lineWidth, float x1, float y1, float x2, float y2)
+    {
+        if (_backend is not null)
+        {
+            _backend.StrokeLine(x1, y1, x2, y2, color, lineWidth);
+            return;
+        }
+
+        using Pen pen = new(color, lineWidth);
+        DrawLine(pen, x1, y1, x2, y2);
+    }
 
     /// <summary>
     ///  Draws a line connecting the two specified points.
