@@ -5,9 +5,10 @@ This document is for contributors who already know the Microsoft
 WinFormsX, where those differences live, and how to make changes without
 reintroducing Windows-native dependencies.
 
-The upstream repository currently uses `main`, not `master`. If you have an
+The Microsoft repository currently uses `main`, not `master`. If you have an
 upstream remote configured, compare against `upstream/main`. In this checkout,
-`origin` points at the WinFormsX fork, not the Microsoft repository.
+`origin` points at the WinFormsX fork, not the Microsoft repository. The
+Microsoft repository should be configured explicitly:
 
 ```sh
 git remote add upstream https://github.com/dotnet/winforms.git
@@ -15,6 +16,18 @@ git fetch upstream main
 git diff upstream/main HEAD -- src/System.Windows.Forms/src/System/Windows/Forms/Control.cs
 git show upstream/main:src/System.Windows.Forms/src/System/Windows/Forms/Control.cs
 ```
+
+Current comparison snapshot:
+
+- Microsoft repository: `https://github.com/dotnet/winforms.git`
+- Microsoft baseline branch: `upstream/main`
+- Microsoft baseline commit used for this guide: `4f91299b66dd65a56d8c15269e181e9a1d1aa177`
+- WinFormsX commit used for this guide: `4bfd60a06da54b17794495c34784c2201d80c07e`
+- Direct tree comparison: `4943 files changed, 71547 insertions(+), 127777 deletions(-)`
+
+That full diff is intentionally broad because this fork carries runtime,
+drawing, test, source-tree, and infrastructure changes. Use the focused commands
+near the end of this document for useful day-to-day comparisons.
 
 ## Project Goal
 
@@ -56,6 +69,24 @@ contracts must be managed PAL state plus Impeller/Silk/Vulkan rendering.
 | Renderer | Windows GDI/GDI+/theme rendering | Impeller display lists and Vulkan swapchain |
 | Dialogs | Win32/common-item/common-dialog APIs | Must be managed WinFormsX modal forms/services |
 | Tests | Mostly Windows runtime assumptions | Original tests plus architecture checks and screenshot regressions |
+
+## Comparison Snapshot Against Microsoft `main`
+
+The most important differences from Microsoft `dotnet/winforms` are not random
+fork drift; they are the seams required to make the implementation
+Impeller-only:
+
+| Difference Area | Microsoft `dotnet/winforms` | WinFormsX Change Surface |
+| --- | --- | --- |
+| Repository identity | `README.md` describes Windows Forms as a Windows desktop framework | `README.md`, `ARCHITECTURE.md`, and this guide identify the fork as WinFormsX |
+| Runtime platform layer | No cross-platform PAL provider; runtime assumes Windows APIs are available | Added `src/System.Windows.Forms.Primitives/src/System/Windows/Forms/Platform/*` and `src/System.Windows.Forms/src/System/Windows/Forms/Platform/Impeller*` |
+| Rendering backend | `System.Drawing.Common` routes through GDI+ and Windows handles | Added `src/System.Drawing.Common/src/System/Drawing/Backends/*` and `src/System.Drawing.Common/src/System/Drawing/Impeller/*` |
+| Host window and swapchain | Windows HWND and GDI/GDI+ presentation assumptions | Added Silk.NET/Vulkan host in `SilkPlatformBackend` and Impeller swapchain management |
+| Native-call policy | Windows P/Invoke is normal implementation code | `eng/verify-impeller-only.sh` bans Windows DLL imports and active GDI+ calls in WinFormsX runtime code |
+| Fonts and text | Windows/system font paths and GDI+/Windows text behavior | Added HarfBuzz text shaping files and embedded Noto font roster under `System/Drawing/Fonts` |
+| Samples | Microsoft samples target Windows WinForms | Added `src/WinFormsX.Samples` as the Impeller kitchen-sink and smoke-test harness |
+| Visual regression tooling | Upstream tests are primarily unit/integration tests with Windows runtime assumptions | Added screenshot harness scripts under `eng/` for blank-frame and click-regression checks |
+| Dialogs | Common dialogs use Win32, COM, shell, and native message box/task dialog APIs | Dialog APIs remain public compatibility surfaces, but implementations must move to managed WinFormsX modal services |
 
 ## Important Fork-Specific Files
 
