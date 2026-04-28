@@ -140,6 +140,22 @@ def stats(path: str) -> tuple[float, float, int]:
     colors = sample.getcolors(maxcolors=2_000_000) or []
     return sum(stat.mean) / 3.0, sum(stat.stddev) / 3.0, len(colors)
 
+def tab_text_score(path: str) -> int:
+    image = Image.open(path).convert("RGB")
+    width, height = image.size
+    tab_strip = image.crop((
+        int(width * 0.06),
+        int(height * 0.115),
+        int(width * 0.94),
+        int(height * 0.155)))
+    strip_width, strip_height = tab_strip.size
+    inner = tab_strip.crop((
+        0,
+        int(strip_height * 0.18),
+        strip_width,
+        int(strip_height * 0.82))).convert("L")
+    return sum(1 for pixel in inner.getdata() if pixel < 100)
+
 before, after = sys.argv[1], sys.argv[2]
 before_mean, before_std, before_unique = stats(before)
 after_mean, after_std, after_unique = stats(after)
@@ -153,10 +169,17 @@ if before_std >= 18 and before_unique >= 50 and after_std < before_std * 0.35:
         f"[FRAME_STRESS_FAIL] final capture lost most visible content "
         f"(before_std={before_std:.1f}, after_std={after_std:.1f})")
 
+after_tab_text = tab_text_score(after)
+if after_tab_text < 500:
+    raise SystemExit(
+        f"[FRAME_STRESS_FAIL] final capture lost tab/menu text "
+        f"(tab_text_score={after_tab_text})")
+
 print(
     "[FRAME_STRESS_OK] "
     f"before mean={before_mean:.1f} std={before_std:.1f} unique={before_unique}; "
-    f"after mean={after_mean:.1f} std={after_std:.1f} unique={after_unique}")
+    f"after mean={after_mean:.1f} std={after_std:.1f} unique={after_unique}; "
+    f"tab_text_score={after_tab_text}")
 PY
 
 if rg -n "ThreadException|Paint error|EndFrame error|Program crashed|Bus error|DllNotFound|ErrorFragmentedPool|Unhandled exception" "$RUN_LOG" "$TRACE_LOG" >/tmp/winformsx_frame_stress_errors.log 2>/dev/null; then

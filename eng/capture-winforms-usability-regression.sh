@@ -18,4 +18,22 @@ WINFORMSX_CLICK_POINTS='0.957,0.108 0.120,0.300 0.840,0.305 0.240,0.670 0.840,0.
 WINFORMSX_AFTER_CLICK_DELAY="${WINFORMSX_AFTER_CLICK_DELAY:-0.6}" \
   eng/capture-winforms-click-regression.sh "$OUT_ROOT/data"
 
+python3 - "$OUT_ROOT/data/after-click-6.png" <<'PY'
+import sys
+from PIL import Image
+
+image = Image.open(sys.argv[1]).convert("RGB")
+width, height = image.size
+crop = image.crop((
+    int(width * 0.08),
+    int(height * 0.55),
+    int(width * 0.92),
+    int(height * 0.86))).convert("L")
+dark_pixels = sum(1 for pixel in crop.getdata() if pixel < 80)
+if dark_pixels < 3000:
+    raise SystemExit(f"[USABILITY_REGRESSION_FAIL] Data tab text disappeared (dark_pixels={dark_pixels})")
+
+print(f"[USABILITY_TEXT_OK] data_dark_pixels={dark_pixels}")
+PY
+
 echo "[USABILITY_REGRESSION_OK] $OUT_ROOT"

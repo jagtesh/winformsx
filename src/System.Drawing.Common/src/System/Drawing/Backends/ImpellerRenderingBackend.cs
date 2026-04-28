@@ -22,7 +22,7 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend
         private readonly record struct PaintKey(int Argb, PaintKind Kind, int StrokeWidthBits);
         private readonly record struct TransformSnapshot(float ScaleX, float ScaleY, float OffsetX, float OffsetY);
 
-        private const int MaxGlyphsPerPath = 256;
+        private const int MaxGlyphsPerPath = 64;
 
         private readonly IPlatformBackend _platformBackend;
         private readonly nint _impellerContext;
@@ -130,12 +130,14 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend
 
     public void Save()
     {
+        FlushGlyphBatches();
         _transformStack.Push(new TransformSnapshot(_scaleX, _scaleY, _offsetX, _offsetY));
         _builder?.Save();
     }
 
     public void Restore()
     {
+        FlushGlyphBatches();
         _builder?.Restore();
         if (_transformStack.TryPop(out TransformSnapshot transform))
         {
@@ -146,6 +148,7 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend
     public uint SaveCount => _builder?.SaveCount ?? 0;
     public void RestoreToCount(uint count)
     {
+        FlushGlyphBatches();
         _builder?.RestoreToCount(count);
         while (_transformStack.Count > count)
         {
@@ -166,6 +169,7 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend
 
     public void Translate(float dx, float dy)
     {
+        FlushGlyphBatches();
         _offsetX += dx * _scaleX;
         _offsetY += dy * _scaleY;
         _builder?.Translate(dx, dy);
@@ -189,6 +193,7 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend
 
     public void ResetTransform()
     {
+        FlushGlyphBatches();
         _scaleX = 1f;
         _scaleY = 1f;
         _offsetX = 0f;
@@ -200,7 +205,7 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend
 
     public void ClipRect(float x, float y, float w, float h)
     {
-        if (_builder is null)
+        if (!PrepareNonTextDraw())
             return;
         var rect = new ImpellerRect(x, y, w, h);
         _builder.ClipRect(ref rect);
@@ -210,14 +215,14 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend
 
     public void Clear(Color color)
     {
-        if (_builder is null)
+        if (!PrepareNonTextDraw())
             return;
         _builder.DrawPaint(GetFillPaint(color));
     }
 
     public void FillRect(float x, float y, float w, float h, Color color)
     {
-        if (_builder is null)
+        if (!PrepareNonTextDraw())
             return;
         var rect = new ImpellerRect(x, y, w, h);
         _builder.DrawRect(ref rect, GetFillPaint(color));
@@ -225,7 +230,7 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend
 
     public void FillEllipse(float x, float y, float w, float h, Color color)
     {
-        if (_builder is null)
+        if (!PrepareNonTextDraw())
             return;
         var rect = new ImpellerRect(x, y, w, h);
         _builder.DrawOval(ref rect, GetFillPaint(color));
@@ -233,7 +238,7 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend
 
     public void FillPolygon(Point[] points, Color color)
     {
-        if (_builder is null || points.Length < 3)
+        if (!PrepareNonTextDraw() || points.Length < 3)
             return;
         var paintHandle = GetFillPaint(color);
         nint pathBuilder = NativeMethods.ImpellerPathBuilderNew();
@@ -267,7 +272,7 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend
 
     public void StrokeRect(float x, float y, float w, float h, Color color, float lineWidth)
     {
-        if (_builder is null)
+        if (!PrepareNonTextDraw())
             return;
         var rect = new ImpellerRect(x, y, w, h);
         _builder.DrawRect(ref rect, GetStrokePaint(color, lineWidth));
@@ -275,7 +280,7 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend
 
     public void StrokeEllipse(float x, float y, float w, float h, Color color, float lineWidth)
     {
-        if (_builder is null)
+        if (!PrepareNonTextDraw())
             return;
         var rect = new ImpellerRect(x, y, w, h);
         _builder.DrawOval(ref rect, GetStrokePaint(color, lineWidth));
@@ -283,7 +288,7 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend
 
     public void StrokeLine(float x1, float y1, float x2, float y2, Color color, float lineWidth)
     {
-        if (_builder is null)
+        if (!PrepareNonTextDraw())
             return;
         var from = new ImpellerPoint(x1, y1);
         var to = new ImpellerPoint(x2, y2);
@@ -292,7 +297,7 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend
 
     public void StrokePolygon(Point[] points, Color color, float lineWidth)
     {
-        if (_builder is null || points.Length < 3)
+        if (!PrepareNonTextDraw() || points.Length < 3)
             return;
         var paintHandle = GetStrokePaint(color, lineWidth);
         nint pathBuilder = NativeMethods.ImpellerPathBuilderNew();
@@ -346,7 +351,7 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend
     public void DrawBezier(float x1, float y1, float cx1, float cy1,
                            float cx2, float cy2, float x2, float y2, Color color, float lineWidth)
     {
-        if (_builder is null)
+        if (!PrepareNonTextDraw())
             return;
         var paintHandle = GetStrokePaint(color, lineWidth);
         nint pathBuilder = NativeMethods.ImpellerPathBuilderNew();
@@ -375,21 +380,21 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend
 
     public void DrawPath(nint pathHandle, Color color, float lineWidth)
     {
-        if (_builder is null)
+        if (!PrepareNonTextDraw())
             return;
         _builder.DrawPath(pathHandle, GetStrokePaint(color, lineWidth));
     }
 
     public void FillPath(nint pathHandle, Color color)
     {
-        if (_builder is null)
+        if (!PrepareNonTextDraw())
             return;
         _builder.DrawPath(pathHandle, GetFillPaint(color));
     }
 
     internal void FillRectPath(List<RectangleF> rectangles, Color color)
     {
-        if (_builder is null || rectangles.Count == 0)
+        if (!PrepareNonTextDraw() || rectangles.Count == 0)
             return;
 
         var paintHandle = GetFillPaint(color);
@@ -510,6 +515,17 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend
         }
 
         _frameGlyphBatches.Clear();
+    }
+
+    private bool PrepareNonTextDraw()
+    {
+        if (_builder is null)
+        {
+            return false;
+        }
+
+        FlushGlyphBatches();
+        return true;
     }
 
     private void ResetTrackedTransform()
