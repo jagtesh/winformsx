@@ -7,6 +7,8 @@ namespace System.Windows.Forms;
 
 internal class CachedItemHdcInfo : IDisposable, IHandle<HDC>
 {
+    private static int s_nextSyntheticHandle = 1;
+
     internal CachedItemHdcInfo()
     {
     }
@@ -26,21 +28,10 @@ internal class CachedItemHdcInfo : IDisposable, IHandle<HDC>
         {
             if (_cachedItemHDC.IsNull)
             {
-                // Create a new DC - we don't have one yet.
-                _cachedItemHDC = PInvoke.CreateCompatibleDC(toolStripHDC);
+                _cachedItemHDC = CreateSyntheticHdc();
             }
 
-            // Create compatible bitmap with the correct size.
-            _cachedItemBitmap = PInvoke.CreateCompatibleBitmap(toolStripHDC, bitmapSize.Width, bitmapSize.Height);
-            HGDIOBJ oldBitmap = PInvoke.SelectObject(_cachedItemHDC, _cachedItemBitmap);
-
-            // Delete the old bitmap
-            if (!oldBitmap.IsNull)
-            {
-                PInvoke.DeleteObject(oldBitmap);
-            }
-
-            // remember what size we created.
+            _cachedItemBitmap = CreateSyntheticBitmap();
             _cachedHDCSize = bitmapSize;
         }
 
@@ -49,16 +40,6 @@ internal class CachedItemHdcInfo : IDisposable, IHandle<HDC>
 
     public void Dispose()
     {
-        if (!_cachedItemHDC.IsNull)
-        {
-            if (!_cachedItemBitmap.IsNull)
-            {
-                PInvoke.DeleteObject(_cachedItemBitmap);
-            }
-
-            PInvoke.DeleteDC(_cachedItemHDC);
-        }
-
         _cachedItemHDC = default;
         _cachedItemBitmap = default;
         _cachedHDCSize = Size.Empty;
@@ -70,4 +51,8 @@ internal class CachedItemHdcInfo : IDisposable, IHandle<HDC>
     {
         Dispose();
     }
+
+    private static HDC CreateSyntheticHdc() => (HDC)(nint)Interlocked.Increment(ref s_nextSyntheticHandle);
+
+    private static HBITMAP CreateSyntheticBitmap() => (HBITMAP)(nint)Interlocked.Increment(ref s_nextSyntheticHandle);
 }

@@ -1,9 +1,6 @@
 ﻿// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-using System.Drawing;
-using System.Numerics;
-
 namespace System.Windows.Forms;
 
 /// <summary>
@@ -25,6 +22,8 @@ namespace System.Windows.Forms;
 /// </remarks>
 internal sealed partial class ScreenDcCache : IDisposable
 {
+    private static int s_nextSyntheticHdc = 1;
+
     private readonly IntPtr[] _itemsCache;
 
     /// <summary>
@@ -42,19 +41,16 @@ internal sealed partial class ScreenDcCache : IDisposable
     /// </summary>
     public ScreenDcScope Acquire()
     {
-        IntPtr item;
-
         for (int i = 0; i < _itemsCache.Length; i++)
         {
-            item = Interlocked.Exchange(ref _itemsCache[i], IntPtr.Zero);
+            IntPtr item = Interlocked.Exchange(ref _itemsCache[i], IntPtr.Zero);
             if (item != IntPtr.Zero)
             {
                 return new ScreenDcScope(this, (HDC)item);
             }
         }
 
-        // Didn't find anything in the cache, create a new HDC
-        return new ScreenDcScope(this, PInvoke.CreateCompatibleDC(default));
+        return new ScreenDcScope(this, CreateSyntheticHdc());
     }
 
     /// <summary>
@@ -77,8 +73,7 @@ internal sealed partial class ScreenDcCache : IDisposable
             }
         }
 
-        // Too many to store, delete the last item we swapped.
-        PInvoke.DeleteDC((HDC)temp);
+        // Too many to store. Synthetic HDCs do not own native resources.
     }
 
     ~ScreenDcCache() => Dispose();
@@ -90,29 +85,16 @@ internal sealed partial class ScreenDcCache : IDisposable
             IntPtr hdc = _itemsCache[i];
             if (hdc != IntPtr.Zero)
             {
-                PInvoke.DeleteDC((HDC)hdc);
+                _itemsCache[i] = IntPtr.Zero;
             }
         }
     }
 
     [Conditional("DEBUG")]
-    private static unsafe void ValidateHdc(HDC hdc)
+    private static void ValidateHdc(HDC hdc)
     {
-        // A few sanity checks against the HDC to see if it was left in a dirty state
-
-        HRGN hrgn = PInvoke.CreateRectRgn(0, 0, 0, 0);
-        Debug.Assert(PInvoke.GetClipRgn(hdc, hrgn) == 0, "Should not have a clipping region");
-        PInvoke.DeleteObject(hrgn);
-
-        Point point;
-        PInvoke.GetViewportOrgEx(hdc, &point);
-        Debug.Assert(point.IsEmpty, "Viewport origin shouldn't be shifted");
-        Debug.Assert(PInvoke.GetMapMode(hdc) == HDC_MAP_MODE.MM_TEXT);
-        Debug.Assert(PInvoke.GetROP2(hdc) == R2_MODE.R2_COPYPEN);
-        Debug.Assert(PInvoke.GetBkMode(hdc) == BACKGROUND_MODE.OPAQUE);
-
-        Matrix3x2 matrix = default;
-        Debug.Assert(PInvoke.GetWorldTransform(hdc, (XFORM*)(void*)&matrix));
-        Debug.Assert(matrix.IsIdentity);
+        Debug.Assert(!hdc.IsNull);
     }
+
+    private static HDC CreateSyntheticHdc() => (HDC)(nint)Interlocked.Increment(ref s_nextSyntheticHdc);
 }

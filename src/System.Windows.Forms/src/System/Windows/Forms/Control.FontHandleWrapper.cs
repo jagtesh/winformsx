@@ -29,7 +29,6 @@ public partial class Control
         {
             if (!_handle.IsNull)
             {
-                PInvoke.DeleteObject(_handle);
                 _handle = default;
             }
 
