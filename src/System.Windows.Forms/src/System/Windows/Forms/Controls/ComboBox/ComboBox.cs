@@ -2246,8 +2246,6 @@ public partial class ComboBox : ListControl
             // Base class returns hollow brush when UserPaint style is set, to avoid flicker in
             // main control. But when returning colors for child dropdown list, return normal ForeColor/BackColor,
             // since hollow brush leaves the list background unpainted.
-            PInvoke.SetTextColor(dc, (COLORREF)(uint)ColorTranslator.ToWin32(ForeColor));
-            PInvoke.SetBkColor(dc, (COLORREF)(uint)ColorTranslator.ToWin32(BackColor));
             return BackColorBrush;
         }
         else

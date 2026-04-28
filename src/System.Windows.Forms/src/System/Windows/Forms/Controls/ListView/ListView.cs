@@ -2645,7 +2645,6 @@ public partial class ListView : Control
                         _odCacheFont = new Font(_odCacheFont, FontStyle.Bold);
                         _odCacheFontHandleWrapper = new FontHandleWrapper(_odCacheFont);
                         _odCacheFontHandle = _odCacheFontHandleWrapper.Handle;
-                        PInvoke.SelectObject(nmcd->nmcd.hdc, _odCacheFontHandleWrapper.Handle);
                         m.ResultInternal = (LRESULT)(nint)PInvoke.CDRF_NEWFONT;
                     }
 
@@ -2942,20 +2941,11 @@ public partial class ListView : Control
                         }
                     }
 
-                    if (!haveRenderInfo || subItemFont is null)
-                    {
-                        // safety net code just in case
-                        if (_odCacheFont is not null)
-                        {
-                            PInvoke.SelectObject(nmcd->nmcd.hdc, _odCacheFontHandle);
-                        }
-                    }
-                    else
+                    if (haveRenderInfo && subItemFont is not null)
                     {
                         _odCacheFontHandleWrapper?.Dispose();
 
                         _odCacheFontHandleWrapper = new FontHandleWrapper(subItemFont);
-                        PInvoke.SelectObject(nmcd->nmcd.hdc, _odCacheFontHandleWrapper.Handle);
                     }
 
                     if (!dontmess)

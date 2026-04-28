@@ -62,22 +62,6 @@ internal static class TextExtensions
 
         (DRAW_TEXT_FORMAT dt, TextPaddingOptions padding) = SplitTextFormatFlags(flags);
 
-        // DrawText requires default text alignment.
-        using SetTextAlignmentScope alignment = new(hdc, default);
-
-        // Color empty means use the one currently selected in the dc.
-        using var textColor = foreColor.IsEmpty ? default : new SetTextColorScope(hdc, foreColor);
-        using SelectObjectScope fontSelection = new(hdc, (HFONT)font);
-
-        BACKGROUND_MODE newBackGroundMode = (backColor.IsEmpty || backColor == Color.Transparent)
-            ? BACKGROUND_MODE.TRANSPARENT
-            : BACKGROUND_MODE.OPAQUE;
-
-        using SetBkModeScope backgroundMode = new(hdc, newBackGroundMode);
-        using var backgroundColor = newBackGroundMode != BACKGROUND_MODE.TRANSPARENT
-            ? new SetBackgroundColorScope(hdc, backColor)
-            : default;
-
         DRAWTEXTPARAMS dtparams = GetTextMargins(font, padding);
 
         bounds = AdjustForVerticalAlignment(hdc, text, bounds, dt, &dtparams);
@@ -93,8 +77,16 @@ internal static class TextExtensions
             bounds.Height -= bounds.Y;
         }
 
-        RECT rect = bounds;
-        PInvoke.DrawTextEx(hdc, text, &rect, dt, &dtparams);
+        using Graphics graphics = hdc.CreateGraphics();
+        if (!backColor.IsEmpty && backColor != Color.Transparent)
+        {
+            using SolidBrush backgroundBrush = new(backColor);
+            graphics.FillRectangle(backgroundBrush, bounds);
+        }
+
+        using SolidBrush textBrush = new(foreColor.IsEmpty ? SystemColors.ControlText : foreColor);
+        using StringFormat stringFormat = CreateStringFormat(dt);
+        graphics.DrawString(text.ToString(), font.Data.Font.TryGetTarget(out Font? targetFont) ? targetFont : SystemFonts.DefaultFont, textBrush, bounds, stringFormat);
     }
 
     /// <summary>
@@ -164,11 +156,12 @@ internal static class TextExtensions
             return bounds;
         }
 
-        RECT rect = bounds;
-
-        // Get the text bounds.
-        flags |= DRAW_TEXT_FORMAT.DT_CALCRECT;
-        int textHeight = PInvoke.DrawTextEx(hdc, text, &rect, flags, dtparams);
+        Size textSize = MeasureTextManaged(
+            text,
+            bounds.Size,
+            FontStyle.Regular,
+            flags);
+        int textHeight = textSize.Height;
 
         // If the text does not fit inside the bounds then return the bounds that were passed in.
         // This way we paint the top of the text at the top of the bounds passed in.
@@ -241,10 +234,6 @@ internal static class TextExtensions
             proposedSize.Height = 1;
         }
 
-        RECT rect = new(proposedSize);
-
-        using SelectObjectScope fontSelection = new(hdc, font.Object);
-
         // If proposedSize.Height == int.MaxValue it is assumed bounds are needed. If flags contain SINGLELINE and
         // VCENTER or BOTTOM options, DrawTextEx does not bind the rectangle to the actual text height since
         // it assumes the text is to be vertically aligned; we need to clear the VCENTER and BOTTOM flags to
@@ -262,9 +251,12 @@ internal static class TextExtensions
         }
 
         dt |= DRAW_TEXT_FORMAT.DT_CALCRECT;
-        PInvoke.DrawTextEx(hdc, text, &rect, dt, &dtparams);
-
-        return rect.Size;
+        return MeasureTextManaged(
+            text,
+            proposedSize,
+            font.Data.Font.TryGetTarget(out Font? targetFont) ? targetFont.Style : FontStyle.Regular,
+            dt,
+            dtparams.iLeftMargin + dtparams.iRightMargin);
     }
 
     /// <summary>
@@ -286,14 +278,115 @@ internal static class TextExtensions
             return Size.Empty;
         }
 
-        Size size = default;
-        using SelectObjectScope selectFont = new(hdc, hfont);
+        return MeasureTextManaged(text, Size.Empty, SystemFonts.DefaultFont.Style, default);
+    }
 
-        fixed (char* pText = text)
+    private static StringFormat CreateStringFormat(DRAW_TEXT_FORMAT flags)
+    {
+        StringFormat stringFormat = new(StringFormat.GenericTypographic);
+
+        if (flags.HasFlag(DRAW_TEXT_FORMAT.DT_RIGHT))
         {
-            PInvoke.GetTextExtentPoint32W(hdc, pText, text.Length, (SIZE*)(void*)&size);
+            stringFormat.Alignment = StringAlignment.Far;
+        }
+        else if (flags.HasFlag(DRAW_TEXT_FORMAT.DT_CENTER))
+        {
+            stringFormat.Alignment = StringAlignment.Center;
         }
 
-        return size;
+        if (flags.HasFlag(DRAW_TEXT_FORMAT.DT_BOTTOM))
+        {
+            stringFormat.LineAlignment = StringAlignment.Far;
+        }
+        else if (flags.HasFlag(DRAW_TEXT_FORMAT.DT_VCENTER))
+        {
+            stringFormat.LineAlignment = StringAlignment.Center;
+        }
+
+        if (!flags.HasFlag(DRAW_TEXT_FORMAT.DT_WORDBREAK) || flags.HasFlag(DRAW_TEXT_FORMAT.DT_SINGLELINE))
+        {
+            stringFormat.FormatFlags |= StringFormatFlags.NoWrap;
+        }
+
+        if (flags.HasFlag(DRAW_TEXT_FORMAT.DT_END_ELLIPSIS))
+        {
+            stringFormat.Trimming = StringTrimming.EllipsisCharacter;
+        }
+        else if (flags.HasFlag(DRAW_TEXT_FORMAT.DT_PATH_ELLIPSIS))
+        {
+            stringFormat.Trimming = StringTrimming.EllipsisPath;
+        }
+        else if (flags.HasFlag(DRAW_TEXT_FORMAT.DT_WORD_ELLIPSIS))
+        {
+            stringFormat.Trimming = StringTrimming.EllipsisWord;
+        }
+
+        return stringFormat;
+    }
+
+    private static Size MeasureTextManaged(
+        ReadOnlySpan<char> text,
+        Size proposedSize,
+        FontStyle style,
+        DRAW_TEXT_FORMAT flags,
+        int horizontalPadding = 0)
+    {
+        float lineHeight = MathF.Max(1, SystemFonts.DefaultFont.GetHeight(ScaleHelper.InitialSystemDpi));
+        float averageGlyphWidth = MathF.Max(1, SystemFonts.DefaultFont.SizeInPoints * ScaleHelper.InitialSystemDpi / 72f * 0.55f);
+        if (style.HasFlag(FontStyle.Bold))
+        {
+            averageGlyphWidth *= 1.08f;
+        }
+
+        int lineCount = 1;
+        int longestLineLength = 0;
+        int currentLineLength = 0;
+
+        foreach (char c in text)
+        {
+            if (c == '\r')
+            {
+                continue;
+            }
+
+            if (c == '\n')
+            {
+                longestLineLength = Math.Max(longestLineLength, currentLineLength);
+                currentLineLength = 0;
+                lineCount++;
+                continue;
+            }
+
+            currentLineLength++;
+        }
+
+        longestLineLength = Math.Max(longestLineLength, currentLineLength);
+        bool canWrap = flags.HasFlag(DRAW_TEXT_FORMAT.DT_WORDBREAK)
+            && !flags.HasFlag(DRAW_TEXT_FORMAT.DT_SINGLELINE)
+            && proposedSize.Width > 0
+            && proposedSize.Width < int.MaxValue;
+
+        if (canWrap)
+        {
+            int charactersPerLine = Math.Max(1, (int)MathF.Floor((proposedSize.Width - horizontalPadding) / averageGlyphWidth));
+            int wrappedLineCount = (int)MathF.Ceiling((float)Math.Max(1, longestLineLength) / charactersPerLine);
+            lineCount = Math.Max(lineCount, wrappedLineCount);
+            longestLineLength = Math.Min(longestLineLength, charactersPerLine);
+        }
+
+        int width = (int)MathF.Ceiling(longestLineLength * averageGlyphWidth) + horizontalPadding;
+        int height = (int)MathF.Ceiling(lineCount * lineHeight);
+
+        if (proposedSize.Width > 0 && proposedSize.Width < int.MaxValue && (canWrap || flags.HasFlag(DRAW_TEXT_FORMAT.DT_END_ELLIPSIS)))
+        {
+            width = Math.Min(width, proposedSize.Width);
+        }
+
+        if (proposedSize.Height > 0 && proposedSize.Height < int.MaxValue && flags.HasFlag(DRAW_TEXT_FORMAT.DT_SINGLELINE))
+        {
+            height = Math.Min(height, proposedSize.Height);
+        }
+
+        return new Size(Math.Max(1, width), Math.Max(1, height));
     }
 }

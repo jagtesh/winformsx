@@ -2821,9 +2821,6 @@ public partial class TreeView : Control
 
                 if (renderinfo is not null && renderinfo.Font is not null)
                 {
-                    // Mess with the DC directly...
-                    PInvoke.SelectObject(nmtvcd->nmcd.hdc, renderinfo.FontHandle);
-
                     // There is a problem in winctl that clips node fonts if the fontSize
                     // is larger than the treeView font size. The behavior is much better in comctl 5 and above.
                     m.ResultInternal = (LRESULT)(nint)PInvoke.CDRF_NEWFONT;

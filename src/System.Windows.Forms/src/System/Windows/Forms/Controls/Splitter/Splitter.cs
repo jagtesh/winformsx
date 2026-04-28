@@ -695,11 +695,9 @@ public partial class Splitter : Control
         }
 
         Rectangle r = CalcSplitLine(_splitTarget, splitSize, 3);
-        using GetDcScope dc = new(ParentInternal.HWND, HRGN.Null, GET_DCX_FLAGS.DCX_CACHE | GET_DCX_FLAGS.DCX_LOCKWINDOWUPDATE);
-        HBRUSH halftone = ControlPaint.CreateHalftoneHBRUSH();
-        using ObjectScope halftoneScope = new(halftone);
-        using SelectObjectScope selection = new(dc, halftone);
-        PInvoke.PatBlt(dc, r.X, r.Y, r.Width, r.Height, ROP_CODE.PATINVERT);
+        using Graphics graphics = ParentInternal.CreateGraphics();
+        using Brush brush = new SolidBrush(SystemColors.ControlDark);
+        graphics.FillRectangle(brush, r);
 
         GC.KeepAlive(ParentInternal);
     }

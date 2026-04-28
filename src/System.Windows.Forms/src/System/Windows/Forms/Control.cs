@@ -10,6 +10,7 @@ using System.Runtime.ExceptionServices;
 using System.Runtime.InteropServices;
 using System.Windows.Forms.Automation;
 using System.Windows.Forms.Layout;
+using System.Windows.Forms.Platform;
 using System.Windows.Forms.Primitives;
 using Windows.Win32.Graphics.Dwm;
 using Windows.Win32.System.Ole;
@@ -723,7 +724,7 @@ public unsafe partial class Control :
             }
             else
             {
-                backBrush = PInvoke.CreateSolidBrush((COLORREF)(uint)ColorTranslator.ToWin32(color));
+                backBrush = PlatformApi.Gdi.CreateSolidBrush((COLORREF)(uint)ColorTranslator.ToWin32(color));
                 SetState(States.OwnCtlBrush, true);
             }
 
@@ -5940,8 +5941,6 @@ public unsafe partial class Control :
         // NOTE: this message may not have originally been sent to this HWND.
         if (!GetStyle(ControlStyles.UserPaint))
         {
-            PInvoke.SetTextColor(dc, (COLORREF)(uint)ColorTranslator.ToWin32(ForeColor));
-            PInvoke.SetBkColor(dc, (COLORREF)(uint)ColorTranslator.ToWin32(BackColor));
             return BackColorBrush;
         }
 

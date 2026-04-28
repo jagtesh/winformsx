@@ -5867,17 +5867,12 @@ public partial class DataGridView
     {
         const byte DATAGRIDVIEW_shadowEdgeThickness = 3;
 
-        using GetDcScope dc = new(HWND, HRGN.Null, GET_DCX_FLAGS.DCX_CACHE | GET_DCX_FLAGS.DCX_LOCKWINDOWUPDATE);
-        HBRUSH halftone = ControlPaint.CreateHalftoneHBRUSH();
-        HGDIOBJ saveBrush = PInvoke.SelectObject(dc, halftone);
-
-        PInvoke.PatBlt(dc, r.X, r.Y, r.Width, DATAGRIDVIEW_shadowEdgeThickness, ROP_CODE.PATINVERT);
-        PInvoke.PatBlt(dc, r.X, r.Y + r.Height - DATAGRIDVIEW_shadowEdgeThickness, r.Width, DATAGRIDVIEW_shadowEdgeThickness, ROP_CODE.PATINVERT);
-        PInvoke.PatBlt(dc, r.X, r.Y + DATAGRIDVIEW_shadowEdgeThickness, DATAGRIDVIEW_shadowEdgeThickness, r.Height - 2 * DATAGRIDVIEW_shadowEdgeThickness, ROP_CODE.PATINVERT);
-        PInvoke.PatBlt(dc, r.X + r.Width - DATAGRIDVIEW_shadowEdgeThickness, r.Y + DATAGRIDVIEW_shadowEdgeThickness, DATAGRIDVIEW_shadowEdgeThickness, r.Height - 2 * DATAGRIDVIEW_shadowEdgeThickness, ROP_CODE.PATINVERT);
-
-        PInvoke.SelectObject(dc, saveBrush);
-        PInvoke.DeleteObject(halftone);
+        using Graphics graphics = CreateGraphics();
+        using Brush brush = new SolidBrush(SystemColors.ControlDark);
+        graphics.FillRectangle(brush, r.X, r.Y, r.Width, DATAGRIDVIEW_shadowEdgeThickness);
+        graphics.FillRectangle(brush, r.X, r.Y + r.Height - DATAGRIDVIEW_shadowEdgeThickness, r.Width, DATAGRIDVIEW_shadowEdgeThickness);
+        graphics.FillRectangle(brush, r.X, r.Y + DATAGRIDVIEW_shadowEdgeThickness, DATAGRIDVIEW_shadowEdgeThickness, r.Height - 2 * DATAGRIDVIEW_shadowEdgeThickness);
+        graphics.FillRectangle(brush, r.X + r.Width - DATAGRIDVIEW_shadowEdgeThickness, r.Y + DATAGRIDVIEW_shadowEdgeThickness, DATAGRIDVIEW_shadowEdgeThickness, r.Height - 2 * DATAGRIDVIEW_shadowEdgeThickness);
     }
 
     /// <summary>
@@ -5886,12 +5881,9 @@ public partial class DataGridView
     /// </summary>
     private void DrawSplitBar(Rectangle r)
     {
-        using GetDcScope dc = new(HWND, HRGN.Null, GET_DCX_FLAGS.DCX_CACHE | GET_DCX_FLAGS.DCX_LOCKWINDOWUPDATE);
-        HBRUSH halftone = ControlPaint.CreateHalftoneHBRUSH();
-        HGDIOBJ saveBrush = PInvoke.SelectObject(dc, halftone);
-        PInvoke.PatBlt(dc, r.X, r.Y, r.Width, r.Height, ROP_CODE.PATINVERT);
-        PInvoke.SelectObject(dc, saveBrush);
-        PInvoke.DeleteObject(halftone);
+        using Graphics graphics = CreateGraphics();
+        using Brush brush = new SolidBrush(SystemColors.ControlDark);
+        graphics.FillRectangle(brush, r);
         GC.KeepAlive(this);
     }
 

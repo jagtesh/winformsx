@@ -1706,18 +1706,10 @@ internal abstract partial class GridEntry : GridItem, ITypeDescriptorContext
                 HWND hwnd)
             {
                 Color backgroundColor = ColorInversionNeededInHighContrast ? InvertColor(OwnerGrid.LineColor) : OwnerGrid.LineColor;
-                using CreateDcScope compatibleDC = new(default);
-
-                const int planes = 1;
-                const int bitsPixel = 32;
-                using HBITMAP compatibleBitmap = PInvoke.CreateBitmap(rectangle.Width, rectangle.Height, (uint)planes, (uint)bitsPixel, lpBits: null);
-                using SelectObjectScope targetBitmapSelection = new(compatibleDC, compatibleBitmap);
-
-                using CreateBrushScope brush = new(backgroundColor);
-                compatibleDC.HDC.FillRectangle(new Rectangle(0, 0, rectangle.Width, rectangle.Height), brush);
-                explorerTreeRenderer.DrawBackground(compatibleDC, new Rectangle(0, 0, rectangle.Width, rectangle.Height), hwnd);
-
-                using Bitmap bitmap = Image.FromHbitmap(compatibleBitmap);
+                using Bitmap bitmap = new(rectangle.Width, rectangle.Height);
+                using Graphics glyphGraphics = Graphics.FromImage(bitmap);
+                glyphGraphics.Clear(backgroundColor);
+                explorerTreeRenderer.DrawBackground(glyphGraphics, new Rectangle(0, 0, rectangle.Width, rectangle.Height));
                 ControlPaint.InvertForeColorIfNeeded(bitmap, backgroundColor);
                 graphics.DrawImage(bitmap, rectangle, 0, 0, bitmap.Width, bitmap.Height, GraphicsUnit.Pixel);
             }

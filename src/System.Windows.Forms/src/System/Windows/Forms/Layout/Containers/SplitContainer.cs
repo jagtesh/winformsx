@@ -1471,11 +1471,9 @@ public partial class SplitContainer : ContainerControl, ISupportInitialize
     private void DrawSplitHelper(int splitSize)
     {
         Rectangle r = CalcSplitLine(splitSize, 3);
-        using GetDcScope dc = new(HWND, HRGN.Null, GET_DCX_FLAGS.DCX_CACHE | GET_DCX_FLAGS.DCX_LOCKWINDOWUPDATE);
-        HBRUSH halftone = ControlPaint.CreateHalftoneHBRUSH();
-        using ObjectScope objectScope = new(halftone);
-        using SelectObjectScope selectBrush = new(dc, halftone);
-        PInvoke.PatBlt(dc, r.X, r.Y, r.Width, r.Height, ROP_CODE.PATINVERT);
+        using Graphics graphics = CreateGraphics();
+        using Brush brush = new SolidBrush(SystemColors.ControlDark);
+        graphics.FillRectangle(brush, r);
 
         GC.KeepAlive(this);
     }

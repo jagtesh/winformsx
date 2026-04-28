@@ -150,34 +150,7 @@ public unsafe partial class DataObject
 
                 static HBITMAP GetCompatibleBitmap(Bitmap bitmap)
                 {
-                    using var screenDC = GetDcScope.ScreenDC;
-
-                    // GDI+ returns a DIBSECTION based HBITMAP. The clipboard only deals well with bitmaps created using
-                    // CreateCompatibleBitmap(). So, we convert the DIBSECTION into a compatible bitmap.
-                    HBITMAP hbitmap = bitmap.GetHBITMAP();
-
-                    // Create a compatible DC to render the source bitmap.
-                    using CreateDcScope sourceDC = new(screenDC);
-                    using SelectObjectScope sourceBitmapSelection = new(sourceDC, hbitmap);
-
-                    // Create a compatible DC and a new compatible bitmap.
-                    using CreateDcScope destinationDC = new(screenDC);
-                    HBITMAP compatibleBitmap = PInvoke.CreateCompatibleBitmap(screenDC, bitmap.Size.Width, bitmap.Size.Height);
-
-                    // Select the new bitmap into a compatible DC and render the blt the original bitmap.
-                    using SelectObjectScope destinationBitmapSelection = new(destinationDC, compatibleBitmap);
-                    PInvoke.BitBlt(
-                        destinationDC,
-                        0,
-                        0,
-                        bitmap.Size.Width,
-                        bitmap.Size.Height,
-                        sourceDC,
-                        0,
-                        0,
-                        ROP_CODE.SRCCOPY);
-
-                    return compatibleBitmap;
+                    return (HBITMAP)bitmap.GetHbitmap();
                 }
             }
 

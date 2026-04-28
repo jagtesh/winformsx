@@ -1617,59 +1617,21 @@ public static unsafe partial class ControlPaint
     /// </summary>
     public static void DrawReversibleFrame(Rectangle rectangle, Color backColor, FrameStyle style)
     {
-        R2_MODE rop2;
-        Color graphicsColor;
-
-        if (backColor.GetBrightness() < .5)
-        {
-            rop2 = R2_MODE.R2_NOTXORPEN;
-            graphicsColor = Color.White;
-        }
-        else
-        {
-            rop2 = R2_MODE.R2_XORPEN;
-            graphicsColor = Color.Black;
-        }
-
-        using GetDcScope desktopDC = new(
-            PInvoke.GetDesktopWindow(),
-            HRGN.Null,
-            GET_DCX_FLAGS.DCX_WINDOW | GET_DCX_FLAGS.DCX_LOCKWINDOWUPDATE | GET_DCX_FLAGS.DCX_CACHE);
-
-        using ObjectScope pen = new(style switch
-        {
-            FrameStyle.Dashed => (HGDIOBJ)PInvoke.CreatePen(PEN_STYLE.PS_DOT, cWidth: 1, (COLORREF)(uint)ColorTranslator.ToWin32(backColor)).Value,
-            FrameStyle.Thick => (HGDIOBJ)PInvoke.CreatePen(PEN_STYLE.PS_SOLID, cWidth: 2, (COLORREF)(uint)ColorTranslator.ToWin32(backColor)).Value,
-            _ => default
-        });
-
-        using SetRop2Scope rop2Scope = new(desktopDC, rop2);
-        using SelectObjectScope brushSelection = new(desktopDC, PInvoke.GetStockObject(GET_STOCK_OBJECT_FLAGS.NULL_BRUSH));
-        using SelectObjectScope penSelection = new(desktopDC, pen);
-
-        PInvoke.SetBkColor(desktopDC, (COLORREF)(uint)ColorTranslator.ToWin32(graphicsColor));
-        PInvoke.Rectangle(desktopDC, rectangle.X, rectangle.Y, rectangle.Right, rectangle.Bottom);
+        // WinFormsX never draws directly to the host desktop. Reversible adorners need a PAL overlay.
+        GC.KeepAlive(rectangle);
+        GC.KeepAlive(backColor);
+        GC.KeepAlive(style);
     }
 
     /// <summary>
     ///  Draws a reversible line on the screen. A reversible line can be erased by just drawing over it again.
     /// </summary>
-    public static unsafe void DrawReversibleLine(Point start, Point end, Color backColor)
+    public static void DrawReversibleLine(Point start, Point end, Color backColor)
     {
-        R2_MODE rop2 = (R2_MODE)GetColorRop(backColor, (int)R2_MODE.R2_NOTXORPEN, (int)R2_MODE.R2_XORPEN);
-
-        using GetDcScope desktopDC = new(
-            PInvoke.GetDesktopWindow(),
-            HRGN.Null,
-            GET_DCX_FLAGS.DCX_WINDOW | GET_DCX_FLAGS.DCX_LOCKWINDOWUPDATE | GET_DCX_FLAGS.DCX_CACHE);
-
-        using ObjectScope pen = new(PInvoke.CreatePen(PEN_STYLE.PS_SOLID, cWidth: 1, (COLORREF)(uint)ColorTranslator.ToWin32(backColor)));
-        using SetRop2Scope ropScope = new(desktopDC, rop2);
-        using SelectObjectScope brushSelection = new(desktopDC, PInvoke.GetStockObject(GET_STOCK_OBJECT_FLAGS.NULL_BRUSH));
-        using SelectObjectScope penSelection = new(desktopDC, pen);
-
-        PInvoke.MoveToEx(desktopDC, start.X, start.Y, lppt: null);
-        PInvoke.LineTo(desktopDC, end.X, end.Y);
+        // WinFormsX never draws directly to the host desktop. Reversible adorners need a PAL overlay.
+        GC.KeepAlive(start);
+        GC.KeepAlive(end);
+        GC.KeepAlive(backColor);
     }
 
     /// <summary>
@@ -1867,23 +1829,10 @@ public static unsafe partial class ControlPaint
     /// </summary>
     public static void FillReversibleRectangle(Rectangle rectangle, Color backColor)
     {
-        ROP_CODE rop3 = (ROP_CODE)GetColorRop(
-            backColor,
-            0xa50065,   // RasterOp.BRUSH.Invert().XorWith(RasterOp.TARGET),
-            0x5a0049);  // RasterOp.BRUSH.XorWith(RasterOp.TARGET));
-        R2_MODE rop2 = R2_MODE.R2_NOT;
-
-        using GetDcScope desktopDC = new(
-            PInvoke.GetDesktopWindow(),
-            HRGN.Null,
-            GET_DCX_FLAGS.DCX_WINDOW | GET_DCX_FLAGS.DCX_LOCKWINDOWUPDATE | GET_DCX_FLAGS.DCX_CACHE);
-
-        using ObjectScope brush = new(PInvoke.CreateSolidBrush((COLORREF)(uint)ColorTranslator.ToWin32(backColor)));
-        using SetRop2Scope ropScope = new(desktopDC, rop2);
-        using SelectObjectScope brushSelection = new(desktopDC, brush);
-
-        // PatBlt must be the only Win32 function that wants height in width rather than x2,y2.
-        PInvoke.PatBlt(desktopDC, rectangle.X, rectangle.Y, rectangle.Width, rectangle.Height, rop3);
+        // WinFormsX does not draw directly to the host desktop. Controls that need reversible feedback
+        // should render it through their own managed paint path.
+        GC.KeepAlive(rectangle);
+        GC.KeepAlive(backColor);
     }
 
     /// <summary>
