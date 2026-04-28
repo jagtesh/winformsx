@@ -732,14 +732,19 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
 
     private static void DrawText(System.Drawing.Graphics g, string? text, Font? font, Color color, Rectangle rect, ContentAlignment alignment)
     {
-        // Temporarily disabled for PAL-only bootstrap: StringFormat/Font shaping still reaches GDI+ on macOS.
-        // Keep primitive control rendering unblocked first; re-enable after text pipeline is fully PAL-backed.
-        _ = g;
-        _ = text;
-        _ = font;
-        _ = color;
-        _ = rect;
-        _ = alignment;
+        if (string.IsNullOrEmpty(text) || rect.Width <= 0 || rect.Height <= 0 || font is null)
+        {
+            return;
+        }
+
+        try
+        {
+            g.DrawString(text, font, color, rect, alignment);
+        }
+        catch
+        {
+            // Keep rendering resilient; text failures should not break frame output.
+        }
     }
 
     private static T SafeGet<T>(Func<T> getter, T fallback)

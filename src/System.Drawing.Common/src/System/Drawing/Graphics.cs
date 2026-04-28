@@ -1986,6 +1986,48 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     public void DrawString(string? s, Font font, Color color, RectangleF layoutRectangle, StringFormat? format) =>
         DrawStringColorInternal(s, font, color, layoutRectangle, format);
 
+    /// <summary>
+    ///  Backend-friendly text overload that maps directly to a <see cref="ContentAlignment"/> without requiring StringFormat construction.
+    /// </summary>
+    [EditorBrowsable(EditorBrowsableState.Advanced)]
+    public void DrawString(string? s, Font font, Color color, RectangleF layoutRectangle, ContentAlignment alignment)
+    {
+        if (_backend is not null)
+        {
+            if (string.IsNullOrEmpty(s))
+            {
+                return;
+            }
+
+            ArgumentNullException.ThrowIfNull(font);
+            bool bold = font.Style.HasFlag(FontStyle.Bold);
+            bool italic = font.Style.HasFlag(FontStyle.Italic);
+            float fontSizePixels = font.SizeInPoints * 96.0f / 72.0f;
+            _backend.DrawStringAligned(s, layoutRectangle, alignment, color, font.FontFamily.Name, fontSizePixels, bold, italic);
+            return;
+        }
+
+        using StringFormat format = new()
+        {
+            Alignment = alignment switch
+            {
+                ContentAlignment.TopCenter or ContentAlignment.MiddleCenter or ContentAlignment.BottomCenter => StringAlignment.Center,
+                ContentAlignment.TopRight or ContentAlignment.MiddleRight or ContentAlignment.BottomRight => StringAlignment.Far,
+                _ => StringAlignment.Near
+            },
+            LineAlignment = alignment switch
+            {
+                ContentAlignment.MiddleLeft or ContentAlignment.MiddleCenter or ContentAlignment.MiddleRight => StringAlignment.Center,
+                ContentAlignment.BottomLeft or ContentAlignment.BottomCenter or ContentAlignment.BottomRight => StringAlignment.Far,
+                _ => StringAlignment.Near
+            },
+            Trimming = StringTrimming.EllipsisCharacter,
+            FormatFlags = StringFormatFlags.NoWrap
+        };
+
+        DrawStringColorInternal(s, font, color, layoutRectangle, format);
+    }
+
 #if NET8_0_OR_GREATER
     /// <inheritdoc cref="DrawString(string?, Font, Brush, RectangleF, StringFormat?)"/>
     public void DrawString(ReadOnlySpan<char> s, Font font, Brush brush, RectangleF layoutRectangle, StringFormat? format) =>
