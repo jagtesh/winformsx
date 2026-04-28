@@ -2,17 +2,25 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using Windows.Win32;
-using Windows.Win32.Graphics.GdiPlus;
 
 namespace System.Drawing;
 
 internal static class ImageCodecInfoHelper
 {
-    // Getting the entire array of ImageCodecInfo objects is expensive and not necessary when all we need are the
-    // encoder CLSIDs. There are only 5 encoders: PNG, JPEG, GIF, BMP, and TIFF. We'll just build the small cache
-    // here to avoid all of the overhead. (We could probably just hard-code the values, but on the very small chance
-    // that the list of encoders changes, we'll keep it dynamic.)
-    private static (Guid Format, Guid Encoder)[]? s_encoders;
+    private static readonly Guid s_bmpCodec = new(0x557cf400, 0x1a04, 0x11d3, [0x9a, 0x73, 0x00, 0x00, 0xf8, 0x1e, 0xf3, 0x2e]);
+    private static readonly Guid s_jpegCodec = new(0x557cf401, 0x1a04, 0x11d3, [0x9a, 0x73, 0x00, 0x00, 0xf8, 0x1e, 0xf3, 0x2e]);
+    private static readonly Guid s_gifCodec = new(0x557cf402, 0x1a04, 0x11d3, [0x9a, 0x73, 0x00, 0x00, 0xf8, 0x1e, 0xf3, 0x2e]);
+    private static readonly Guid s_tiffCodec = new(0x557cf405, 0x1a04, 0x11d3, [0x9a, 0x73, 0x00, 0x00, 0xf8, 0x1e, 0xf3, 0x2e]);
+    private static readonly Guid s_pngCodec = new(0x557cf406, 0x1a04, 0x11d3, [0x9a, 0x73, 0x00, 0x00, 0xf8, 0x1e, 0xf3, 0x2e]);
+
+    private static readonly (Guid Format, Guid Encoder)[] s_encoders =
+    [
+        (PInvokeCore.ImageFormatBMP, s_bmpCodec),
+        (PInvokeCore.ImageFormatJPEG, s_jpegCodec),
+        (PInvokeCore.ImageFormatGIF, s_gifCodec),
+        (PInvokeCore.ImageFormatTIFF, s_tiffCodec),
+        (PInvokeCore.ImageFormatPNG, s_pngCodec)
+    ];
 
     /// <summary>
     ///  Get the encoder guid for the given image format guid.
@@ -30,35 +38,5 @@ internal static class ImageCodecInfoHelper
         return Guid.Empty;
     }
 
-    private static unsafe (Guid Format, Guid Encoder)[] Encoders
-    {
-        get
-        {
-            if (s_encoders is null)
-            {
-                GdiPlusInitialization.EnsureInitialized();
-
-                uint numEncoders;
-                uint size;
-
-                PInvokeCore.GdipGetImageEncodersSize(&numEncoders, &size).ThrowIfFailed();
-
-                using BufferScope<byte> buffer = new((int)size);
-
-                fixed (byte* b = buffer)
-                {
-                    PInvokeCore.GdipGetImageEncoders(numEncoders, size, (ImageCodecInfo*)b).ThrowIfFailed();
-                    ReadOnlySpan<ImageCodecInfo> codecInfo = new((ImageCodecInfo*)b, (int)numEncoders);
-                    s_encoders = new (Guid Format, Guid Encoder)[codecInfo.Length];
-
-                    for (int i = 0; i < codecInfo.Length; i++)
-                    {
-                        s_encoders[i] = (codecInfo[i].FormatID, codecInfo[i].Clsid);
-                    }
-                }
-            }
-
-            return s_encoders;
-        }
-    }
+    private static (Guid Format, Guid Encoder)[] Encoders => s_encoders;
 }

@@ -6,6 +6,12 @@ namespace System.Drawing.Imaging;
 // sdkinc\imaging.h
 public sealed unsafe class ImageCodecInfo
 {
+    private static readonly Guid s_bmpCodec = new(0x557cf400, 0x1a04, 0x11d3, [0x9a, 0x73, 0x00, 0x00, 0xf8, 0x1e, 0xf3, 0x2e]);
+    private static readonly Guid s_jpegCodec = new(0x557cf401, 0x1a04, 0x11d3, [0x9a, 0x73, 0x00, 0x00, 0xf8, 0x1e, 0xf3, 0x2e]);
+    private static readonly Guid s_gifCodec = new(0x557cf402, 0x1a04, 0x11d3, [0x9a, 0x73, 0x00, 0x00, 0xf8, 0x1e, 0xf3, 0x2e]);
+    private static readonly Guid s_tiffCodec = new(0x557cf405, 0x1a04, 0x11d3, [0x9a, 0x73, 0x00, 0x00, 0xf8, 0x1e, 0xf3, 0x2e]);
+    private static readonly Guid s_pngCodec = new(0x557cf406, 0x1a04, 0x11d3, [0x9a, 0x73, 0x00, 0x00, 0xf8, 0x1e, 0xf3, 0x2e]);
+
     internal ImageCodecInfo()
     {
     }
@@ -38,77 +44,42 @@ public sealed unsafe class ImageCodecInfo
 
     public static ImageCodecInfo[] GetImageDecoders()
     {
-        ImageCodecInfo[] imageCodecs;
-        uint numDecoders;
-        uint size;
-
-        PInvoke.GdipGetImageDecodersSize(&numDecoders, &size).ThrowIfFailed();
-
-        using BufferScope<byte> buffer = new((int)size);
-
-        fixed (byte* b = buffer)
-        {
-            PInvoke.GdipGetImageDecoders(numDecoders, size, (GdiPlus.ImageCodecInfo*)b).ThrowIfFailed();
-            imageCodecs = FromNative(new((GdiPlus.ImageCodecInfo*)b, (int)numDecoders));
-        }
-
-        return imageCodecs;
+        return GetManagedCodecs();
     }
 
     public static ImageCodecInfo[] GetImageEncoders()
     {
-        GdiPlusInitialization.EnsureInitialized();
-
-        ImageCodecInfo[] imageCodecs;
-        uint numEncoders;
-        uint size;
-
-        PInvokeCore.GdipGetImageEncodersSize(&numEncoders, &size).ThrowIfFailed();
-
-        using BufferScope<byte> buffer = new((int)size);
-
-        fixed (byte* b = buffer)
-        {
-            PInvokeCore.GdipGetImageEncoders(numEncoders, size, (GdiPlus.ImageCodecInfo*)b).ThrowIfFailed();
-            imageCodecs = FromNative(new((GdiPlus.ImageCodecInfo*)b, (int)numEncoders));
-        }
-
-        return imageCodecs;
+        return GetManagedCodecs();
     }
 
-    private static unsafe ImageCodecInfo[] FromNative(ReadOnlySpan<GdiPlus.ImageCodecInfo> codecInfo)
+    private static ImageCodecInfo[] GetManagedCodecs()
     {
-        ImageCodecInfo[] codecs = new ImageCodecInfo[codecInfo.Length];
-
-        for (int i = 0; i < codecInfo.Length; i++)
-        {
-            int signatureCount = (int)codecInfo[i].SigCount;
-
-            ImageCodecInfo codec = new()
-            {
-                Clsid = codecInfo[i].Clsid,
-                FormatID = codecInfo[i].FormatID,
-                CodecName = codecInfo[i].CodecName.ToString(),
-                DllName = codecInfo[i].DllName.ToString(),
-                FormatDescription = codecInfo[i].FormatDescription.ToString(),
-                FilenameExtension = codecInfo[i].FilenameExtension.ToString(),
-                MimeType = codecInfo[i].MimeType.ToString(),
-                Flags = (ImageCodecFlags)codecInfo[i].Flags,
-                Version = (int)codecInfo[i].Version,
-
-                SignaturePatterns = new byte[signatureCount][],
-                SignatureMasks = new byte[signatureCount][]
-            };
-
-            for (int j = 0; j < signatureCount; j++)
-            {
-                codec.SignaturePatterns[j] = new ReadOnlySpan<byte>(codecInfo[i].SigPattern + j * codecInfo[i].SigSize, (int)codecInfo[i].SigSize).ToArray();
-                codec.SignatureMasks[j] = new ReadOnlySpan<byte>(codecInfo[i].SigMask + j * codecInfo[i].SigSize, (int)codecInfo[i].SigSize).ToArray();
-            }
-
-            codecs[i] = codec;
-        }
-
-        return codecs;
+        return
+        [
+            CreateCodec(s_bmpCodec, PInvokeCore.ImageFormatBMP, "BMP", "*.BMP;*.DIB;*.RLE", "image/bmp"),
+            CreateCodec(s_jpegCodec, PInvokeCore.ImageFormatJPEG, "JPEG", "*.JPG;*.JPEG;*.JPE;*.JFIF", "image/jpeg"),
+            CreateCodec(s_gifCodec, PInvokeCore.ImageFormatGIF, "GIF", "*.GIF", "image/gif"),
+            CreateCodec(s_tiffCodec, PInvokeCore.ImageFormatTIFF, "TIFF", "*.TIF;*.TIFF", "image/tiff"),
+            CreateCodec(s_pngCodec, PInvokeCore.ImageFormatPNG, "PNG", "*.PNG", "image/png")
+        ];
     }
+
+    private static ImageCodecInfo CreateCodec(Guid codecId, Guid formatId, string name, string extension, string mimeType)
+    {
+        return new()
+        {
+            Clsid = codecId,
+            FormatID = formatId,
+            CodecName = $"Built-in {name} codec",
+            DllName = null,
+            FormatDescription = name,
+            FilenameExtension = extension,
+            MimeType = mimeType,
+            Flags = ImageCodecFlags.Decoder | ImageCodecFlags.Encoder | ImageCodecFlags.SupportBitmap,
+            Version = 1,
+            SignaturePatterns = [],
+            SignatureMasks = []
+        };
+    }
+
 }
