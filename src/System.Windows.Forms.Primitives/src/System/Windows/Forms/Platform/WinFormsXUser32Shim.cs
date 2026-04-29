@@ -51,6 +51,10 @@ internal static unsafe class WinFormsXUser32Shim
             GetForegroundWindow = &GetForegroundWindow,
             SetForegroundWindow = &SetForegroundWindow,
             GetSystemMetrics = &GetSystemMetrics,
+            SystemParametersInfo = &SystemParametersInfo,
+            SystemParametersInfoForDpi = &SystemParametersInfoForDpi,
+            GetDpiForWindow = &GetDpiForWindow,
+            GetDpiForSystem = &GetDpiForSystem,
             IsWindow = &IsWindow,
             IsWindowVisible = &IsWindowVisible,
             IsWindowEnabled = &IsWindowEnabled,
@@ -412,6 +416,62 @@ internal static unsafe class WinFormsXUser32Shim
         catch
         {
             return 0;
+        }
+    }
+
+    [UnmanagedCallersOnly]
+    private static int SystemParametersInfo(uint uiAction, uint uiParam, void* pvParam, uint flags)
+    {
+        try
+        {
+            return PlatformApi.System.SystemParametersInfo((SYSTEM_PARAMETERS_INFO_ACTION)uiAction, uiParam, pvParam, flags)
+                ? 1
+                : 0;
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    [UnmanagedCallersOnly]
+    private static int SystemParametersInfoForDpi(uint uiAction, uint uiParam, void* pvParam, uint flags, uint dpi)
+    {
+        try
+        {
+            return PlatformApi.System.SystemParametersInfo((SYSTEM_PARAMETERS_INFO_ACTION)uiAction, uiParam, pvParam, flags)
+                ? 1
+                : 0;
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    [UnmanagedCallersOnly]
+    private static uint GetDpiForWindow(nint hwnd)
+    {
+        try
+        {
+            return PlatformApi.System.GetDpiForWindow((HWND)hwnd);
+        }
+        catch
+        {
+            return 96;
+        }
+    }
+
+    [UnmanagedCallersOnly]
+    private static uint GetDpiForSystem()
+    {
+        try
+        {
+            return PlatformApi.System.GetDpiForSystem();
+        }
+        catch
+        {
+            return 96;
         }
     }
 
@@ -876,6 +936,10 @@ internal static unsafe class WinFormsXUser32Shim
         public delegate* unmanaged<byte*, int> GetKeyboardState;
         public delegate* unmanaged<uint, nint> GetKeyboardLayout;
         public delegate* unmanaged<nint, uint, nint> ActivateKeyboardLayout;
+        public delegate* unmanaged<uint, uint, void*, uint, int> SystemParametersInfo;
+        public delegate* unmanaged<uint, uint, void*, uint, uint, int> SystemParametersInfoForDpi;
+        public delegate* unmanaged<nint, uint> GetDpiForWindow;
+        public delegate* unmanaged<uint> GetDpiForSystem;
         public delegate* unmanaged<nint, int> UpdateWindow;
         public delegate* unmanaged<nint, WinFormsXRect*, int, int> InvalidateRect;
         public delegate* unmanaged<nint, WinFormsXRect*, int> ValidateRect;

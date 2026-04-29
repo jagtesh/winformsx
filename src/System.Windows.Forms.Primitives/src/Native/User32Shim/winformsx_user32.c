@@ -82,6 +82,10 @@ typedef struct WinFormsXUser32Dispatch
     BOOL (*get_keyboard_state)(UINT8* lp_key_state);
     HKL (*get_keyboard_layout)(UINT idThread);
     HKL (*activate_keyboard_layout)(HKL hkl, UINT flags);
+    BOOL (*system_parameters_info)(UINT ui_action, UINT ui_param, void* pv_param, UINT flags);
+    BOOL (*system_parameters_info_for_dpi)(UINT ui_action, UINT ui_param, void* pv_param, UINT flags, UINT dpi);
+    UINT (*get_dpi_for_window)(HWND hwnd);
+    UINT (*get_dpi_for_system)(void);
     BOOL (*update_window)(HWND hwnd);
     BOOL (*invalidate_rect)(HWND hwnd, const WinFormsXRect* rect, INT erase);
     BOOL (*validate_rect)(HWND hwnd, const WinFormsXRect* rect);
@@ -205,6 +209,30 @@ WF_EXPORT HKL GetKeyboardLayout(UINT idThread)
 WF_EXPORT HKL ActivateKeyboardLayout(HKL hkl, UINT flags)
 {
     return g_dispatch.activate_keyboard_layout != 0 ? g_dispatch.activate_keyboard_layout(hkl, flags) : 0;
+}
+
+WF_EXPORT UINT GetDpiForWindow(HWND hwnd)
+{
+    return g_dispatch.get_dpi_for_window != 0 ? g_dispatch.get_dpi_for_window(hwnd) : 96;
+}
+
+WF_EXPORT UINT GetDpiForSystem(void)
+{
+    return g_dispatch.get_dpi_for_system != 0 ? g_dispatch.get_dpi_for_system() : 96;
+}
+
+WF_EXPORT BOOL SystemParametersInfo(UINT ui_action, UINT ui_param, void* pv_param, UINT flags)
+{
+    return g_dispatch.system_parameters_info != 0
+        ? g_dispatch.system_parameters_info(ui_action, ui_param, pv_param, flags)
+        : 0;
+}
+
+WF_EXPORT BOOL SystemParametersInfoForDpi(UINT ui_action, UINT ui_param, void* pv_param, UINT flags, UINT dpi)
+{
+    return g_dispatch.system_parameters_info_for_dpi != 0
+        ? g_dispatch.system_parameters_info_for_dpi(ui_action, ui_param, pv_param, flags, dpi)
+        : 0;
 }
 
 WF_EXPORT INT GetSystemMetrics(INT index)

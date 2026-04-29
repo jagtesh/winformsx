@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using Windows.Win32.UI.Accessibility;
+using global::System.Windows.Forms.Platform;
 
 namespace Windows.Win32;
 
@@ -13,7 +14,7 @@ internal static partial class PInvoke
     {
         fixed (void* p = &value)
         {
-            return SystemParametersInfo(uiAction, 0, p, 0);
+            return PlatformApi.System.SystemParametersInfo(uiAction, 0, p, 0);
         }
     }
 
@@ -29,7 +30,7 @@ internal static partial class PInvoke
     public static unsafe bool SystemParametersInfo(SYSTEM_PARAMETERS_INFO_ACTION uiAction, ref bool value, uint fWinIni = 0)
     {
         BOOL nativeBool = value;
-        bool result = SystemParametersInfo(uiAction, 0, &nativeBool, (SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS)fWinIni);
+        bool result = PlatformApi.System.SystemParametersInfo(uiAction, 0, &nativeBool, fWinIni);
         value = nativeBool;
         return result;
     }
@@ -76,20 +77,14 @@ internal static partial class PInvoke
     /// </summary>
     public static unsafe bool TrySystemParametersInfoForDpi(ref NONCLIENTMETRICSW metrics, uint dpi)
     {
-        if (OsVersion.IsWindows10_1607OrGreater())
+        fixed (void* p = &metrics)
         {
-            fixed (void* p = &metrics)
-            {
-                metrics.cbSize = (uint)sizeof(NONCLIENTMETRICSW);
-                return SystemParametersInfoForDpi(
-                    (uint)SYSTEM_PARAMETERS_INFO_ACTION.SPI_GETNONCLIENTMETRICS,
-                    metrics.cbSize,
-                    p,
-                    0,
-                    dpi);
-            }
+            metrics.cbSize = (uint)sizeof(NONCLIENTMETRICSW);
+            return PlatformApi.System.SystemParametersInfo(
+                SYSTEM_PARAMETERS_INFO_ACTION.SPI_GETNONCLIENTMETRICS,
+                metrics.cbSize,
+                p,
+                0);
         }
-
-        return SystemParametersInfo(ref metrics);
     }
 }
