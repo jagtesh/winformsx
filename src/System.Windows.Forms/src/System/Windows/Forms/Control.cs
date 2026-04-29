@@ -9643,6 +9643,12 @@ public unsafe partial class Control :
             return;
         }
 
+        if (!OperatingSystem.IsWindows())
+        {
+            SetState(States.DropTarget, accept);
+            return;
+        }
+
         try
         {
             if (Application.OleRequired() != ApartmentState.STA)

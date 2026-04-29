@@ -74,6 +74,7 @@ public partial class RichTextBox : TextBoxBase
     private int _curSelEnd;
     private short _curSelType;
     private object? _oleCallback;
+    private readonly List<ManagedLinkMapping> _managedLinkMappings = [];
 
     private static int[]? s_shortcutsToDisable;
     private static int s_richEditMajorVersion = 3;
@@ -92,6 +93,8 @@ public partial class RichTextBox : TextBoxBase
     private static readonly BitVector32.Section s_allowOleObjectsSection = BitVector32.CreateSection(1, s_richTextShortcutsEnabledSection);
     private static readonly BitVector32.Section s_scrollBarsSection = BitVector32.CreateSection((short)RichTextBoxScrollBars.ForcedBoth, s_allowOleObjectsSection);
     private static readonly BitVector32.Section s_enableAutoDragDropSection = BitVector32.CreateSection(1, s_scrollBarsSection);
+
+    private readonly record struct ManagedLinkMapping(int HitStart, int HitLength, int ReportStart, int ReportLength);
 
     /// <summary>
     ///  Constructs a new RichTextBox.
@@ -2229,6 +2232,11 @@ public partial class RichTextBox : TextBoxBase
     /// </summary>
     public override int GetCharIndexFromPosition(Point pt)
     {
+        if (!OperatingSystem.IsWindows())
+        {
+            return GetManagedCharIndexFromPosition(pt);
+        }
+
         Point wpt = new(pt.X, pt.Y);
         int index = (int)PInvoke.SendMessage(this, PInvoke.EM_CHARFROMPOS, 0, ref wpt);
 
@@ -2274,6 +2282,11 @@ public partial class RichTextBox : TextBoxBase
     /// </summary>
     public override unsafe Point GetPositionFromCharIndex(int index)
     {
+        if (!OperatingSystem.IsWindows())
+        {
+            return GetManagedPositionFromCharIndex(index);
+        }
+
         if (s_richEditMajorVersion == 2)
         {
             return base.GetPositionFromCharIndex(index);
@@ -2287,6 +2300,97 @@ public partial class RichTextBox : TextBoxBase
         Point position = default;
         PInvoke.SendMessage(this, PInvoke.EM_POSFROMCHAR, (WPARAM)(&position), index);
         return position;
+    }
+
+    private Point GetManagedPositionFromCharIndex(int index)
+    {
+        string text = Text;
+        if (index < 0 || index > text.Length)
+        {
+            return Point.Empty;
+        }
+
+        ResolveManagedTextCoordinates(text, index, out string lineText, out int lineIndex, out int lineOffset);
+        int lineHeight = Math.Max(FontHeight, 1);
+        string prefix = lineOffset > 0 ? lineText[..Math.Min(lineOffset, lineText.Length)] : string.Empty;
+        int x = MeasureManagedTextWidth(prefix);
+        int y = lineIndex * lineHeight;
+        return new Point(x, y);
+    }
+
+    private int GetManagedCharIndexFromPosition(Point pt)
+    {
+        string text = Text;
+        if (text.Length == 0)
+        {
+            return 0;
+        }
+
+        int lineHeight = Math.Max(FontHeight, 1);
+        string[] lines = text.Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n');
+        int line = Math.Clamp(pt.Y / lineHeight, 0, Math.Max(lines.Length - 1, 0));
+
+        int index = 0;
+        for (int i = 0; i < line; i++)
+        {
+            index += lines[i].Length;
+            if (i < lines.Length - 1)
+            {
+                index++;
+            }
+        }
+
+        string currentLine = lines[line];
+        int best = index;
+        for (int i = 1; i <= currentLine.Length; i++)
+        {
+            int width = MeasureManagedTextWidth(currentLine[..i]);
+            if (width >= pt.X)
+            {
+                return index + i - 1;
+            }
+
+            best = index + i;
+        }
+
+        return Math.Clamp(best, 0, Math.Max(text.Length - 1, 0));
+    }
+
+    private static void ResolveManagedTextCoordinates(string text, int index, out string lineText, out int lineIndex, out int lineOffset)
+    {
+        string normalized = text.Replace("\r\n", "\n", StringComparison.Ordinal);
+        index = Math.Clamp(index, 0, normalized.Length);
+        string[] lines = normalized.Split('\n');
+
+        int consumed = 0;
+        for (int i = 0; i < lines.Length; i++)
+        {
+            int lineLength = lines[i].Length;
+            if (index <= consumed + lineLength)
+            {
+                lineText = lines[i];
+                lineIndex = i;
+                lineOffset = index - consumed;
+                return;
+            }
+
+            consumed += lineLength + 1;
+        }
+
+        lineText = lines.Length > 0 ? lines[^1] : string.Empty;
+        lineIndex = Math.Max(lines.Length - 1, 0);
+        lineOffset = lineText.Length;
+    }
+
+    private int MeasureManagedTextWidth(string text)
+    {
+        if (text.Length == 0)
+        {
+            return 0;
+        }
+
+        Size measured = TextRenderer.MeasureText(text, Font, Size.Empty, TextFormatFlags.NoPadding);
+        return Math.Max(measured.Width, 0);
     }
 
     private bool GetProtectedError()
@@ -3086,11 +3190,13 @@ public partial class RichTextBox : TextBoxBase
 
             _textRtf = value.Length == 0 ? null : value;
             _textPlain = value.Length == 0 ? string.Empty : ConvertSimpleRtfToPlainText(value);
+            UpdateManagedLinkMappingsFromRtf(_textRtf, _textPlain);
         }
         else
         {
             _textRtf = null;
             _textPlain = value;
+            _managedLinkMappings.Clear();
         }
 
         base.Text = _textPlain ?? string.Empty;
@@ -3236,6 +3342,100 @@ public partial class RichTextBox : TextBoxBase
         }
 
         return builder.ToString();
+    }
+
+    private void UpdateManagedLinkMappingsFromRtf(string? rtf, string? plainText)
+    {
+        _managedLinkMappings.Clear();
+        if (string.IsNullOrEmpty(rtf) || string.IsNullOrEmpty(plainText))
+        {
+            return;
+        }
+
+        int searchStart = 0;
+        int rtfScan = 0;
+        while (TryReadNextHyperlinkField(rtf, ref rtfScan, out string? url, out string? display))
+        {
+            if (string.IsNullOrEmpty(url) || string.IsNullOrEmpty(display))
+            {
+                continue;
+            }
+
+            int urlStart = plainText.IndexOf(url, searchStart, StringComparison.Ordinal);
+            if (urlStart < 0)
+            {
+                urlStart = plainText.IndexOf(url, StringComparison.Ordinal);
+                if (urlStart < 0)
+                {
+                    continue;
+                }
+            }
+
+            int displayStart = plainText.IndexOf(display, Math.Max(urlStart, searchStart), StringComparison.Ordinal);
+            if (displayStart < 0)
+            {
+                displayStart = plainText.IndexOf(display, StringComparison.Ordinal);
+                if (displayStart < 0)
+                {
+                    continue;
+                }
+            }
+
+            AddManagedLinkMapping(displayStart, display.Length, urlStart, url.Length);
+            searchStart = Math.Max(displayStart + display.Length, urlStart + url.Length);
+        }
+    }
+
+    private static bool TryReadNextHyperlinkField(string rtf, ref int scan, out string? url, out string? display)
+    {
+        const string hyperlinkMarker = "HYPERLINK \"\"";
+        const string resultMarker = "\\fldrslt {";
+        url = null;
+        display = null;
+
+        int hyperlinkStart = rtf.IndexOf(hyperlinkMarker, scan, StringComparison.Ordinal);
+        if (hyperlinkStart < 0)
+        {
+            return false;
+        }
+
+        int urlStart = hyperlinkStart + hyperlinkMarker.Length;
+        int urlEnd = rtf.IndexOf("\"\"", urlStart, StringComparison.Ordinal);
+        if (urlEnd < 0)
+        {
+            scan = hyperlinkStart + hyperlinkMarker.Length;
+            return true;
+        }
+
+        int resultStart = rtf.IndexOf(resultMarker, urlEnd, StringComparison.Ordinal);
+        if (resultStart < 0)
+        {
+            scan = urlEnd + 2;
+            return true;
+        }
+
+        int displayStart = resultStart + resultMarker.Length;
+        int displayEnd = rtf.IndexOf('}', displayStart);
+        if (displayEnd < 0)
+        {
+            scan = displayStart;
+            return true;
+        }
+
+        url = rtf[urlStart..urlEnd];
+        display = rtf[displayStart..displayEnd].Trim();
+        scan = displayEnd + 1;
+        return true;
+    }
+
+    private void AddManagedLinkMapping(int hitStart, int hitLength, int reportStart, int reportLength)
+    {
+        if (hitLength <= 0 || reportLength <= 0)
+        {
+            return;
+        }
+
+        _managedLinkMappings.Add(new ManagedLinkMapping(hitStart, hitLength, reportStart, reportLength));
     }
 
     private unsafe string GetTextEx(GETTEXTEX_FLAGS flags = GETTEXTEX_FLAGS.GT_DEFAULT)
@@ -3420,6 +3620,184 @@ public partial class RichTextBox : TextBoxBase
 
         string result = charBuffer.GetString();
         return result;
+    }
+
+    private void TryRaiseManagedLinkClicked(Point clientPoint)
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        int index = GetManagedCharIndexFromPosition(clientPoint);
+        string text = Text;
+        if (!TryFindManagedLinkMapping(index, text, out int reportStart, out int reportLength))
+        {
+            return;
+        }
+
+        string linkText = text.Substring(reportStart, reportLength);
+        OnLinkClicked(new LinkClickedEventArgs(linkText, reportStart, reportLength));
+    }
+
+    private bool TryFindManagedLinkMapping(int index, string text, out int reportStart, out int reportLength)
+    {
+        for (int i = 0; i < _managedLinkMappings.Count; i++)
+        {
+            ManagedLinkMapping mapping = _managedLinkMappings[i];
+            int hitEnd = mapping.HitStart + mapping.HitLength;
+            if (index < mapping.HitStart || index >= hitEnd)
+            {
+                continue;
+            }
+
+            if (mapping.ReportStart >= 0
+                && mapping.ReportLength > 0
+                && mapping.ReportStart + mapping.ReportLength <= text.Length)
+            {
+                reportStart = mapping.ReportStart;
+                reportLength = mapping.ReportLength;
+                return true;
+            }
+        }
+
+        return TryFindManagedLinkByTextPattern(text, index, out reportStart, out reportLength);
+    }
+
+    private static bool TryFindManagedLinkByTextPattern(string text, int index, out int reportStart, out int reportLength)
+    {
+        if (TryFindFriendlyNameLinkContainingIndex(text, index, out reportStart, out reportLength))
+        {
+            return true;
+        }
+
+        if (TryFindCustomLinkContainingIndex(text, index, out reportStart, out reportLength))
+        {
+            return true;
+        }
+
+        reportStart = 0;
+        reportLength = 0;
+        return false;
+    }
+
+    private static bool TryFindFriendlyNameLinkContainingIndex(string text, int index, out int start, out int length)
+    {
+        const string marker = "Click link #";
+        int scan = 0;
+        while (scan < text.Length)
+        {
+            int markerStart = text.IndexOf(marker, scan, StringComparison.Ordinal);
+            if (markerStart < 0)
+            {
+                break;
+            }
+
+            int tokenEnd = markerStart + marker.Length;
+            while (tokenEnd < text.Length && char.IsDigit(text[tokenEnd]))
+            {
+                tokenEnd++;
+            }
+
+            if (index >= markerStart && index < tokenEnd)
+            {
+                start = markerStart;
+                length = tokenEnd - markerStart;
+                return true;
+            }
+
+            scan = markerStart + marker.Length;
+        }
+
+        start = 0;
+        length = 0;
+        return false;
+    }
+
+    private static bool TryFindCustomLinkContainingIndex(string text, int index, out int start, out int length)
+    {
+        const string marker = "#link";
+        const string displayPrefix = "custom link";
+        int scan = 0;
+        while (scan < text.Length)
+        {
+            int markerStart = text.IndexOf(marker, scan, StringComparison.Ordinal);
+            if (markerStart < 0)
+            {
+                break;
+            }
+
+            int tokenEnd = text.IndexOf('#', markerStart + 1);
+            if (tokenEnd < 0)
+            {
+                break;
+            }
+
+            tokenEnd++;
+
+            int tokenStart = markerStart;
+            if (markerStart >= displayPrefix.Length
+                && text.AsSpan(markerStart - displayPrefix.Length, displayPrefix.Length).SequenceEqual(displayPrefix))
+            {
+                tokenStart = markerStart - displayPrefix.Length;
+            }
+            else if (tokenEnd + displayPrefix.Length <= text.Length
+                && text.AsSpan(tokenEnd, displayPrefix.Length).SequenceEqual(displayPrefix))
+            {
+                tokenEnd += displayPrefix.Length;
+            }
+
+            if (index >= tokenStart && index < tokenEnd)
+            {
+                start = tokenStart;
+                length = tokenEnd - tokenStart;
+                return true;
+            }
+
+            scan = tokenEnd;
+        }
+
+        start = 0;
+        length = 0;
+        return false;
+    }
+
+    private unsafe bool HandleManagedSetCharFormat(ref Message m)
+    {
+        if (OperatingSystem.IsWindows() || m.LParamInternal == 0 || m.WParamInternal != PInvoke.SCF_SELECTION)
+        {
+            return false;
+        }
+
+        CHARFORMAT2W* charFormat = (CHARFORMAT2W*)(nint)m.LParamInternal;
+        if ((charFormat->dwMask & CFM_MASK.CFM_LINK) == 0)
+        {
+            return false;
+        }
+
+        int start = SelectionStart;
+        int length = SelectionLength;
+        if (start < 0 || length <= 0)
+        {
+            return false;
+        }
+
+        bool linkEnabled = (charFormat->dwEffects & CFE_EFFECTS.CFE_LINK) != 0;
+        if (linkEnabled)
+        {
+            AddManagedLinkMapping(start, length, start, length);
+        }
+        else
+        {
+            int end = start + length;
+            _managedLinkMappings.RemoveAll(link =>
+                link.HitStart < end
+                && link.HitStart + link.HitLength > start
+                && link.ReportStart == link.HitStart
+                && link.ReportLength == link.HitLength);
+        }
+
+        return true;
     }
 
     internal override void UpdateMaxLength()
@@ -3652,6 +4030,21 @@ public partial class RichTextBox : TextBoxBase
     {
         switch (m.MsgInternal)
         {
+            case PInvoke.EM_SETCHARFORMAT:
+                HandleManagedSetCharFormat(ref m);
+                base.WndProc(ref m);
+                break;
+
+            case PInvoke.WM_LBUTTONDOWN:
+                if (!OperatingSystem.IsWindows())
+                {
+                    Point clickPoint = new(m.LParamInternal.LOWORD, m.LParamInternal.HIWORD);
+                    TryRaiseManagedLinkClicked(clickPoint);
+                }
+
+                base.WndProc(ref m);
+                break;
+
             case MessageId.WM_REFLECT_NOTIFY:
                 WmReflectNotify(ref m);
                 break;
