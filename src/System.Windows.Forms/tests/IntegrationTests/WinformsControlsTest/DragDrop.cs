@@ -10,16 +10,16 @@ namespace WinFormsControlsTest;
 [DesignerCategory("Default")]
 public partial class DragDrop : Form
 {
-    private const string DragDropDataDirectory = @"Data\DragDrop";
+    private static readonly string s_dragDropDataDirectory = Path.Combine("Data", "DragDrop");
     private const string NyanCatAsciiTxt = @"NyanCatAscii.txt";
     private const string DragAcceptRtf = @"DragAccept.rtf";
     private readonly string _nyanCatAscii = string.Empty;
-    private readonly Bitmap _dragAcceptBmp = new(@"Data\DragDrop\DragAccept.bmp");
-    private readonly Bitmap _nyanCatAscii301Bmp = new(@"Data\DragDrop\NyanCatAscii_301.bmp");
-    private readonly Bitmap _nyanCatBmp = new(@"Data\DragDrop\NyanCat1.bmp");
-    private readonly Bitmap _toolStripAsciiCatBmp = new(@"Data\DragDrop\ToolStripAsciiCat.bmp");
-    private readonly Bitmap _toolStripDragAcceptBmp = new(@"Data\DragDrop\ToolStripDragAccept.bmp");
-    private readonly Bitmap _toolStripNyanCatBmp = new(@"Data\DragDrop\ToolStripNyanCat.bmp");
+    private readonly Bitmap _dragAcceptBmp = new(Path.Combine(s_dragDropDataDirectory, "DragAccept.bmp"));
+    private readonly Bitmap _nyanCatAscii301Bmp = new(Path.Combine(s_dragDropDataDirectory, "NyanCatAscii_301.bmp"));
+    private readonly Bitmap _nyanCatBmp = new(Path.Combine(s_dragDropDataDirectory, "NyanCat1.bmp"));
+    private readonly Bitmap _toolStripAsciiCatBmp = new(Path.Combine(s_dragDropDataDirectory, "ToolStripAsciiCat.bmp"));
+    private readonly Bitmap _toolStripDragAcceptBmp = new(Path.Combine(s_dragDropDataDirectory, "ToolStripDragAccept.bmp"));
+    private readonly Bitmap _toolStripNyanCatBmp = new(Path.Combine(s_dragDropDataDirectory, "ToolStripNyanCat.bmp"));
     private readonly List<PictureBox> _pictureBoxList;
     private ContextMenuStrip? _catContextMenuStrip;
 
@@ -384,7 +384,7 @@ public partial class DragDrop : Form
     {
         string dragDropDataDirectory = Path.Combine(
             Directory.GetCurrentDirectory(),
-            DragDropDataDirectory);
+            s_dragDropDataDirectory);
 
         if (Directory.Exists(dragDropDataDirectory))
         {
@@ -402,7 +402,7 @@ public partial class DragDrop : Form
     {
         string nyanCatAsciiPath = Path.Combine(
             Directory.GetCurrentDirectory(),
-            DragDropDataDirectory,
+            s_dragDropDataDirectory,
             NyanCatAsciiTxt);
 
         try
@@ -538,7 +538,7 @@ public partial class DragDrop : Form
                 new string[]
                 {
                     Path.Combine(Directory.GetCurrentDirectory(),
-                        DragDropDataDirectory,
+                        s_dragDropDataDirectory,
                         DragAcceptRtf)
                 });
 

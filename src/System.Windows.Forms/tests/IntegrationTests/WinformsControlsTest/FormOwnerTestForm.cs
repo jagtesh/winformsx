@@ -26,7 +26,11 @@ internal class FormOwnerTestForm : Form
         long memoryStart = GC.GetTotalMemory(false);
 
         List<Form> childForms = [];
-        for (int i = 0; i < 500; i++)
+        int iterations = string.Equals(Environment.GetEnvironmentVariable("WINFORMSX_CONTROL_SMOKE"), "1", StringComparison.Ordinal)
+            ? 5
+            : 500;
+
+        for (int i = 0; i < iterations; i++)
         {
             MemoryTestParentForm parent = new();
             parent.Show();

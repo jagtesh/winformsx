@@ -114,11 +114,23 @@ public partial class Buttons : Form
             new Button
             {
                 AutoSize = true,
-                Image = Icon.ExtractIcon("regedit.exe", 0, 256).ToBitmap()
+                Image = CreateEmbeddedButtonBitmap()
             },
             column: 1,
             row: 1);
 
         base.OnLoad(e);
+    }
+
+    private static Bitmap CreateEmbeddedButtonBitmap()
+    {
+        using Stream? stream = typeof(Buttons).Assembly.GetManifestResourceStream("WinFormsControlsTest.Button.ico");
+        if (stream is null)
+        {
+            throw new InvalidOperationException("WinFormsControlsTest.Button.ico embedded resource was not found.");
+        }
+
+        using Icon icon = new(stream);
+        return icon.ToBitmap();
     }
 }

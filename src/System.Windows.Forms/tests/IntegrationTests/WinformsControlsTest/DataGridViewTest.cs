@@ -27,7 +27,7 @@ public partial class DataGridViewTest : Form
         dataGridView1.Rows.Add("DefaultCellStyle", dataGridView1.DefaultCellStyle.Font.ToString());
         dataGridView1.Rows.Add("ColumnHeadersDefaultCellStyle", dataGridView1.ColumnHeadersDefaultCellStyle.Font.ToString());
         dataGridView1.Rows.Add("RowHeadersDefaultCellStyle", dataGridView1.RowHeadersDefaultCellStyle.Font.ToString());
-        column6.Image = Image.FromFile("Images\\SmallA.bmp");
+        column6.Image = Image.FromFile(Path.Combine("Images", "SmallA.bmp"));
 
         int i = 1;
         foreach (DataGridViewRow row in dataGridView1.Rows)

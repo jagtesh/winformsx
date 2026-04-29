@@ -17,9 +17,9 @@ public partial class ToolStripTests : Form
         statusStrip1.Items.Add(new ToolStripControlHost(new RadioButton() { Text = "RadioButton" })); // RadioButton supports UIA
         statusStrip1.Items.Add(new ToolStripControlHost(new HScrollBar() { Value = 30 })); // HScrollBar doesn't support UIA
 
-        toolStrip2_Button4.Image = Image.FromFile("Images\\SmallA.bmp");
+        toolStrip2_Button4.Image = Image.FromFile(Path.Combine("Images", "SmallA.bmp"));
         toolStrip2_Button4.DisplayStyle = ToolStripItemDisplayStyle.ImageAndText;
-        toolStrip2_Button5.Image = Image.FromFile("Images\\SmallABlue.bmp");
+        toolStrip2_Button5.Image = Image.FromFile(Path.Combine("Images", "SmallABlue.bmp"));
         toolStrip2_Button5.DisplayStyle = ToolStripItemDisplayStyle.Image;
     }
 }

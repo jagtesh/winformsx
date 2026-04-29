@@ -23,10 +23,10 @@ internal partial class CollectionEditors : Form
         InitializeComponent();
 
         ImageList imageList = new();
-        imageList.Images.Add("SmallA", Image.FromFile("Images\\SmallA.bmp"));
-        imageList.Images.Add(Image.FromFile("Images\\SmallABlue.bmp"));
-        imageList.Images.Add("LargeA", Image.FromFile("Images\\LargeA.bmp"));
-        imageList.Images.Add(Image.FromFile("Images\\LargeABlue.bmp"));
+        imageList.Images.Add("SmallA", Image.FromFile(Path.Combine("Images", "SmallA.bmp")));
+        imageList.Images.Add(Image.FromFile(Path.Combine("Images", "SmallABlue.bmp")));
+        imageList.Images.Add("LargeA", Image.FromFile(Path.Combine("Images", "LargeA.bmp")));
+        imageList.Images.Add(Image.FromFile(Path.Combine("Images", "LargeABlue.bmp")));
 
         textBox1.Lines = _stringArray;
         domainUpDown1.Items.AddRange(_stringCollection);

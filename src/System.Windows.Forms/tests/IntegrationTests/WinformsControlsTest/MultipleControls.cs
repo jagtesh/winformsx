@@ -89,10 +89,10 @@ public partial class MultipleControls : Form
         ImageList imageListLarge = new();
 
         // Initialize the ImageList objects with bitmaps.
-        imageListSmall.Images.Add(Image.FromFile("Images\\SmallA.bmp"));
-        imageListSmall.Images.Add(Image.FromFile("Images\\SmallABlue.bmp"));
-        imageListLarge.Images.Add(Image.FromFile("Images\\LargeA.bmp"));
-        imageListLarge.Images.Add(Image.FromFile("Images\\LargeABlue.bmp"));
+        imageListSmall.Images.Add(Image.FromFile(Path.Combine("Images", "SmallA.bmp")));
+        imageListSmall.Images.Add(Image.FromFile(Path.Combine("Images", "SmallABlue.bmp")));
+        imageListLarge.Images.Add(Image.FromFile(Path.Combine("Images", "LargeA.bmp")));
+        imageListLarge.Images.Add(Image.FromFile(Path.Combine("Images", "LargeABlue.bmp")));
 
         // Assign the ImageList objects to the ListView.
         listView2.LargeImageList = imageListLarge;

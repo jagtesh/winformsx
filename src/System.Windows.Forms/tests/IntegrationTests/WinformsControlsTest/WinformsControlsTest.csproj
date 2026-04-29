@@ -25,16 +25,27 @@
 
   <PropertyGroup>
     <NoWarn>$(NoWarn);WFDEV001</NoWarn>
+    <DefineConstants Condition="$([MSBuild]::IsOSPlatform('Windows'))">$(DefineConstants);WINDOWS</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\..\..\BuildAssist\BuildAssist.msbuildproj" />
     <ProjectReference Include="..\..\..\..\System.Design\src\System.Design.Facade.csproj" />
+    <ProjectReference Include="..\..\..\..\Microsoft.Win32.SystemEvents\src\Microsoft.Win32.SystemEvents.csproj" />
     <ProjectReference Include="..\..\..\..\System.Drawing.Design\src\System.Drawing.Design.Facade.csproj" />
     <ProjectReference Include="..\..\..\..\System.Windows.Forms.Design\src\System.Windows.Forms.Design.csproj" />
     <ProjectReference Include="..\..\..\..\System.Drawing.Common\src\System.Drawing.Common.csproj" />
     <ProjectReference Include="..\..\..\src\System.Windows.Forms.csproj" />
     <ProjectReference Include="..\System.Windows.Forms.IntegrationTests.Common\System.Windows.Forms.IntegrationTests.Common.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Condition="$([MSBuild]::IsOSPlatform('Windows'))">
+    <ProjectReference Include="..\..\..\..\BuildAssist\BuildAssist.msbuildproj" />
+  </ItemGroup>
+
+  <ItemGroup Condition="!$([MSBuild]::IsOSPlatform('Windows'))">
+    <Compile Remove="MediaPlayer.cs" />
+    <Compile Remove="MediaPlayer.Designer.cs" />
+    <EmbeddedResource Remove="MediaPlayer.resx" />
   </ItemGroup>
 
   <ItemGroup>
@@ -90,6 +101,9 @@
       <LogicalName>WinFormsControlsTest.LargeABlue.bmp</LogicalName>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </EmbeddedResource>
+    <EmbeddedResource Include="..\..\..\src\Resources\System\Windows\Forms\Button.ico">
+      <LogicalName>WinFormsControlsTest.Button.ico</LogicalName>
+    </EmbeddedResource>
   </ItemGroup>
 
   <ItemGroup>
@@ -129,7 +143,7 @@
     <ProjectReference Include="..\..\..\..\System.Windows.Forms.Analyzers.CSharp\src\System.Windows.Forms.Analyzers.CSharp.csproj" ReferenceOutputAssembly="false" OutputItemType="Analyzer" />
   </ItemGroup>
 
-  <ItemGroup>
+  <ItemGroup Condition="$([MSBuild]::IsOSPlatform('Windows'))">
     <Reference Include="AxInterop.WMPLib">
       <HintPath>$(ArtifactsBinDir)\AxHosts\$(Configuration)\net472\AxInterop.WMPLib.dll</HintPath>
     </Reference>
@@ -138,7 +152,7 @@
     </Reference>
   </ItemGroup>
 
-  <ItemGroup>
+  <ItemGroup Condition="$([MSBuild]::IsOSPlatform('Windows'))">
     <Compile Update="MediaPlayer.cs" />
   </ItemGroup>
 
