@@ -34,11 +34,19 @@ path. The previous renderer-wide failures that caused blank client frames,
 missing text, `ErrorFragmentedPool` spam, and crashes during normal clicking,
 hovering, tab switching, textbox input, and frame stress have been resolved.
 
-The current stability follow-up is input/scroll behavior. Hovering around
-list/splitter areas exposed a `USER32.dll` load through `Cursors.Default`, and
-wheel scrolling later exposed a native `PAL_SEHException` termination. Project
-policy is consistent behavior on all OSes: cursor and scroll behavior should be
-synthetic everywhere, not native on Windows and synthetic elsewhere.
+The current stability follow-up is closing the remaining gaps without reopening
+native fallback paths. Hovering around list/splitter areas exposed a
+`USER32.dll` load through `Cursors.Default`, and wheel scrolling later exposed a
+native `PAL_SEHException` termination. Cursor construction, unsupported scroll
+APIs, and the ListBox wheel path have been moved onto synthetic behavior and
+are covered by regressions. Project policy remains: behavior should be
+consistent and synthetic on all OSes, not native on Windows and synthetic
+elsewhere.
+
+The basic-controls screenshot oracle has also been hardened so it no longer
+passes on mostly blank screenshots. It now checks the client region below the
+title/menu/tab strip, tab text score, Basic Controls heading retention, and
+later-image content retention against the ready baseline.
 
 ## Current Git State
 
@@ -54,11 +62,14 @@ Expected branch at handoff time:
 codex/winformsx-stability
 ```
 
-Latest completed stability checkpoint:
+Inspect the latest completed stability checkpoint with:
 
-```text
-5b39b27 fix: stabilize impeller descriptor pool allocation
+```sh
+git -C /Volumes/Dev/code/jagtesh/UniWinForms/winforms log --oneline -1
 ```
+
+The last committed checkpoint before this handoff refresh was
+`5ffd596 test: add scroll crash regression`.
 
 ## Completed Stability Work
 
@@ -90,6 +101,24 @@ Completed fix:
   caching, diagnostic text modes, and deferred frame-resource retirement.
 - Default rendering now uses native Impeller paragraphs with no text draw
   budget.
+
+Input and harness follow-ups completed after the descriptor-pool fix:
+
+- Cursor construction and cursor state are synthetic placeholders; standard
+  cursors no longer load stock OS cursor resources.
+- Wheel input no longer forwards into native/default scroll handling that can
+  terminate the process through `PAL_SEHException`.
+- ListBox wheel input now updates `TopIndex` through managed state when the
+  Impeller backend is active; the scroll regression checks both survival and a
+  visible ListBox content change.
+- `GetScrollInfo`, `SetScrollInfo`, and `ScrollWindowEx` now route through
+  synthetic state/no-op behavior rather than native USER32 calls.
+- `eng/capture-winforms-scroll-regression.sh` posts wheel input over the list
+  tab and fails on process exit, `PAL_SEHException`, `USER32.dll`, or native
+  load signatures.
+- `eng/capture-winforms-basic-controls-regression.sh` now fails on low
+  client-crop variance, low unique-color count, low tab text score, lost
+  client content versus baseline, and native/runtime error logs.
 
 ## Exact Reproduction Commands
 
@@ -146,28 +175,40 @@ DYLD_LIBRARY_PATH=/opt/homebrew/lib:$DYLD_LIBRARY_PATH \
   dotnet run --project src/WinFormsX.Samples/WinFormsX.Samples.csproj --no-build
 ```
 
-## Harness Caveat To Fix First
+## Remaining Work Queue
 
-`eng/capture-winforms-basic-controls-regression.sh` currently has a weak
-nonblank check. The `stress_dark_pixels` metric can pass by counting window
-chrome/shadow or non-client pixels even when the client area is blank.
+Work through these in order. Keep each checkpoint small enough to verify with
+the screenshot/log harnesses before moving on.
 
-Before relying on the script, update it to crop only the client content below
-the title bar/menu/tab strip. Use the stricter approach already present in:
+1. Keep all crash guards green: basic controls, frame stress, hover, scroll,
+   usability, textbox, and `eng/verify-impeller-only.sh`.
+2. Continue replacing scroll no-op behavior with a managed scroll model.
+   ListBox wheel movement has the first managed slice; remaining controls are
+   ListView/TreeView/DataGridView and ScrollableControl, plus deeper ListBox
+   scrollbar integration. Do not call USER32 on any OS.
+3. Add managed scrollbar/clipping/virtualization behavior once wheel input can
+   safely update control state.
+4. Add splitter drag coverage and then implement the synthetic SplitContainer
+   drag path.
+5. Add menu/combo dropdown state-machine coverage before implementing popup
+   behavior.
+6. Add renderer frame/resource counters and back-pressure so failed frames are
+   skipped instead of presented.
+7. Promote the local architecture checks and screenshot harnesses into the
+   normal pre-commit/CI path.
 
-```text
-eng/capture-winforms-frame-stress-regression.sh
-eng/capture-winforms-hover-regression.sh
-```
+The former first item was the basic-controls screenshot oracle. It is now fixed:
+the script crops client content below the title/menu/tab strip and fails if any
+of these regress:
 
-The basic-controls script should fail if:
-
-- client crop standard deviation is too low;
-- client crop unique-color count is too low;
-- tab text score is too low;
-- a baseline had visible content but a later image lost most visible content;
-- logs contain `ErrorFragmentedPool`, `Paint ERROR`, `EndFrame error`,
-  `ThreadException`, `DllNotFound`, `Program crashed`, or `Bus error`.
+- client crop standard deviation;
+- client crop unique-color count;
+- tab text score;
+- Basic Controls heading visibility;
+- later-image client content compared with the ready baseline;
+- logs containing `PAL_SEHException`, `ErrorFragmentedPool`, native DLL loads,
+  `Paint ERROR`, `EndFrame error`, `ThreadException`, `Program crashed`, or
+  `Bus error`.
 
 ## Diagnostic Findings
 
@@ -369,16 +410,19 @@ Next step:
 
 ## Suggested Immediate TDD Sequence
 
-1. Add/keep a regression that moves the mouse over splitter/list surfaces and
+1. Keep the regression that moves the mouse over splitter/list surfaces and
    scrolls the list view.
-2. Assert that the run does not load `USER32.dll` or hit native cursor APIs.
-3. Keep the broader renderer regressions green:
+2. Keep asserting that those runs do not load `USER32.dll` or hit native cursor
+   or scroll APIs.
+3. Keep the broader renderer regressions green after every behavior change:
    - Basic Controls;
    - frame stress;
    - hover stress;
    - usability;
    - textbox input.
-4. Fix the basic-controls screenshot oracle so it fails on client whiteout.
+4. Extend the managed-scroll behavior tests beyond the current ListBox wheel
+   coverage so each scrollable control proves state movement without native
+   calls or process termination.
 5. If descriptor or whiteout failures return, rerun the text/geometry diagnostic
    switch matrix from the historical notes before changing individual controls.
 6. Commit each passing checkpoint with `type: summary` format.

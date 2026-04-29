@@ -51,6 +51,7 @@ public partial class ListBox : ListControl
     private int _horizontalExtent;
     private int _maxWidth = -1;
     private int _updateCount;
+    private int _wheelDelta;
 
     private bool _sorted;
     private bool _scrollAlwaysVisible;
@@ -1146,7 +1147,12 @@ public partial class ListBox : ListControl
         {
             if (Graphics.IsBackendActive)
             {
-                _topIndex = value;
+                int topIndex = Math.Clamp(value, 0, GetBackendMaximumTopIndex());
+                if (_topIndex != topIndex)
+                {
+                    _topIndex = topIndex;
+                    Invalidate();
+                }
             }
             else if (IsHandleCreated)
             {
@@ -1157,6 +1163,22 @@ public partial class ListBox : ListControl
                 _topIndex = value;
             }
         }
+    }
+
+    private int GetBackendVisibleItemCount()
+    {
+        int itemHeight = ItemHeight > 0 ? ItemHeight : FontHeight;
+        return Math.Max(1, Height / Math.Max(1, itemHeight));
+    }
+
+    private int GetBackendMaximumTopIndex()
+    {
+        if (_multiColumn)
+        {
+            return 0;
+        }
+
+        return Math.Max(0, Items.Count - GetBackendVisibleItemCount());
     }
 
     /// <summary>
@@ -1980,6 +2002,53 @@ public partial class ListBox : ListControl
         }
     }
 
+    private void WmBackendMouseWheel(ref Message m)
+    {
+        if (!Graphics.IsBackendActive)
+        {
+            return;
+        }
+
+        if ((ModifierKeys & (Keys.Shift | Keys.Alt)) != 0 || MouseButtons != MouseButtons.None)
+        {
+            m.ResultInternal = (LRESULT)(BOOL.TRUE);
+            return;
+        }
+
+        int maximumTopIndex = GetBackendMaximumTopIndex();
+        if (maximumTopIndex == 0)
+        {
+            m.ResultInternal = (LRESULT)(BOOL.TRUE);
+            return;
+        }
+
+        int wheelScrollLines = SystemInformation.MouseWheelScrollLines;
+        if (wheelScrollLines == 0)
+        {
+            m.ResultInternal = (LRESULT)(BOOL.TRUE);
+            return;
+        }
+
+        _wheelDelta += (short)m.WParamInternal.HIWORD;
+        float partialNotches = _wheelDelta / (float)SystemInformation.MouseWheelScrollDelta;
+
+        if (wheelScrollLines == -1)
+        {
+            wheelScrollLines = GetBackendVisibleItemCount();
+        }
+
+        int scrollLines = (int)(wheelScrollLines * partialNotches);
+        if (scrollLines == 0)
+        {
+            m.ResultInternal = (LRESULT)(BOOL.TRUE);
+            return;
+        }
+
+        TopIndex = Math.Clamp(TopIndex - scrollLines, 0, maximumTopIndex);
+        _wheelDelta -= (int)(scrollLines * (SystemInformation.MouseWheelScrollDelta / (float)wheelScrollLines));
+        m.ResultInternal = (LRESULT)(BOOL.TRUE);
+    }
+
     protected override void OnFontChanged(EventArgs e)
     {
         base.OnFontChanged(e);
@@ -2573,6 +2642,17 @@ public partial class ListBox : ListControl
                 break;
             case PInvoke.WM_PRINT:
                 WmPrint(ref m);
+                break;
+            case PInvoke.WM_MOUSEWHEEL:
+                if (Graphics.IsBackendActive)
+                {
+                    WmBackendMouseWheel(ref m);
+                }
+                else
+                {
+                    base.WndProc(ref m);
+                }
+
                 break;
             case PInvoke.WM_LBUTTONDOWN:
                 _selectedItems?.Dirty();

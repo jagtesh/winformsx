@@ -71,6 +71,74 @@ post_mouse() {
     swift "$MOUSE_SCRIPT"
 }
 
+check_basic_controls_visual() {
+  python3 - "$1" <<'PY'
+import sys
+from PIL import Image, ImageStat
+
+path = sys.argv[1]
+
+def crop(image, box):
+    width, height = image.size
+    return image.crop((
+        int(width * box[0]),
+        int(height * box[1]),
+        int(width * box[2]),
+        int(height * box[3])))
+
+def metrics(path):
+    image = Image.open(path).convert("RGB")
+    width, height = image.size
+    if width < 400 or height < 300:
+        raise SystemExit(
+            f"[BASIC_CONTROLS_REGRESSION_FAIL] capture too small: {path} {width}x{height}")
+
+    # Client content only: skip desktop margins, title bar, menu, tab strip, and status bar.
+    client = crop(image, (0.060, 0.180, 0.940, 0.900))
+    sample = client.resize((300, max(1, int(300 * client.height / client.width))))
+    client_stat = ImageStat.Stat(sample)
+    client_colors = sample.getcolors(maxcolors=2_000_000) or []
+
+    tab_text = crop(image, (0.220, 0.135, 0.310, 0.160))
+    tab_score = sum(1 for r, g, b in tab_text.getdata() if (r + g + b) / 3.0 < 110)
+
+    heading = crop(image, (0.075, 0.205, 0.300, 0.245))
+    heading_blue = sum(1 for r, g, b in heading.getdata() if b > 130 and r < 100 and g < 180)
+
+    client_dark = sum(1 for r, g, b in client.getdata() if (r + g + b) / 3.0 < 90)
+
+    return {
+        "std": sum(client_stat.stddev) / 3.0,
+        "unique": len(client_colors),
+        "tab_score": tab_score,
+        "heading_blue": heading_blue,
+        "client_dark": client_dark,
+    }
+
+m = metrics(path)
+failures = []
+if m["std"] < 18.0:
+    failures.append(f"low client stddev={m['std']:.1f}")
+if m["unique"] < 50:
+    failures.append(f"low unique color count={m['unique']}")
+if m["tab_score"] < 300:
+    failures.append(f"tab text score too low={m['tab_score']}")
+if m["heading_blue"] < 1_000:
+    failures.append(f"Basic Controls heading appears missing={m['heading_blue']}")
+if m["client_dark"] < 4_000:
+    failures.append(f"client text/shape pixels too low={m['client_dark']}")
+
+if failures:
+    raise SystemExit(
+        "[BASIC_CONTROLS_REGRESSION_FAIL] " + "; ".join(failures))
+
+print(
+    "[BASIC_CONTROLS_VISUAL_READY] "
+    f"std={m['std']:.1f} unique={m['unique']} tab_score={m['tab_score']} "
+    f"heading_blue={m['heading_blue']} client_dark={m['client_dark']}")
+PY
+}
+
 BASELINE="$OUT_ROOT/basic-ready.png"
 PRESSED="$OUT_ROOT/button-pressed.png"
 RELEASED="$OUT_ROOT/button-released.png"
@@ -79,7 +147,24 @@ AFTER_STRESS="$OUT_ROOT/after-rapid-toggle.png"
 eng/capture-winforms-screen.sh "$OUT_ROOT/launch.png"
 post_mouse click "0.226,0.108"
 sleep 0.5
-eng/capture-winforms-screen.sh "$BASELINE"
+
+baseline_ready=0
+for _ in {1..10}; do
+  eng/capture-winforms-screen.sh "$BASELINE"
+  if check_basic_controls_visual "$BASELINE" >/tmp/winformsx_basic_controls_ready.log 2>&1; then
+    baseline_ready=1
+    cat /tmp/winformsx_basic_controls_ready.log
+    break
+  fi
+
+  sleep "${WINFORMSX_BASELINE_RETRY_DELAY:-0.2}"
+done
+
+if [[ "$baseline_ready" != "1" ]]; then
+  cat /tmp/winformsx_basic_controls_ready.log 2>/dev/null || true
+  echo "[BASIC_CONTROLS_REGRESSION_FAIL] baseline Basic Controls capture is not ready"
+  exit 1
+fi
 
 post_mouse down "0.080,0.500"
 sleep "${WINFORMSX_PRESS_CAPTURE_DELAY:-0.16}"
@@ -98,22 +183,69 @@ done
 sleep 0.5
 eng/capture-winforms-screen.sh "$AFTER_STRESS"
 
-python3 - "$BASELINE" "$PRESSED" "$AFTER_STRESS" <<'PY'
+python3 - "$BASELINE" "$PRESSED" "$RELEASED" "$AFTER_STRESS" <<'PY'
 import sys
 from PIL import Image, ImageStat
 
-baseline_path, pressed_path, stress_path = sys.argv[1:]
+baseline_path, pressed_path, released_path, stress_path = sys.argv[1:]
 
-def crop_mean(path, box):
-    image = Image.open(path).convert("RGB")
+def crop(image, box):
     width, height = image.size
-    crop = image.crop((
+    return image.crop((
         int(width * box[0]),
         int(height * box[1]),
         int(width * box[2]),
         int(height * box[3])))
-    stat = ImageStat.Stat(crop)
+
+def crop_mean(path, box):
+    image = Image.open(path).convert("RGB")
+    stat = ImageStat.Stat(crop(image, box))
     return sum(stat.mean) / 3.0
+
+def visual_metrics(path):
+    image = Image.open(path).convert("RGB")
+    width, height = image.size
+    if width < 400 or height < 300:
+        raise SystemExit(
+            f"[BASIC_CONTROLS_REGRESSION_FAIL] capture too small: {path} {width}x{height}")
+
+    client = crop(image, (0.060, 0.180, 0.940, 0.900))
+    sample = client.resize((300, max(1, int(300 * client.height / client.width))))
+    client_stat = ImageStat.Stat(sample)
+    client_colors = sample.getcolors(maxcolors=2_000_000) or []
+    tab_text = crop(image, (0.220, 0.135, 0.310, 0.160))
+    heading = crop(image, (0.075, 0.205, 0.300, 0.245))
+
+    return {
+        "std": sum(client_stat.stddev) / 3.0,
+        "unique": len(client_colors),
+        "tab_score": sum(1 for r, g, b in tab_text.getdata() if (r + g + b) / 3.0 < 110),
+        "heading_blue": sum(1 for r, g, b in heading.getdata() if b > 130 and r < 100 and g < 180),
+        "client_dark": sum(1 for r, g, b in client.getdata() if (r + g + b) / 3.0 < 90),
+    }
+
+def assert_visual(label, actual, baseline):
+    failures = []
+    if actual["std"] < 18.0:
+        failures.append(f"low client stddev={actual['std']:.1f}")
+    if actual["unique"] < 50:
+        failures.append(f"low unique color count={actual['unique']}")
+    if actual["tab_score"] < 300:
+        failures.append(f"tab text score too low={actual['tab_score']}")
+    if actual["std"] < baseline["std"] * 0.55:
+        failures.append(f"lost client variance baseline={baseline['std']:.1f} actual={actual['std']:.1f}")
+    if actual["unique"] < baseline["unique"] * 0.55:
+        failures.append(f"lost color variety baseline={baseline['unique']} actual={actual['unique']}")
+    if actual["tab_score"] < baseline["tab_score"] * 0.65:
+        failures.append(f"lost tab text baseline={baseline['tab_score']} actual={actual['tab_score']}")
+    if actual["heading_blue"] < baseline["heading_blue"] * 0.65:
+        failures.append(f"lost Basic Controls heading baseline={baseline['heading_blue']} actual={actual['heading_blue']}")
+    if actual["client_dark"] < baseline["client_dark"] * 0.55:
+        failures.append(f"lost client text/shapes baseline={baseline['client_dark']} actual={actual['client_dark']}")
+
+    if failures:
+        raise SystemExit(
+            f"[BASIC_CONTROLS_REGRESSION_FAIL] {label}: " + "; ".join(failures))
 
 baseline_button = crop_mean(baseline_path, (0.090, 0.475, 0.160, 0.510))
 pressed_button = crop_mean(pressed_path, (0.090, 0.475, 0.160, 0.510))
@@ -122,22 +254,24 @@ if pressed_button > baseline_button - 3.0:
         "[BASIC_CONTROLS_REGRESSION_FAIL] button did not visibly depress "
         f"(baseline={baseline_button:.1f}, pressed={pressed_button:.1f})")
 
-stress_image = Image.open(stress_path).convert("RGB")
-width, height = stress_image.size
-content = stress_image.crop((int(width * 0.05), int(height * 0.18), int(width * 0.95), int(height * 0.88))).convert("L")
-dark_pixels = sum(1 for pixel in content.getdata() if pixel < 90)
-if dark_pixels < 8000:
-    raise SystemExit(
-        "[BASIC_CONTROLS_REGRESSION_FAIL] rapid toggle stress lost visible text/shapes "
-        f"(dark_pixels={dark_pixels})")
+baseline = visual_metrics(baseline_path)
+pressed = visual_metrics(pressed_path)
+released = visual_metrics(released_path)
+stress = visual_metrics(stress_path)
+assert_visual("button-pressed", pressed, baseline)
+assert_visual("button-released", released, baseline)
+assert_visual("after-rapid-toggle", stress, baseline)
 
 print(
     "[BASIC_CONTROLS_REGRESSION_OK] "
     f"button baseline={baseline_button:.1f} pressed={pressed_button:.1f}; "
-    f"stress_dark_pixels={dark_pixels}")
+    f"baseline std={baseline['std']:.1f} unique={baseline['unique']} tab_score={baseline['tab_score']} "
+    f"heading_blue={baseline['heading_blue']} client_dark={baseline['client_dark']}; "
+    f"stress std={stress['std']:.1f} unique={stress['unique']} tab_score={stress['tab_score']} "
+    f"heading_blue={stress['heading_blue']} client_dark={stress['client_dark']}")
 PY
 
-if rg -in "ThreadException|paint error|EndFrame error|Program crashed|Bus error|DllNotFound|ErrorFragmentedPool|Unhandled exception|StackOverflow" "$RUN_LOG" "$TRACE_LOG" >/tmp/winformsx_basic_controls_regression_errors.log 2>/dev/null; then
+if rg -in "PAL_SEHException|ThreadException|paint error|EndFrame error|Program crashed|Bus error|DllNotFound|EntryPointNotFound|NativeLibrary|USER32\\.dll|ErrorFragmentedPool|Unhandled exception|StackOverflow" "$RUN_LOG" "$TRACE_LOG" >/tmp/winformsx_basic_controls_regression_errors.log 2>/dev/null; then
   cat /tmp/winformsx_basic_controls_regression_errors.log
   echo "[BASIC_CONTROLS_REGRESSION_FAIL] runtime log contains errors"
   exit 1

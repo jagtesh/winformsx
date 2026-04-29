@@ -36,6 +36,7 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
     private const uint WM_RBUTTONUP = 0x0205;
     private const uint WM_MBUTTONDOWN = 0x0207;
     private const uint WM_MBUTTONUP = 0x0208;
+    private const int WheelDelta = 120;
     private const int DefaultTargetFrameRate = 60;
     private const int ManagedTabHeaderHeight = 30;
     private const int ManagedTabHeaderLeft = 8;
@@ -652,8 +653,20 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                     mouse.Scroll += (m, scrollWheel) =>
                     {
                         using var guard = WinFormsXExecutionGuard.Enter(WinFormsXExecutionKind.Input, "MouseScroll");
-                        _ = m;
-                        _ = scrollWheel;
+                        int wheelDelta = GetMouseWheelDelta(scrollWheel);
+                        if (wheelDelta == 0)
+                        {
+                            return;
+                        }
+
+                        var pt = GetLogicalMousePoint(handle, m);
+                        HWND target = HitTest(handle, pt, out var clientPt);
+                        TraceInput(
+                            $"[MouseScroll] pt={pt} target=0x{(nint)target:X} delta={wheelDelta} client={clientPt}");
+                        if (!TryHandleManagedMouseWheel(handle, target, wheelDelta))
+                        {
+                            TraceInput($"[MouseScroll] no managed wheel handler for target=0x{(nint)target:X}");
+                        }
                     };
                 }
             }
@@ -2237,6 +2250,62 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
 
     private static LPARAM PackMouseLParam(System.Drawing.Point point)
         => (LPARAM)(nint)SafeArithmetic.PackSignedLowHigh16(point.X, point.Y);
+
+    private static int GetMouseWheelDelta(ScrollWheel scrollWheel)
+    {
+        float y = scrollWheel.Y;
+        if (Math.Abs(y) < 0.001f)
+        {
+            return 0;
+        }
+
+        if (Math.Abs(y) >= WheelDelta)
+        {
+            return Math.Clamp((int)MathF.Round(y), -WheelDelta, WheelDelta);
+        }
+
+        return Math.Clamp((int)MathF.Round(y * WheelDelta), -WheelDelta, WheelDelta);
+    }
+
+    private bool TryHandleManagedMouseWheel(HWND topLevel, HWND target, int wheelDelta)
+    {
+        if (Control.FromHandle(target) is not ListBox listBox)
+        {
+            return false;
+        }
+
+        listBox.BeginInvoke(new Action(() =>
+        {
+            int itemHeight = Math.Max(1, listBox.ItemHeight);
+            int visibleItems = Math.Max(1, listBox.Height / itemHeight);
+            int maximumTopIndex = Math.Max(0, listBox.Items.Count - visibleItems);
+            if (maximumTopIndex == 0)
+            {
+                return;
+            }
+
+            int wheelScrollLines = SystemInformation.MouseWheelScrollLines;
+            if (wheelScrollLines == 0)
+            {
+                return;
+            }
+
+            if (wheelScrollLines == -1)
+            {
+                wheelScrollLines = visibleItems;
+            }
+
+            int scrollLines = Math.Max(1, Math.Abs(wheelDelta) * wheelScrollLines / WheelDelta);
+            int newTopIndex = wheelDelta > 0
+                ? listBox.TopIndex - scrollLines
+                : listBox.TopIndex + scrollLines;
+
+            listBox.TopIndex = Math.Clamp(newTopIndex, 0, maximumTopIndex);
+            MarkDirty(topLevel);
+        }));
+
+        return true;
+    }
 
     private static bool TryGetClientPoint(HWND target, System.Drawing.Point rootPoint, out System.Drawing.Point clientPoint)
     {

@@ -17,7 +17,7 @@ sleep 0.3
 
 eng/capture-winforms-screen.sh "$OUT_DIR/before.png" >/tmp/winformsx_scroll_regression.out
 
-WINFORMSX_CLICK_POINTS='0.372,0.108' \
+WINFORMSX_CLICK_POINTS='0.372,0.105' \
 WINFORMSX_AFTER_CLICK_DELAY="${WINFORMSX_AFTER_CLICK_DELAY:-0.8}" \
 WINFORMSX_REUSE_RUNNING=1 \
   eng/capture-winforms-click-regression.sh "$OUT_DIR/lists-tab" >>/tmp/winformsx_scroll_regression.out
@@ -27,7 +27,7 @@ import CoreGraphics
 import Foundation
 
 let normalizedX = Double(ProcessInfo.processInfo.environment["WINFORMSX_SCROLL_X"] ?? "0.25") ?? 0.25
-let normalizedY = Double(ProcessInfo.processInfo.environment["WINFORMSX_SCROLL_Y"] ?? "0.35") ?? 0.35
+let normalizedY = Double(ProcessInfo.processInfo.environment["WINFORMSX_SCROLL_Y"] ?? "0.52") ?? 0.52
 
 func isTarget(owner: String, name: String) -> Bool {
     owner == "WinFormsX.Samples" || owner == "WinFormsXHarness" || name == "WINFORMSX_AUTOMATION_WINDOW"
@@ -83,6 +83,35 @@ if rg -n "PAL_SEHException|ThreadException|Paint error|EndFrame error|Program cr
   exit 1
 fi
 
-eng/capture-winforms-screen.sh "$OUT_DIR/after-scroll.png" >>/tmp/winformsx_scroll_regression.out
+AFTER_SCROLL="$OUT_DIR/after-scroll.png"
+eng/capture-winforms-screen.sh "$AFTER_SCROLL" >>/tmp/winformsx_scroll_regression.out
+
+python3 - "$OUT_DIR/lists-tab/after-click-1.png" "$AFTER_SCROLL" <<'PY'
+import sys
+from PIL import Image, ImageChops, ImageStat
+
+before = Image.open(sys.argv[1]).convert("RGB")
+after = Image.open(sys.argv[2]).convert("RGB")
+if before.size != after.size:
+    raise SystemExit(
+        f"[SCROLL_REGRESSION_FAIL] before/after capture size mismatch {before.size} != {after.size}")
+
+width, height = before.size
+# Available Employees ListBox client area on the Lists & Combos tab.
+box = (
+    int(width * 0.075),
+    int(height * 0.375),
+    int(width * 0.310),
+    int(height * 0.735))
+
+diff = ImageChops.difference(before.crop(box), after.crop(box))
+score = sum(ImageStat.Stat(diff).mean) / 3.0
+if score < 3.0:
+    raise SystemExit(
+        f"[SCROLL_REGRESSION_FAIL] wheel input did not visibly scroll the ListBox (diff={score:.3f})")
+
+print(f"[SCROLL_VISUAL_OK] listbox_diff={score:.3f}")
+PY
+
 cat /tmp/winformsx_scroll_regression.out
 echo "[SCROLL_REGRESSION_OK] $OUT_DIR"

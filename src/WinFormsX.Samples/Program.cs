@@ -245,7 +245,11 @@ public class KitchenSinkForm : Form
 
         var lblAvailable = new Label { Text = "Available Employees:", AutoSize = true, ForeColor = Color.FromArgb(0, 120, 215), Margin = new Padding(0, 0, 0, 8) };
         var lstAvailable = new ListBox { Width = 220, Height = 250, BorderStyle = BorderStyle.Fixed3D };
-        lstAvailable.Items.AddRange(["Alice Smith", "Bob Jones", "Charlie Davis", "Diana Prince", "Evan Wright", "Fiona Gallagher", "George Clark", "Hannah Lee", "Ian Malcolm", "Julia Roberts"]);
+        lstAvailable.Items.AddRange([
+            "Alice Smith", "Bob Jones", "Charlie Davis", "Diana Prince", "Evan Wright",
+            "Fiona Gallagher", "George Clark", "Hannah Lee", "Ian Malcolm", "Julia Roberts",
+            "Kai Patel", "Lena Ortiz", "Maya Chen", "Noah Brooks", "Olivia Stone",
+            "Priya Singh", "Quinn Taylor", "Ravi Kumar", "Sofia Rossi", "Theo Morgan"]);
         lstAvailable.SelectedIndex = 0;
         lstAvailable.SelectedIndexChanged += (_, _) => SetStatus($"Available Selected: {lstAvailable.SelectedItem}");
 
@@ -268,7 +272,7 @@ public class KitchenSinkForm : Form
         var grpManage = new GroupBox { Text = "Team Management", Width = 260, Height = 250 };
         var manageFlow = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, Padding = new Padding(16) };
 
-        var lblCount = new Label { Text = "Count: Available: 10  Team: 0", AutoSize = true, Margin = new Padding(0, 0, 0, 16) };
+        var lblCount = new Label { Text = $"Count: Available: {lstAvailable.Items.Count}  Team: 0", AutoSize = true, Margin = new Padding(0, 0, 0, 16) };
         var btnAssign = new Button { Text = "Assign ->", Width = 200, Height = 28, Margin = new Padding(0, 0, 0, 8) };
         var btnUnassign = new Button { Text = "<- Unassign", Width = 200, Height = 28, Margin = new Padding(0, 0, 0, 16) };
         
