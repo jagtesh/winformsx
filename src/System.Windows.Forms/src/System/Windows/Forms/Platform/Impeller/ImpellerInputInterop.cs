@@ -329,7 +329,21 @@ internal sealed unsafe class ImpellerInputInterop : IInputInterop
             return hitTarget;
         }
 
-        return _focusWindow != HWND.Null ? _focusWindow : _activeWindow;
+        HWND root = _focusWindow != HWND.Null ? _focusWindow : _activeWindow;
+        if (root != HWND.Null)
+        {
+            System.Drawing.Point clientPoint = cursorPos;
+            if (PlatformApi.Window.ScreenToClient(root, ref clientPoint))
+            {
+                HWND child = PlatformApi.Window.ChildWindowFromPointEx(root, clientPoint, 0);
+                if (child != HWND.Null)
+                {
+                    return child;
+                }
+            }
+        }
+
+        return root;
     }
 
     private static LPARAM MakePointLParam(System.Drawing.Point point)

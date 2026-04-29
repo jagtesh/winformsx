@@ -19,6 +19,7 @@ Current baseline: `42 total, 41 passed, 0 failed, 1 skipped` with `MediaPlayer` 
   - Wired mouse message posting in `ImpellerInputInterop` to convert cursor screen coordinates to target-client coordinates before posting.
   - Mouse target selection now prefers hit-testing via `WindowFromPoint` when capture is not active.
   - Added top-level form fallback in `WindowFromPoint` resolution (`Application.OpenForms`), but focused `DragDropTests` still remain at the same 4 failing cases.
+  - Added focused/active-root fallback in `ImpellerInputInterop.GetMouseTarget` via `ChildWindowFromPointEx`; focused `DragDropTests` remain unchanged at 4 failures.
 - Current focused rerun (`DragDropTests`) has 4 failing cases (was 6):
   - `DragDrop_QueryDefaultCursors_Async`
   - `DragEnter_Set_DropImageType_Message_MessageReplacementToken_ReturnsExpected_Async`
