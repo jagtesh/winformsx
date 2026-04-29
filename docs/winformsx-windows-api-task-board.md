@@ -144,6 +144,12 @@ Ordered by observed frequency across components and blocker blast radius:
   - Verification:
     - `UIIntegrationTests` filter `FullyQualifiedName~ButtonTests`: `Failed: 0, Passed: 22, Skipped: 0, Total: 22`.
     - `WinformsControlsTest --control-smoke-test`: `total=42 passed=41 failed=0 skipped=1`.
+- In-progress local changes (next commit):
+  - Added PAL-backed GDI wrappers for `PInvoke.CreateSolidBrush` and `PInvoke.CreatePen` in `System.Windows.Forms.Primitives`, and removed those symbols from `NativeMethods.txt` generation so non-Windows runs do not fall through to missing native `GDI32` imports.
+  - Fixed PropertyGrid drop-down/dialog button accessibility fragment navigation to resolve parent/sibling targets from selected-entry state on WinFormsX timing paths.
+  - Verification:
+    - `UIIntegrationTests` filter `FullyQualifiedName~DesignBehaviorsTests_can_DragDrop_ToolboxItem`: `Passed`.
+    - `UIIntegrationTests` filter `FullyQualifiedName~DropDownButtonAccessibleObjectTests`: `Failed: 0, Passed: 4, Skipped: 0`.
 
 ## Task Legend
 

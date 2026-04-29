@@ -72,9 +72,7 @@ CreateILockBytesOnHGlobal
 CreateMenu
 CreateOleAdviseHolder
 CreatePatternBrush
-CreatePen
 CreateRectRgn
-CreateSolidBrush
 CreateStdAccessibleObject
 CSIDL_*
 CW_USEDEFAULT

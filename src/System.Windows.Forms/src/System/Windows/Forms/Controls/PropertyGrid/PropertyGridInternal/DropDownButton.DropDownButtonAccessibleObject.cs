@@ -16,7 +16,6 @@ internal sealed partial class DropDownButton : Button
     internal class DropDownButtonAccessibleObject : ControlAccessibleObject
     {
         private readonly DropDownButton _owningDropDownButton;
-        private readonly PropertyGridView? _owningPropertyGrid;
 
         /// <summary>
         ///  Constructs the new instance of DropDownButtonAccessibleObject.
@@ -25,7 +24,6 @@ internal sealed partial class DropDownButton : Button
         public DropDownButtonAccessibleObject(DropDownButton owningDropDownButton) : base(owningDropDownButton)
         {
             _owningDropDownButton = owningDropDownButton;
-            _owningPropertyGrid = owningDropDownButton.Parent as PropertyGridView;
 
             if (owningDropDownButton.IsHandleCreated)
             {
@@ -43,8 +41,9 @@ internal sealed partial class DropDownButton : Button
 
         internal override IRawElementProviderFragment.Interface? FragmentNavigate(NavigateDirection direction)
         {
-            if (!_owningDropDownButton.Visible
-                || _owningPropertyGrid?.SelectedGridEntry?.AccessibilityObject is not PropertyDescriptorGridEntryAccessibleObject parent)
+            PropertyGridView? propertyGrid = _owningDropDownButton.Parent as PropertyGridView;
+            if (propertyGrid?.SelectedGridEntry is not GridEntry selectedEntry
+                || selectedEntry.AccessibilityObject is not PropertyDescriptorGridEntryAccessibleObject parent)
             {
                 return null;
             }
@@ -52,14 +51,18 @@ internal sealed partial class DropDownButton : Button
             return direction switch
             {
                 NavigateDirection.NavigateDirection_Parent => parent,
-                NavigateDirection.NavigateDirection_NextSibling => parent.GetNextChild(this),
-                NavigateDirection.NavigateDirection_PreviousSibling => parent.GetPreviousChild(this),
+                NavigateDirection.NavigateDirection_PreviousSibling => propertyGrid.IsEditTextBoxCreated
+                    ? propertyGrid.EditAccessibleObject
+                    : parent.GetPreviousChild(this),
+                NavigateDirection.NavigateDirection_NextSibling => selectedEntry is { Expanded: true, ChildCount: > 0 }
+                    ? selectedEntry.Children[0].AccessibilityObject
+                    : parent.GetNextChild(this),
                 _ => base.FragmentNavigate(direction),
             };
         }
 
         internal override IRawElementProviderFragmentRoot.Interface? FragmentRoot
-            => _owningPropertyGrid?.AccessibilityObject;
+            => (_owningDropDownButton.Parent as PropertyGridView)?.AccessibilityObject;
 
         /// <summary>
         ///  Request value of specified property from an element.
