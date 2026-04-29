@@ -128,6 +128,7 @@ Run broader frame/input regressions:
 ```sh
 eng/capture-winforms-frame-stress-regression.sh /tmp/winformsx_frame_stress_regression
 eng/capture-winforms-hover-regression.sh /tmp/winformsx_hover_regression
+eng/capture-winforms-scroll-regression.sh /tmp/winformsx_scroll_regression
 eng/capture-winforms-usability-regression.sh /tmp/winformsx_usability_regression
 eng/capture-winforms-textbox-regression.sh /tmp/winformsx_textbox_regression
 ```
