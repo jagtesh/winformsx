@@ -29,6 +29,7 @@ Current baseline: `42 total, 41 passed, 0 failed, 1 skipped` with `MediaPlayer` 
 - In-progress local changes (next commit):
   - Routed synthetic `SendInput` keyboard/mouse dispatch through Impeller’s control-aware dispatch path (`PostMessageToControl`) via `ImpellerWindowInterop.TryDispatchInputMessage`.
   - This removed the direct input path’s dependency on raw `NativeWindow.DispatchMessageDirect` target validity.
+  - Added startup target seeding for synthetic input from visible `Application.OpenForms` when no active/focused HWND is yet tracked.
   - Focused drag/drop rerun remains unchanged (`4 failed / 2 passed / 9 skipped`), indicating the remaining blocker is still child-control drag-start wiring (e.g., `ListBox`/`PictureBox`/`ToolStripItem` source event flow), not USER32 wrapper parity.
 - Current focused rerun (`DragDropTests`) has 4 failing cases (was 6):
   - `DragDrop_QueryDefaultCursors_Async`

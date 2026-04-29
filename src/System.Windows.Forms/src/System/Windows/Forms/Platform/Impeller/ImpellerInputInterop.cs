@@ -345,6 +345,19 @@ internal sealed unsafe class ImpellerInputInterop : IInputInterop
         }
 
         HWND root = _focusWindow != HWND.Null ? _focusWindow : _activeWindow;
+        if (root == HWND.Null)
+        {
+            foreach (Form form in Application.OpenForms)
+            {
+                if (form.Visible && form.IsHandleCreated)
+                {
+                    root = (HWND)(nint)form.Handle;
+                    _activeWindow = root;
+                    break;
+                }
+            }
+        }
+
         if (root != HWND.Null)
         {
             System.Drawing.Point clientPoint = cursorPos;
