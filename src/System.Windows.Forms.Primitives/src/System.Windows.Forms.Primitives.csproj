@@ -59,4 +59,42 @@
     <Compile Include="..\..\System.Windows.Forms.Analyzers\src\System\Windows\Forms\Analyzers\Diagnostics\DiagnosticIDs.cs" Link="System\Windows\Forms\Analyzers\Diagnostics\DiagnosticIDs.cs" />
   </ItemGroup>
 
+  <PropertyGroup Condition="'$(OS)' != 'Windows_NT'">
+    <WinFormsXUser32ShimSource>$(MSBuildProjectDirectory)/Native/User32Shim/winformsx_user32.c</WinFormsXUser32ShimSource>
+    <WinFormsXUser32ShimOutputDirectory>$(IntermediateOutputPath)winformsx-user32/</WinFormsXUser32ShimOutputDirectory>
+    <WinFormsXUser32ShimBinary>$(WinFormsXUser32ShimOutputDirectory)USER32.dll</WinFormsXUser32ShimBinary>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(OS)' != 'Windows_NT'">
+    <None Include="$(WinFormsXUser32ShimOutputDirectory)USER32.dll" TargetPath="USER32.dll" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" />
+    <None Include="$(WinFormsXUser32ShimOutputDirectory)user32.dll" TargetPath="user32.dll" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" />
+    <None Include="$(WinFormsXUser32ShimOutputDirectory)user32" TargetPath="user32" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" />
+    <None Include="$(WinFormsXUser32ShimOutputDirectory)USER32.dll.dylib" TargetPath="USER32.dll.dylib" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+    <None Include="$(WinFormsXUser32ShimOutputDirectory)libUSER32.dll.dylib" TargetPath="libUSER32.dll.dylib" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+    <None Include="$(WinFormsXUser32ShimOutputDirectory)libuser32.dylib" TargetPath="libuser32.dylib" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+    <None Include="$(WinFormsXUser32ShimOutputDirectory)libUSER32.dll.so" TargetPath="libUSER32.dll.so" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+    <None Include="$(WinFormsXUser32ShimOutputDirectory)USER32.dll.so" TargetPath="USER32.dll.so" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+    <None Include="$(WinFormsXUser32ShimOutputDirectory)libuser32.so" TargetPath="libuser32.so" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+  </ItemGroup>
+
+  <Target Name="BuildWinFormsXUser32Shim"
+          BeforeTargets="PrepareForBuild;GetCopyToOutputDirectoryItems"
+          Inputs="$(WinFormsXUser32ShimSource)"
+          Outputs="$(WinFormsXUser32ShimBinary)"
+          Condition="'$(OS)' != 'Windows_NT'">
+    <MakeDir Directories="$(WinFormsXUser32ShimOutputDirectory)" />
+    <Exec Condition="$([MSBuild]::IsOSPlatform('OSX'))"
+          Command="cc -dynamiclib -fvisibility=hidden &quot;$(WinFormsXUser32ShimSource)&quot; -o &quot;$(WinFormsXUser32ShimBinary)&quot;" />
+    <Exec Condition="$([MSBuild]::IsOSPlatform('Linux'))"
+          Command="cc -shared -fPIC -fvisibility=hidden &quot;$(WinFormsXUser32ShimSource)&quot; -o &quot;$(WinFormsXUser32ShimBinary)&quot;" />
+    <Copy SourceFiles="$(WinFormsXUser32ShimBinary)" DestinationFiles="$(WinFormsXUser32ShimOutputDirectory)user32.dll" />
+    <Copy SourceFiles="$(WinFormsXUser32ShimBinary)" DestinationFiles="$(WinFormsXUser32ShimOutputDirectory)user32" />
+    <Copy SourceFiles="$(WinFormsXUser32ShimBinary)" DestinationFiles="$(WinFormsXUser32ShimOutputDirectory)USER32.dll.dylib" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+    <Copy SourceFiles="$(WinFormsXUser32ShimBinary)" DestinationFiles="$(WinFormsXUser32ShimOutputDirectory)libUSER32.dll.dylib" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+    <Copy SourceFiles="$(WinFormsXUser32ShimBinary)" DestinationFiles="$(WinFormsXUser32ShimOutputDirectory)libuser32.dylib" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+    <Copy SourceFiles="$(WinFormsXUser32ShimBinary)" DestinationFiles="$(WinFormsXUser32ShimOutputDirectory)libUSER32.dll.so" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+    <Copy SourceFiles="$(WinFormsXUser32ShimBinary)" DestinationFiles="$(WinFormsXUser32ShimOutputDirectory)USER32.dll.so" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+    <Copy SourceFiles="$(WinFormsXUser32ShimBinary)" DestinationFiles="$(WinFormsXUser32ShimOutputDirectory)libuser32.so" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+  </Target>
+
 </Project>

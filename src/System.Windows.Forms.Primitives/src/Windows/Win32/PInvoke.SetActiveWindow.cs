@@ -8,7 +8,11 @@ namespace Windows.Win32;
 internal static partial class PInvoke
 {
     public static HWND SetActiveWindow(HWND hWnd)
-        => PlatformApi.Window.SetActiveWindow(hWnd);
+    {
+        HWND previous = PlatformApi.Input.SetActiveWindow(hWnd);
+        PlatformApi.Window.SetActiveWindow(hWnd);
+        return previous;
+    }
 
     /// <inheritdoc cref="SetActiveWindow(HWND)"/>
     public static HWND SetActiveWindow<T>(T hWnd) where T : IHandle<HWND>

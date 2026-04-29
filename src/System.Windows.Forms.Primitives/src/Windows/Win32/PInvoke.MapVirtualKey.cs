@@ -4,9 +4,10 @@
 namespace Windows.Win32;
 
 using global::System.Windows.Forms.Platform;
+using Windows.Win32.UI.Input.KeyboardAndMouse;
 
 internal static partial class PInvoke
 {
-    public static BOOL GetCursorPos(out global::System.Drawing.Point lpPoint)
-        => PlatformApi.Input.GetCursorPos(out lpPoint);
+    public static uint MapVirtualKey(uint uCode, MAP_VIRTUAL_KEY_TYPE uMapType)
+        => PlatformApi.Input.MapVirtualKey(uCode, (uint)uMapType);
 }

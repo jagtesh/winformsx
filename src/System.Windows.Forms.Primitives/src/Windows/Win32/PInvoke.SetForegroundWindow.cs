@@ -8,7 +8,11 @@ namespace Windows.Win32;
 internal static partial class PInvoke
 {
     public static BOOL SetForegroundWindow(HWND hWnd)
-        => PlatformApi.Window.SetForegroundWindow(hWnd);
+    {
+        BOOL windowResult = PlatformApi.Window.SetForegroundWindow(hWnd);
+        BOOL inputResult = PlatformApi.Input.SetForegroundWindow(hWnd);
+        return windowResult && inputResult;
+    }
 
     /// <inheritdoc cref="SetForegroundWindow(HWND)"/>
     public static BOOL SetForegroundWindow<T>(T hWnd) where T : IHandle<HWND>

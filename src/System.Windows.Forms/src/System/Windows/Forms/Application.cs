@@ -25,6 +25,7 @@ public sealed partial class Application
     internal static void InitializePlatform()
     {
         Platform.PlatformApi.Initialize(new Platform.ImpellerPlatformProvider());
+        Platform.WinFormsXUser32Shim.Register();
     }
 
     /// <summary>
