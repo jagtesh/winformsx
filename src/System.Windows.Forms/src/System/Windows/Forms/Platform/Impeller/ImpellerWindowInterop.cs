@@ -199,7 +199,7 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
             WndProc = 0x1,
         };
 
-        if (isTopLevel)
+        if (isTopLevel && ShouldCreateBackendForHiddenTopLevelWindow())
         {
             var options = WindowOptions.DefaultVulkan;
             options.Title = lpWindowName ?? string.Empty;
@@ -716,6 +716,9 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
 
         return handle;
     }
+
+    private static bool ShouldCreateBackendForHiddenTopLevelWindow()
+        => Environment.GetEnvironmentVariable("WINFORMSX_SUPPRESS_HIDDEN_BACKEND") != "1";
 
     private static IWindow CreateInitializedSilkWindow(WindowOptions vulkanOptions)
     {
@@ -3780,7 +3783,7 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
             if (!flags.HasFlag(SET_WINDOW_POS_FLAGS.SWP_NOSIZE))
             { s.Width = cx; s.Height = cy; }
 
-            if (s.SilkWindow is object)
+            if (s.SilkWindow is object && s.Visible)
             {
                 if (!flags.HasFlag(SET_WINDOW_POS_FLAGS.SWP_NOMOVE))
                     s.SilkWindow.Position = new Vector2D<int>(x, y);

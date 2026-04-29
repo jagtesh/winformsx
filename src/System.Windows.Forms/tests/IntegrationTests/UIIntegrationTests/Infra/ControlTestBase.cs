@@ -316,7 +316,8 @@ public abstract class ControlTestBase : IAsyncLifetime, IDisposable
             Assert.NotNull(winFormsXDialog);
             Assert.NotNull(winFormsXControl);
 
-            winFormsXDialog.Show();
+            CreateControlWithoutHiddenBackend(winFormsXDialog);
+            ActivateWinFormsXDialog(winFormsXDialog);
             await WaitForIdleAsync();
             try
             {
@@ -400,7 +401,8 @@ public abstract class ControlTestBase : IAsyncLifetime, IDisposable
 
             Assert.NotNull(winFormsXDialog);
 
-            winFormsXDialog.Show();
+            CreateControlWithoutHiddenBackend(winFormsXDialog);
+            ActivateWinFormsXDialog(winFormsXDialog);
             await WaitForIdleAsync();
             try
             {
@@ -472,6 +474,70 @@ public abstract class ControlTestBase : IAsyncLifetime, IDisposable
 
     internal struct VoidResult
     {
+    }
+
+    private static void CreateControlWithoutHiddenBackend(Control control)
+    {
+        string? previous = Environment.GetEnvironmentVariable("WINFORMSX_SUPPRESS_HIDDEN_BACKEND");
+        Environment.SetEnvironmentVariable("WINFORMSX_SUPPRESS_HIDDEN_BACKEND", "1");
+        try
+        {
+            _ = control.Handle;
+            control.CreateControl();
+            foreach (Control child in control.Controls)
+            {
+                CreateControlWithoutHiddenBackend(child);
+            }
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("WINFORMSX_SUPPRESS_HIDDEN_BACKEND", previous);
+        }
+    }
+
+    private static void ActivateWinFormsXDialog(Form dialog)
+    {
+        PInvoke.SetActiveWindow(dialog);
+        PInvoke.SetForegroundWindow(dialog);
+        PInvoke.SetFocus(GetInitialFocusTarget(dialog));
+    }
+
+    private static Control GetInitialFocusTarget(Control parent)
+    {
+        foreach (Control child in parent.Controls)
+        {
+            if (child.TabStop && child.Enabled)
+            {
+                return child;
+            }
+
+            Control? nested = GetInitialFocusTargetOrNull(child);
+            if (nested is not null)
+            {
+                return nested;
+            }
+        }
+
+        return parent;
+    }
+
+    private static Control? GetInitialFocusTargetOrNull(Control parent)
+    {
+        foreach (Control child in parent.Controls)
+        {
+            if (child.TabStop && child.Enabled)
+            {
+                return child;
+            }
+
+            Control? nested = GetInitialFocusTargetOrNull(child);
+            if (nested is not null)
+            {
+                return nested;
+            }
+        }
+
+        return null;
     }
 
     internal static Point GetCenter(Rectangle cell)

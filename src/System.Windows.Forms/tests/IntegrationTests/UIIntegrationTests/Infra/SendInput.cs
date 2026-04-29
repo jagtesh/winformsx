@@ -79,6 +79,13 @@ public class SendInput
 
     private static void SetForegroundWindow(Form window)
     {
+        if (!OperatingSystem.IsWindows())
+        {
+            PInvoke.SetActiveWindow(window);
+            PInvoke.SetForegroundWindow(window);
+            return;
+        }
+
         // Make the window a top-most window so it will appear above any existing top-most windows
         PInvoke.SetWindowPos(window, HWND.HWND_TOPMOST, 0, 0, 0, 0, SET_WINDOW_POS_FLAGS.SWP_NOSIZE | SET_WINDOW_POS_FLAGS.SWP_NOMOVE);
 

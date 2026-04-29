@@ -1116,7 +1116,7 @@ public abstract partial class ButtonBase : Control, ICommandBindingTargetProvide
     /// </summary>
     protected override void OnKeyDown(KeyEventArgs kevent)
     {
-        if (kevent.KeyData == Keys.Space)
+        if (kevent.KeyData is Keys.Space or Keys.Enter)
         {
             if (!GetFlag(FlagMouseDown))
             {
