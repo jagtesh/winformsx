@@ -97,7 +97,7 @@ public unsafe partial class AccessibleObject :
     private static readonly AccessibleObject s_parentFlag = new();
     private bool _inCallback;
 
-    private readonly AccessibleDispatchAdapter _dispatchAdapter;
+    private readonly AccessibleDispatchAdapter? _dispatchAdapter;
 
     /// <summary>
     ///  The <see cref="UIA.IAccessible"/> as passed in or generated from requesting the standard implementation
@@ -123,7 +123,25 @@ public unsafe partial class AccessibleObject :
 
     internal const int RuntimeIDFirstItem = 0x2a;
 
-    public AccessibleObject() => _dispatchAdapter = new(this);
+    public AccessibleObject()
+    {
+        try
+        {
+            _dispatchAdapter = new(this);
+        }
+        catch (DllNotFoundException)
+        {
+            // WinFormsX can run without native OLE type library registration.
+        }
+        catch (EntryPointNotFoundException)
+        {
+            // Keep accessibility object creation available even when COM/OLE exports are absent.
+        }
+        catch (TypeInitializationException ex) when (ex.InnerException is DllNotFoundException or EntryPointNotFoundException)
+        {
+            // The dispatch adapter static initialization resolved to a missing native dependency.
+        }
+    }
 
     /// <devdoc>
     ///  This constructor is used ONLY for wrapping system IAccessible objects
@@ -2723,51 +2741,60 @@ public unsafe partial class AccessibleObject :
 
     protected unsafe void UseStdAccessibleObjects(IntPtr handle, int objid)
     {
-        UIA.IAccessible* accessible = null;
-        HRESULT result = PInvoke.CreateStdAccessibleObject(
-            (HWND)handle,
-            objid,
-            IID.Get<UIA.IAccessible>(),
-            (void**)&accessible);
-
-        if (result.Succeeded && accessible is not null)
+        try
         {
-#if DEBUG
-            // AccessibleObject is not set up for deterministic disposal (we can't create them in a using block),
-            // As such, these handles will always be finalized.
-            SystemIAccessible = new(accessible, takeOwnership: true, trackDisposal: false);
-#else
-            SystemIAccessible = new(accessible, takeOwnership: true);
-#endif
-            IOleWindow* window = null;
-            result = accessible->QueryInterface(IID.Get<IOleWindow>(), (void**)&window);
-            if (result.Succeeded && window is not null)
+            UIA.IAccessible* accessible = null;
+            HRESULT result = PInvoke.CreateStdAccessibleObject(
+                (HWND)handle,
+                objid,
+                IID.Get<UIA.IAccessible>(),
+                (void**)&accessible);
+
+            if (result.Succeeded && accessible is not null)
             {
 #if DEBUG
-                _systemIOleWindow = new(window, takeOwnership: true, trackDisposal: false);
+                // AccessibleObject is not set up for deterministic disposal (we can't create them in a using block),
+                // As such, these handles will always be finalized.
+                SystemIAccessible = new(accessible, takeOwnership: true, trackDisposal: false);
 #else
-                _systemIOleWindow = new(window, takeOwnership: true);
+                SystemIAccessible = new(accessible, takeOwnership: true);
+#endif
+                IOleWindow* window = null;
+                result = accessible->QueryInterface(IID.Get<IOleWindow>(), (void**)&window);
+                if (result.Succeeded && window is not null)
+                {
+#if DEBUG
+                    _systemIOleWindow = new(window, takeOwnership: true, trackDisposal: false);
+#else
+                    _systemIOleWindow = new(window, takeOwnership: true);
+#endif
+                }
+            }
+
+            IEnumVARIANT* enumVariant = null;
+            result = PInvoke.CreateStdAccessibleObject(
+                (HWND)handle,
+                objid,
+                IID.Get<IEnumVARIANT>(),
+                (void**)&enumVariant);
+
+            if (result.Succeeded && enumVariant is not null)
+            {
+#if DEBUG
+                _systemIEnumVariant = new(enumVariant, takeOwnership: true, trackDisposal: false);
+#else
+                _systemIEnumVariant = new(enumVariant, takeOwnership: true);
 #endif
             }
+
+            GC.KeepAlive(this);
         }
-
-        IEnumVARIANT* enumVariant = null;
-        result = PInvoke.CreateStdAccessibleObject(
-            (HWND)handle,
-            objid,
-            IID.Get<IEnumVARIANT>(),
-            (void**)&enumVariant);
-
-        if (result.Succeeded && enumVariant is not null)
+        catch (DllNotFoundException)
         {
-#if DEBUG
-            _systemIEnumVariant = new(enumVariant, takeOwnership: true, trackDisposal: false);
-#else
-            _systemIEnumVariant = new(enumVariant, takeOwnership: true);
-#endif
         }
-
-        GC.KeepAlive(this);
+        catch (EntryPointNotFoundException)
+        {
+        }
     }
 
     /// <summary>
@@ -3305,13 +3332,13 @@ public unsafe partial class AccessibleObject :
     }
 
     HRESULT IDispatch.Interface.GetTypeInfoCount(uint* pctinfo)
-        => ((IDispatch.Interface)_dispatchAdapter).GetTypeInfoCount(pctinfo);
+        => _dispatchAdapter is null ? HRESULT.E_NOTIMPL : ((IDispatch.Interface)_dispatchAdapter).GetTypeInfoCount(pctinfo);
 
     HRESULT IDispatch.Interface.GetTypeInfo(uint iTInfo, uint lcid, ITypeInfo** ppTInfo)
-        => ((IDispatch.Interface)_dispatchAdapter).GetTypeInfo(iTInfo, lcid, ppTInfo);
+        => _dispatchAdapter is null ? HRESULT.E_NOTIMPL : ((IDispatch.Interface)_dispatchAdapter).GetTypeInfo(iTInfo, lcid, ppTInfo);
 
     HRESULT IDispatch.Interface.GetIDsOfNames(Guid* riid, PWSTR* rgszNames, uint cNames, uint lcid, int* rgDispId)
-        => ((IDispatch.Interface)_dispatchAdapter).GetIDsOfNames(riid, rgszNames, cNames, lcid, rgDispId);
+        => _dispatchAdapter is null ? HRESULT.E_NOTIMPL : ((IDispatch.Interface)_dispatchAdapter).GetIDsOfNames(riid, rgszNames, cNames, lcid, rgDispId);
 
     HRESULT IDispatch.Interface.Invoke(
         int dispIdMember,
@@ -3322,10 +3349,12 @@ public unsafe partial class AccessibleObject :
         VARIANT* pVarResult,
         EXCEPINFO* pExcepInfo,
         uint* pArgErr)
-        => ((IDispatch.Interface)_dispatchAdapter).Invoke(dispIdMember, riid, lcid, dwFlags, pDispParams, pVarResult, pExcepInfo, pArgErr);
+        => _dispatchAdapter is null
+            ? HRESULT.E_NOTIMPL
+            : ((IDispatch.Interface)_dispatchAdapter).Invoke(dispIdMember, riid, lcid, dwFlags, pDispParams, pVarResult, pExcepInfo, pArgErr);
 
     HRESULT IDispatchEx.Interface.GetDispID(BSTR bstrName, uint grfdex, int* pid)
-        => ((IDispatchEx.Interface)_dispatchAdapter).GetDispID(bstrName, grfdex, pid);
+        => _dispatchAdapter is null ? HRESULT.E_NOTIMPL : ((IDispatchEx.Interface)_dispatchAdapter).GetDispID(bstrName, grfdex, pid);
 
     HRESULT IDispatchEx.Interface.InvokeEx(
         int id,
@@ -3335,23 +3364,25 @@ public unsafe partial class AccessibleObject :
         VARIANT* pvarRes,
         EXCEPINFO* pei,
         ComIServiceProvider* pspCaller)
-        => ((IDispatchEx.Interface)_dispatchAdapter).InvokeEx(id, lcid, wFlags, pdp, pvarRes, pei, pspCaller);
+        => _dispatchAdapter is null
+            ? HRESULT.E_NOTIMPL
+            : ((IDispatchEx.Interface)_dispatchAdapter).InvokeEx(id, lcid, wFlags, pdp, pvarRes, pei, pspCaller);
 
     HRESULT IDispatchEx.Interface.DeleteMemberByName(BSTR bstrName, uint grfdex)
-        => ((IDispatchEx.Interface)_dispatchAdapter).DeleteMemberByName(bstrName, grfdex);
+        => _dispatchAdapter is null ? HRESULT.E_NOTIMPL : ((IDispatchEx.Interface)_dispatchAdapter).DeleteMemberByName(bstrName, grfdex);
 
     HRESULT IDispatchEx.Interface.DeleteMemberByDispID(int id)
-        => ((IDispatchEx.Interface)_dispatchAdapter).DeleteMemberByDispID(id);
+        => _dispatchAdapter is null ? HRESULT.E_NOTIMPL : ((IDispatchEx.Interface)_dispatchAdapter).DeleteMemberByDispID(id);
 
     HRESULT IDispatchEx.Interface.GetMemberProperties(int id, uint grfdexFetch, FDEX_PROP_FLAGS* pgrfdex)
-        => ((IDispatchEx.Interface)_dispatchAdapter).GetMemberProperties(id, grfdexFetch, pgrfdex);
+        => _dispatchAdapter is null ? HRESULT.E_NOTIMPL : ((IDispatchEx.Interface)_dispatchAdapter).GetMemberProperties(id, grfdexFetch, pgrfdex);
 
     HRESULT IDispatchEx.Interface.GetMemberName(int id, BSTR* pbstrName)
-        => ((IDispatchEx.Interface)_dispatchAdapter).GetMemberName(id, pbstrName);
+        => _dispatchAdapter is null ? HRESULT.E_NOTIMPL : ((IDispatchEx.Interface)_dispatchAdapter).GetMemberName(id, pbstrName);
 
     HRESULT IDispatchEx.Interface.GetNextDispID(uint grfdex, int id, int* pid)
-        => ((IDispatchEx.Interface)_dispatchAdapter).GetNextDispID(grfdex, id, pid);
+        => _dispatchAdapter is null ? HRESULT.E_NOTIMPL : ((IDispatchEx.Interface)_dispatchAdapter).GetNextDispID(grfdex, id, pid);
 
     HRESULT IDispatchEx.Interface.GetNameSpaceParent(IUnknown** ppunk)
-        => ((IDispatchEx.Interface)_dispatchAdapter).GetNameSpaceParent(ppunk);
+        => _dispatchAdapter is null ? HRESULT.E_NOTIMPL : ((IDispatchEx.Interface)_dispatchAdapter).GetNameSpaceParent(ppunk);
 }
