@@ -1260,12 +1260,27 @@ public partial class MonthCalendar : Control
     private SelectionRange GetMonthRange(uint flag)
     {
         Span<SYSTEMTIME> times = stackalloc SYSTEMTIME[2];
-        PInvoke.SendMessage(this, PInvoke.MCM_GETMONTHRANGE, (WPARAM)(int)flag, ref times[0]);
+        _ = PInvoke.SendMessage(this, PInvoke.MCM_GETMONTHRANGE, (WPARAM)(int)flag, ref times[0]);
+
+        // Non-Windows backends may not populate MCM_GETMONTHRANGE yet.
+        if (times[0].wYear == 0 || times[1].wYear == 0)
+        {
+            return GetManagedMonthRangeFallback();
+        }
+
         return new SelectionRange
         {
             Start = (DateTime)times[0],
             End = (DateTime)times[1]
         };
+    }
+
+    private SelectionRange GetManagedMonthRangeFallback()
+    {
+        int monthCount = Math.Max(1, _dimensions.Width * _dimensions.Height);
+        DateTime start = new(_selectionStart.Year, _selectionStart.Month, 1);
+        DateTime end = start.AddMonths(monthCount).AddDays(-1);
+        return new SelectionRange(start, end);
     }
 
     /// <summary>
