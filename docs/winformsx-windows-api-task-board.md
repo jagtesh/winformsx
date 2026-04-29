@@ -19,6 +19,13 @@ Ordered by observed frequency across components and blocker blast radius:
 ## Latest Progress (2026-04-29)
 
 - In-progress local changes (next commit):
+  - Added non-Windows timeout diagnostics in UI integration harness (`ControlTestBase`):
+    - Non-Windows `RunFormAsync` / `RunFormWithoutControlAsync` test drivers now run with a bounded timeout (`30s`) and emit focus/active/foreground/capture/open-form diagnostics before failing.
+    - This converts silent hangs into actionable failures while preserving existing test behavior on Windows.
+  - Verified one remaining ToolStrip blocker now yields deterministic crash/hang artifacts under blame-hang:
+    - `ToolStrip_Hiding_ToolStripMenuItem_OnDropDownClosed_ShouldNotThrow`
+    - Artifacts: `src/System.Windows.Forms/tests/IntegrationTests/UIIntegrationTests/TestResults/b8171b17-1b36-4a20-9c02-6e51db04e5ed/`
+- In-progress local changes (next commit):
   - Added non-Windows managed clipboard fallback in `System.Windows.Forms.Clipboard`:
     - `SetDataObject` stores data in a managed in-process clipboard store instead of calling OLE APIs.
     - `GetDataObject` and `Clear` use the same managed store on non-Windows, preserving STA checks and `IDataObject` unwrap behavior.
@@ -252,7 +259,7 @@ Ordered by observed frequency across components and blocker blast radius:
 
 ## Diagnostics and Integration
 
-- [ ] WXA-2101: Add hang diagnostics and timeout capture around `UIIntegrationTests` to isolate first real stack for each failing case.
+- [~] WXA-2101: Add hang diagnostics and timeout capture around `UIIntegrationTests` to isolate first real stack for each failing case.
 - [ ] WXA-2102: Add an execution plan tracker that marks each remediation against specific integration failure signatures and controls smoke IDs.
 
 ## Ongoing Watchlist

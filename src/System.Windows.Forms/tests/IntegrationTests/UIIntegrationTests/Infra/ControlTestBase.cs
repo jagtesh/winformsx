@@ -17,6 +17,7 @@ namespace System.Windows.Forms.UITests;
 public abstract class ControlTestBase : IAsyncLifetime, IDisposable
 {
     private const int SPIF_SENDCHANGE = 0x0002;
+    private static readonly TimeSpan s_nonWindowsTestTimeout = TimeSpan.FromSeconds(30);
 
     private bool _clientAreaAnimation;
     private DenyExecutionSynchronizationContext? _denyExecutionSynchronizationContext;
@@ -322,7 +323,9 @@ public abstract class ControlTestBase : IAsyncLifetime, IDisposable
             await WaitForIdleAsync();
             try
             {
-                await testDriverAsync(winFormsXDialog, winFormsXControl);
+                await RunWithNonWindowsTimeoutAsync(
+                    () => testDriverAsync(winFormsXDialog, winFormsXControl),
+                    winFormsXDialog);
             }
             finally
             {
@@ -408,7 +411,9 @@ public abstract class ControlTestBase : IAsyncLifetime, IDisposable
             await WaitForIdleAsync();
             try
             {
-                await testDriverAsync(winFormsXDialog);
+                await RunWithNonWindowsTimeoutAsync(
+                    () => testDriverAsync(winFormsXDialog),
+                    winFormsXDialog);
             }
             finally
             {
@@ -547,5 +552,34 @@ public abstract class ControlTestBase : IAsyncLifetime, IDisposable
         return new Point(GetMiddle(cell.Right, cell.Left), GetMiddle(cell.Top, cell.Bottom));
 
         static int GetMiddle(int a, int b) => a + ((b - a) / 2);
+    }
+
+    private async Task RunWithNonWindowsTimeoutAsync(Func<Task> action, Form dialog)
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            await action();
+            return;
+        }
+
+        Task timeoutTask = Task.Delay(s_nonWindowsTestTimeout);
+        Task actionTask = action();
+        Task completed = await Task.WhenAny(actionTask, timeoutTask);
+        if (ReferenceEquals(completed, actionTask))
+        {
+            await actionTask;
+            return;
+        }
+
+        TestOutputHelper.WriteLine($"Timed out after {s_nonWindowsTestTimeout.TotalSeconds:F0}s in '{DataCollectionService.CurrentTest?.DisplayName}'.");
+        TestOutputHelper.WriteLine($"Dialog.Visible={dialog.Visible} Dialog.IsDisposed={dialog.IsDisposed} Dialog.Handle={dialog.Handle}");
+        TestOutputHelper.WriteLine($"Focus={PInvoke.GetFocus()} Active={PInvoke.GetActiveWindow()} Foreground={PInvoke.GetForegroundWindow()} Capture={PInvoke.GetCapture()}");
+        TestOutputHelper.WriteLine($"OpenForms={Application.OpenForms.Count}");
+        foreach (Form openForm in Application.OpenForms)
+        {
+            TestOutputHelper.WriteLine($"OpenForm: Name='{openForm.Name}' Text='{openForm.Text}' Visible={openForm.Visible} Handle={openForm.Handle}");
+        }
+
+        throw new TimeoutException($"Non-Windows UI test timed out after {s_nonWindowsTestTimeout.TotalSeconds:F0}s.");
     }
 }
