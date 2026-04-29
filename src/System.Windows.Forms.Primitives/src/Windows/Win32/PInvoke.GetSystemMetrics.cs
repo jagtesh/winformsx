@@ -7,6 +7,14 @@ namespace Windows.Win32;
 
 internal static partial class PInvoke
 {
+    /// <inheritdoc cref="GetSystemMetrics(SYSTEM_METRICS_INDEX)"/>
+    public static int GetSystemMetrics(SYSTEM_METRICS_INDEX nIndex)
+        => PlatformApi.System.GetSystemMetrics(nIndex);
+
+    /// <inheritdoc cref="GetSystemMetricsForDpi(SYSTEM_METRICS_INDEX, uint)"/>
+    public static int GetSystemMetricsForDpi(SYSTEM_METRICS_INDEX nIndex, uint dpi)
+        => PlatformApi.System.GetSystemMetrics(nIndex);
+
     /// <summary>Retrieves the specified system metric value via PAL.</summary>
     public static int GetCurrentSystemMetrics(SYSTEM_METRICS_INDEX nIndex)
         => PlatformApi.System.GetSystemMetrics(nIndex);

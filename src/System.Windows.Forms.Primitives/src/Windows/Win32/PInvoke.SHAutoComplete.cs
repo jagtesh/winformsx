@@ -5,6 +5,9 @@ namespace Windows.Win32;
 
 internal static partial class PInvoke
 {
+    public static HRESULT SHAutoComplete(HWND hwndEdit, SHELL_AUTOCOMPLETE_FLAGS dwFlags)
+        => HRESULT.S_OK;
+
     /// <inheritdoc cref="SHAutoComplete(HWND, SHELL_AUTOCOMPLETE_FLAGS)"/>
     public static HRESULT SHAutoComplete<T>(T hwndEdit, SHELL_AUTOCOMPLETE_FLAGS flags) where T : IHandle<HWND>
     {

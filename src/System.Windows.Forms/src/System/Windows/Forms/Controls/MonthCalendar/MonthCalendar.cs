@@ -805,6 +805,11 @@ public partial class MonthCalendar : Control
         {
             if (IsHandleCreated)
             {
+                if (!OperatingSystem.IsWindows())
+                {
+                    return s_defaultSingleMonthSize;
+                }
+
                 RECT rect = default;
                 if (PInvoke.SendMessage(this, PInvoke.MCM_GETMINREQRECT, 0, ref rect) == 0)
                 {

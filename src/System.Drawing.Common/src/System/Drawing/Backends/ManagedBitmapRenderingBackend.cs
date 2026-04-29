@@ -219,6 +219,11 @@ internal sealed class ManagedBitmapRenderingBackend(Bitmap bitmap) : IRenderingB
         int top = Math.Max(0, rect.Top);
         int right = Math.Min(bitmap.Width, rect.Right);
         int bottom = Math.Min(bitmap.Height, rect.Bottom);
+        if (right <= left || bottom <= top)
+        {
+            return;
+        }
+
         for (int y = top; y < bottom; y++)
         {
             pixels.Slice((y * bitmap.Width) + left, right - left).Fill(argb);

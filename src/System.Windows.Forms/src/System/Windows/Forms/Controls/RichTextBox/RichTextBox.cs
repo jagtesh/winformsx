@@ -257,28 +257,36 @@ public partial class RichTextBox : TextBoxBase
             // Check for library
             if (s_moduleHandle == IntPtr.Zero)
             {
-                s_moduleHandle = PInvoke.LoadLibraryFromSystemPathIfAvailable(Libraries.RichEdit41);
-
-                int lastWin32Error = Marshal.GetLastWin32Error();
-
-                // This code has been here since the inception of the project,
-                // we can't determine why we have to compare w/ 32 here.
-                // This fails on 3-GB mode, (once the dll is loaded above 3GB memory space)
-                if ((ulong)s_moduleHandle < 32)
+                if (!OperatingSystem.IsWindows())
                 {
-                    throw new Win32Exception(lastWin32Error, string.Format(SR.LoadDLLError, Libraries.RichEdit41));
+                    s_moduleHandle = (IntPtr)0x100;
+                    s_richEditMajorVersion = 4;
                 }
-
-                string path = PInvoke.GetModuleFileNameLongPath(new HINSTANCE(s_moduleHandle));
-                FileVersionInfo versionInfo = FileVersionInfo.GetVersionInfo(path);
-
-                Debug.Assert(versionInfo is not null && !string.IsNullOrEmpty(versionInfo.ProductVersion), "Couldn't get the version info for the richedit dll");
-                if (versionInfo is not null && !string.IsNullOrEmpty(versionInfo.ProductVersion))
+                else
                 {
-                    // Note: this only allows for one digit version
-                    if (int.TryParse(versionInfo.ProductVersion.AsSpan(0, 1), out int parsedValue))
+                    s_moduleHandle = PInvoke.LoadLibraryFromSystemPathIfAvailable(Libraries.RichEdit41);
+
+                    int lastWin32Error = Marshal.GetLastWin32Error();
+
+                    // This code has been here since the inception of the project,
+                    // we can't determine why we have to compare w/ 32 here.
+                    // This fails on 3-GB mode, (once the dll is loaded above 3GB memory space)
+                    if ((ulong)s_moduleHandle < 32)
                     {
-                        s_richEditMajorVersion = parsedValue;
+                        throw new Win32Exception(lastWin32Error, string.Format(SR.LoadDLLError, Libraries.RichEdit41));
+                    }
+
+                    string path = PInvoke.GetModuleFileNameLongPath(new HINSTANCE(s_moduleHandle));
+                    FileVersionInfo versionInfo = FileVersionInfo.GetVersionInfo(path);
+
+                    Debug.Assert(versionInfo is not null && !string.IsNullOrEmpty(versionInfo.ProductVersion), "Couldn't get the version info for the richedit dll");
+                    if (versionInfo is not null && !string.IsNullOrEmpty(versionInfo.ProductVersion))
+                    {
+                        // Note: this only allows for one digit version
+                        if (int.TryParse(versionInfo.ProductVersion.AsSpan(0, 1), out int parsedValue))
+                        {
+                            s_richEditMajorVersion = parsedValue;
+                        }
                     }
                 }
             }
@@ -1317,6 +1325,11 @@ public partial class RichTextBox : TextBoxBase
             {
                 // We can return any old garbage if we're in the process of recreating the handle
                 return string.Empty;
+            }
+
+            if (!OperatingSystem.IsWindows())
+            {
+                return _textPlain ?? (_textRtf is not null ? ConvertSimpleRtfToPlainText(_textRtf) : base.Text);
             }
 
             if (!IsHandleCreated && _textRtf is null)
@@ -2798,6 +2811,12 @@ public partial class RichTextBox : TextBoxBase
 
     private void StreamIn(string str, uint flags)
     {
+        if (!OperatingSystem.IsWindows())
+        {
+            ApplyManagedStreamIn(str, flags);
+            return;
+        }
+
         if (str.Length == 0)
         {
             // Destroy the selection if callers was setting selection text
@@ -2841,6 +2860,12 @@ public partial class RichTextBox : TextBoxBase
 
     private void StreamIn(Stream data, uint flags)
     {
+        if (!OperatingSystem.IsWindows())
+        {
+            ApplyManagedStreamIn(data, flags);
+            return;
+        }
+
         // Clear out the selection only if we are replacing all the text.
         if ((flags & PInvoke.SFF_SELECTION) == 0)
         {
@@ -2974,6 +2999,12 @@ public partial class RichTextBox : TextBoxBase
 
     private void StreamOut(Stream data, uint flags, bool includeCrLfs)
     {
+        if (!OperatingSystem.IsWindows())
+        {
+            WriteManagedStreamOut(data, flags, includeCrLfs);
+            return;
+        }
+
         // set up the EDITSTREAM structure for the callback.
         _editStream = data;
 
@@ -3019,6 +3050,192 @@ public partial class RichTextBox : TextBoxBase
             // release any storage space held.
             _editStream = null;
         }
+    }
+
+    private static Encoding DefaultAnsiEncoding => CodePagesEncodingProvider.Instance.GetEncoding(0) ?? Encoding.UTF8;
+
+    private void ApplyManagedStreamIn(Stream data, uint flags)
+    {
+        Debug.Assert(data is not null, "StreamIn passed a null stream");
+
+        using MemoryStream stream = new();
+        data.CopyTo(stream);
+        byte[] bytes = stream.ToArray();
+        string value = (flags & PInvoke.SF_UNICODE) != 0
+            ? Encoding.Unicode.GetString(bytes)
+            : DefaultAnsiEncoding.GetString(bytes);
+
+        ApplyManagedStreamIn(value, flags);
+    }
+
+    private void ApplyManagedStreamIn(string value, uint flags)
+    {
+        int nullTerminatedLength = value.IndexOf((char)0);
+        if (nullTerminatedLength != -1)
+        {
+            value = value[..nullTerminatedLength];
+        }
+
+        bool rtf = (flags & PInvoke.SF_RTF) != 0 || (flags & PInvoke.SF_RTFNOOBJS) != 0;
+        if (rtf)
+        {
+            if (value.Length > 0 && !value.StartsWith(SZ_RTF_TAG, StringComparison.Ordinal))
+            {
+                throw new ArgumentException(SR.InvalidFileFormat);
+            }
+
+            _textRtf = value.Length == 0 ? null : value;
+            _textPlain = value.Length == 0 ? string.Empty : ConvertSimpleRtfToPlainText(value);
+        }
+        else
+        {
+            _textRtf = null;
+            _textPlain = value;
+        }
+
+        base.Text = _textPlain ?? string.Empty;
+    }
+
+    private void WriteManagedStreamOut(Stream data, uint flags, bool includeCrLfs)
+    {
+        bool rtf = (flags & PInvoke.SF_RTF) != 0 || (flags & PInvoke.SF_RTFNOOBJS) != 0;
+        string value = rtf
+            ? _textRtf ?? CreateSimpleRtf(_textPlain ?? base.Text)
+            : _textPlain ?? base.Text;
+
+        if (!rtf && includeCrLfs)
+        {
+            value = value.Replace("\n", "\r\n");
+        }
+
+        byte[] bytes = (flags & PInvoke.SF_UNICODE) != 0
+            ? Encoding.Unicode.GetBytes(value)
+            : DefaultAnsiEncoding.GetBytes(value);
+
+        data.Write(bytes, 0, bytes.Length);
+    }
+
+    private static string CreateSimpleRtf(string text)
+    {
+        StringBuilder builder = new();
+        builder.Append(@"{\rtf1\ansi ");
+
+        foreach (char c in text)
+        {
+            switch (c)
+            {
+                case '\\':
+                case '{':
+                case '}':
+                    builder.Append('\\').Append(c);
+                    break;
+                case '\r':
+                    break;
+                case '\n':
+                    builder.Append(@"\par ");
+                    break;
+                default:
+                    if (c <= 0x7f)
+                    {
+                        builder.Append(c);
+                    }
+                    else
+                    {
+                        builder.Append(@"\u").Append((short)c).Append('?');
+                    }
+
+                    break;
+            }
+        }
+
+        builder.Append('}');
+        return builder.ToString();
+    }
+
+    private static string ConvertSimpleRtfToPlainText(string rtf)
+    {
+        StringBuilder builder = new();
+
+        for (int i = 0; i < rtf.Length; i++)
+        {
+            char c = rtf[i];
+            switch (c)
+            {
+                case '{':
+                case '}':
+                    continue;
+                case '\\':
+                    if (i + 1 >= rtf.Length)
+                    {
+                        continue;
+                    }
+
+                    char next = rtf[i + 1];
+                    if (next is '\\' or '{' or '}')
+                    {
+                        builder.Append(next);
+                        i++;
+                        continue;
+                    }
+
+                    if (next == '\'' && i + 3 < rtf.Length)
+                    {
+                        string hex = rtf.Substring(i + 2, 2);
+                        if (byte.TryParse(hex, System.Globalization.NumberStyles.HexNumber, provider: null, out byte value))
+                        {
+                            builder.Append(DefaultAnsiEncoding.GetString([value]));
+                            i += 3;
+                            continue;
+                        }
+                    }
+
+                    int controlStart = i + 1;
+                    int controlEnd = controlStart;
+                    while (controlEnd < rtf.Length && char.IsLetter(rtf[controlEnd]))
+                    {
+                        controlEnd++;
+                    }
+
+                    string control = rtf[controlStart..controlEnd];
+                    if (control.Length == 0)
+                    {
+                        i = controlStart;
+                        continue;
+                    }
+
+                    int numericEnd = controlEnd;
+                    if (numericEnd < rtf.Length && (rtf[numericEnd] == '-' || char.IsDigit(rtf[numericEnd])))
+                    {
+                        numericEnd++;
+                        while (numericEnd < rtf.Length && char.IsDigit(rtf[numericEnd]))
+                        {
+                            numericEnd++;
+                        }
+                    }
+
+                    if (numericEnd < rtf.Length && rtf[numericEnd] == ' ')
+                    {
+                        numericEnd++;
+                    }
+
+                    if (control is "par" or "line")
+                    {
+                        builder.Append(Environment.NewLine);
+                    }
+                    else if (control == "tab")
+                    {
+                        builder.Append('\t');
+                    }
+
+                    i = numericEnd - 1;
+                    break;
+                default:
+                    builder.Append(c);
+                    break;
+            }
+        }
+
+        return builder.ToString();
     }
 
     private unsafe string GetTextEx(GETTEXTEX_FLAGS flags = GETTEXTEX_FLAGS.GT_DEFAULT)

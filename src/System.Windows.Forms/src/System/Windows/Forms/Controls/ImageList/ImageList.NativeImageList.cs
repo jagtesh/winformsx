@@ -2,7 +2,6 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Drawing;
-using System.Windows.Forms.Platform;
 using Windows.Win32.System.Com;
 
 namespace System.Windows.Forms;
@@ -24,7 +23,7 @@ public sealed partial class ImageList
             HIMAGELIST himl;
             lock (s_syncLock)
             {
-                himl = PlatformApi.Control.ImageList_Create(
+                himl = PInvoke.ImageList_Create(
                     s_defaultImageSize.Width,
                     s_defaultImageSize.Height,
                     IMAGELIST_CREATION_FLAGS.ILC_COLOR32,
@@ -39,7 +38,7 @@ public sealed partial class ImageList
             HIMAGELIST himl;
             lock (s_syncLock)
             {
-                himl = PlatformApi.Control.ImageList_Create(imageSize.Width, imageSize.Height, flags, InitialCapacity, GrowBy);
+                himl = PInvoke.ImageList_Create(imageSize.Width, imageSize.Height, flags, InitialCapacity, GrowBy);
                 Init(himl);
             }
         }
@@ -76,7 +75,7 @@ public sealed partial class ImageList
                     return;
                 }
 
-                PlatformApi.Control.ImageList_Destroy(HIMAGELIST);
+                PInvoke.ImageList.Destroy(new HandleRef<HIMAGELIST>(this, HIMAGELIST));
                 HIMAGELIST = HIMAGELIST.Null;
             }
 
@@ -100,13 +99,8 @@ public sealed partial class ImageList
         {
             lock (s_syncLock)
             {
-                HIMAGELIST himl = PlatformApi.Control.ImageList_Create(
-                    s_defaultImageSize.Width,
-                    s_defaultImageSize.Height,
-                    IMAGELIST_CREATION_FLAGS.ILC_COLOR32,
-                    InitialCapacity,
-                    GrowBy);
-                if (!HIMAGELIST.IsNull)
+                HIMAGELIST himl = PInvoke.ImageList_Duplicate(HIMAGELIST);
+                if (!himl.IsNull)
                 {
                     return new NativeImageList(himl);
                 }

@@ -38,6 +38,10 @@ internal readonly partial struct LPARAM
     // #define MAKELPARAM(l, h)    ((LPARAM)(DWORD)MAKELONG(l, h))
     // #define MAKELONG(a, b)      ((LONG)(((WORD)(((DWORD_PTR)(a)) & 0xffff))
     //   | ((DWORD)((WORD)(((DWORD_PTR)(b)) & 0xffff))) << 16))
-    public static LPARAM MAKELPARAM(int low, int high) => (LPARAM)(uint)((int)(((ushort)(((nuint)low) & 0xffff))
-        | ((uint)((ushort)(((nuint)high) & 0xffff))) << 16));
+    public static LPARAM MAKELPARAM(int low, int high)
+    {
+        uint value = unchecked((uint)(((ushort)(((nuint)low) & 0xffff))
+            | ((uint)((ushort)(((nuint)high) & 0xffff))) << 16));
+        return new((nint)value);
+    }
 }

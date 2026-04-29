@@ -10346,7 +10346,9 @@ public unsafe partial class Control :
     {
         RECT rect = new(size);
         CreateParams cp = CreateParams;
-        AdjustWindowRectExForControlDpi(ref rect, (WINDOW_STYLE)cp.Style, false, (WINDOW_EX_STYLE)cp.ExStyle);
+        WINDOW_STYLE style = (WINDOW_STYLE)unchecked((uint)cp.Style);
+        WINDOW_EX_STYLE exStyle = (WINDOW_EX_STYLE)unchecked((uint)cp.ExStyle);
+        AdjustWindowRectExForControlDpi(ref rect, style, false, exStyle);
         return rect.Size;
     }
 
@@ -10987,13 +10989,20 @@ public unsafe partial class Control :
     [EditorBrowsable(EditorBrowsableState.Advanced)]
     protected void UpdateBounds(int x, int y, int width, int height)
     {
+        width = Math.Max(0, width);
+        height = Math.Max(0, height);
+
         // reverse-engineer the AdjustWindowRectEx call to figure out the appropriate clientWidth and clientHeight
         RECT rect = default;
         CreateParams cp = CreateParams;
 
-        AdjustWindowRectExForControlDpi(ref rect, (WINDOW_STYLE)cp.Style, false, (WINDOW_EX_STYLE)cp.ExStyle);
-        int clientWidth = width - rect.Width;
-        int clientHeight = height - rect.Height;
+        WINDOW_STYLE style = (WINDOW_STYLE)unchecked((uint)cp.Style);
+        WINDOW_EX_STYLE exStyle = (WINDOW_EX_STYLE)unchecked((uint)cp.ExStyle);
+        AdjustWindowRectExForControlDpi(ref rect, style, false, exStyle);
+        long windowFrameWidth = (long)rect.right - rect.left;
+        long windowFrameHeight = (long)rect.bottom - rect.top;
+        int clientWidth = (int)Math.Clamp((long)width - windowFrameWidth, 0, int.MaxValue);
+        int clientHeight = (int)Math.Clamp((long)height - windowFrameHeight, 0, int.MaxValue);
         UpdateBounds(x, y, width, height, clientWidth, clientHeight);
     }
 

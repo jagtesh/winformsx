@@ -60,6 +60,9 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
     private const int ManagedDataGridRowHeight = 24;
     private const int ManagedScrollBarArrowLength = 17;
     private const int ManagedScrollBarMinThumbLength = 18;
+    private const int CwUseDefault = unchecked((int)0x80000000);
+    private const int DefaultTopLevelWindowX = 100;
+    private const int DefaultTopLevelWindowY = 100;
     private const int DefaultDirtyCoalesceMs = 33;
     private const int DefaultRenderFailureCooldownMs = 250;
     private static readonly System.Drawing.Color s_managedControlColor = System.Drawing.Color.FromArgb(240, 240, 240);
@@ -133,7 +136,7 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
     // Legacy pump for any non-main-loop callers (e.g. DoEvents)
     public void PumpEvents()
     {
-        foreach (var state in _windows.Values)
+        foreach (var state in _windows.Values.ToArray())
         {
             if (state.SilkWindow is object)
             {
@@ -158,10 +161,13 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
     {
         int effectiveWidth = nWidth > 0 ? nWidth : 800;
         int effectiveHeight = nHeight > 0 ? nHeight : 600;
+        bool isTopLevel = hWndParent == HWND.Null;
+        int effectiveX = isTopLevel ? NormalizeTopLevelWindowCoordinate(x, DefaultTopLevelWindowX) : x;
+        int effectiveY = isTopLevel ? NormalizeTopLevelWindowCoordinate(y, DefaultTopLevelWindowY) : y;
 
         // Some create paths hand us title-bar-sized bounds (e.g., 136x39) for top-level
         // forms. Clamp to a sane minimum so the render surface is usable.
-        if (hWndParent == HWND.Null)
+        if (isTopLevel)
         {
             if (effectiveWidth < 640)
             {
@@ -182,8 +188,8 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
             Title = lpWindowName ?? string.Empty,
             Style = dwStyle,
             ExStyle = dwExStyle,
-            X = x,
-            Y = y,
+            X = effectiveX,
+            Y = effectiveY,
             Width = effectiveWidth,
             Height = effectiveHeight,
             Parent = hWndParent,
@@ -193,14 +199,11 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
             WndProc = 0x1,
         };
 
-        if (hWndParent == HWND.Null)
+        if (isTopLevel)
         {
             var options = WindowOptions.DefaultVulkan;
             options.Title = lpWindowName ?? string.Empty;
-            // CW_USEDEFAULT (0x80000000) yields extreme negatives — default to (100,100)
-            int posX = (x < 0 || x > 4000) ? 100 : x;
-            int posY = (y < 0 || y > 4000) ? 100 : y;
-            options.Position = new Vector2D<int>(posX, posY);
+            options.Position = new Vector2D<int>(effectiveX, effectiveY);
             options.Size = new Vector2D<int>(effectiveWidth, effectiveHeight);
             options.IsVisible = false;
             if (((WINDOW_STYLE)dwStyle).HasFlag(WINDOW_STYLE.WS_POPUP))
@@ -212,7 +215,7 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                 options.WindowBorder = WindowBorder.Resizable;
             }
 
-            var silkWindow = Window.Create(options);
+            var silkWindow = CreateInitializedSilkWindow(options);
             bool renderReady = false;
 
             silkWindow.Resize += (size) =>
@@ -400,25 +403,22 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                 }
             };
 
-            silkWindow.Initialize();
             _windows[handle].SilkWindow = silkWindow;
 
             // Prime WinForms layout with an initial geometry sync. Silk.NET resize/move
             // callbacks are not guaranteed to fire on first show.
-            var initialSize = silkWindow.Size;
-            var initialPos = silkWindow.Position;
             PostMessageToControl(
                 handle,
                 handle,
                 WM_MOVE,
                 (WPARAM)0,
-                (LPARAM)(nint)((initialPos.Y << 16) | (initialPos.X & 0xFFFF)));
+                (LPARAM)(nint)((effectiveY << 16) | (effectiveX & 0xFFFF)));
             PostMessageToControl(
                 handle,
                 handle,
                 WM_SIZE,
                 (WPARAM)0,
-                (LPARAM)(nint)((initialSize.Y << 16) | (initialSize.X & 0xFFFF)));
+                (LPARAM)(nint)((effectiveHeight << 16) | (effectiveWidth & 0xFFFF)));
             MarkDirtyImmediate(handle);
 
             // --- Wire up Silk.NET input to WinForms synthetic messages ---
@@ -716,6 +716,52 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
 
         return handle;
     }
+
+    private static IWindow CreateInitializedSilkWindow(WindowOptions vulkanOptions)
+    {
+        try
+        {
+            IWindow vulkanWindow = Window.Create(vulkanOptions);
+            vulkanWindow.Initialize();
+            return vulkanWindow;
+        }
+        catch (Exception ex) when (IsVulkanWindowUnavailable(ex))
+        {
+            TracePaint($"[Window] Vulkan window unavailable; falling back to default Silk window. {ex.GetType().Name}: {ex.Message}");
+
+            WindowOptions fallbackOptions = WindowOptions.Default;
+            fallbackOptions.Title = vulkanOptions.Title;
+            fallbackOptions.Position = vulkanOptions.Position;
+            fallbackOptions.Size = vulkanOptions.Size;
+            fallbackOptions.IsVisible = vulkanOptions.IsVisible;
+            fallbackOptions.WindowBorder = vulkanOptions.WindowBorder;
+            fallbackOptions.TopMost = vulkanOptions.TopMost;
+            fallbackOptions.FramesPerSecond = vulkanOptions.FramesPerSecond;
+            fallbackOptions.UpdatesPerSecond = vulkanOptions.UpdatesPerSecond;
+
+            IWindow fallbackWindow = Window.Create(fallbackOptions);
+            fallbackWindow.Initialize();
+            return fallbackWindow;
+        }
+    }
+
+    private static bool IsVulkanWindowUnavailable(Exception ex)
+    {
+        for (Exception? current = ex; current is not null; current = current.InnerException)
+        {
+            string message = current.Message;
+            if (message.Contains("Vulkan", StringComparison.OrdinalIgnoreCase)
+                || message.Contains("GLFW", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static int NormalizeTopLevelWindowCoordinate(int value, int fallback)
+        => value is CwUseDefault or < -32000 or > 32000 ? fallback : value;
 
     /// <summary>
     /// Keep root bounds synced with the Silk window so Dock/Anchor layouts expand before painting.
@@ -3695,6 +3741,12 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
     {
         if (_windows.TryGetValue(hWnd, out var s))
         {
+            if (s.Parent == HWND.Null)
+            {
+                x = NormalizeTopLevelWindowCoordinate(x, DefaultTopLevelWindowX);
+                y = NormalizeTopLevelWindowCoordinate(y, DefaultTopLevelWindowY);
+            }
+
             s.X = x;
             s.Y = y;
             s.Width = w;
@@ -3717,6 +3769,12 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
     {
         if (_windows.TryGetValue(hWnd, out var s))
         {
+            if (s.Parent == HWND.Null && !flags.HasFlag(SET_WINDOW_POS_FLAGS.SWP_NOMOVE))
+            {
+                x = NormalizeTopLevelWindowCoordinate(x, DefaultTopLevelWindowX);
+                y = NormalizeTopLevelWindowCoordinate(y, DefaultTopLevelWindowY);
+            }
+
             if (!flags.HasFlag(SET_WINDOW_POS_FLAGS.SWP_NOMOVE))
             { s.X = x; s.Y = y; }
             if (!flags.HasFlag(SET_WINDOW_POS_FLAGS.SWP_NOSIZE))
@@ -3806,10 +3864,11 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
             return 0;
         return index switch
         {
-            WINDOW_LONG_PTR_INDEX.GWL_STYLE => (nint)(int)s.Style,
-            WINDOW_LONG_PTR_INDEX.GWL_EXSTYLE => (nint)(int)s.ExStyle,
+            WINDOW_LONG_PTR_INDEX.GWL_STYLE => (nint)unchecked((int)(uint)s.Style),
+            WINDOW_LONG_PTR_INDEX.GWL_EXSTYLE => (nint)unchecked((int)(uint)s.ExStyle),
             WINDOW_LONG_PTR_INDEX.GWL_WNDPROC => s.WndProc,
             WINDOW_LONG_PTR_INDEX.GWL_ID => s.Id,
+            WINDOW_LONG_PTR_INDEX.GWL_HWNDPARENT => (nint)s.Parent,
             _ => 0,
         };
     }
@@ -3832,6 +3891,9 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                 break;
             case WINDOW_LONG_PTR_INDEX.GWL_ID:
                 s.Id = value;
+                break;
+            case WINDOW_LONG_PTR_INDEX.GWL_HWNDPARENT:
+                s.Parent = (HWND)value;
                 break;
         }
 

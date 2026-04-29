@@ -13,6 +13,11 @@ internal static partial class PInvokeCore
     {
         fixed (void* p = &value)
         {
+            if (!OperatingSystem.IsWindows())
+            {
+                return SystemParametersInfoNonWindows(uiAction, 0, p);
+            }
+
             return SystemParametersInfo(uiAction, 0, p, 0);
         }
     }
@@ -28,6 +33,14 @@ internal static partial class PInvokeCore
     /// <inheritdoc cref="SystemParametersInfo(SYSTEM_PARAMETERS_INFO_ACTION, uint, void*, SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS)"/>
     public static unsafe bool SystemParametersInfo(SYSTEM_PARAMETERS_INFO_ACTION uiAction, ref bool value, uint fWinIni = 0)
     {
+        if (!OperatingSystem.IsWindows())
+        {
+            BOOL managedBool = value;
+            bool managedResult = SystemParametersInfoNonWindows(uiAction, 0, &managedBool);
+            value = managedBool;
+            return managedResult;
+        }
+
         BOOL nativeBool = value;
         bool result = SystemParametersInfo(uiAction, 0, &nativeBool, (SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS)fWinIni);
         value = nativeBool;
@@ -50,6 +63,14 @@ internal static partial class PInvokeCore
             // Note that the documentation for HIGHCONTRASTW says that the lpszDefaultScheme member needs to be
             // freed, but this is incorrect. No internal users ever free the pointer and the pointer never changes.
             highContrast.cbSize = (uint)sizeof(HIGHCONTRASTW);
+            if (!OperatingSystem.IsWindows())
+            {
+                return SystemParametersInfoNonWindows(
+                    SYSTEM_PARAMETERS_INFO_ACTION.SPI_GETHIGHCONTRAST,
+                    highContrast.cbSize,
+                    p);
+            }
+
             return SystemParametersInfo(
                 SYSTEM_PARAMETERS_INFO_ACTION.SPI_GETHIGHCONTRAST,
                 highContrast.cbSize,
@@ -64,6 +85,14 @@ internal static partial class PInvokeCore
         fixed (void* p = &metrics)
         {
             metrics.cbSize = (uint)sizeof(NONCLIENTMETRICSW);
+            if (!OperatingSystem.IsWindows())
+            {
+                return SystemParametersInfoNonWindows(
+                    SYSTEM_PARAMETERS_INFO_ACTION.SPI_GETNONCLIENTMETRICS,
+                    metrics.cbSize,
+                    p);
+            }
+
             return SystemParametersInfo(
                 SYSTEM_PARAMETERS_INFO_ACTION.SPI_GETNONCLIENTMETRICS,
                 metrics.cbSize,
@@ -93,5 +122,54 @@ internal static partial class PInvokeCore
         }
 
         return SystemParametersInfo(ref metrics);
+    }
+
+    private static unsafe bool SystemParametersInfoNonWindows(
+        SYSTEM_PARAMETERS_INFO_ACTION uiAction,
+        uint uiParam,
+        void* pvParam)
+    {
+        if (pvParam is null)
+        {
+            return true;
+        }
+
+        switch (uiAction)
+        {
+            case SYSTEM_PARAMETERS_INFO_ACTION.SPI_GETCLIENTAREAANIMATION:
+            case SYSTEM_PARAMETERS_INFO_ACTION.SPI_GETDRAGFULLWINDOWS:
+            case SYSTEM_PARAMETERS_INFO_ACTION.SPI_GETFONTSMOOTHING:
+            case SYSTEM_PARAMETERS_INFO_ACTION.SPI_GETICONTITLEWRAP:
+            case SYSTEM_PARAMETERS_INFO_ACTION.SPI_GETKEYBOARDCUES:
+            case SYSTEM_PARAMETERS_INFO_ACTION.SPI_GETKEYBOARDPREF:
+            case SYSTEM_PARAMETERS_INFO_ACTION.SPI_GETLISTBOXSMOOTHSCROLLING:
+            case SYSTEM_PARAMETERS_INFO_ACTION.SPI_GETTOOLTIPANIMATION:
+            case SYSTEM_PARAMETERS_INFO_ACTION.SPI_GETUIEFFECTS:
+                *(BOOL*)pvParam = true;
+                return true;
+
+            case SYSTEM_PARAMETERS_INFO_ACTION.SPI_SETCLIENTAREAANIMATION:
+                return true;
+
+            case SYSTEM_PARAMETERS_INFO_ACTION.SPI_GETWORKAREA:
+                *(RECT*)pvParam = new RECT(0, 0, 1920, 1040);
+                return true;
+
+            case SYSTEM_PARAMETERS_INFO_ACTION.SPI_GETNONCLIENTMETRICS:
+                ((NONCLIENTMETRICSW*)pvParam)->cbSize = uiParam == 0
+                    ? (uint)sizeof(NONCLIENTMETRICSW)
+                    : uiParam;
+                return true;
+
+            case SYSTEM_PARAMETERS_INFO_ACTION.SPI_GETHIGHCONTRAST:
+                ((HIGHCONTRASTW*)pvParam)->cbSize = uiParam == 0
+                    ? (uint)sizeof(HIGHCONTRASTW)
+                    : uiParam;
+                ((HIGHCONTRASTW*)pvParam)->dwFlags = 0;
+                return true;
+
+            default:
+                return true;
+        }
     }
 }

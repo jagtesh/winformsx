@@ -304,8 +304,9 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
             // This shouldn't be possible.
             Debug.Assert(_priorWindowProcHandle != _windowProcHandle, "Uh oh! Subclassed ourselves!!!");
 
+            WINDOW_STYLE windowStyle = (WINDOW_STYLE)unchecked((uint)(nint)PInvoke.GetWindowLong(this, WINDOW_LONG_PTR_INDEX.GWL_STYLE));
             if (assignUniqueID
-                && ((WINDOW_STYLE)(uint)PInvoke.GetWindowLong(this, WINDOW_LONG_PTR_INDEX.GWL_STYLE)).HasFlag(WINDOW_STYLE.WS_CHILD)
+                && windowStyle.HasFlag(WINDOW_STYLE.WS_CHILD)
                 && PInvoke.GetWindowLong(this, WINDOW_LONG_PTR_INDEX.GWL_ID) == 0)
             {
                 PInvoke.SetWindowLong(this, WINDOW_LONG_PTR_INDEX.GWL_ID, hwnd);
@@ -428,11 +429,13 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
                                 cp.Caption = cp.Caption[..short.MaxValue];
                             }
 
+                            WINDOW_EX_STYLE exStyle = (WINDOW_EX_STYLE)unchecked((uint)cp.ExStyle);
+                            WINDOW_STYLE style = (WINDOW_STYLE)unchecked((uint)cp.Style);
                             createResult = PlatformApi.User32.CreateWindowEx(
-                                (WINDOW_EX_STYLE)cp.ExStyle,
+                                exStyle,
                                 windowClass._windowClassName,
                                 cp.Caption,
-                                (WINDOW_STYLE)cp.Style,
+                                style,
                                 cp.X,
                                 cp.Y,
                                 cp.Width,

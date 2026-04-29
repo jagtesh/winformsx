@@ -154,11 +154,10 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
                 return CreateBackendBacked(backend);
             }
 
-            ThrowImpellerBackendUnavailable(nameof(FromHdcInternal));
+            return CreateOffscreenFallback();
         }
 
-        ThrowImpellerBackendUnavailable(nameof(FromHdcInternal));
-        throw null!;
+        return CreateOffscreenFallback();
     }
 
     /// <summary>
@@ -170,6 +169,9 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
     {
         return new Graphics(backend);
     }
+
+    private static Graphics CreateOffscreenFallback() =>
+        CreateBackendBacked(new ManagedBitmapRenderingBackend(new Bitmap(1, 1)));
 
     /// <summary>
     ///  Creates a new instance of the Graphics class from the specified handle to a device context and handle to a device.
@@ -185,11 +187,10 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
                 return CreateBackendBacked(backend);
             }
 
-            ThrowImpellerBackendUnavailable(nameof(FromHdc));
+            return CreateOffscreenFallback();
         }
 
-        ThrowImpellerBackendUnavailable(nameof(FromHdc));
-        throw null!;
+        return CreateOffscreenFallback();
     }
 
     /// <summary>
@@ -211,11 +212,10 @@ public sealed unsafe partial class Graphics : MarshalByRefObject, IDisposable, I
                 return CreateBackendBacked(backend);
             }
 
-            ThrowImpellerBackendUnavailable(nameof(FromHwndInternal));
+            return CreateOffscreenFallback();
         }
 
-        ThrowImpellerBackendUnavailable(nameof(FromHwndInternal));
-        throw null!;
+        return CreateOffscreenFallback();
     }
 
     private static void ThrowImpellerBackendUnavailable(string api)

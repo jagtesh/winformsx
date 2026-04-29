@@ -566,6 +566,15 @@ public sealed partial class ImageList
         /// </summary>
         public void SetKeyName(int index, string name)
         {
+            if (!IsValidIndex(index) && _owner.HandleCreated)
+            {
+                PInvoke.ImageList.EnsureImageCount(_owner, index + 1);
+                while (_imageInfoCollection.Count <= index)
+                {
+                    _imageInfoCollection.Add(new ImageInfo());
+                }
+            }
+
             if (!IsValidIndex(index))
             {
                 throw new IndexOutOfRangeException();

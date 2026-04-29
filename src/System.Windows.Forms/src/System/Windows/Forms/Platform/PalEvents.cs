@@ -17,8 +17,8 @@ internal static class PalEvents
         => DisplaySettingsChanging?.Invoke(null, EventArgs.Empty);
 
     internal static void RaiseUserPreferenceChanged(UserPreferenceChangedEventArgs e)
-        => UserPreferenceChanged?.Invoke(null, e);
+        => UserPreferenceChanged?.Invoke(null!, e);
 
     internal static void RaiseUserPreferenceChanging(UserPreferenceChangingEventArgs e)
-        => UserPreferenceChanging?.Invoke(null, e);
+        => UserPreferenceChanging?.Invoke(null!, e);
 }

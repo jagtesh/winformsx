@@ -16,7 +16,7 @@ internal readonly partial struct WPARAM
     public static explicit operator HDC(WPARAM value) => (HDC)(nint)value.Value;
     public static explicit operator WPARAM(HDC value) => new((nuint)value.Value);
 
-    public static explicit operator WPARAM(HFONT value) => new((nuint)value.Value);
+    public static explicit operator WPARAM(HFONT value) => new(unchecked((nuint)value.Value));
 
     public static explicit operator BOOL(WPARAM value) => (BOOL)(nint)value.Value;
     public static explicit operator WPARAM(BOOL value) => new((nuint)(nint)value);

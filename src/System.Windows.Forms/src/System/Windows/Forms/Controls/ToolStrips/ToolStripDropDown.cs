@@ -960,6 +960,7 @@ public partial class ToolStripDropDown : ToolStrip
     internal void AdjustSize()
     {
         Size size = GetSuggestedSize();
+        size = new Size(Math.Max(1, size.Width), Math.Max(1, size.Height));
         if (size != Size)
         {
             Size = size;

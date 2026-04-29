@@ -81,8 +81,6 @@ CW_USEDEFAULT
 CWP_FLAGS
 DATETIMEPICK_CLASS
 DeactivateActCtx
-DefFrameProc
-DefMDIChildProc
 DefWindowProc
 DeleteDC
 DeleteEnhMetaFile
@@ -142,7 +140,6 @@ EnableMenuItem
 EnableScrollBar
 EndPaint
 ENM_*
-EnumChildWindows
 EnumDisplayMonitors
 EnumDisplaySettings
 EnumEnhMetaFile
@@ -204,12 +201,10 @@ GetHGlobalFromILockBytes
 GetIconInfo
 GetKeyboardLayout
 GetKeyboardLayoutList
-GetKeyboardState
 GetLocaleInfoEx
 GetMapMode
 GetMenuItemCount
 GetMenuItemInfo
-GetMessage
 GetMessagePos
 GetMessageTime
 GetModuleFileName
@@ -233,8 +228,6 @@ GetStartupInfo
 GetStockObject
 GetSysColor
 GetSysColorBrush
-GetSystemMetrics
-GetSystemMetricsForDpi
 GetSystemPaletteEntries
 GetSystemPowerStatus
 GetTextAlign
@@ -353,23 +346,7 @@ ILegacyIAccessibleProvider
 IMAGE_LIST_DRAW_STYLE
 IMAGE_LIST_WRITE_STREAM_FLAGS
 IMAGEINFO
-ImageList_Add
-ImageList_Create
-ImageList_Destroy
-ImageList_Draw
-ImageList_DrawEx
-ImageList_Duplicate
-ImageList_GetIconSize
-ImageList_GetImageCount
-ImageList_GetImageInfo
-ImageList_Read
-ImageList_Remove
-ImageList_Replace
-ImageList_ReplaceIcon
-ImageList_SetBkColor
-ImageList_SetIconSize
-ImageList_Write
-ImageList_WriteEx
+IMAGELIST_CREATION_FLAGS
 IME_COMPOSITION_STRING
 ImmAssociateContext
 ImmCreateContext
@@ -383,7 +360,6 @@ ImmSetOpenStatus
 IMN_*
 IMPLTYPEFLAGS
 IMultipleViewProvider
-InitCommonControls
 INITCOMMONCONTROLSEX
 INITCOMMONCONTROLSEX_ICC
 IntersectClipRect
@@ -591,8 +567,6 @@ PBS_*
 PBST_*
 PD_RESULT_*
 PEEK_MESSAGE_REMOVE_TYPE
-PostQuitMessage
-PostQuitMessage
 PostThreadMessage
 PRF_*
 PrintDlg
@@ -662,7 +636,6 @@ SF_*
 SF_*
 SFF_*
 SFF_*
-SHAutoComplete
 SHBrowseForFolder
 SHCreateItemFromParsingName
 SHCreateShellItem
@@ -695,6 +668,7 @@ STILL_ACTIVE
 StretchDIBits
 StructureChangeType
 SYSBUTTONSTATES
+SYSTEM_METRICS_INDEX
 SYSTEM_PARAMETERS_INFO_ACTION
 SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS
 SystemParametersInfo
@@ -724,7 +698,6 @@ TOOLTIPS_CLASS
 TRACKBAR_CLASS
 TrackMouseEvent
 TranslateMDISysAccel
-TranslateMessage
 TREE_VIEW_ITEM_STATE_FLAGS
 TTDT_*
 TTM_*
@@ -747,7 +720,6 @@ TYPEKIND
 UIA_CONTROLTYPE_ID
 UIA_EVENT_ID
 UiaAppendRuntimeId
-UiaClientsAreListening
 UiaDisconnectProvider
 UiaGetReservedNotSupportedValue
 UiaHostProviderFromHwnd

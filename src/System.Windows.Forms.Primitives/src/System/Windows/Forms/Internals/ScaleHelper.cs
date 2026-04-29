@@ -354,10 +354,32 @@ internal static partial class ScaleHelper
     /// </summary>
     internal static Bitmap GetIconResourceAsBestMatchBitmap(Type type, string resource, Size size)
     {
-        using Stream stream = type.Module.Assembly.GetManifestResourceStream(type, resource)
+        using Stream stream = GetManifestResourceStream(type, resource)
             ?? throw new ArgumentException(string.Format(SR.ResourceNotFound, type, resource));
 
         return GetIconResourceAsBestMatchBitmap(stream, size);
+    }
+
+    private static Stream? GetManifestResourceStream(Type type, string resource)
+    {
+        var assembly = type.Module.Assembly;
+        Stream? stream = assembly.GetManifestResourceStream(type, resource);
+        if (stream is not null)
+        {
+            return stream;
+        }
+
+        string normalizedResource = resource.TrimStart('.');
+        string shortResource = normalizedResource[(normalizedResource.LastIndexOf('.') + 1)..];
+        string? resourceName = assembly.GetManifestResourceNames().FirstOrDefault(name =>
+            name.EndsWith($".{resource}", StringComparison.Ordinal)
+            || name.EndsWith($"/{resource}", StringComparison.Ordinal)
+            || name.EndsWith($".{normalizedResource}", StringComparison.Ordinal)
+            || name.EndsWith($"/.{normalizedResource}", StringComparison.Ordinal)
+            || name.EndsWith($".{shortResource}", StringComparison.Ordinal)
+            || name.EndsWith($"/.{shortResource}", StringComparison.Ordinal));
+
+        return resourceName is null ? null : assembly.GetManifestResourceStream(resourceName);
     }
 
     /// <summary>

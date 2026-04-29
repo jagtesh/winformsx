@@ -92,7 +92,6 @@ GetPaletteEntries
 GetRegionData
 GetStockObject
 GetSystemDefaultLCID
-GetSystemMetrics
 GetThreadLocale
 GetViewportExtEx
 GetViewportOrgEx
@@ -186,6 +185,7 @@ STG_E_INVALIDFLAG
 STG_E_INVALIDFUNCTION
 STG_E_INVALIDPOINTER
 STGTY
+SYSTEM_METRICS_INDEX
 SystemParametersInfo
 SystemParametersInfoForDpi
 TYPE_E_BADMODULEKIND

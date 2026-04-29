@@ -12,6 +12,7 @@ internal sealed unsafe class ImpellerAccessibilityInterop : IAccessibilityIntero
 {
     // --- UIA Provider ---------------------------------------------------
 
+    public bool UiaClientsAreListening() => false;
     public bool UiaDisconnectProvider(nint provider) => true;
     public HRESULT UiaReturnRawElementProvider(HWND hwnd, WPARAM wParam, LPARAM lParam, nint el)
         => HRESULT.S_OK;

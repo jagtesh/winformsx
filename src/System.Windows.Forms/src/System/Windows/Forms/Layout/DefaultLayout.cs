@@ -583,6 +583,11 @@ internal partial class DefaultLayout : LayoutEngine
             desiredSize = element.Bounds.Size;
         }
 
+        if (desiredSize.Width < 0 || desiredSize.Height < 0)
+        {
+            desiredSize = new Size(Math.Max(0, desiredSize.Width), Math.Max(0, desiredSize.Height));
+        }
+
         Debug.Assert(desiredSize.Width >= 0 && desiredSize.Height >= 0, "Error detected in xGetDockSize: Element size was negative.");
         return desiredSize;
     }

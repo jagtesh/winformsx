@@ -37,6 +37,14 @@ internal sealed class ImpellerMessageInterop : IMessageInterop
             return textResult;
         }
 
+        if (msg == PInvoke.LVM_ENABLEGROUPVIEW
+            || msg == PInvoke.LVM_ISGROUPVIEWENABLED
+            || msg == PInvoke.LVM_HASGROUP
+            || msg == PInvoke.LVM_SETITEMW)
+        {
+            return (LRESULT)1;
+        }
+
         // Synchronous dispatch — look up the NativeWindow for this HWND and invoke
         // its WndProc directly (wxWidgets-style synthetic message dispatch).
         // WM_PAINT flows through the standard WinForms WmPaint pipeline:

@@ -12,6 +12,7 @@ internal unsafe interface IAccessibilityInterop
 {
     // ─── UIA Provider ───────────────────────────────────────────────────
 
+    bool UiaClientsAreListening();
     bool UiaDisconnectProvider(nint provider);
     HRESULT UiaReturnRawElementProvider(HWND hwnd, WPARAM wParam, LPARAM lParam, nint el);
     LRESULT UiaDefWindowProc(HWND hWnd, uint msg, WPARAM wParam, LPARAM lParam);
