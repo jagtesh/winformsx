@@ -106,6 +106,14 @@ Ordered by observed frequency across components and blocker blast radius:
     - Move `Button_Hotkey_Fires_OnClickAsync` from “no mnemonic route” into real button click behavior on non-Windows harness runs.
   - Focused rerun status:
     - `Button_Hotkey_Fires_OnClickAsync` remains failing on click assertion (`wasClicked == false`); no regression to environment/setup failures.
+- In-progress local changes (next commit):
+  - Non-Windows synthetic input foreground prep now preserves an already-focused child control instead of always forcing focus back to the form:
+    - `UIIntegrationTests/Infra/SendInput.SetForegroundWindow`
+  - This removes one source of focus churn in keyboard-driven button tests and keeps behavior closer to modal dialog expectations.
+  - Verification:
+    - `User32CompatibilityFacadeTests` filtered suite remains green (`Passed: 2, Failed: 0`).
+    - `Button_Hotkey_Fires_OnClickAsync` and dialog-result button cases are still failing on behavior assertions; remaining gap is mnemonic/modal close semantics, not input-language preconditions.
+  - Attempted non-Windows `ShowDialog()` harness alignment was reverted after introducing a test hang; modal-lifecycle parity will continue via runtime behavior fixes instead of harness-level modal-loop emulation.
 
 ## Task Legend
 

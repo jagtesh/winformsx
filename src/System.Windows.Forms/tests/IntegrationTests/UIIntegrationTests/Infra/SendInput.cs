@@ -81,8 +81,15 @@ public class SendInput
     {
         if (!OperatingSystem.IsWindows())
         {
+            HWND existingFocus = PInvoke.GetFocus();
             PInvoke.SetActiveWindow(window);
             PInvoke.SetForegroundWindow(window);
+
+            if (existingFocus.IsNull || (existingFocus != (HWND)window.Handle && !PInvoke.IsChild(window, existingFocus)))
+            {
+                PInvoke.SetFocus(window);
+            }
+
             return;
         }
 
