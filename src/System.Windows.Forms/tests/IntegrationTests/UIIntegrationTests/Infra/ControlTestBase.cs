@@ -317,6 +317,7 @@ public abstract class ControlTestBase : IAsyncLifetime, IDisposable
             Assert.NotNull(winFormsXControl);
 
             CreateControlWithoutHiddenBackend(winFormsXDialog);
+            winFormsXDialog.Show();
             ActivateWinFormsXDialog(winFormsXDialog);
             await WaitForIdleAsync();
             try
@@ -402,6 +403,7 @@ public abstract class ControlTestBase : IAsyncLifetime, IDisposable
             Assert.NotNull(winFormsXDialog);
 
             CreateControlWithoutHiddenBackend(winFormsXDialog);
+            winFormsXDialog.Show();
             ActivateWinFormsXDialog(winFormsXDialog);
             await WaitForIdleAsync();
             try

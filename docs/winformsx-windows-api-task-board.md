@@ -49,6 +49,11 @@ Current baseline: `42 total, 41 passed, 0 failed, 1 skipped` with `MediaPlayer` 
 - Targeted `ButtonTests` rerun (`UIIntegrationTests` filter `FullyQualifiedName~ButtonTests`):
   - `Failed: 18, Passed: 4, Skipped: 36, Total: 58`
   - Dominant failures are button click/default/cancel interaction flow and anchor-resize expectations.
+- In-progress local changes (next commit):
+  - Updated non-Windows `UIIntegrationTests` harness startup to explicitly `Show()` forms before activation and test execution (`ControlTestBase` non-Windows branches).
+  - Reran targeted `ButtonTests` after harness update:
+    - `Failed: 15, Passed: 7, Skipped: 30, Total: 52`
+  - Net result: 3 failures converted to passes and 6 prior skip/error paths converted into active assertions; remaining failures are now mostly dialog-result close behavior and anchor/resize interaction semantics.
 - Input-language remediation:
   - Fixed non-Windows `InputLanguage.LayoutName` crash path (`Registry.LocalMachine` / `GetMUIString` fallback guards).
   - `Button_Hotkey_Fires_OnClickAsync` no longer throws `NullReferenceException`; it now fails with expected environment precondition (`Please, switch to the US input language`).
@@ -146,7 +151,7 @@ Current baseline: `42 total, 41 passed, 0 failed, 1 skipped` with `MediaPlayer` 
 
 ## Ongoing Watchlist
 
-- [ ] WXA-WL01: `Buttons` (resource extraction path + catalog form hookup).
+- [~] WXA-WL01: `Buttons` (resource extraction path + catalog form hookup + non-Windows harness visibility improvements landed; remaining click/default/cancel + anchor/resize behavior gaps).
 - [~] WXA-WL02: `MultipleControls`/`RichTextBoxes`/`TextBoxes` (input/editing path hardening; managed link/range fallback in progress).
 - [ ] WXA-WL03: `TreeView, ImageList` / `ListView` / `MDI Parent` / `TrackBars` (native common-control state).
 - [ ] WXA-WL04: `Calendar` / `DateTimePicker` (handle and message conversion).
