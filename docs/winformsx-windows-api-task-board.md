@@ -4,6 +4,18 @@ Source: [winformsx-windows-api-blockers.md](docs/winformsx-windows-api-blockers.
 
 Current baseline: `42 total, 41 passed, 0 failed, 1 skipped` with `MediaPlayer` skipped.
 
+## Impact Priority Queue (2026-04-29 refresh)
+
+Ordered by observed frequency across components and blocker blast radius:
+
+1. `P1` Modal/dialog lifecycle parity (`ShowDialog`, `DialogResult`, owner/focus/visibility close semantics).
+2. `P1` Synthetic input routing parity (`SendInput` key/mouse translation, focus target, capture, accelerators/mnemonics).
+3. `P1` Resize/layout interaction parity (`Anchor` behavior, drag-resize hit path, client/screen mapping under input simulation).
+4. `P2` OLE/clipboard/IME core (`OleRequired`, clipboard/DataObject, drag/drop registration and flow).
+5. `P2` Dialog service behavior parity (managed file/font/color/print/page setup automation behavior).
+6. `P3` Printing/spooler and accessibility/provider gaps.
+7. `P4` Lower-frequency compatibility breadth and non-blocker polish.
+
 ## Latest Progress (2026-04-29)
 
 - Landed in `b888d27ff`:
@@ -85,6 +97,15 @@ Current baseline: `42 total, 41 passed, 0 failed, 1 skipped` with `MediaPlayer` 
     - `Failed: 15, Passed: 7, Skipped: 30, Total: 52`
   - Outcome:
     - Failure mode moved from infrastructure crash (`CopyFromScreen requires a Drawing PAL implementation`) to real behavior gaps (dialog-result close semantics, cancel-button escape behavior, anchor/resize interaction, and drag-off/drag-back click flow).
+- In-progress local changes (next commit):
+  - Began P1 synthetic-keyboard parity pass for mnemonic/accelerator behavior:
+    - `ImpellerInputInterop` now emits `WM_SYSKEYDOWN`/`WM_SYSKEYUP` and `WM_SYSCHAR` for non-Alt keys while Alt is held.
+    - Added deterministic VK->char mapping for `A-Z` and `0-9` in this path.
+    - Routed `WM_SYSCHAR` delivery to the active top-level window to better match mnemonic processing expectations.
+  - Target intent:
+    - Move `Button_Hotkey_Fires_OnClickAsync` from “no mnemonic route” into real button click behavior on non-Windows harness runs.
+  - Focused rerun status:
+    - `Button_Hotkey_Fires_OnClickAsync` remains failing on click assertion (`wasClicked == false`); no regression to environment/setup failures.
 
 ## Task Legend
 
@@ -191,3 +212,4 @@ Current baseline: `42 total, 41 passed, 0 failed, 1 skipped` with `MediaPlayer` 
 
 - `WXA-1103` is actively in progress with managed drag/drop loop and target-resolution work.
 - `DragDropTests` targeted UI integration rerun is currently green except the intentional explorer-based skip.
+- Active priority lane is now `P1`: modal lifecycle + synthetic input parity + anchor/resize interactions (in that order).

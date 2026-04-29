@@ -13,6 +13,9 @@ internal sealed unsafe class ImpellerInputInterop : IInputInterop
     private const uint WM_KEYDOWN = 0x0100;
     private const uint WM_KEYUP = 0x0101;
     private const uint WM_CHAR = 0x0102;
+    private const uint WM_SYSKEYDOWN = 0x0104;
+    private const uint WM_SYSKEYUP = 0x0105;
+    private const uint WM_SYSCHAR = 0x0106;
     private const uint WM_MOUSEMOVE = 0x0200;
     private const uint WM_LBUTTONDOWN = 0x0201;
     private const uint WM_LBUTTONUP = 0x0202;
@@ -199,11 +202,13 @@ internal sealed unsafe class ImpellerInputInterop : IInputInterop
 
         if (!unicode && virtualKey != 0)
         {
+            bool altModifierActive;
             if (keyUp)
             {
                 lock (_inputStateLock)
                 {
                     _pressedKeys.Remove(virtualKey);
+                    altModifierActive = IsAltModifierPressedNoLock();
                 }
             }
             else
@@ -211,10 +216,21 @@ internal sealed unsafe class ImpellerInputInterop : IInputInterop
                 lock (_inputStateLock)
                 {
                     _pressedKeys.Add(virtualKey);
+                    altModifierActive = IsAltModifierPressedNoLock();
                 }
             }
 
-            PostToKeyboardTarget(keyUp ? WM_KEYUP : WM_KEYDOWN, (WPARAM)virtualKey, (LPARAM)0);
+            bool isAltKey = virtualKey is (int)VIRTUAL_KEY.VK_MENU or (int)VIRTUAL_KEY.VK_LMENU or (int)VIRTUAL_KEY.VK_RMENU;
+            uint keyMessage = keyUp
+                ? (altModifierActive && !isAltKey ? WM_SYSKEYUP : WM_KEYUP)
+                : (altModifierActive && !isAltKey ? WM_SYSKEYDOWN : WM_KEYDOWN);
+            PostToKeyboardTarget(keyMessage, (WPARAM)virtualKey, (LPARAM)0);
+
+            if (!keyUp && altModifierActive && !isAltKey && TryMapVirtualKeyToChar(virtualKey, out char mappedChar))
+            {
+                PostSystemCharToMnemonicTarget((WPARAM)mappedChar);
+            }
+
             return;
         }
 
@@ -301,6 +317,25 @@ internal sealed unsafe class ImpellerInputInterop : IInputInterop
 
         PlatformApi.Message.SendMessage(target, message, wParam, lParam);
         TraceInput($"[InputKeyboardSend] msg=0x{message:X} target=0x{(nint)target:X}");
+    }
+
+    private void PostSystemCharToMnemonicTarget(WPARAM wParam)
+    {
+        HWND target = _activeWindow != HWND.Null ? _activeWindow : _focusWindow;
+        if (target == HWND.Null)
+        {
+            TraceInput("[InputKeyboardDrop] msg=0x106 reason=no-mnemonic-target");
+            return;
+        }
+
+        if (PlatformApi.Window is ImpellerWindowInterop impellerWindow
+            && impellerWindow.TryDispatchInputMessage(target, _activeWindow, WM_SYSCHAR, wParam, (LPARAM)0))
+        {
+            return;
+        }
+
+        PlatformApi.Message.SendMessage(target, WM_SYSCHAR, wParam, (LPARAM)0);
+        TraceInput($"[InputKeyboardSend] msg=0x{WM_SYSCHAR:X} target=0x{(nint)target:X}");
     }
 
     private void PostToMouseTarget(uint message, WPARAM wParam)
@@ -477,6 +512,29 @@ internal sealed unsafe class ImpellerInputInterop : IInputInterop
             | MOUSE_EVENT_FLAGS.MOUSEEVENTF_MOVE_NOCOALESCE;
 
         return (flags & ~moveFlags) == 0;
+    }
+
+    private bool IsAltModifierPressedNoLock()
+        => _pressedKeys.Contains((int)VIRTUAL_KEY.VK_MENU)
+        || _pressedKeys.Contains((int)VIRTUAL_KEY.VK_LMENU)
+        || _pressedKeys.Contains((int)VIRTUAL_KEY.VK_RMENU);
+
+    private static bool TryMapVirtualKeyToChar(int virtualKey, out char mappedChar)
+    {
+        if (virtualKey is >= 0x41 and <= 0x5A)
+        {
+            mappedChar = (char)virtualKey;
+            return true;
+        }
+
+        if (virtualKey is >= 0x30 and <= 0x39)
+        {
+            mappedChar = (char)virtualKey;
+            return true;
+        }
+
+        mappedChar = '\0';
+        return false;
     }
 
     private static void TraceInput(string message)
