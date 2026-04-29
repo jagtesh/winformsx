@@ -63,13 +63,13 @@ let iterations = Int(ProcessInfo.processInfo.environment["WINFORMSX_FRAME_STRESS
 let intervalUs = useconds_t(Int(ProcessInfo.processInfo.environment["WINFORMSX_FRAME_STRESS_INTERVAL_US"] ?? "4000") ?? 4000)
 let downUpUs = useconds_t(Int(ProcessInfo.processInfo.environment["WINFORMSX_FRAME_STRESS_DOWN_UP_US"] ?? "2500") ?? 2500)
 let tabPoints: [(Double, Double)] = [
-    (0.080, 0.108),
-    (0.226, 0.108),
-    (0.372, 0.108),
-    (0.519, 0.108),
-    (0.665, 0.108),
-    (0.812, 0.108),
-    (0.957, 0.108),
+    (0.080, 0.125),
+    (0.226, 0.125),
+    (0.372, 0.125),
+    (0.519, 0.125),
+    (0.665, 0.125),
+    (0.812, 0.125),
+    (0.957, 0.125),
 ]
 
 func isTarget(owner: String, name: String) -> Bool {

@@ -68,7 +68,7 @@ guard let rect = targetWindow() else {
     exit(1)
 }
 
-click(rect, 0.226, 0.108) // Basic Controls tab.
+click(rect, 0.226, 0.125) // Basic Controls tab.
 usleep(250_000)
 click(rect, 0.165, 0.322) // Name TextBox.
 usleep(120_000)

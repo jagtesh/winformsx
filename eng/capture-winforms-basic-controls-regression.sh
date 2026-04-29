@@ -145,7 +145,7 @@ RELEASED="$OUT_ROOT/button-released.png"
 AFTER_STRESS="$OUT_ROOT/after-rapid-toggle.png"
 
 eng/capture-winforms-screen.sh "$OUT_ROOT/launch.png"
-post_mouse click "0.226,0.108"
+post_mouse click "0.226,0.125"
 sleep 0.5
 
 baseline_ready=0

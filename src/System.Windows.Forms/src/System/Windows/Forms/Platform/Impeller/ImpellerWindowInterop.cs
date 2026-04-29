@@ -39,14 +39,16 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
     private const int WheelDelta = 120;
     private const int DefaultTargetFrameRate = 60;
     private const int ManagedTabHeaderHeight = 30;
-    private const int ManagedTabHeaderLeft = 8;
+    private const int ManagedTabHeaderLeft = 6;
     private const int ManagedTabHeaderWidth = 128;
-    private const int ManagedTabHeaderGap = 4;
-    private const int ManagedMenuItemLeft = 12;
-    private const int ManagedMenuItemWidth = 68;
-    private const int ManagedMenuItemHeight = 24;
-    private const int ManagedMenuDropDownWidth = 190;
-    private const int ManagedMenuDropDownRowHeight = 26;
+    private const int ManagedTabHeaderGap = 0;
+    private const int ManagedMenuItemLeft = 3;
+    private const int ManagedMenuItemMinWidth = 34;
+    private const int ManagedMenuItemHorizontalPadding = 8;
+    private const int ManagedMenuItemGap = 1;
+    private const int ManagedMenuItemHeight = 22;
+    private const int ManagedMenuDropDownMinWidth = 158;
+    private const int ManagedMenuDropDownRowHeight = 22;
     private const int ManagedTextPadding = 4;
     private const int ManagedCheckGlyphSize = 14;
     private const int ManagedListItemHeight = 22;
@@ -60,6 +62,11 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
     private const int ManagedScrollBarMinThumbLength = 18;
     private const int DefaultDirtyCoalesceMs = 33;
     private const int DefaultRenderFailureCooldownMs = 250;
+    private static readonly System.Drawing.Color s_managedControlColor = System.Drawing.Color.FromArgb(240, 240, 240);
+    private static readonly System.Drawing.Color s_managedControlLightColor = System.Drawing.Color.FromArgb(227, 227, 227);
+    private static readonly System.Drawing.Color s_managedControlDarkColor = System.Drawing.Color.FromArgb(160, 160, 160);
+    private static readonly System.Drawing.Color s_managedControlDarkDarkColor = System.Drawing.Color.FromArgb(105, 105, 105);
+    private static readonly System.Drawing.Color s_managedMenuColor = System.Drawing.Color.FromArgb(249, 249, 249);
 
     // Internal window registry: HWND -> ImpellerSurface mapping
     private static long s_nextHandle = 0x10000;
@@ -74,6 +81,7 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
     private static readonly Dictionary<TreeView, int> s_managedTreeViewTopRow = [];
     private static readonly Dictionary<DataGridView, int> s_managedDataGridViewSelection = [];
     private static readonly Dictionary<DataGridView, int> s_managedDataGridViewTopRow = [];
+    private static readonly Dictionary<ToolStrip, ToolStripItem> s_managedActiveMenuItems = [];
     private static readonly HashSet<Control> s_pressedControls = [];
     private HWND _activeWindow;
     private readonly Dictionary<nint, ImpellerWindowState> _windows = [];
@@ -230,7 +238,6 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                 // that cause deadlocks with the render loop.
             };
 
-
             silkWindow.Render += (delta) =>
             {
                 if (!renderReady)
@@ -332,7 +339,8 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                                 WinFormsXExecutionKind.Paint,
                                 $"Render hwnd=0x{(nint)handle:X} root={root.GetType().Name}");
 
-                            g.Clear(root.BackColor);
+                            SynchronizeRootControlSize(root, logicalW, logicalH);
+                            g.Clear(NormalizeSystemColor(root.BackColor));
                             // Render in logical WinForms units and scale to framebuffer pixels.
                             // On Retina this keeps layout semantics while preserving sharp output.
                             var (sx, sy) = ResolveHiDpiScale(logicalW, logicalH, framebufferW, framebufferH);
@@ -710,13 +718,24 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
     }
 
     /// <summary>
-    /// Paint the entire control tree using the Impeller-backed Graphics.
-    /// Instead of dispatching WM_PAINT (which creates a new Graphics per control via
-    /// BeginPaint/HDC), we directly invoke OnPaint on each control using the shared
-    /// Impeller Graphics that already has an active frame.
-    /// This is the Impeller equivalent of the Win32 paint cycle.
+    /// Keep root bounds synced with the Silk window so Dock/Anchor layouts expand before painting.
     /// </summary>
+    private static void SynchronizeRootControlSize(Control root, int logicalWidth, int logicalHeight)
+    {
+        if (logicalWidth <= 0 || logicalHeight <= 0)
+        {
+            return;
+        }
 
+        if (root.Width == logicalWidth && root.Height == logicalHeight)
+        {
+            return;
+        }
+
+        TracePaint($"[RootResize] {root.GetType().Name} {root.Width}x{root.Height} -> {logicalWidth}x{logicalHeight}");
+        root.SetBounds(root.Left, root.Top, logicalWidth, logicalHeight, BoundsSpecified.Size);
+        root.PerformLayout();
+    }
 
     /// <summary>
     /// Recursively find TabControls and make their selected TabPage visible
@@ -801,7 +820,7 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
 
             // PAL fallback paint: always draw control background via backend so controls
             // remain visible even when Win32/GDI-dependent paint paths throw on macOS.
-            var bg = control.BackColor;
+            var bg = NormalizeSystemColor(control.BackColor);
             if (bg.A > 0)
             {
                 using var brush = new System.Drawing.SolidBrush(bg);
@@ -927,25 +946,44 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
     private static void DrawButton(System.Windows.Forms.Button button, System.Drawing.Graphics g)
     {
         bool pressed = s_pressedControls.Contains(button);
-        var face = button.BackColor.A == 0 ? System.Drawing.Color.FromArgb(74, 139, 255) : button.BackColor;
-        if (pressed)
+        bool customBackColor = !IsDefaultControlBackColor(button.BackColor);
+
+        System.Drawing.Color face;
+        System.Drawing.Color border;
+        System.Drawing.Color text;
+        if (!button.Enabled)
         {
-            face = System.Drawing.Color.FromArgb(
-                face.A,
-                Math.Max(0, face.R - 28),
-                Math.Max(0, face.G - 28),
-                Math.Max(0, face.B - 28));
+            face = System.Drawing.Color.FromArgb(239, 239, 239);
+            border = System.Drawing.Color.FromArgb(204, 204, 204);
+            text = System.Drawing.Color.FromArgb(131, 131, 131);
+        }
+        else
+        {
+            face = customBackColor ? NormalizeSystemColor(button.BackColor) : System.Drawing.Color.FromArgb(225, 225, 225);
+            border = pressed
+                ? System.Drawing.Color.FromArgb(0, 84, 153)
+                : System.Drawing.Color.FromArgb(173, 173, 173);
+            text = button.ForeColor.A == 0
+                ? System.Drawing.SystemColors.ControlText
+                : button.ForeColor;
+
+            if (pressed)
+            {
+                face = customBackColor
+                    ? Darken(face, 28)
+                    : System.Drawing.Color.FromArgb(204, 228, 247);
+            }
         }
 
         using var fill = new System.Drawing.SolidBrush(face);
         g.FillRectangle(fill, 0, 0, Math.Max(1, button.Width), Math.Max(1, button.Height));
 
-        using var borderPen = new System.Drawing.Pen(pressed ? System.Drawing.Color.FromArgb(20, 20, 20) : System.Drawing.Color.FromArgb(40, 40, 40));
+        using var borderPen = new System.Drawing.Pen(border);
         g.DrawRectangle(borderPen, 0, 0, Math.Max(1, button.Width) - 1, Math.Max(1, button.Height) - 1);
 
         if (!string.IsNullOrEmpty(button.Text))
         {
-            using var textBrush = new System.Drawing.SolidBrush(button.ForeColor.A == 0 ? System.Drawing.Color.White : button.ForeColor);
+            using var textBrush = new System.Drawing.SolidBrush(text);
             var textRect = new System.Drawing.RectangleF(0, 0, Math.Max(1, button.Width), Math.Max(1, button.Height));
             using var sf = new System.Drawing.StringFormat
             {
@@ -955,6 +993,49 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
             };
             g.DrawString(SanitizeTextForImpeller(button.Text), button.Font, textBrush, textRect, sf);
         }
+    }
+
+    private static System.Drawing.Color Darken(System.Drawing.Color color, int amount)
+        => System.Drawing.Color.FromArgb(
+            color.A,
+            Math.Max(0, color.R - amount),
+            Math.Max(0, color.G - amount),
+            Math.Max(0, color.B - amount));
+
+    private static bool IsDefaultControlBackColor(System.Drawing.Color color)
+    {
+        if (color.A == 0)
+        {
+            return true;
+        }
+
+        if (color.IsSystemColor)
+        {
+            var knownColor = color.ToKnownColor();
+            return knownColor is System.Drawing.KnownColor.Control or System.Drawing.KnownColor.ButtonFace;
+        }
+
+        return color.ToArgb() == s_managedControlColor.ToArgb();
+    }
+
+    private static System.Drawing.Color NormalizeSystemColor(System.Drawing.Color color)
+    {
+        if (!color.IsSystemColor)
+        {
+            return color;
+        }
+
+        return color.ToKnownColor() switch
+        {
+            System.Drawing.KnownColor.Control or System.Drawing.KnownColor.ButtonFace => s_managedControlColor,
+            System.Drawing.KnownColor.ControlLight => s_managedControlLightColor,
+            System.Drawing.KnownColor.ControlLightLight => System.Drawing.Color.White,
+            System.Drawing.KnownColor.ControlDark => s_managedControlDarkColor,
+            System.Drawing.KnownColor.ControlDarkDark => s_managedControlDarkDarkColor,
+            System.Drawing.KnownColor.Menu or System.Drawing.KnownColor.MenuBar => s_managedMenuColor,
+            System.Drawing.KnownColor.Window => System.Drawing.Color.White,
+            _ => color,
+        };
     }
 
     private static void DrawTextBox(TextBoxBase textBox, System.Drawing.Graphics g)
@@ -1436,9 +1517,9 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
 
     private static void DrawStatusStrip(StatusStrip statusStrip, System.Drawing.Graphics g)
     {
-        using var bg = new System.Drawing.SolidBrush(System.Drawing.Color.FromArgb(230, 230, 220));
+        using var bg = new System.Drawing.SolidBrush(s_managedControlColor);
         g.FillRectangle(bg, 0, 0, Math.Max(1, statusStrip.Width), Math.Max(1, statusStrip.Height));
-        using var border = new System.Drawing.Pen(System.Drawing.Color.FromArgb(180, 180, 170));
+        using var border = new System.Drawing.Pen(System.Drawing.Color.FromArgb(204, 206, 219));
         g.DrawLine(border, 0, 0, Math.Max(1, statusStrip.Width), 0);
 
         int x = 8;
@@ -1521,10 +1602,14 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
 
     private static void DrawMenuStrip(MenuStrip menuStrip, System.Drawing.Graphics g)
     {
-        using var bg = new System.Drawing.SolidBrush(System.Drawing.Color.FromArgb(55, 55, 55));
+        int height = Math.Max(ManagedMenuItemHeight, menuStrip.Height);
+        using var bg = new System.Drawing.SolidBrush(s_managedMenuColor);
         g.FillRectangle(bg, 0, 0, Math.Max(1, menuStrip.Width), Math.Max(1, menuStrip.Height));
+        using var bottomLine = new System.Drawing.Pen(System.Drawing.Color.FromArgb(204, 206, 219));
+        g.DrawLine(bottomLine, 0, Math.Max(0, height - 1), Math.Max(1, menuStrip.Width), Math.Max(0, height - 1));
 
         int x = ManagedMenuItemLeft;
+        s_managedActiveMenuItems.TryGetValue(menuStrip, out ToolStripItem? activeItem);
         foreach (ToolStripItem item in menuStrip.Items)
         {
             string text = SanitizeTextForImpeller(item.Text);
@@ -1533,9 +1618,21 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                 continue;
             }
 
-            using var brush = new System.Drawing.SolidBrush(System.Drawing.Color.FromArgb(235, 235, 235));
-            g.DrawString(text, menuStrip.Font, brush, new System.Drawing.PointF(x, 4));
-            x += ManagedMenuItemWidth;
+            int width = GetManagedMenuItemWidth(item);
+            var itemRect = new System.Drawing.Rectangle(x, 1, width, Math.Max(1, height - 2));
+            if (ReferenceEquals(item, activeItem))
+            {
+                using var activeBg = new System.Drawing.SolidBrush(System.Drawing.Color.FromArgb(204, 232, 255));
+                g.FillRectangle(activeBg, itemRect);
+                DrawSimpleBorder(g, itemRect.X, itemRect.Y, itemRect.Width, itemRect.Height, System.Drawing.Color.FromArgb(0, 120, 215));
+            }
+
+            using var brush = new System.Drawing.SolidBrush(item.Enabled
+                ? System.Drawing.SystemColors.MenuText
+                : System.Drawing.SystemColors.GrayText);
+            float textY = Math.Max(1, itemRect.Top + (itemRect.Height - menuStrip.Font.Height) / 2f);
+            g.DrawString(text, menuStrip.Font, brush, new System.Drawing.PointF(x + ManagedMenuItemHorizontalPadding, textY));
+            x += width + ManagedMenuItemGap;
         }
     }
 
@@ -1548,13 +1645,13 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
         }
 
         var bounds = state.ActiveMenuBounds;
-        using var shadow = new System.Drawing.SolidBrush(System.Drawing.Color.FromArgb(80, 0, 0, 0));
+        using var shadow = new System.Drawing.SolidBrush(System.Drawing.Color.FromArgb(45, 0, 0, 0));
         g.FillRectangle(shadow, bounds.X + 3, bounds.Y + 3, bounds.Width, bounds.Height);
 
-        using var bg = new System.Drawing.SolidBrush(System.Drawing.Color.FromArgb(252, 252, 252));
+        using var bg = new System.Drawing.SolidBrush(s_managedMenuColor);
         g.FillRectangle(bg, bounds);
 
-        using var border = new System.Drawing.Pen(System.Drawing.Color.FromArgb(90, 90, 90));
+        using var border = new System.Drawing.Pen(System.Drawing.Color.FromArgb(204, 204, 204));
         g.DrawRectangle(border, bounds.X, bounds.Y, bounds.Width - 1, bounds.Height - 1);
 
         int y = bounds.Y;
@@ -1570,9 +1667,9 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
             else
             {
                 using var textBrush = new System.Drawing.SolidBrush(item.Enabled
-                    ? System.Drawing.Color.FromArgb(35, 35, 35)
-                    : System.Drawing.Color.FromArgb(140, 140, 140));
-                g.DrawString(SanitizeTextForImpeller(item.Text), menuItem.Font, textBrush, new System.Drawing.PointF(row.Left + 12, row.Top + 5));
+                    ? System.Drawing.SystemColors.MenuText
+                    : System.Drawing.SystemColors.GrayText);
+                g.DrawString(SanitizeTextForImpeller(item.Text), menuItem.Font, textBrush, new System.Drawing.PointF(row.Left + 10, row.Top + 3));
 
                 string shortcutText = item is ToolStripMenuItem childMenuItem
                     ? childMenuItem.ShortcutKeyDisplayString ?? string.Empty
@@ -1580,7 +1677,8 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                 if (!string.IsNullOrEmpty(shortcutText))
                 {
                     using var shortcutBrush = new System.Drawing.SolidBrush(System.Drawing.Color.FromArgb(90, 90, 90));
-                    g.DrawString(SanitizeTextForImpeller(shortcutText), menuItem.Font, shortcutBrush, new System.Drawing.PointF(row.Right - 58, row.Top + 5));
+                    int shortcutWidth = EstimateTextWidth(shortcutText) + 6;
+                    g.DrawString(SanitizeTextForImpeller(shortcutText), menuItem.Font, shortcutBrush, new System.Drawing.PointF(row.Right - shortcutWidth, row.Top + 3));
                 }
             }
 
@@ -1629,26 +1727,38 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
     private static void DrawTabHeaders(TabControl tabControl, System.Drawing.Graphics g)
     {
         int width = Math.Max(1, tabControl.Width);
-        using var stripBg = new System.Drawing.SolidBrush(System.Drawing.Color.FromArgb(230, 228, 212));
+        int height = Math.Max(1, tabControl.Height);
+        using var stripBg = new System.Drawing.SolidBrush(s_managedControlColor);
         g.FillRectangle(stripBg, 0, 0, width, ManagedTabHeaderHeight);
+        using var contentBg = new System.Drawing.SolidBrush(s_managedControlColor);
+        g.FillRectangle(contentBg, 0, ManagedTabHeaderHeight - 1, width, Math.Max(1, height - ManagedTabHeaderHeight + 1));
+        using var framePen = new System.Drawing.Pen(System.Drawing.Color.FromArgb(172, 172, 172));
+        g.DrawRectangle(framePen, 0, ManagedTabHeaderHeight - 1, Math.Max(0, width - 1), Math.Max(0, height - ManagedTabHeaderHeight));
 
         int x = ManagedTabHeaderLeft;
         int selected = GetSelectedTabIndexSafe(tabControl);
         for (int i = 0; i < tabControl.TabPages.Count; i++)
         {
             var tab = tabControl.TabPages[i];
-            var rect = new System.Drawing.Rectangle(x, 2, ManagedTabHeaderWidth, ManagedTabHeaderHeight - 4);
             bool isSelected = i == selected;
+            var rect = isSelected
+                ? new System.Drawing.Rectangle(x, 2, ManagedTabHeaderWidth, ManagedTabHeaderHeight - 1)
+                : new System.Drawing.Rectangle(x, 5, ManagedTabHeaderWidth, ManagedTabHeaderHeight - 6);
 
             using var fill = new System.Drawing.SolidBrush(isSelected
-                ? System.Drawing.Color.FromArgb(252, 252, 252)
-                : System.Drawing.Color.FromArgb(210, 210, 196));
+                ? s_managedControlColor
+                : System.Drawing.Color.FromArgb(236, 236, 236));
             g.FillRectangle(fill, rect);
 
-            using var pen = new System.Drawing.Pen(System.Drawing.Color.FromArgb(150, 150, 140));
+            using var pen = new System.Drawing.Pen(System.Drawing.Color.FromArgb(172, 172, 172));
             g.DrawRectangle(pen, rect.X, rect.Y, rect.Width - 1, rect.Height - 1);
+            if (isSelected)
+            {
+                using var erase = new System.Drawing.Pen(s_managedControlColor, 2);
+                g.DrawLine(erase, rect.Left + 1, ManagedTabHeaderHeight - 1, rect.Right - 2, ManagedTabHeaderHeight - 1);
+            }
 
-            using var brush = new System.Drawing.SolidBrush(System.Drawing.Color.FromArgb(45, 45, 45));
+            using var brush = new System.Drawing.SolidBrush(System.Drawing.SystemColors.ControlText);
             using var sf = new System.Drawing.StringFormat
             {
                 Alignment = System.Drawing.StringAlignment.Center,
@@ -1763,17 +1873,65 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                 continue;
             }
 
-            var rect = new System.Drawing.Rectangle(x, 0, ManagedMenuItemWidth, Math.Max(ManagedMenuItemHeight, toolStrip.Height));
+            int width = GetManagedMenuItemWidth(item);
+            var rect = new System.Drawing.Rectangle(x, 0, width, Math.Max(ManagedMenuItemHeight, toolStrip.Height));
             if (rect.Contains(clientPoint))
             {
                 return item;
             }
 
-            x += ManagedMenuItemWidth;
+            x += width + ManagedMenuItemGap;
         }
 
         return null;
     }
+
+    private static int GetManagedMenuItemWidth(ToolStripItem item)
+        => Math.Max(
+            ManagedMenuItemMinWidth,
+            EstimateTextWidth(item.Text) + ManagedMenuItemHorizontalPadding * 2);
+
+    private static int GetManagedMenuItemOffset(ToolStrip toolStrip, ToolStripItem target)
+    {
+        int x = ManagedMenuItemLeft;
+        foreach (ToolStripItem item in toolStrip.Items)
+        {
+            if (ReferenceEquals(item, target))
+            {
+                return x;
+            }
+
+            if (item.Available)
+            {
+                x += GetManagedMenuItemWidth(item) + ManagedMenuItemGap;
+            }
+        }
+
+        return x;
+    }
+
+    private static int GetManagedMenuDropDownWidth(ToolStripMenuItem menuItem)
+    {
+        int width = ManagedMenuDropDownMinWidth;
+        foreach (ToolStripItem item in menuItem.DropDownItems)
+        {
+            if (item is ToolStripSeparator)
+            {
+                continue;
+            }
+
+            string shortcutText = item is ToolStripMenuItem childMenuItem
+                ? childMenuItem.ShortcutKeyDisplayString ?? string.Empty
+                : string.Empty;
+            int desired = 22 + EstimateTextWidth(item.Text) + (string.IsNullOrEmpty(shortcutText) ? 0 : 24 + EstimateTextWidth(shortcutText));
+            width = Math.Max(width, desired);
+        }
+
+        return Math.Min(width, 260);
+    }
+
+    private static int EstimateTextWidth(string? text)
+        => string.IsNullOrEmpty(text) ? 0 : SanitizeTextForImpeller(text).Length * 7;
 
     private void ShowManagedMenuDropDown(HWND handle, ToolStrip toolStrip, ToolStripMenuItem menuItem, System.Drawing.Point clientPoint)
     {
@@ -1783,18 +1941,24 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
         }
 
         var origin = GetRootRelativeLocation(toolStrip);
-        int menuIndex = Math.Max(0, toolStrip.Items.IndexOf(menuItem));
-        int dropDownX = origin.X + ManagedMenuItemLeft + menuIndex * ManagedMenuItemWidth;
+        int dropDownX = origin.X + GetManagedMenuItemOffset(toolStrip, menuItem);
         int dropDownY = origin.Y + Math.Max(ManagedMenuItemHeight, toolStrip.Height);
         int rowCount = Math.Max(1, menuItem.DropDownItems.Count);
+
+        if (Control.FromHandle(state.ActiveMenuOwner) is ToolStrip previousOwner
+            && !ReferenceEquals(previousOwner, toolStrip))
+        {
+            s_managedActiveMenuItems.Remove(previousOwner);
+        }
 
         state.ActiveMenuItem = menuItem;
         state.ActiveMenuOwner = (HWND)(nint)toolStrip.Handle;
         state.ActiveMenuBounds = new System.Drawing.Rectangle(
             dropDownX,
             dropDownY,
-            ManagedMenuDropDownWidth,
+            GetManagedMenuDropDownWidth(menuItem),
             rowCount * ManagedMenuDropDownRowHeight);
+        s_managedActiveMenuItems[toolStrip] = menuItem;
 
         TraceInput($"[ManagedMenuOpen] text={menuItem.Text} bounds={state.ActiveMenuBounds} client={clientPoint}");
         MarkDirty(handle);
@@ -1818,6 +1982,11 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
 
             state.ActiveMenuItem = null;
             state.ActiveMenuBounds = System.Drawing.Rectangle.Empty;
+            if (Control.FromHandle(state.ActiveMenuOwner) is ToolStrip activeOwner)
+            {
+                s_managedActiveMenuItems.Remove(activeOwner);
+            }
+
             MarkDirty(handle);
 
             if (item is not null && item is not ToolStripSeparator && item.Enabled)
@@ -1841,6 +2010,11 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
 
         state.ActiveMenuItem = null;
         state.ActiveMenuBounds = System.Drawing.Rectangle.Empty;
+        if (Control.FromHandle(state.ActiveMenuOwner) is ToolStrip previousOwner)
+        {
+            s_managedActiveMenuItems.Remove(previousOwner);
+        }
+
         MarkDirty(handle);
         return true;
     }
@@ -1859,6 +2033,11 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
         }
 
         var origin = GetRootRelativeLocation(comboBox);
+        if (Control.FromHandle(state.ActiveMenuOwner) is ToolStrip previousOwner)
+        {
+            s_managedActiveMenuItems.Remove(previousOwner);
+        }
+
         state.ActiveMenuItem = null;
         state.ActiveMenuBounds = System.Drawing.Rectangle.Empty;
         state.ActiveComboBox = comboBox;
@@ -2078,6 +2257,11 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
 
             if (state.ActiveMenuItem is not null && key == Key.Escape)
             {
+                if (Control.FromHandle(state.ActiveMenuOwner) is ToolStrip activeOwner)
+                {
+                    s_managedActiveMenuItems.Remove(activeOwner);
+                }
+
                 state.ActiveMenuItem = null;
                 state.ActiveMenuBounds = System.Drawing.Rectangle.Empty;
                 MarkDirty(rootHandle);
@@ -3385,7 +3569,6 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
 
         return (width, height);
     }
-
 
     internal Silk.NET.Windowing.IWindow? GetSilkWindow(HWND hWnd)
     {

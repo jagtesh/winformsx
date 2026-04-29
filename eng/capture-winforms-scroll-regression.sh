@@ -17,7 +17,7 @@ sleep 0.3
 
 eng/capture-winforms-screen.sh "$OUT_DIR/before.png" >/tmp/winformsx_scroll_regression.out
 
-WINFORMSX_CLICK_POINTS='0.372,0.105' \
+WINFORMSX_CLICK_POINTS='0.372,0.125' \
 WINFORMSX_AFTER_CLICK_DELAY="${WINFORMSX_AFTER_CLICK_DELAY:-0.8}" \
 WINFORMSX_REUSE_RUNNING=1 \
   eng/capture-winforms-click-regression.sh "$OUT_DIR/lists-tab" >>/tmp/winformsx_scroll_regression.out

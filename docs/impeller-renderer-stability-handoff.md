@@ -32,21 +32,28 @@ pool errors, process crashes, or stale stretched content.
 The app is stable for normal exploratory use on the Impeller/Silk.NET/Vulkan
 path. The previous renderer-wide failures that caused blank client frames,
 missing text, `ErrorFragmentedPool` spam, and crashes during normal clicking,
-hovering, tab switching, textbox input, and frame stress have been resolved.
+hovering, tab switching, textbox input, wheel scrolling, and frame stress have
+been resolved.
 
-The current stability follow-up is closing the remaining gaps without reopening
-native fallback paths. Hovering around list/splitter areas exposed a
-`USER32.dll` load through `Cursors.Default`, and wheel scrolling later exposed a
-native `PAL_SEHException` termination. Cursor construction, unsupported scroll
-APIs, and the ListBox wheel path have been moved onto synthetic behavior and
-are covered by regressions. Project policy remains: behavior should be
-consistent and synthetic on all OSes, not native on Windows and synthetic
-elsewhere.
+Project policy remains: behavior should be consistent and synthetic on all
+OSes, not native on Windows and synthetic elsewhere. Cursor construction,
+scroll APIs, wheel/key paths, text selection, and the first dialog fallback are
+now handled without calling USER32.
 
-The basic-controls screenshot oracle has also been hardened so it no longer
-passes on mostly blank screenshots. It now checks the client region below the
-title/menu/tab strip, tab text score, Basic Controls heading retention, and
-later-image content retention against the ready baseline.
+The current checkpoint also starts modern WinForms visual parity in the
+Impeller renderer: compact light menu rendering, default/pressed/disabled
+button states, a modern tab strip/content surface, a synthetic modern
+system-color palette for default control backgrounds, and root-size sync so
+Dock/Anchor layouts expand as the Silk window resizes.
+
+Latest local verification:
+
+```sh
+eng/run-winformsx-stability-suite.sh /tmp/winformsx_stability_visual_modern_final
+```
+
+Expected result: `[STABILITY_OK]`, with no `PAL_SEHException`, `USER32.dll`,
+native load, descriptor-pool, or blank-client-frame failures.
 
 ## Current Git State
 
@@ -69,66 +76,39 @@ git -C /Volumes/Dev/code/jagtesh/UniWinForms/winforms log --oneline -1
 ```
 
 The last committed checkpoint before this handoff refresh was
-`5ffd596 test: add scroll crash regression`.
+`d61c424 feat: add managed input stability support`.
 
 ## Completed Stability Work
 
-The descriptor-pool/whiteout issue was resolved as a renderer integration bug,
-not as a control-specific bug.
+Short version:
 
-What was learned:
-
-- Frame scheduling and text draw ordering improvements helped but did not fully
-  solve resource exhaustion.
-- Native paragraph caching reduced construction churn but did not address the
-  actual backend allocation failure.
-- Diagnostic text modes proved that full native paragraph command pressure was
-  the trigger: geometry-only and one-static-paragraph runs passed, while full
-  text-heavy frames failed.
-- Managed glyph-outline fallback was worse because it turned text into many path
-  commands.
-- The Impeller SDK retried descriptor allocation only for
-  `ErrorOutOfPoolMemory`; this app was hitting `ErrorFragmentedPool`.
-
-Completed fix:
-
-- `eng/patch-impeller-descriptor-pool-retry.sh` patches the downloaded macOS
-  arm64 Impeller SDK so descriptor-set allocation retries once on any allocation
-  failure.
-- `eng/fetch-impeller-sdk.sh` applies that patch to both the cached SDK copy and
-  the sample runtime copy.
-- `ImpellerRenderingBackend` keeps frame/resource tracing, bounded paragraph
+- Renderer allocation stability is fixed at the Impeller integration boundary.
+  The SDK patch retries descriptor-set allocation on any allocation failure,
+  including `ErrorFragmentedPool`; the managed backend keeps bounded paragraph
   caching, diagnostic text modes, and deferred frame-resource retirement.
-- Default rendering now uses native Impeller paragraphs with no text draw
-  budget.
+- Crash-prone native fallbacks have been replaced with synthetic behavior in the
+  Impeller path. This currently covers cursors, unsupported scroll APIs,
+  ListBox/TreeView/ListView/DataGridView/ScrollBar/AutoScroll wheel and key
+  input, TextBox selection/caret behavior, and deterministic MessageBox return.
+- Visual parity has a first usable pass: File/menu rendering is compact and
+  light, default buttons show normal/pressed/disabled state, tab headers and
+  tab content use a modern light surface, and root bounds are synchronized with
+  window size before layout/paint so docked content resizes.
+- Screenshot/log harnesses now guard against both crashes and false green
+  captures. The full stability suite runs build, Impeller-only architecture
+  checks, basic controls, hover, scroll, mixed input, frame stress, usability,
+  and textbox regressions.
 
-Input and harness follow-ups completed after the descriptor-pool fix:
+Important learnings:
 
-- Cursor construction and cursor state are synthetic placeholders; standard
-  cursors no longer load stock OS cursor resources.
-- Wheel input no longer forwards into native/default scroll handling that can
-  terminate the process through `PAL_SEHException`.
-- ListBox wheel input now updates `TopIndex` through managed state when the
-  Impeller backend is active; the scroll regression checks both survival and a
-  visible ListBox content change.
-- TreeView, ListView, DataGridView, ScrollBar, and AutoScroll wheel/key paths
-  now have first-pass managed handling in the Impeller input layer.
-- TextBox selection supports managed select-all, shift/caret movement, and drag
-  selection painting without native edit control APIs.
-- MessageBox now returns a deterministic synthetic result on the Impeller path
-  instead of loading native dialog dependencies.
-- `GetScrollInfo`, `SetScrollInfo`, and `ScrollWindowEx` now route through
-  synthetic state/no-op behavior rather than native USER32 calls.
-- `eng/capture-winforms-scroll-regression.sh` posts wheel input over the list
-  tab and fails on process exit, `PAL_SEHException`, `USER32.dll`, or native
-  load signatures.
-- `eng/capture-winforms-input-regression.sh` exercises mixed keyboard, wheel,
-  text selection, data navigation, and scrollbar input.
-- `eng/run-winformsx-stability-suite.sh` runs the build, architecture guard,
-  and screenshot/log regressions as one local green bar.
-- `eng/capture-winforms-basic-controls-regression.sh` now fails on low
-  client-crop variance, low unique-color count, low tab text score, lost
-  client content versus baseline, and native/runtime error logs.
+- The descriptor-pool issue was not a control bug. Text-heavy frames exposed an
+  Impeller allocation retry gap; fixing that boundary was the durable solution.
+- Default `SystemColors.Control` on this host mapped to an old beige palette.
+  The Impeller renderer now normalizes default system colors to a synthetic
+  modern light palette for cross-OS consistency while preserving custom colors.
+- Native WinForms fallbacks can terminate the process before managed exception
+  handling sees anything. Unsupported or incomplete features should route to a
+  synthetic no-op/managed state machine first, then grow behavior behind tests.
 
 ## Exact Reproduction Commands
 
@@ -199,23 +179,26 @@ the screenshot/log harnesses before moving on.
 
 1. Keep all crash guards green: basic controls, frame stress, hover, scroll,
    input, usability, textbox, and `eng/verify-impeller-only.sh`.
-2. Continue replacing scroll no-op behavior with a managed scroll model.
+2. Continue modern visual parity: hover/focus states, disabled/read-only states
+   across more controls, exact menu/tab metrics, high-DPI pixel checks, and
+   screenshot comparison against native modern WinForms references.
+3. Continue replacing scroll no-op behavior with a managed scroll model.
    ListBox, TreeView, ListView, DataGridView, ScrollBar, and basic AutoScroll
    now have first-pass wheel/key support; remaining work is deeper shared
    clipping, scrollbar integration, virtualized ranges, and event parity. Do
    not call USER32 on any OS.
-3. Add managed scrollbar/clipping/virtualization behavior that is shared across
+4. Add managed scrollbar/clipping/virtualization behavior that is shared across
    controls instead of duplicated in the Impeller input layer.
-4. Replace the deterministic synthetic MessageBox result with a rendered
+5. Replace the deterministic synthetic MessageBox result with a rendered
    managed modal dialog surface, then do the same for common dialogs where
    feasible.
-5. Add splitter drag coverage and then implement the synthetic SplitContainer
+6. Add splitter drag coverage and then implement the synthetic SplitContainer
    drag path.
-6. Add menu/combo dropdown state-machine coverage before implementing popup
+7. Add menu/combo dropdown state-machine coverage before implementing popup
    behavior.
-7. Add renderer frame/resource counters and back-pressure so failed frames are
+8. Add renderer frame/resource counters and back-pressure so failed frames are
    skipped instead of presented.
-8. Promote the local architecture checks and screenshot harnesses into the
+9. Promote the local architecture checks and screenshot harnesses into the
    normal pre-commit/CI path.
 
 The former first item was the basic-controls screenshot oracle. It is now fixed:

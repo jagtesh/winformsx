@@ -40,7 +40,7 @@ public class KitchenSinkForm : Form
         Text = "WinFormsX — Kitchen Sink Demo";
         Size = new Size(900, 680);
         StartPosition = FormStartPosition.CenterScreen;
-        BackColor = Color.FromArgb(236, 234, 220);
+        BackColor = SystemColors.Control;
         
         AutoScaleMode = AutoScaleMode.Font;
         AutoScaleDimensions = new SizeF(7F, 15F);

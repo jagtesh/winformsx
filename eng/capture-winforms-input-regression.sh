@@ -95,13 +95,13 @@ guard let rect = targetWindow() else {
     exit(1)
 }
 
-click(rect, 0.226, 0.105) // Basic Controls.
+click(rect, 0.226, 0.125) // Basic Controls.
 click(rect, 0.165, 0.322) // TextBox.
 chord(55, 0)              // Command+A.
 print("[INPUT_STEP] textbox-select-all")
 usleep(300_000)
 
-click(rect, 0.957, 0.105) // Data tab.
+click(rect, 0.957, 0.125) // Data tab.
 click(rect, 0.840, 0.305) // ListView row.
 key(125)
 key(125)
@@ -116,7 +116,7 @@ key(125)
 print("[INPUT_STEP] datagrid-key")
 usleep(300_000)
 
-click(rect, 0.520, 0.105) // Layout tab.
+click(rect, 0.520, 0.125) // Layout tab.
 click(rect, 0.785, 0.805) // ScrollBar track in the sample.
 key(125)
 key(121)
