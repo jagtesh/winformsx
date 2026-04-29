@@ -28,6 +28,7 @@ internal static class ManagedDragDrop
         DragEventArgs? lastDragEvent = null;
         DragDropEffects currentEffect = DragDropEffects.None;
         bool dropped = false;
+        bool raisedDragEvent = false;
 
         Stopwatch timeout = Stopwatch.StartNew();
         while (timeout.Elapsed < TimeSpan.FromSeconds(5))
@@ -38,6 +39,26 @@ internal static class ManagedDragDrop
             DragAction action = (keyState & MouseButtonMask) == 0 ? DragAction.Drop : DragAction.Continue;
             QueryContinueDragEventArgs queryContinue = new(keyState, escapePressed: false, action);
             source.OnQueryContinueDrag(queryContinue);
+
+            if (queryContinue.Action == DragAction.Drop && !raisedDragEvent)
+            {
+                queryContinue.Action = DragAction.Continue;
+            }
+
+            if (!raisedDragEvent)
+            {
+                IDropTarget? primedTarget = FindDropTarget(Control.MousePosition, sourceControl);
+                if (primedTarget is not null)
+                {
+                    DragEventArgs primedEvent = CreateDragEvent(dataObject, keyState, allowedEffects, currentEffect);
+                    primedTarget.OnDragEnter(primedEvent);
+                    primedTarget.OnDragOver(primedEvent);
+                    currentTarget = primedTarget;
+                    currentEffect = primedEvent.Effect;
+                    lastDragEvent = primedEvent.Clone();
+                    raisedDragEvent = true;
+                }
+            }
 
             if (queryContinue.Action == DragAction.Cancel)
             {
@@ -87,6 +108,7 @@ internal static class ManagedDragDrop
 
                 currentEffect = dragEvent.Effect;
                 lastDragEvent = dragEvent.Clone();
+                raisedDragEvent = true;
             }
             else
             {

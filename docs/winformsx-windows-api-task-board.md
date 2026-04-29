@@ -4,6 +4,20 @@ Source: [winformsx-windows-api-blockers.md](docs/winformsx-windows-api-blockers.
 
 Current baseline: `42 total, 41 passed, 0 failed, 1 skipped` with `MediaPlayer` skipped.
 
+## Latest Progress (2026-04-29)
+
+- Landed in `b888d27ff`:
+  - Managed non-Windows drag/drop fallback path added and wired for `Control.DoDragDrop` and `ToolStripItem.DoDragDrop`.
+  - WinFormsX input backend now propagates mouse key-state flags in message `wParam` for move/down/up paths.
+  - `WM_MOUSEMOVE` now uses message key-state on backend-active path so drag logic sees held mouse buttons correctly.
+- Current focused rerun (`DragDropTests`) still has 6 failing cases:
+  - `DragDrop_QueryDefaultCursors_Async`
+  - `DragEnter_Set_DropImageType_Message_MessageReplacementToken_ReturnsExpected_Async`
+  - `PictureBox_SetData_DoDragDrop_RichTextBox_ReturnsExpected_Async`
+  - `ToolStripItem_SetData_DoDragDrop_RichTextBox_ReturnsExpected_Async`
+  - `DragDrop_NonSerializedObject_ReturnsExpected_Async`
+  - `DragDrop_SerializedObject_ReturnsExpected_Async`
+
 ## Task Legend
 
 - `[ ]` Not started
@@ -25,7 +39,7 @@ Current baseline: `42 total, 41 passed, 0 failed, 1 skipped` with `MediaPlayer` 
 
 - [ ] WXA-1101: Implement PAL-backed `OleInitialize`, `CoInitialize`, `CoCreateInstance` and core `OLE32.dll` facade contracts.
 - [ ] WXA-1102: Implement clipboard helpers (`OleGetClipboard`, `OleSetClipboard`, `OleFlushClipboard`) with managed storage and format metadata.
-- [ ] WXA-1103: Implement `RevokeDragDrop`/`RegisterDragDrop`/`DoDragDrop` event flow and default drop effects.
+- [~] WXA-1103: Implement `RevokeDragDrop`/`RegisterDragDrop`/`DoDragDrop` event flow and default drop effects.
 - [ ] WXA-1104: Implement `OleInitialize` + `InputLanguage.CurrentInputLanguage` to unblock data-grid and IME-dependent paths.
 
 ## Dialog and Common Controls
@@ -98,9 +112,14 @@ Current baseline: `42 total, 41 passed, 0 failed, 1 skipped` with `MediaPlayer` 
 ## Ongoing Watchlist
 
 - [ ] WXA-WL01: `Buttons` (resource extraction path + catalog form hookup).
-- [ ] WXA-WL02: `MultipleControls`/`RichTextBoxes`/`TextBoxes` (input/editing path hardening).
+- [~] WXA-WL02: `MultipleControls`/`RichTextBoxes`/`TextBoxes` (input/editing path hardening; managed link/range fallback in progress).
 - [ ] WXA-WL03: `TreeView, ImageList` / `ListView` / `MDI Parent` / `TrackBars` (native common-control state).
 - [ ] WXA-WL04: `Calendar` / `DateTimePicker` (handle and message conversion).
 - [ ] WXA-WL05: `ToolStrips` / `Menus` / `ToolStripSeparatorPreferredSize` (layout and message timing).
 - [ ] WXA-WL06: `Splitter` / `ScrollableControlsButton` (backend availability and offscreen fallback).
 - [ ] WXA-WL07: `MessageBox` / `DockLayout` / `FormOwnerTest` (ownership/modal behavior + assertion diagnostics).
+
+## Active Work Notes
+
+- `WXA-1103` is actively in progress with managed drag/drop loop and target-resolution work.
+- Remaining DragDrop failures are event-order and target-hit behavior, not missing `OLE32.dll` load failures.
