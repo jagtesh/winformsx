@@ -19,6 +19,13 @@ Ordered by observed frequency across components and blocker blast radius:
 ## Latest Progress (2026-04-29)
 
 - In-progress local changes (next commit):
+  - Added non-Windows managed clipboard fallback in `System.Windows.Forms.Clipboard`:
+    - `SetDataObject` stores data in a managed in-process clipboard store instead of calling OLE APIs.
+    - `GetDataObject` and `Clear` use the same managed store on non-Windows, preserving STA checks and `IDataObject` unwrap behavior.
+  - Verification:
+    - `dotnet build src/System.Windows.Forms/src/System.Windows.Forms.csproj` -> `Build succeeded`.
+    - `WinformsControlsTest --control-smoke-test` -> `total=42 passed=41 failed=0 skipped=1`.
+- In-progress local changes (next commit):
   - Fixed managed drag/drop re-entry on non-Windows (`ManagedDragDrop.DoDragDrop`) by rejecting nested drag-loop invocations while a drag is already active.
   - This prevents a single gesture from triggering multiple `DoDragDrop` operations when `Application.DoEvents()` pumps source `MouseMove` messages during an active drag.
   - Verification:
@@ -177,7 +184,7 @@ Ordered by observed frequency across components and blocker blast radius:
 ## OLE, COM, Clipboard, IME, Drag/Drop
 
 - [ ] WXA-1101: Implement PAL-backed `OleInitialize`, `CoInitialize`, `CoCreateInstance` and core `OLE32.dll` facade contracts.
-- [ ] WXA-1102: Implement clipboard helpers (`OleGetClipboard`, `OleSetClipboard`, `OleFlushClipboard`) with managed storage and format metadata.
+- [~] WXA-1102: Implement clipboard helpers (`OleGetClipboard`, `OleSetClipboard`, `OleFlushClipboard`) with managed storage and format metadata.
 - [~] WXA-1103: Implement `RevokeDragDrop`/`RegisterDragDrop`/`DoDragDrop` event flow and default drop effects.
 - [ ] WXA-1104: Implement `OleInitialize` + `InputLanguage.CurrentInputLanguage` to unblock data-grid and IME-dependent paths.
 

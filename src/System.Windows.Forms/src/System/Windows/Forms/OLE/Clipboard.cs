@@ -14,6 +14,9 @@ namespace System.Windows.Forms;
 /// </summary>
 public static class Clipboard
 {
+    private static readonly Lock s_managedClipboardLock = new();
+    private static DataObject? s_managedClipboardDataObject;
+
     /// <summary>
     ///  Places nonpersistent data on the system <see cref="Clipboard"/>.
     /// </summary>
@@ -42,6 +45,17 @@ public static class Clipboard
 
         // Always wrap the data if not already a DataObject. Mark whether the data is an IDataObject so we unwrap it properly on retrieval.
         DataObject dataObject = data as DataObject ?? new DataObject(data) { IsOriginalNotIDataObject = data is not IDataObject };
+
+        if (!OperatingSystem.IsWindows())
+        {
+            lock (s_managedClipboardLock)
+            {
+                s_managedClipboardDataObject = dataObject;
+            }
+
+            return;
+        }
+
         using var iDataObject = ComHelpers.GetComScope<Com.IDataObject>(dataObject);
 
         HRESULT hr;
@@ -81,6 +95,24 @@ public static class Clipboard
             // Only throw if a message loop was started. This makes the case of trying to query the clipboard from the
             // finalizer or non-ui MTA thread silently fail, instead of making the app die.
             return Application.MessageLoop ? throw new ThreadStateException(SR.ThreadMustBeSTA) : null;
+        }
+
+        if (!OperatingSystem.IsWindows())
+        {
+            lock (s_managedClipboardLock)
+            {
+                if (s_managedClipboardDataObject is null)
+                {
+                    return null;
+                }
+
+                if (!s_managedClipboardDataObject.IsOriginalNotIDataObject)
+                {
+                    return s_managedClipboardDataObject.TryUnwrapInnerIDataObject();
+                }
+
+                return s_managedClipboardDataObject;
+            }
         }
 
         int retryTimes = 10;
@@ -126,6 +158,16 @@ public static class Clipboard
         if (Application.OleRequired() != ApartmentState.STA)
         {
             throw new ThreadStateException(SR.ThreadMustBeSTA);
+        }
+
+        if (!OperatingSystem.IsWindows())
+        {
+            lock (s_managedClipboardLock)
+            {
+                s_managedClipboardDataObject = null;
+            }
+
+            return;
         }
 
         HRESULT hr;
