@@ -14,6 +14,9 @@ internal static class ManagedDragDrop
     private const int MK_MBUTTON = 0x0010;
     private const int MK_ALT = 0x0020;
     private const int MouseButtonMask = MK_LBUTTON | MK_RBUTTON | MK_MBUTTON;
+    private static int s_dragOperationDepth;
+
+    internal static bool IsInProgress => Volatile.Read(ref s_dragOperationDepth) > 0;
 
     internal static DragDropEffects DoDragDrop(
         ISupportOleDropSource source,
@@ -24,6 +27,9 @@ internal static class ManagedDragDrop
         Point cursorOffset,
         bool useDefaultDragImage)
     {
+        Interlocked.Increment(ref s_dragOperationDepth);
+        try
+        {
         bool verbose = string.Equals(
             Environment.GetEnvironmentVariable("WINFORMSX_DRAG_VERBOSE"),
             "1",
@@ -155,6 +161,11 @@ internal static class ManagedDragDrop
         }
 
         return currentEffect;
+        }
+        finally
+        {
+            Interlocked.Decrement(ref s_dragOperationDepth);
+        }
     }
 
     private static IDropTarget? FindDropTarget(Point screenPoint, Control? sourceControl)

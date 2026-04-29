@@ -32,11 +32,14 @@ Current baseline: `42 total, 41 passed, 0 failed, 1 skipped` with `MediaPlayer` 
   - Added startup target seeding for synthetic input from visible `Application.OpenForms` when no active/focused HWND is yet tracked.
   - Updated control-dispatch to run synchronously when already on the UI thread (and queue only for cross-thread dispatch) to avoid delayed synthetic mouse delivery.
   - Focused drag/drop rerun remains unchanged (`4 failed / 2 passed / 9 skipped`), indicating the remaining blocker is still child-control drag-start wiring (e.g., `ListBox`/`PictureBox`/`ToolStripItem` source event flow), not USER32 wrapper parity.
-- Current focused rerun (`DragDropTests`) has 4 failing cases (was 6):
-  - `DragDrop_QueryDefaultCursors_Async`
-  - `DragEnter_Set_DropImageType_Message_MessageReplacementToken_ReturnsExpected_Async`
-  - `PictureBox_SetData_DoDragDrop_RichTextBox_ReturnsExpected_Async`
-  - `ToolStripItem_SetData_DoDragDrop_RichTextBox_ReturnsExpected_Async`
+- In-progress local changes (next commit):
+  - Added drag-loop reentry guard in managed drag/drop (`ManagedDragDrop.IsInProgress`) and dropped backend-injected `WM_MOUSEMOVE` while a managed drag operation is active.
+  - Added top-level hit refinement for synthetic pointer targeting (`WindowFromPoint` -> `ChildWindowFromPointEx`) and move-only packet coalescing in Impeller input dispatch.
+  - Added opt-in input tracing (`WINFORMSX_TRACE_FILE`) to capture target resolution and posted messages while validating drag/start target routing.
+  - Focused drag/drop rerun improved from `4 failed / 2 passed / 9 skipped` to `2 failed / 4 passed / 5 skipped`.
+- Current focused rerun (`DragDropTests`) has 2 failing cases (was 6):
+  - `DragDrop_QueryDefaultCursors_Async` (expected drop count `1`, observed `4`)
+  - `DragEnter_Set_DropImageType_Message_MessageReplacementToken_ReturnsExpected_Async` (expected enter count `2`, observed `8`)
 
 ## Task Legend
 

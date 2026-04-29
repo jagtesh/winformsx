@@ -4400,14 +4400,7 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                 NativeWindow.DispatchMessageDirect(dispatchTarget, msg, wParam, lParam, out _);
             }
 
-            if (ctrl.InvokeRequired)
-            {
-                ctrl.BeginInvoke(new Action(Dispatch));
-            }
-            else
-            {
-                Dispatch();
-            }
+            ctrl.BeginInvoke(new Action(Dispatch));
         }
     }
 

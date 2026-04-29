@@ -33,6 +33,7 @@ internal sealed unsafe class ImpellerInputInterop : IInputInterop
     private System.Drawing.Point _cursorPos;
     private readonly HashSet<int> _pressedKeys = [];
     private readonly object _inputStateLock = new();
+    private static readonly string? s_traceFile = Environment.GetEnvironmentVariable("WINFORMSX_TRACE_FILE");
 
     // --- Focus ----------------------------------------------------------
 
@@ -120,7 +121,26 @@ internal sealed unsafe class ImpellerInputInterop : IInputInterop
     {
         for (int i = 0; i < inputs.Length; i++)
         {
-            DispatchInput(inputs[i]);
+            INPUT input = inputs[i];
+            if (input.type == INPUT_TYPE.INPUT_MOUSE && IsMoveOnly(input.Anonymous.mi.dwFlags))
+            {
+                int lastMoveIndex = i;
+                while (lastMoveIndex + 1 < inputs.Length)
+                {
+                    INPUT next = inputs[lastMoveIndex + 1];
+                    if (next.type != INPUT_TYPE.INPUT_MOUSE || !IsMoveOnly(next.Anonymous.mi.dwFlags))
+                    {
+                        break;
+                    }
+
+                    lastMoveIndex++;
+                }
+
+                input = inputs[lastMoveIndex];
+                i = lastMoveIndex;
+            }
+
+            DispatchInput(input);
         }
 
         return (uint)inputs.Length;
@@ -249,6 +269,7 @@ internal sealed unsafe class ImpellerInputInterop : IInputInterop
         HWND target = _focusWindow != HWND.Null ? _focusWindow : _activeWindow;
         if (target == HWND.Null)
         {
+            TraceInput($"[InputKeyboardDrop] msg=0x{message:X} reason=no-target");
             return;
         }
 
@@ -259,11 +280,24 @@ internal sealed unsafe class ImpellerInputInterop : IInputInterop
         }
 
         PlatformApi.Message.SendMessage(target, message, wParam, lParam);
+        TraceInput($"[InputKeyboardSend] msg=0x{message:X} target=0x{(nint)target:X}");
     }
 
     private void PostToMouseTarget(uint message, WPARAM wParam)
     {
+        if (message == WM_MOUSEMOVE && ManagedDragDrop.IsInProgress)
+        {
+            TraceInput("[InputMouseDrop] msg=0x200 reason=managed-drag-in-progress");
+            return;
+        }
+
         HWND target = GetMouseTarget();
+        if (target == HWND.Null)
+        {
+            TraceInput($"[InputMouseDrop] msg=0x{message:X} reason=no-target");
+            return;
+        }
+
         if (target != HWND.Null)
         {
             System.Drawing.Point cursorPos;
@@ -275,13 +309,16 @@ internal sealed unsafe class ImpellerInputInterop : IInputInterop
             System.Drawing.Point clientPoint = cursorPos;
             PlatformApi.Window.ScreenToClient(target, ref clientPoint);
             LPARAM lParam = MakePointLParam(clientPoint);
+            string targetType = Control.FromHandle(target)?.GetType().Name ?? "<none>";
             if (PlatformApi.Window is ImpellerWindowInterop impellerWindow
                 && impellerWindow.TryDispatchInputMessage(target, _activeWindow, message, wParam, lParam))
             {
+                TraceInput($"[InputMouseDispatch] msg=0x{message:X} target=0x{(nint)target:X} type={targetType} cursor={cursorPos} client={clientPoint}");
                 return;
             }
 
             PlatformApi.Message.SendMessage(target, message, wParam, lParam);
+            TraceInput($"[InputMouseSend] msg=0x{message:X} target=0x{(nint)target:X} type={targetType} cursor={cursorPos} client={clientPoint}");
         }
     }
 
@@ -329,6 +366,7 @@ internal sealed unsafe class ImpellerInputInterop : IInputInterop
     {
         if (_captureWindow != HWND.Null)
         {
+            TraceInput($"[InputMouseTarget] capture=0x{(nint)_captureWindow:X}");
             return _captureWindow;
         }
 
@@ -341,6 +379,22 @@ internal sealed unsafe class ImpellerInputInterop : IInputInterop
         HWND hitTarget = PlatformApi.Window.WindowFromPoint(cursorPos);
         if (hitTarget != HWND.Null)
         {
+            Control? hitControl = Control.FromHandle(hitTarget);
+            if (hitControl is not null && hitControl.ParentInternal is null)
+            {
+                System.Drawing.Point topLevelClientPoint = cursorPos;
+                if (PlatformApi.Window.ScreenToClient(hitTarget, ref topLevelClientPoint))
+                {
+                    HWND childTarget = PlatformApi.Window.ChildWindowFromPointEx(hitTarget, topLevelClientPoint, 0);
+                    if (childTarget != HWND.Null && childTarget != hitTarget)
+                    {
+                        TraceInput($"[InputMouseTarget] top-level-refine hit=0x{(nint)hitTarget:X} child=0x{(nint)childTarget:X} at={cursorPos}");
+                        hitTarget = childTarget;
+                    }
+                }
+            }
+
+            TraceInput($"[InputMouseTarget] hit=0x{(nint)hitTarget:X} at={cursorPos}");
             return hitTarget;
         }
 
@@ -366,11 +420,13 @@ internal sealed unsafe class ImpellerInputInterop : IInputInterop
                 HWND child = PlatformApi.Window.ChildWindowFromPointEx(root, clientPoint, 0);
                 if (child != HWND.Null)
                 {
+                    TraceInput($"[InputMouseTarget] child=0x{(nint)child:X} root=0x{(nint)root:X} at={cursorPos}");
                     return child;
                 }
             }
         }
 
+        TraceInput($"[InputMouseTarget] fallback=0x{(nint)root:X} at={cursorPos}");
         return root;
     }
 
@@ -385,5 +441,37 @@ internal sealed unsafe class ImpellerInputInterop : IInputInterop
         return new System.Drawing.Point(
             (int)Math.Round((x / 65535.0) * width),
             (int)Math.Round((y / 65535.0) * height));
+    }
+
+    private static bool IsMoveOnly(MOUSE_EVENT_FLAGS flags)
+    {
+        if ((flags & MOUSE_EVENT_FLAGS.MOUSEEVENTF_MOVE) == 0)
+        {
+            return false;
+        }
+
+        const MOUSE_EVENT_FLAGS moveFlags =
+            MOUSE_EVENT_FLAGS.MOUSEEVENTF_MOVE
+            | MOUSE_EVENT_FLAGS.MOUSEEVENTF_ABSOLUTE
+            | MOUSE_EVENT_FLAGS.MOUSEEVENTF_VIRTUALDESK
+            | MOUSE_EVENT_FLAGS.MOUSEEVENTF_MOVE_NOCOALESCE;
+
+        return (flags & ~moveFlags) == 0;
+    }
+
+    private static void TraceInput(string message)
+    {
+        if (string.IsNullOrWhiteSpace(s_traceFile))
+        {
+            return;
+        }
+
+        try
+        {
+            File.AppendAllText(s_traceFile, $"{DateTime.UtcNow:O} {message}{Environment.NewLine}");
+        }
+        catch
+        {
+        }
     }
 }
