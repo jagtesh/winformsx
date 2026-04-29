@@ -57,6 +57,9 @@ Current baseline: `42 total, 41 passed, 0 failed, 1 skipped` with `MediaPlayer` 
 - Input-language remediation:
   - Fixed non-Windows `InputLanguage.LayoutName` crash path (`Registry.LocalMachine` / `GetMUIString` fallback guards).
   - `Button_Hotkey_Fires_OnClickAsync` no longer throws `NullReferenceException`; it now fails with expected environment precondition (`Please, switch to the US input language`).
+- Fresh controls verification (current workspace build):
+  - Targeted `--control-smoke-test-case Buttons`: `PASS Buttons controls=1 handles=19`.
+  - Full `--control-smoke-test`: `total=42 passed=41 failed=0 skipped=1` (only `MediaPlayer` skipped).
 
 ## Task Legend
 
@@ -152,14 +155,14 @@ Current baseline: `42 total, 41 passed, 0 failed, 1 skipped` with `MediaPlayer` 
 ## Ongoing Watchlist
 
 - [~] WXA-WL01: `Buttons` (resource extraction path + catalog form hookup + non-Windows harness visibility improvements landed; remaining click/default/cancel + anchor/resize behavior gaps).
-- [~] WXA-WL02: `MultipleControls`/`RichTextBoxes`/`TextBoxes` (input/editing path hardening; managed link/range fallback in progress).
-- [ ] WXA-WL03: `TreeView, ImageList` / `ListView` / `MDI Parent` / `TrackBars` (native common-control state).
-- [ ] WXA-WL04: `Calendar` / `DateTimePicker` (handle and message conversion).
-- [ ] WXA-WL05: `ToolStrips` / `Menus` / `ToolStripSeparatorPreferredSize` (layout and message timing).
-- [ ] WXA-WL06: `Splitter` / `ScrollableControlsButton` (backend availability and offscreen fallback).
-- [ ] WXA-WL07: `MessageBox` / `DockLayout` / `FormOwnerTest` (ownership/modal behavior + assertion diagnostics).
+- [x] WXA-WL02: `MultipleControls`/`RichTextBoxes`/`TextBoxes` (controls smoke currently passing).
+- [x] WXA-WL03: `TreeView, ImageList` / `ListView` / `MDI Parent` / `TrackBars` (controls smoke currently passing).
+- [x] WXA-WL04: `Calendar` / `DateTimePicker` (controls smoke currently passing).
+- [x] WXA-WL05: `ToolStrips` / `Menus` / `ToolStripSeparatorPreferredSize` (controls smoke currently passing).
+- [x] WXA-WL06: `Splitter` / `ScrollableControlsButton` (controls smoke currently passing).
+- [x] WXA-WL07: `MessageBox` / `DockLayout` / `FormOwnerTest` (controls smoke currently passing).
 
 ## Active Work Notes
 
 - `WXA-1103` is actively in progress with managed drag/drop loop and target-resolution work.
-- Remaining DragDrop failures are now narrowed to drag start/target behavior in specific UI flows; `OLE32.dll`/GIT failures are fixed.
+- `DragDropTests` targeted UI integration rerun is currently green except the intentional explorer-based skip.
