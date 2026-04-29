@@ -36,8 +36,6 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
     private const uint WM_RBUTTONUP = 0x0205;
     private const uint WM_MBUTTONDOWN = 0x0207;
     private const uint WM_MBUTTONUP = 0x0208;
-    private const uint WM_MOUSEWHEEL = 0x020A;
-    private const uint WM_MOUSEHWHEEL = 0x020E;
     private const int DefaultTargetFrameRate = 60;
     private const int ManagedTabHeaderHeight = 30;
     private const int ManagedTabHeaderLeft = 8;
@@ -654,22 +652,8 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                     mouse.Scroll += (m, scrollWheel) =>
                     {
                         using var guard = WinFormsXExecutionGuard.Enter(WinFormsXExecutionKind.Input, "MouseScroll");
-                        MarkDirty(handle);
-                        // Vertical scroll
-                        if (scrollWheel.Y != 0)
-                        {
-                            var pt = GetLogicalMousePoint(handle, m);
-                            HWND target = HitTest(handle, pt, out var clientPt);
-                            PostMessageToControl(target, handle, WM_MOUSEWHEEL, (WPARAM)(nuint)((int)(scrollWheel.Y * 120) << 16), PackMouseLParam(clientPt));
-                        }
-
-                        // Horizontal scroll
-                        if (scrollWheel.X != 0)
-                        {
-                            var pt = GetLogicalMousePoint(handle, m);
-                            HWND target = HitTest(handle, pt, out var clientPt);
-                            PostMessageToControl(target, handle, WM_MOUSEHWHEEL, (WPARAM)(nuint)((int)(scrollWheel.X * 120) << 16), PackMouseLParam(clientPt));
-                        }
+                        _ = m;
+                        _ = scrollWheel;
                     };
                 }
             }

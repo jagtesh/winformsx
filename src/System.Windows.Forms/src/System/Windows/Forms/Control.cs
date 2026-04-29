@@ -11922,11 +11922,6 @@ public unsafe partial class Control :
 
         OnMouseWheel(e);
         m.ResultInternal = (LRESULT)(BOOL)e.Handled;
-        if (!e.Handled)
-        {
-            // Forwarding the message to the parent window.
-            DefWndProc(ref m);
-        }
     }
 
     /// <summary>

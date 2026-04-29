@@ -34,9 +34,10 @@ path. The previous renderer-wide failures that caused blank client frames,
 missing text, `ErrorFragmentedPool` spam, and crashes during normal clicking,
 hovering, tab switching, textbox input, and frame stress have been resolved.
 
-The current stability follow-up is native cursor loading. Scrolling or hovering
-around list/splitter areas exposed a `USER32.dll` load through `Cursors.Default`.
-Project policy is consistent behavior on all OSes: cursor behavior should be
+The current stability follow-up is input/scroll behavior. Hovering around
+list/splitter areas exposed a `USER32.dll` load through `Cursors.Default`, and
+wheel scrolling later exposed a native `PAL_SEHException` termination. Project
+policy is consistent behavior on all OSes: cursor and scroll behavior should be
 synthetic everywhere, not native on Windows and synthetic elsewhere.
 
 ## Current Git State
@@ -232,11 +233,12 @@ MenuStrip polish until the shared frame/resource path is healthy again.
 
 ### 2026-04-29 Synthetic Cursor Follow-Up
 
-The current crash report did not originate from Impeller allocation. It came
-from `Cursors.Default` loading the Win32 stock cursor through `USER32.dll` while
-handling mouse movement around list/splitter UI. That violates the project rule:
+The cursor crash report did not originate from Impeller allocation. It came from
+`Cursors.Default` loading the Win32 stock cursor through `USER32.dll` while
+handling mouse movement around list/splitter UI. A follow-up wheel-scroll crash
+terminated with a native `PAL_SEHException`. Both violate the project rule:
 cross-platform behavior should be consistent and synthetic on all OSes, with no
-native cursor P/Invoke path.
+native cursor or scroll P/Invoke path.
 
 Expected direction:
 
@@ -245,9 +247,13 @@ Expected direction:
   no-ops/placeholders until a real cross-platform cursor PAL exists.
 - File/stream cursor constructors may preserve raw cursor bytes for
   serialization, but should not parse through native image/COM APIs.
+- Until the scroll controls have a real managed implementation, Silk wheel input
+  should be a no-op rather than forwarding to native/default window procedures.
+- `GetScrollInfo`, `SetScrollInfo`, and `ScrollWindowEx` should use managed PAL
+  state/no-op behavior rather than native USER32 calls.
 - Regression logs should fail on `USER32.dll`, `DllNotFound`, `LoadCursor`,
   `CopyCursor`, `DestroyCursor`, `GetIconInfo`, `DrawIcon`, or other native
-  cursor calls.
+  cursor/scroll calls.
 
 ## Likely Failure Classes
 

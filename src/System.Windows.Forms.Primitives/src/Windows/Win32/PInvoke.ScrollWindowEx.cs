@@ -16,8 +16,14 @@ internal static partial class PInvoke
         RECT* prcUpdate,
         SCROLL_WINDOW_FLAGS flags) where T : IHandle<HWND>
     {
-        int result = ScrollWindowEx(hWnd.Handle, dx, dy, prcScroll, prcClip, hrgnUpdate, prcUpdate, flags);
+        _ = dx;
+        _ = dy;
+        _ = prcScroll;
+        _ = prcClip;
+        _ = hrgnUpdate;
+        _ = prcUpdate;
+        _ = flags;
         GC.KeepAlive(hWnd.Wrapper);
-        return result;
+        return 0;
     }
 }

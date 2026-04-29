@@ -9,7 +9,7 @@ internal static partial class PInvoke
     public static BOOL GetScrollInfo<T>(T hwnd, SCROLLBAR_CONSTANTS nBar, ref SCROLLINFO lpsi)
         where T : IHandle<HWND>
     {
-        BOOL result = GetScrollInfo(hwnd.Handle, nBar, ref lpsi);
+        BOOL result = GetSyntheticScrollInfo(hwnd.Handle, nBar, ref lpsi);
         GC.KeepAlive(hwnd.Wrapper);
         return result;
     }
