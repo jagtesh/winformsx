@@ -46,6 +46,8 @@ public partial class MainForm : Form
                 UpdateLayout();
             }
         };
+
+        UpdateLayout();
     }
 
     private static IReadOnlyDictionary<MainFormControlsTabOrder, InitInfo> GetButtonsInitInfo()
@@ -109,28 +111,31 @@ public partial class MainForm : Form
             }
         }
 
-        // 1. Auto-size all buttons
-        overarchingFlowLayoutPanel.SuspendLayout();
-        foreach (Button button in buttons)
-        {
-            button.AutoSize = true;
-        }
-
-        overarchingFlowLayoutPanel.ResumeLayout(true);
-
-        // 2. Find the biggest button
         Size biggestButton = default;
         foreach (Button button in buttons)
         {
-            if (button.Width > biggestButton.Width)
+            Size preferredSize = button.GetPreferredSize(Size.Empty);
+            if (preferredSize.Width > biggestButton.Width)
             {
-                biggestButton = button.Size;
+                biggestButton.Width = preferredSize.Width;
+            }
+
+            if (preferredSize.Height > biggestButton.Height)
+            {
+                biggestButton.Height = preferredSize.Height;
             }
         }
 
         Debug.WriteLine($"Biggest button size: {biggestButton}", nameof(MainForm));
 
-        // 3. Size all buttons to the biggest button
+        // Size the host first so a top-down FlowLayoutPanel wraps into columns on the first paint.
+        int padding = overarchingFlowLayoutPanel.Controls[0].Margin.All;
+        int columns = 3;
+        int rows = (int)Math.Ceiling(overarchingFlowLayoutPanel.Controls.Count / (double)columns);
+        int panelWidth = columns * (biggestButton.Width + padding * 2) + padding * 2;
+        int panelHeight = rows * (biggestButton.Height + padding * 2) + padding * 2;
+        ClientSize = new Size(panelWidth + Padding.Horizontal, panelHeight + Padding.Vertical);
+
         overarchingFlowLayoutPanel.SuspendLayout();
         foreach (Button button in buttons)
         {
@@ -138,15 +143,10 @@ public partial class MainForm : Form
             button.Size = biggestButton;
         }
 
+        overarchingFlowLayoutPanel.Size = new Size(panelWidth, panelHeight);
         overarchingFlowLayoutPanel.ResumeLayout(true);
+        PerformLayout();
 
-        // 4. Calculate the new form size showing all buttons in three vertical columns
-        int padding = overarchingFlowLayoutPanel.Controls[0].Margin.All;
-
-        ClientSize = new Size(
-            (biggestButton.Width + padding * 2) * 3 + padding * 2 + overarchingFlowLayoutPanel.Location.X * 2,
-            (int)Math.Ceiling((overarchingFlowLayoutPanel.Controls.Count + 1) / 3.0) * (biggestButton.Height + padding * 2)
-                + padding * 2 + overarchingFlowLayoutPanel.Location.Y * 2);
         MinimumSize = Size;
         Debug.WriteLine($"Minimum form size: {MinimumSize}", nameof(MainForm));
     }
