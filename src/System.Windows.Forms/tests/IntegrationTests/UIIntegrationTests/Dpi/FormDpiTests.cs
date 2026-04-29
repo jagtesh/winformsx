@@ -13,7 +13,7 @@ public class FormDpiTests : ControlTestBase
     {
     }
 
-    [WinFormsTheory]
+    [UITheory]
     [InlineData(3.5 * ScaleHelper.OneHundredPercentLogicalDpi)]
     public void Form_DpiChanged_Bounds(int newDpi)
     {
@@ -50,7 +50,7 @@ public class FormDpiTests : ControlTestBase
         }
     }
 
-    [WinFormsTheory]
+    [UITheory]
     [InlineData(3.5 * ScaleHelper.OneHundredPercentLogicalDpi)]
     public void Form_DpiChanged_MinMaxSizeNotChanged_Default(int newDpi)
     {
@@ -84,7 +84,7 @@ public class FormDpiTests : ControlTestBase
         }
     }
 
-    [WinFormsTheory]
+    [UITheory]
     [InlineData(3.5 * ScaleHelper.OneHundredPercentLogicalDpi)]
     public void Form_DpiChanged_MinMaxSizeChanged_WithRuntimeSetting(int newDpi)
     {
@@ -120,7 +120,7 @@ public class FormDpiTests : ControlTestBase
         }
     }
 
-    [WinFormsTheory]
+    [UITheory]
     [InlineData(3.5 * ScaleHelper.OneHundredPercentLogicalDpi)]
     public void Form_DpiChanged_NonLinear_DesiredSize(int newDpi)
     {
@@ -156,7 +156,7 @@ public class FormDpiTests : ControlTestBase
         }
     }
 
-    [WinFormsTheory]
+    [UITheory]
     [InlineData(3.5 * ScaleHelper.OneHundredPercentLogicalDpi)]
     public void Form_DpiChanged_FormCacheSize(int newDpi)
     {
@@ -188,7 +188,7 @@ public class FormDpiTests : ControlTestBase
         }
     }
 
-    [WinFormsTheory]
+    [UITheory]
     [InlineData(3.5 * ScaleHelper.OneHundredPercentLogicalDpi)]
     public void Form_DpiChanged_AutoScaleMode_Dpi_FormDoesNotCacheSize(int newDpi)
     {
@@ -217,7 +217,7 @@ public class FormDpiTests : ControlTestBase
         }
     }
 
-    [WinFormsFact]
+    [UIFact]
     public void Form_SizeNotCached_SystemAwareMode()
     {
         // Run tests only on Windows 10 versions that support thread dpi awareness.

@@ -21,7 +21,7 @@ public class ImageListTests : ControlTestBase
     {
     }
 
-    [WinFormsFact]
+    [UIFact]
     public void ImageList_FinalizerReleasesNativeHandle_ReturnsExpected()
     {
         // Call GetGdiHandles at the start of the test to attempt to clear out any leftovers from previous tests

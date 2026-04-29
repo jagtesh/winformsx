@@ -12,7 +12,7 @@ public class ComboBoxTests : ControlTestBase
     {
     }
 
-    [WinFormsFact]
+    [UIFact]
     public async Task ComboBoxTest_ChangeAutoCompleteSource_DoesntThrowAsync()
     {
         await RunSingleControlTestAsync<ComboBox>((form, comboBox) =>

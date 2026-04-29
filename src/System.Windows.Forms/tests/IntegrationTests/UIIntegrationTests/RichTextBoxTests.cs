@@ -15,7 +15,7 @@ public class RichTextBoxTests : ControlTestBase
     {
     }
 
-    [WinFormsFact]
+    [UIFact]
     public async Task RichTextBox_Click_On_Friendly_Name_Link_Provides_Hidden_Link_SpanAsync()
     {
         await RunTestAsync(async (form, richTextBox) =>
@@ -74,7 +74,7 @@ public class RichTextBoxTests : ControlTestBase
         });
     }
 
-    [WinFormsFact]
+    [UIFact]
     public async Task RichTextBox_Click_On_Custom_Link_Preceeded_By_Hidden_Text_Provides_Displayed_Link_SpanAsync()
     {
         await RunTestAsync(async (form, richTextBox) =>
@@ -132,7 +132,7 @@ This is hidden text preceeding a \v #link3#\v0 custom link.\par
         });
     }
 
-    [WinFormsFact]
+    [UIFact]
     public async Task RichTextBox_Click_On_Custom_Link_Followed_By_Hidden_Text_Provides_Displayed_Link_SpanAsync()
     {
         await RunTestAsync(async (form, richTextBox) =>

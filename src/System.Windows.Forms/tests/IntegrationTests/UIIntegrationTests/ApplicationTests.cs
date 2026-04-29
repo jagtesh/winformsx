@@ -13,7 +13,7 @@ public class ApplicationTests : ControlTestBase
     {
     }
 
-    [WinFormsFact]
+    [UIFact]
     public async Task Application_OpenForms_RecreateHandle()
     {
         await RunTestAsync(form =>

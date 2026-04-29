@@ -14,7 +14,7 @@ public class ToolStripItemDpiTests : ControlTestBase
     {
     }
 
-    [WinFormsTheory]
+    [UITheory]
     [InlineData(2 * ScaleHelper.OneHundredPercentLogicalDpi)]
     [InlineData(3.5 * ScaleHelper.OneHundredPercentLogicalDpi)]
     public void ToolStripItems_FontScaling(int newDpi)

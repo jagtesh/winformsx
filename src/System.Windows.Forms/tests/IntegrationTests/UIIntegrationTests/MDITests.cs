@@ -13,7 +13,7 @@ public class MDITests : ControlTestBase
     {
     }
 
-    [WinFormsFact]
+    [UIFact]
     public async Task MDIForm_ResizeWhenMdiChildrenMinimizedAnchorBottom_DefaultAsync()
     {
         await RunTestAsync(form =>
@@ -35,7 +35,7 @@ public class MDITests : ControlTestBase
         });
     }
 
-    [WinFormsFact]
+    [UIFact]
     public async Task MDIForm_ResizeWhenMdiChildrenMinimizedAnchorBottom_FalseAsync()
     {
         await RunTestAsync(form =>

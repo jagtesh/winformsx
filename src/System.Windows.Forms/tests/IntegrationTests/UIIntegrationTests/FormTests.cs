@@ -19,7 +19,7 @@ public class FormTests : ControlTestBase
     {
     }
 
-    [WinFormsTheory]
+    [UITheory]
     [InlineData(FormWindowState.Normal)]
     [InlineData(FormWindowState.Maximized)]
     public async Task Form_SnapsLeftAsync(FormWindowState windowState)
@@ -78,7 +78,7 @@ public class FormTests : ControlTestBase
         });
     }
 
-    [WinFormsTheory]
+    [UITheory]
     [InlineData(FormWindowState.Normal)]
     [InlineData(FormWindowState.Maximized)]
     public async Task Form_SnapsRightAsync(FormWindowState windowState)

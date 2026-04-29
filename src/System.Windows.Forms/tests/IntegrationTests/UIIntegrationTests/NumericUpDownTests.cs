@@ -13,7 +13,7 @@ public class NumericUpDownTests : ControlTestBase
     }
 
     [ActiveIssue("https://github.com/dotnet/winforms/issues/11329")]
-    [WinFormsFact]
+    [UIFact]
     [SkipOnArchitecture(TestArchitectures.X64,
         "Flaky tests, see: https://github.com/dotnet/winforms/issues/11329")]
     public async Task NumericUpDownAccessibleObject_Focused_ReturnsCorrectValueAsync()

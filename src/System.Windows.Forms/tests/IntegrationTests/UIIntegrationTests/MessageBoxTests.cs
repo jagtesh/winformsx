@@ -5,7 +5,7 @@ namespace System.Windows.Forms.UITests;
 
 public class MessageBoxTests
 {
-    [WinFormsFact]
+    [UIFact]
     public void MessageBox_MessageBoxDialogResult_Valid()
     {
         using NoClientNotificationsScope scope = new(enable: true);

@@ -19,7 +19,7 @@ public class MonthCalendarTests : ControlTestBase
     {
     }
 
-    [WinFormsFact]
+    [UIFact]
     public async Task MonthCalendar_SetDate_DoesntCrashApplication_IfUseMouseAsync()
     {
         await RunTestAsync(async (form, calendar) =>
@@ -31,7 +31,7 @@ public class MonthCalendarTests : ControlTestBase
         });
     }
 
-    [WinFormsFact]
+    [UIFact]
     public async Task MonthCalendar_SetDate_DoesntCrashApplication_IfUseKeyboardAsync()
     {
         await RunTestAsync(async (form, calendar) =>
@@ -44,7 +44,7 @@ public class MonthCalendarTests : ControlTestBase
         });
     }
 
-    [WinFormsFact]
+    [UIFact]
     public async Task MonthCalendar_SetDate_DoesntCrashApplication_ProgrammaticallyAsync()
     {
         await RunTestAsync(async (form, calendar) =>
@@ -77,7 +77,7 @@ public class MonthCalendarTests : ControlTestBase
         });
     }
 
-    [WinFormsTheory]
+    [UITheory]
     [InlineData(-1)] // Min date
     [InlineData(1)]
     [InlineData(2)] // Max date
@@ -99,7 +99,7 @@ public class MonthCalendarTests : ControlTestBase
         });
     }
 
-    [WinFormsTheory]
+    [UITheory]
     [InlineData(-1)] // Min date
     [InlineData(1)]
     [InlineData(2)] // Max date
@@ -121,7 +121,7 @@ public class MonthCalendarTests : ControlTestBase
         });
     }
 
-    [WinFormsTheory]
+    [UITheory]
     [InlineData(2018, 12, 8, (int)MCGRIDINFO_PART.MCGIP_NEXT, 2019, 1, 1)]
     [InlineData(2018, 12, 8, (int)MCGRIDINFO_PART.MCGIP_PREV, 2018, 11, 1)]
     public async Task MonthCalendar_Click_ToMonthAsync(int givenYear, int givenMonth, int givenDay, int action, int expectedYear, int expectedMonth, int expectedDay)

@@ -14,7 +14,7 @@ public class DropDownButtonAccessibleObjectTests : ControlTestBase
     {
     }
 
-    [WinFormsFact]
+    [UIFact]
     public async Task DropDownButtonAccessibleObject_FragmentNavigate_Parent_IsSelectedEntryAsync()
     {
         await RunSingleControlTestAsync<SubPropertyGrid<Button>>((form, grid) =>
@@ -28,7 +28,7 @@ public class DropDownButtonAccessibleObjectTests : ControlTestBase
         });
     }
 
-    [WinFormsFact]
+    [UIFact]
     public async Task DropDownButtonAccessibleObject_FragmentNavigate_PreviousSibling_IsTextBoxAsync()
     {
         await RunSingleControlTestAsync<SubPropertyGrid<Button>>((form, grid) =>
@@ -42,7 +42,7 @@ public class DropDownButtonAccessibleObjectTests : ControlTestBase
         });
     }
 
-    [WinFormsFact]
+    [UIFact]
     public async Task DropDownButtonAccessibleObject_FragmentNavigate_NextSibling_IsNullAsync()
     {
         await RunSingleControlTestAsync<SubPropertyGrid<Button>>((form, grid) =>
@@ -55,7 +55,7 @@ public class DropDownButtonAccessibleObjectTests : ControlTestBase
         });
     }
 
-    [WinFormsFact]
+    [UIFact]
     public async Task DropDownButtonAccessibleObject_FragmentNavigate_NextSibling_IsChildEntryAsync()
     {
         await RunSingleControlTestAsync<SubPropertyGrid<Button>>((form, grid) =>

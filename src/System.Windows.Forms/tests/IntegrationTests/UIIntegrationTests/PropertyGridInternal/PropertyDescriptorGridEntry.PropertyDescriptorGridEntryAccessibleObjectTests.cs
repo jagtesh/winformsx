@@ -15,7 +15,7 @@ public class PropertyDescriptorGridEntryAccessibleObjectTests : ControlTestBase
     {
     }
 
-    [WinFormsFact]
+    [UIFact]
     public async Task PropertyDescriptorGridEntryAccessibleObject_FragmentNavigate_Parent_IsParentEntryAsync()
     {
         await RunSingleControlTestAsync<SubPropertyGrid<Button>>((form, grid) =>
@@ -31,7 +31,7 @@ public class PropertyDescriptorGridEntryAccessibleObjectTests : ControlTestBase
         });
     }
 
-    [WinFormsFact]
+    [UIFact]
     public async Task PropertyDescriptorGridEntryAccessibleObject_FragmentNavigate_PreviousSibling_IsNullAsync()
     {
         await RunSingleControlTestAsync<SubPropertyGrid<Button>>((form, grid) =>
@@ -45,7 +45,7 @@ public class PropertyDescriptorGridEntryAccessibleObjectTests : ControlTestBase
         });
     }
 
-    [WinFormsFact]
+    [UIFact]
     public async Task PropertyDescriptorGridEntryAccessibleObject_FragmentNavigate_PreviousSibling_IsChildEntryAsync()
     {
         await RunSingleControlTestAsync<SubPropertyGrid<Button>>((form, grid) =>
@@ -61,7 +61,7 @@ public class PropertyDescriptorGridEntryAccessibleObjectTests : ControlTestBase
         });
     }
 
-    [WinFormsFact]
+    [UIFact]
     public async Task PropertyDescriptorGridEntryAccessibleObject_FragmentNavigate_PreviousSibling_IsTextBoxAsync()
     {
         await RunSingleControlTestAsync<SubPropertyGrid<Button>>((form, grid) =>
@@ -77,7 +77,7 @@ public class PropertyDescriptorGridEntryAccessibleObjectTests : ControlTestBase
         });
     }
 
-    [WinFormsFact]
+    [UIFact]
     public async Task PropertyDescriptorGridEntryAccessibleObject_FragmentNavigate_PreviousSibling_IsDialogButtonAsync()
     {
         await RunSingleControlTestAsync<SubPropertyGrid<Button>>((form, grid) =>
@@ -93,7 +93,7 @@ public class PropertyDescriptorGridEntryAccessibleObjectTests : ControlTestBase
         });
     }
 
-    [WinFormsFact]
+    [UIFact]
     public async Task PropertyDescriptorGridEntryAccessibleObject_FragmentNavigate_NextSibling_IsNullAsync()
     {
         await RunSingleControlTestAsync<SubPropertyGrid<Button>>((form, grid) =>
@@ -107,7 +107,7 @@ public class PropertyDescriptorGridEntryAccessibleObjectTests : ControlTestBase
         });
     }
 
-    [WinFormsFact]
+    [UIFact]
     public async Task PropertyDescriptorGridEntryAccessibleObject_FragmentNavigate_NextSibling_IsChildEntryAsync()
     {
         await RunSingleControlTestAsync<SubPropertyGrid<Button>>((form, grid) =>
@@ -123,7 +123,7 @@ public class PropertyDescriptorGridEntryAccessibleObjectTests : ControlTestBase
         });
     }
 
-    [WinFormsFact]
+    [UIFact]
     public async Task PropertyDescriptorGridEntryAccessibleObject_FragmentNavigate_FirstChild_IsNullAsync()
     {
         await RunSingleControlTestAsync<SubPropertyGrid<Button>>((form, grid) =>
@@ -134,7 +134,7 @@ public class PropertyDescriptorGridEntryAccessibleObjectTests : ControlTestBase
         });
     }
 
-    [WinFormsFact]
+    [UIFact]
     public async Task PropertyDescriptorGridEntryAccessibleObject_FragmentNavigate_FirstChild_IsChildEntryAsync()
     {
         await RunSingleControlTestAsync<SubPropertyGrid<Button>>((form, grid) =>
@@ -150,7 +150,7 @@ public class PropertyDescriptorGridEntryAccessibleObjectTests : ControlTestBase
         });
     }
 
-    [WinFormsFact]
+    [UIFact]
     public async Task PropertyDescriptorGridEntryAccessibleObject_FragmentNavigate_FirstChild_IsNullAfterExpandCollapsedAsync()
     {
         await RunSingleControlTestAsync<SubPropertyGrid<Button>>((form, grid) =>
@@ -166,7 +166,7 @@ public class PropertyDescriptorGridEntryAccessibleObjectTests : ControlTestBase
         });
     }
 
-    [WinFormsFact]
+    [UIFact]
     public async Task PropertyDescriptorGridEntryAccessibleObject_FragmentNavigate_FirstChild_IsTextBoxAsync()
     {
         await RunSingleControlTestAsync<SubPropertyGrid<Button>>((form, grid) =>
@@ -180,7 +180,7 @@ public class PropertyDescriptorGridEntryAccessibleObjectTests : ControlTestBase
         });
     }
 
-    [WinFormsFact]
+    [UIFact]
     public async Task PropertyDescriptorGridEntryAccessibleObject_FragmentNavigate_FirstChild_IsDropDownHolderAsync()
     {
         await RunSingleControlTestAsync<SubPropertyGrid<Button>>((form, grid) =>
@@ -196,7 +196,7 @@ public class PropertyDescriptorGridEntryAccessibleObjectTests : ControlTestBase
         });
     }
 
-    [WinFormsFact]
+    [UIFact]
     public async Task PropertyDescriptorGridEntryAccessibleObject_FragmentNavigate_LastChild_IsNullAsync()
     {
         await RunSingleControlTestAsync<SubPropertyGrid<Button>>((form, grid) =>
@@ -207,7 +207,7 @@ public class PropertyDescriptorGridEntryAccessibleObjectTests : ControlTestBase
         });
     }
 
-    [WinFormsFact]
+    [UIFact]
     public async Task PropertyDescriptorGridEntryAccessibleObject_FragmentNavigate_LastChild_IsChildEntryAsync()
     {
         await RunSingleControlTestAsync<SubPropertyGrid<Button>>((form, grid) =>
@@ -223,7 +223,7 @@ public class PropertyDescriptorGridEntryAccessibleObjectTests : ControlTestBase
         });
     }
 
-    [WinFormsFact]
+    [UIFact]
     public async Task PropertyDescriptorGridEntryAccessibleObject_FragmentNavigate_LastChild_IsNullAfterExpandCollapsedAsync()
     {
         await RunSingleControlTestAsync<SubPropertyGrid<Button>>((form, grid) =>
@@ -239,7 +239,7 @@ public class PropertyDescriptorGridEntryAccessibleObjectTests : ControlTestBase
         });
     }
 
-    [WinFormsFact]
+    [UIFact]
     public async Task PropertyDescriptorGridEntryAccessibleObject_FragmentNavigate_LastChild_IsTextBoxAsync()
     {
         await RunSingleControlTestAsync<SubPropertyGrid<Button>>((form, grid) =>
@@ -253,7 +253,7 @@ public class PropertyDescriptorGridEntryAccessibleObjectTests : ControlTestBase
         });
     }
 
-    [WinFormsFact]
+    [UIFact]
     public async Task PropertyDescriptorGridEntryAccessibleObject_FragmentNavigate_LastChild_IsDropDownButtonAsync()
     {
         await RunSingleControlTestAsync<SubPropertyGrid<Button>>((form, grid) =>
@@ -267,7 +267,7 @@ public class PropertyDescriptorGridEntryAccessibleObjectTests : ControlTestBase
         });
     }
 
-    [WinFormsFact]
+    [UIFact]
     public async Task PropertyDescriptorGridEntryAccessibleObject_FragmentNavigate_LastChild_IsDialogButtonAsync()
     {
         await RunSingleControlTestAsync<SubPropertyGrid<Button>>((form, grid) =>

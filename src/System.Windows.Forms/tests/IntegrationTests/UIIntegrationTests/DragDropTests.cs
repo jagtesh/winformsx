@@ -25,7 +25,7 @@ public class DragDropTests : ControlTestBase
     {
     }
 
-    [WinFormsFact]
+    [UIFact]
     public async Task DragDrop_QueryDefaultCursors_Async()
     {
         await RunFormWithoutControlAsync(() => new DragDropForm(TestOutputHelper), async (form) =>
@@ -53,7 +53,7 @@ public class DragDropTests : ControlTestBase
         });
     }
 
-    [WinFormsFact]
+    [UIFact]
     public async Task DragDrop_NonSerializedObject_ReturnsExpected_Async()
     {
         // Regression test for https://github.com/dotnet/winforms/issues/7864, and it verifies that we can successfully drag and drop a
@@ -121,7 +121,7 @@ public class DragDropTests : ControlTestBase
         Assert.Equal(button?.Text, ((Button)data).Text);
     }
 
-    [WinFormsFact(Skip = "Crashes dotnet.exe, see: https://github.com/dotnet/winforms/issues/8598")]
+    [UIFact(Skip = "Crashes dotnet.exe, see: https://github.com/dotnet/winforms/issues/8598")]
     public async Task DragDrop_RTF_FromExplorer_ToRichTextBox_ReturnsExpected_Async()
     {
         await RunTestAsync(dragDropForm =>
@@ -269,7 +269,7 @@ public class DragDropTests : ControlTestBase
         });
     }
 
-    [WinFormsFact]
+    [UIFact]
     public async Task DragDrop_SerializedObject_ReturnsExpected_Async()
     {
         // Verifies that we can successfully drag and drop a serialized object.
@@ -335,7 +335,7 @@ public class DragDropTests : ControlTestBase
         Assert.Equal(listViewItem?.Text, ((ListViewItem)data).Text);
     }
 
-    [WinFormsFact]
+    [UIFact]
     public async Task DragEnter_Set_DropImageType_Message_MessageReplacementToken_ReturnsExpected_Async()
     {
         await RunFormWithoutControlAsync(() => new DragDropForm(TestOutputHelper), async (form) =>
@@ -416,7 +416,7 @@ public class DragDropTests : ControlTestBase
         });
     }
 
-    [WinFormsFact]
+    [UIFact]
     public async Task PictureBox_SetData_DoDragDrop_RichTextBox_ReturnsExpected_Async()
     {
         await RunFormWithoutControlAsync(() => new DragImageDropDescriptionForm(TestOutputHelper), async (form) =>
@@ -446,7 +446,7 @@ public class DragDropTests : ControlTestBase
         });
     }
 
-    [WinFormsFact]
+    [UIFact]
     public async Task ToolStripItem_SetData_DoDragDrop_RichTextBox_ReturnsExpected_Async()
     {
         await RunFormWithoutControlAsync(() => new DragImageDropDescriptionForm(TestOutputHelper), async (form) =>

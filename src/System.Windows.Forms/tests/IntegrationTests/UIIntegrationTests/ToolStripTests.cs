@@ -18,7 +18,7 @@ public class ToolStripTests : ControlTestBase
     }
 
     // Regression test for https://github.com/dotnet/winforms/issues/6881
-    [WinFormsFact]
+    [UIFact]
     public void ToolStrip_shared_imagelist_should_not_get_disposed_when_toolstrip_does()
     {
         ShowForm(_sharedImageList);
@@ -61,7 +61,7 @@ public class ToolStripTests : ControlTestBase
     }
 
     // Regression test for https://github.com/dotnet/winforms/issues/7884
-    [WinFormsFact]
+    [UIFact]
     public void ToolStrip_Hiding_ToolStripMenuItem_OnDropDownClosed_ShouldNotThrow()
     {
         using Form form = new();

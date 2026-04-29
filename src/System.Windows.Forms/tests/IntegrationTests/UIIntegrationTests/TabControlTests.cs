@@ -13,7 +13,7 @@ public class TabControlTests : ControlTestBase
     {
     }
 
-    [WinFormsFact]
+    [UIFact]
     public async Task TabControl_TabPage_IsHoveredWithMouse_IsTrue_WhenMouseIsOn_FirstTabAsync()
     {
         await RunTestAsync(async (form, tabControl) =>
@@ -25,7 +25,7 @@ public class TabControlTests : ControlTestBase
         });
     }
 
-    [WinFormsFact]
+    [UIFact]
     public async Task TabControl_TabPage_IsHoveredWithMouse_IsTrue_WhenMouseIsOn_SecondTabAsync()
     {
         await RunTestAsync(async (form, tabControl) =>
@@ -37,7 +37,7 @@ public class TabControlTests : ControlTestBase
         });
     }
 
-    [WinFormsFact]
+    [UIFact]
     public async Task TabControl_TabPage_IsHoveredWithMouse_IsFalse_WhenMouseIs_OutsideControlAsync()
     {
         await RunTestAsync(async (form, tabControl) =>
@@ -49,7 +49,7 @@ public class TabControlTests : ControlTestBase
         });
     }
 
-    [WinFormsFact]
+    [UIFact]
     public async Task TabControl_TabPage_IsHoveredWithMouse_IsFalse_WhenMouseIs_OutsideMainScreenAsync()
     {
         await RunTestAsync(async (form, tabControl) =>
@@ -94,7 +94,7 @@ public class TabControlTests : ControlTestBase
             });
     }
 
-    [WinFormsFact]
+    [UIFact]
     public async Task TabControl_ControlsDoNotReorderWhenSelectedIndexChanges()
     {
         // Validates the following bug fix: https://github.com/dotnet/winforms/issues/7837

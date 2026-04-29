@@ -13,7 +13,7 @@ public class FolderBrowserDialogTests : ControlTestBase
     }
 
     // Regression test for https://github.com/dotnet/winforms/issues/7981
-    [WinFormsTheory]
+    [UITheory]
     [InlineData(true)]
     [InlineData(false)]
     public void FolderBrowserDialog_ShowDialog(bool autoUpgradeEnabled)

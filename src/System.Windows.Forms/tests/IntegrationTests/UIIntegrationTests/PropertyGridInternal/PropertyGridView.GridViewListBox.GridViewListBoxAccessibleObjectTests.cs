@@ -14,7 +14,7 @@ public class PropertyGridView_GridViewListBox_GridViewListBoxAccessibleObjectTes
     {
     }
 
-    [WinFormsFact]
+    [UIFact]
     public async Task GridViewListBoxAccessibleObject_FragmentNavigate_Parent_IsDropDownHolderAsync()
     {
         await RunSingleControlTestAsync<SubPropertyGrid<Button>>((form, grid) =>
@@ -32,7 +32,7 @@ public class PropertyGridView_GridViewListBox_GridViewListBoxAccessibleObjectTes
         });
     }
 
-    [WinFormsFact]
+    [UIFact]
     public async Task GridViewListBoxAccessibleObject_FragmentNavigate_PreviousSibling_IsNullAsync()
     {
         await RunSingleControlTestAsync<SubPropertyGrid<Button>>((form, grid) =>
@@ -48,7 +48,7 @@ public class PropertyGridView_GridViewListBox_GridViewListBoxAccessibleObjectTes
         });
     }
 
-    [WinFormsFact]
+    [UIFact]
     public async Task GridViewListBoxAccessibleObject_FragmentNavigate_NextSibling_IsNullAsync()
     {
         await RunSingleControlTestAsync<SubPropertyGrid<Button>>((form, grid) =>

@@ -14,7 +14,7 @@ public class SplitContainerTests : ControlTestBase
     {
     }
 
-    [WinFormsFact]
+    [UIFact]
     public void SplitContainer_Constructor()
     {
         using SplitContainer sc = new();
@@ -27,7 +27,7 @@ public class SplitContainerTests : ControlTestBase
         Assert.False(sc.SplitterRectangle.IsEmpty);
     }
 
-    [WinFormsTheory]
+    [UITheory]
     [InlineData(3.5 * 96)]
     public void SplitContainer_Properties_HorizontalSplitter_Scaling(int newDpi)
     {

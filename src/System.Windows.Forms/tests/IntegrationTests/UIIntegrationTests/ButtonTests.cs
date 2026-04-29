@@ -14,7 +14,7 @@ public class ButtonTests : ControlTestBase
     {
     }
 
-    [WinFormsTheory]
+    [UITheory]
     // These results close the window
     [InlineData(DialogResult.Abort)]
     [InlineData(DialogResult.Cancel)]
@@ -52,7 +52,7 @@ public class ButtonTests : ControlTestBase
     }
 
     [ActiveIssue("https://github.com/dotnet/winforms/issues/11324")]
-    [WinFormsFact]
+    [UIFact]
     [SkipOnArchitecture(TestArchitectures.X64,
         "Flaky tests, see: https://github.com/dotnet/winforms/issues/11324")]
     public async Task Button_DialogResult_SpaceToClickFocusedButtonAsync()
@@ -72,7 +72,7 @@ public class ButtonTests : ControlTestBase
         });
     }
 
-    [WinFormsFact]
+    [UIFact]
     public async Task Button_DialogResult_EscapeDoesNotClickFocusedButtonAsync()
     {
         await RunTestAsync(async (form, button) =>
@@ -91,7 +91,7 @@ public class ButtonTests : ControlTestBase
     }
 
     [ActiveIssue("https://github.com/dotnet/winforms/issues/11326")]
-    [WinFormsFact]
+    [UIFact]
     [SkipOnArchitecture(TestArchitectures.X64,
         "Flaky tests, see: https://github.com/dotnet/winforms/issues/11326")]
     public async Task Button_CancelButton_EscapeClicksCancelButtonAsync()
@@ -109,7 +109,7 @@ public class ButtonTests : ControlTestBase
         });
     }
 
-    [WinFormsFact]
+    [UIFact]
     public async Task Button_AchorNone_NoResizeOnWindowSizeWiderAsync()
     {
         await RunTestAsync(async (form, button) =>
@@ -133,7 +133,7 @@ public class ButtonTests : ControlTestBase
         });
     }
 
-    [WinFormsFact]
+    [UIFact]
     public async Task Button_AchorNone_NoResizeOnWindowSizeTallerAsync()
     {
         await RunTestAsync(async (form, button) =>
@@ -157,7 +157,7 @@ public class ButtonTests : ControlTestBase
         });
     }
 
-    [WinFormsFact]
+    [UIFact]
     public async Task Button_Anchor_ResizeOnWindowSizeWiderAsync()
     {
         await RunTestAsync(async (form, button) =>
@@ -187,7 +187,7 @@ public class ButtonTests : ControlTestBase
         });
     }
 
-    [WinFormsFact]
+    [UIFact]
     public async Task Button_Anchor_ResizeOnWindowSizeTallerAsync()
     {
         await RunTestAsync(async (form, button) =>
@@ -217,7 +217,7 @@ public class ButtonTests : ControlTestBase
         });
     }
 
-    [WinFormsFact]
+    [UIFact]
     public async Task Button_Mouse_Press_Without_Moving_Causes_Button_ClickAsync()
     {
         await RunControlPairTestAsync<Button, Button>(async (form, controls) =>
@@ -242,7 +242,7 @@ public class ButtonTests : ControlTestBase
         });
     }
 
-    [WinFormsFact]
+    [UIFact]
     public async Task Button_Mouse_Press_With_Drag_Off_Button_Does_Not_Cause_Button_ClickAsync()
     {
         await RunControlPairTestAsync<Button, Button>(async (form, controls) =>
@@ -275,7 +275,7 @@ public class ButtonTests : ControlTestBase
         });
     }
 
-    [WinFormsFact]
+    [UIFact]
     public async Task Button_Mouse_Press_With_Drag_Off_Button_And_Back_Does_Cause_Button_ClickAsync()
     {
         await RunControlPairTestAsync<Button, Button>(async (form, controls) =>
@@ -311,7 +311,7 @@ public class ButtonTests : ControlTestBase
         });
     }
 
-    [WinFormsFact]
+    [UIFact]
     public async Task Button_PerformClick_Fires_OnClickAsync()
     {
         await RunTestAsync((form, button) =>
@@ -328,7 +328,7 @@ public class ButtonTests : ControlTestBase
     }
 
     [ActiveIssue("https://github.com/dotnet/winforms/issues/11327")]
-    [WinFormsFact]
+    [UIFact]
     [SkipOnArchitecture(TestArchitectures.X64,
        "Flaky tests, see: https://github.com/dotnet/winforms/issues/11327")]
     public async Task Button_Press_Enter_Fires_OnClickAsync()
@@ -351,7 +351,7 @@ public class ButtonTests : ControlTestBase
     }
 
     [ActiveIssue("https://github.com/dotnet/winforms/issues/11325")]
-    [WinFormsFact]
+    [UIFact]
     [SkipOnArchitecture(TestArchitectures.X64,
        "Flaky tests, see: https://github.com/dotnet/winforms/issues/11325")]
     public async Task Button_Hotkey_Fires_OnClickAsync()
@@ -373,7 +373,7 @@ public class ButtonTests : ControlTestBase
         });
     }
 
-    [WinFormsFact]
+    [UIFact]
     public async Task Button_Hotkey_DoesNotFire_OnClickAsync()
     {
         await RunTestAsync(async (form, button) =>

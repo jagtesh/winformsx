@@ -14,7 +14,7 @@ public class PropertyGridView_DropDownHolder_DropDownHolderAccessibleObjectTests
     {
     }
 
-    [WinFormsFact]
+    [UIFact]
     public async Task DropDownHolderAccessibleObject_FragmentNavigate_Parent_IsSelectedEntryAsync()
     {
         await RunSingleControlTestAsync<SubPropertyGrid<Button>>((form, grid) =>
@@ -30,7 +30,7 @@ public class PropertyGridView_DropDownHolder_DropDownHolderAccessibleObjectTests
         });
     }
 
-    [WinFormsFact]
+    [UIFact]
     public async Task DropDownHolderAccessibleObject_FragmentNavigate_PreviousSibling_IsNullAsync()
     {
         await RunSingleControlTestAsync<SubPropertyGrid<Button>>((form, grid) =>
@@ -44,7 +44,7 @@ public class PropertyGridView_DropDownHolder_DropDownHolderAccessibleObjectTests
         });
     }
 
-    [WinFormsFact]
+    [UIFact]
     public async Task DropDownHolderAccessibleObject_FragmentNavigate_NextSibling_IsTextBoxAsync()
     {
         await RunSingleControlTestAsync<SubPropertyGrid<Button>>((form, grid) =>
@@ -60,7 +60,7 @@ public class PropertyGridView_DropDownHolder_DropDownHolderAccessibleObjectTests
         });
     }
 
-    [WinFormsFact]
+    [UIFact]
     public async Task DropDownHolderAccessibleObject_FragmentNavigate_FirstLastChild_IsListBoxAsync()
     {
         await RunSingleControlTestAsync<SubPropertyGrid<Button>>((form, grid) =>
@@ -81,7 +81,7 @@ public class PropertyGridView_DropDownHolder_DropDownHolderAccessibleObjectTests
         });
     }
 
-    [WinFormsFact]
+    [UIFact]
     public async Task DropDownHolderAccessibleObject_FragmentNavigate_FirstLastChild_IsNullAsync()
     {
         await RunSingleControlTestAsync<SubPropertyGrid<Button>>((form, grid) =>

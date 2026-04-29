@@ -14,7 +14,7 @@ public class MonthCalendarAccessibleObjectTests : ControlTestBase
     {
     }
 
-    [WinFormsFact]
+    [UIFact]
     public async Task MonthCalendar_GetFromPoint_ReturnsCorrectValueAsync()
     {
         await RunTestAsync((form, calendar) =>

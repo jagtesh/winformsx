@@ -14,7 +14,7 @@ public class PropertyGridView_GridViewTextBox_GridViewTextBoxAccessibleObjectTes
     {
     }
 
-    [WinFormsFact]
+    [UIFact]
     public async Task GridViewTextBoxAccessibleObject_FragmentNavigate_Parent_IsSelectedEntryAsync()
     {
         await RunSingleControlTestAsync<SubPropertyGrid<Button>>((form, grid) =>
@@ -28,7 +28,7 @@ public class PropertyGridView_GridViewTextBox_GridViewTextBoxAccessibleObjectTes
         });
     }
 
-    [WinFormsFact]
+    [UIFact]
     public async Task GridViewTextBoxAccessibleObject_FragmentNavigate_PreviousSibling_IsNullAsync()
     {
         await RunSingleControlTestAsync<SubPropertyGrid<Button>>((form, grid) =>
@@ -41,7 +41,7 @@ public class PropertyGridView_GridViewTextBox_GridViewTextBoxAccessibleObjectTes
         });
     }
 
-    [WinFormsFact]
+    [UIFact]
     public async Task GridViewTextBoxAccessibleObject_FragmentNavigate_PreviousSibling_IsDropDownHolderAsync()
     {
         await RunSingleControlTestAsync<SubPropertyGrid<Button>>((form, grid) =>
@@ -57,7 +57,7 @@ public class PropertyGridView_GridViewTextBox_GridViewTextBoxAccessibleObjectTes
         });
     }
 
-    [WinFormsFact]
+    [UIFact]
     public async Task GridViewTextBoxAccessibleObject_FragmentNavigate_NextSibling_IsNullAsync()
     {
         await RunSingleControlTestAsync<SubPropertyGrid<Button>>((form, grid) =>
@@ -70,7 +70,7 @@ public class PropertyGridView_GridViewTextBox_GridViewTextBoxAccessibleObjectTes
         });
     }
 
-    [WinFormsFact]
+    [UIFact]
     public async Task GridViewTextBoxAccessibleObject_FragmentNavigate_NextSibling_IsChildEntryAsync()
     {
         await RunSingleControlTestAsync<SubPropertyGrid<Button>>((form, grid) =>
@@ -86,7 +86,7 @@ public class PropertyGridView_GridViewTextBox_GridViewTextBoxAccessibleObjectTes
         });
     }
 
-    [WinFormsFact]
+    [UIFact]
     public async Task GridViewTextBoxAccessibleObject_FragmentNavigate_NextSibling_IsDropDownButtonAsync()
     {
         await RunSingleControlTestAsync<SubPropertyGrid<Button>>((form, grid) =>
@@ -100,7 +100,7 @@ public class PropertyGridView_GridViewTextBox_GridViewTextBoxAccessibleObjectTes
         });
     }
 
-    [WinFormsFact]
+    [UIFact]
     public async Task GridViewTextBoxAccessibleObject_FragmentNavigate_NextSibling_IsDialogButtonAsync()
     {
         await RunSingleControlTestAsync<SubPropertyGrid<Button>>((form, grid) =>

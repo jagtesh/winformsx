@@ -16,7 +16,7 @@ public class AnchorLayoutTests : ControlTestBase
     {
     }
 
-    [WinFormsTheory]
+    [UITheory]
     [InlineData(AnchorStyles.Top, 120, 30, 20, 30)]
     [InlineData(AnchorStyles.Left, 20, 180, 20, 30)]
     [InlineData(AnchorStyles.Right, 220, 180, 20, 30)]
@@ -31,7 +31,7 @@ public class AnchorLayoutTests : ControlTestBase
         LaunchFormAndVerify(anchors, expectedX, expectedY, expectedWidth, expectedHeight);
     }
 
-    [WinFormsTheory]
+    [UITheory]
     [InlineData(AnchorStyles.Top, 120, 30, 20, 30)]
     [InlineData(AnchorStyles.Left, 20, 180, 20, 30)]
     [InlineData(AnchorStyles.Right, 220, 180, 20, 30)]
@@ -47,7 +47,7 @@ public class AnchorLayoutTests : ControlTestBase
         LaunchFormAndVerify(anchors, expectedX, expectedY, expectedWidth, expectedHeight);
     }
 
-    [WinFormsFact]
+    [UIFact]
     public void Control_NotParented_AnchorsNotComputed()
     {
         using AnchorLayoutV2Scope scope = new(enable: true);
@@ -71,7 +71,7 @@ public class AnchorLayoutTests : ControlTestBase
         }
     }
 
-    [WinFormsFact]
+    [UIFact]
     public void Control_SuspendedLayout_AnchorsNotComputed()
     {
         using AnchorLayoutV2Scope scope = new(enable: true);
@@ -92,7 +92,7 @@ public class AnchorLayoutTests : ControlTestBase
         }
     }
 
-    [WinFormsFact]
+    [UIFact]
     public void Control_ResumedLayout_AnchorsComputed()
     {
         using AnchorLayoutV2Scope scope = new(enable: true);
@@ -117,7 +117,7 @@ public class AnchorLayoutTests : ControlTestBase
         }
     }
 
-    [WinFormsFact]
+    [UIFact]
     public void ConfigSwitch_Disabled_SuspendedLayout_AnchorsComputed()
     {
         using AnchorLayoutV2Scope scope = new(enable: false);
@@ -136,7 +136,7 @@ public class AnchorLayoutTests : ControlTestBase
         }
     }
 
-    [WinFormsFact]
+    [UIFact]
     public void NestedContainer_AnchorsComputed()
     {
         using AnchorLayoutV2Scope scope = new(enable: true);
@@ -165,7 +165,7 @@ public class AnchorLayoutTests : ControlTestBase
         }
     }
 
-    [WinFormsFact]
+    [UIFact]
     public void ParentChanged_AnchorsUpdated()
     {
         using AnchorLayoutV2Scope scope = new(enable: true);
@@ -202,7 +202,7 @@ public class AnchorLayoutTests : ControlTestBase
         }
     }
 
-    [WinFormsFact]
+    [UIFact]
     public void SetBoundsOnAnchoredControl_BoundsChanged()
     {
         using AnchorLayoutV2Scope scope = new(enable: true);

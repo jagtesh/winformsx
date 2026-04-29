@@ -19,7 +19,7 @@ public class ListViewTests : ControlTestBase
     {
     }
 
-    [WinFormsTheory]
+    [UITheory]
     [InlineData(false, true, true)]
     [InlineData(false, false, false)]
     [InlineData(true, true, false)]
@@ -40,7 +40,7 @@ public class ListViewTests : ControlTestBase
     }
 
     [ActiveIssue("https://github.com/dotnet/winforms/issues/11328")]
-    [WinFormsFact]
+    [UIFact]
     [SkipOnArchitecture(TestArchitectures.X64,
         "Flaky tests, see: https://github.com/dotnet/winforms/issues/11328")]
     public async Task ListView_Group_NavigateKeyboard_SucceedsAsync()
@@ -111,7 +111,7 @@ public class ListViewTests : ControlTestBase
         });
     }
 
-    [WinFormsTheory]
+    [UITheory]
     [InlineData(2, 2, 150, 150, 0, 1, (int)NavigateDirection.NavigateDirection_FirstChild)]
     [InlineData(4, 3, 150, 150, 0, 3, (int)NavigateDirection.NavigateDirection_LastChild)]
     [InlineData(4, 1, 150, 150, 0, 1, (int)NavigateDirection.NavigateDirection_LastChild)]
@@ -134,7 +134,7 @@ public class ListViewTests : ControlTestBase
         });
     }
 
-    [WinFormsTheory]
+    [UITheory]
     [InlineData(1, 0, 150, 150, (int)NavigateDirection.NavigateDirection_FirstChild)]
     [InlineData(1, 2, 150, 150, (int)NavigateDirection.NavigateDirection_FirstChild)]
     [InlineData(2, 1, 10, 10, (int)NavigateDirection.NavigateDirection_FirstChild)]
@@ -155,7 +155,7 @@ public class ListViewTests : ControlTestBase
         });
     }
 
-    [WinFormsTheory]
+    [UITheory]
     [InlineData(4, 1)]
     [InlineData(2, 3)]
     public async Task ListView_Tile_SubItem_FragmentNavigate_Sibling_ReturnsNullAsync(int columnCount, int subItemsCount)
@@ -175,7 +175,7 @@ public class ListViewTests : ControlTestBase
         });
     }
 
-    [WinFormsTheory]
+    [UITheory]
     [InlineData(4, 3, 150, 150, 3)]
     [InlineData(4, 0, 150, 150, 0)]
     [InlineData(4, 1, 150, 150, 1)]
@@ -197,7 +197,7 @@ public class ListViewTests : ControlTestBase
         });
     }
 
-    [WinFormsTheory]
+    [UITheory]
     [InlineData(4, 1)]
     [InlineData(2, 5)]
     public async Task ListView_Tile_GetChildAsync(int columnCount, int subItemsCount)
@@ -217,7 +217,7 @@ public class ListViewTests : ControlTestBase
         });
     }
 
-    [WinFormsTheory]
+    [UITheory]
     [InlineData(4, 0, 150, 150)]
     [InlineData(1, 2, 150, 150)]
     [InlineData(2, 1, 10, 10)]
@@ -237,7 +237,7 @@ public class ListViewTests : ControlTestBase
         });
     }
 
-    [WinFormsTheory]
+    [UITheory]
     [InlineData(4, 1, 150, 150, -1, 1)]
     [InlineData(2, 1, 10, 10, -1, -1)]
     public async Task ListView_Tile_GetChildIndex_ForDifferentSize_ReturnsExpectedAsync(int columnCount, int subItemsCount, int width, int height, int expected1, int expected2)
@@ -256,7 +256,7 @@ public class ListViewTests : ControlTestBase
         });
     }
 
-    [WinFormsFact]
+    [UIFact]
     public async Task ListView_Tile_SubItem_FragmentNavigate_NextSibling_ReturnsExpectedAsync()
     {
         await RunTestAsync((form, listView) =>
@@ -277,7 +277,7 @@ public class ListViewTests : ControlTestBase
         });
     }
 
-    [WinFormsFact]
+    [UIFact]
     public async Task ListView_Tile_SubItem_HitTest_ReturnExpectedAsync()
     {
         await RunTestAsync((form, listView) =>
@@ -303,7 +303,7 @@ public class ListViewTests : ControlTestBase
         });
     }
 
-    [WinFormsFact]
+    [UIFact]
     public async Task ListView_Tile_SubItem_FragmentNavigate_Sibling_ReturnsNull_For_SmallSizeAsync()
     {
         await RunTestAsync((form, listView) =>
@@ -321,7 +321,7 @@ public class ListViewTests : ControlTestBase
         });
     }
 
-    [WinFormsFact]
+    [UIFact]
     public async Task ListView_Tile_SubItem_FragmentNavigate_Child_ReturnsNullAsync()
     {
         await RunTestAsync((form, listView) =>
@@ -338,7 +338,7 @@ public class ListViewTests : ControlTestBase
         });
     }
 
-    [WinFormsFact]
+    [UIFact]
     public async Task ListView_Tile_GetChild_ReturnsExpectedAsync()
     {
         await RunTestAsync((form, listView) =>
@@ -358,7 +358,7 @@ public class ListViewTests : ControlTestBase
         });
     }
 
-    [WinFormsFact]
+    [UIFact]
     public async Task ListView_Tile_GetChild_ReturnsExpected_For_BigSizeAsync()
     {
         await RunTestAsync((form, listView) =>
@@ -380,7 +380,7 @@ public class ListViewTests : ControlTestBase
         });
     }
 
-    [WinFormsFact]
+    [UIFact]
     public async Task ListView_Tile_GetChildIndex_ReturnsExpectedAsync()
     {
         await RunTestAsync((form, listView) =>
@@ -399,7 +399,7 @@ public class ListViewTests : ControlTestBase
         });
     }
 
-    [WinFormsFact]
+    [UIFact]
     public async Task ListView_Tile_GetChildIndex_ReturnsExpected_SubItemsMoreThanColumnsAsync()
     {
         await RunTestAsync((form, listView) =>
@@ -419,7 +419,7 @@ public class ListViewTests : ControlTestBase
         });
     }
 
-    [WinFormsFact]
+    [UIFact]
     public async Task ListView_Tile_GetChildIndex_ReturnsMinusOne_For_Single_ColumnAsync()
     {
         await RunTestAsync((form, listView) =>
@@ -436,7 +436,7 @@ public class ListViewTests : ControlTestBase
         });
     }
 
-    [WinFormsFact]
+    [UIFact]
     public async Task ListView_Tile_GetChildIndex_ReturnsExpected_For_BigSizeAsync()
     {
         await RunTestAsync((form, listView) =>
@@ -462,7 +462,7 @@ public class ListViewTests : ControlTestBase
         });
     }
 
-    [WinFormsFact]
+    [UIFact]
     public async Task ListView_Tile_ColumnProperty_ReturnsMinusOneAsync()
     {
         await RunTestAsync((form, listView) =>
@@ -478,7 +478,7 @@ public class ListViewTests : ControlTestBase
         });
     }
 
-    [WinFormsFact]
+    [UIFact]
     public async Task ListView_Click_On_Second_Column_Does_Not_Alter_CheckBoxesAsync()
     {
         await RunTestAsync(async (form, listView) =>

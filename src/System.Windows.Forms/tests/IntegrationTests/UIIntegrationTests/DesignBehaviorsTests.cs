@@ -19,7 +19,7 @@ public class DesignBehaviorsTests : ControlTestBase
     {
     }
 
-    [WinFormsFact]
+    [UIFact]
     public async Task DesignBehaviorsTests_can_DragDrop_ToolboxItem()
     {
         // Regression test for https://github.com/dotnet/winforms/issues/6919, and it verifies that we can successfully

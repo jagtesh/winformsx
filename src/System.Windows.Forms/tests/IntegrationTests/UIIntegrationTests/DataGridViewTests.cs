@@ -14,7 +14,7 @@ public class DataGridViewTests : ControlTestBase
     {
     }
 
-    [WinFormsFact]
+    [UIFact]
     public async Task DataGridView_ToolTip_DoesNot_ThrowExceptionAsync()
     {
         await RunTestAsync(async (form, dataGridView) =>
@@ -40,7 +40,7 @@ public class DataGridViewTests : ControlTestBase
         });
     }
 
-    [WinFormsTheory]
+    [UITheory]
     [InlineData("short value", false)]
     [InlineData("very long value that will be truncated by the DataGridViewCell", true)]
     public async Task DataGridView_MouseToolTip_Appears_IfTextIsTruncatedOnly(string cellValue, bool expected)

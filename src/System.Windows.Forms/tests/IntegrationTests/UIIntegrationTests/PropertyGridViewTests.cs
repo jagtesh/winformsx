@@ -14,7 +14,7 @@ public class PropertyGridViewTests : ControlTestBase
     {
     }
 
-    [WinFormsFact]
+    [UIFact]
     public async Task PropertyGridViewRowsAccessibleObject_Ctor_DefaultAsync()
     {
         await RunControlPairTestAsync<DomainUpDown, PropertyGrid>((form, controls) =>

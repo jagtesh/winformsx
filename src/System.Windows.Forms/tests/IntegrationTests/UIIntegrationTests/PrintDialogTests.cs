@@ -13,7 +13,7 @@ public class PrintDialogTests : ControlTestBase
     }
 
     // Regression test for https://github.com/dotnet/winforms/issues/10920
-    [WinFormsFact]
+    [UIFact]
     public void PrintDialogTests_UseEXDialog_Cancel_Success()
     {
         using DialogHostForm dialogOwnerForm = new();
@@ -22,7 +22,7 @@ public class PrintDialogTests : ControlTestBase
         Assert.Equal(DialogResult.Cancel, dialog.ShowDialog(dialogOwnerForm));
     }
 
-    [WinFormsFact]
+    [UIFact]
     public void PrintDialogTests_UseEXDialog_Success()
     {
         using AcceptDialogForm dialogOwnerForm = new();
