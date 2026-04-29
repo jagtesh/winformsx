@@ -107,8 +107,14 @@ public sealed class InputLanguage
         get
         {
             // https://learn.microsoft.com/windows/win32/intl/using-registry-string-redirection#create-resources-for-keyboard-layout-strings
-            using RegistryKey? key = Registry.LocalMachine.OpenSubKey($@"{KeyboardLayoutsRegistryPath}\{LayoutId}");
-            return key.GetMUIString("Layout Display Name", "Layout Text") ?? SR.UnknownInputLanguageLayout;
+            RegistryKey? localMachine = Registry.LocalMachine;
+            if (localMachine is null)
+            {
+                return SR.UnknownInputLanguageLayout;
+            }
+
+            using RegistryKey? key = localMachine.OpenSubKey($@"{KeyboardLayoutsRegistryPath}\{LayoutId}");
+            return key?.GetMUIString("Layout Display Name", "Layout Text") ?? SR.UnknownInputLanguageLayout;
         }
     }
 

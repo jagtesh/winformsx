@@ -9,6 +9,11 @@ internal static class RegistryKeyExtensions
 {
     public static string? GetMUIString(this RegistryKey? key, string keyName, string fallbackKeyName)
     {
+        if (!OperatingSystem.IsWindows())
+        {
+            return key?.GetValue(fallbackKeyName) as string;
+        }
+
         return key is not null
             ? PInvoke.RegLoadMUIString(key, keyName, out string localizedValue)
                 ? localizedValue

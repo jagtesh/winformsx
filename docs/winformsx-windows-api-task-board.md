@@ -44,6 +44,14 @@ Current baseline: `42 total, 41 passed, 0 failed, 1 skipped` with `MediaPlayer` 
   - `Failed: 0, Passed: 6, Skipped: 1, Total: 7`
   - Remaining skip:
     - `DragDrop_RTF_FromExplorer_ToRichTextBox_ReturnsExpected_Async` (existing test-level skip)
+- Control smoke verification rerun (`WinformsControlsTest --control-smoke-test`):
+  - `total=42 passed=41 failed=0 skipped=1` (only `MediaPlayer` skipped)
+- Targeted `ButtonTests` rerun (`UIIntegrationTests` filter `FullyQualifiedName~ButtonTests`):
+  - `Failed: 18, Passed: 4, Skipped: 36, Total: 58`
+  - Dominant failures are button click/default/cancel interaction flow and anchor-resize expectations.
+- Input-language remediation:
+  - Fixed non-Windows `InputLanguage.LayoutName` crash path (`Registry.LocalMachine` / `GetMUIString` fallback guards).
+  - `Button_Hotkey_Fires_OnClickAsync` no longer throws `NullReferenceException`; it now fails with expected environment precondition (`Please, switch to the US input language`).
 
 ## Task Legend
 
