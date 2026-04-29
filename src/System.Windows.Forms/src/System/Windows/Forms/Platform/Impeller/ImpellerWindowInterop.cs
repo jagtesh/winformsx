@@ -4401,6 +4401,22 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
         }
     }
 
+    internal bool TryDispatchInputMessage(HWND targetWindow, HWND fallbackTopLevel, uint msg, WPARAM wParam, LPARAM lParam)
+    {
+        HWND fallback = fallbackTopLevel != HWND.Null
+            ? fallbackTopLevel
+            : (_activeWindow != HWND.Null ? _activeWindow : targetWindow);
+
+        Control? ctrl = Control.FromHandle(targetWindow) ?? Control.FromHandle(fallback) ?? ResolveTopLevelControl(fallback);
+        if (ctrl is null)
+        {
+            return false;
+        }
+
+        PostMessageToControl(targetWindow, fallback, msg, wParam, lParam);
+        return true;
+    }
+
     private static Control? ResolveTopLevelControl(HWND preferredHandle)
     {
         Control? resolved = Control.FromHandle(preferredHandle);

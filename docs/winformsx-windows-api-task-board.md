@@ -26,6 +26,10 @@ Current baseline: `42 total, 41 passed, 0 failed, 1 skipped` with `MediaPlayer` 
   - Updated USER32 compatibility integration assertion flow for explicit managed-vs-native parity checks on `WindowFromPoint` and `ChildWindowFromPointEx`.
   - Focused USER32 facade regression now passes:
     - `User32CompatibilityFacadeTests.DirectDllImports_RouteToWinFormsXPal`
+- In-progress local changes (next commit):
+  - Routed synthetic `SendInput` keyboard/mouse dispatch through Impeller’s control-aware dispatch path (`PostMessageToControl`) via `ImpellerWindowInterop.TryDispatchInputMessage`.
+  - This removed the direct input path’s dependency on raw `NativeWindow.DispatchMessageDirect` target validity.
+  - Focused drag/drop rerun remains unchanged (`4 failed / 2 passed / 9 skipped`), indicating the remaining blocker is still child-control drag-start wiring (e.g., `ListBox`/`PictureBox`/`ToolStripItem` source event flow), not USER32 wrapper parity.
 - Current focused rerun (`DragDropTests`) has 4 failing cases (was 6):
   - `DragDrop_QueryDefaultCursors_Async`
   - `DragEnter_Set_DropImageType_Message_MessageReplacementToken_ReturnsExpected_Async`

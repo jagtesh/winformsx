@@ -247,10 +247,18 @@ internal sealed unsafe class ImpellerInputInterop : IInputInterop
     private void PostToKeyboardTarget(uint message, WPARAM wParam, LPARAM lParam)
     {
         HWND target = _focusWindow != HWND.Null ? _focusWindow : _activeWindow;
-        if (target != HWND.Null)
+        if (target == HWND.Null)
         {
-            PlatformApi.Message.PostMessage(target, message, wParam, lParam);
+            return;
         }
+
+        if (PlatformApi.Window is ImpellerWindowInterop impellerWindow
+            && impellerWindow.TryDispatchInputMessage(target, _activeWindow, message, wParam, lParam))
+        {
+            return;
+        }
+
+        PlatformApi.Message.SendMessage(target, message, wParam, lParam);
     }
 
     private void PostToMouseTarget(uint message, WPARAM wParam)
@@ -266,7 +274,14 @@ internal sealed unsafe class ImpellerInputInterop : IInputInterop
 
             System.Drawing.Point clientPoint = cursorPos;
             PlatformApi.Window.ScreenToClient(target, ref clientPoint);
-            PlatformApi.Message.PostMessage(target, message, wParam, MakePointLParam(clientPoint));
+            LPARAM lParam = MakePointLParam(clientPoint);
+            if (PlatformApi.Window is ImpellerWindowInterop impellerWindow
+                && impellerWindow.TryDispatchInputMessage(target, _activeWindow, message, wParam, lParam))
+            {
+                return;
+            }
+
+            PlatformApi.Message.SendMessage(target, message, wParam, lParam);
         }
     }
 
