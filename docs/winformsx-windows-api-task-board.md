@@ -114,6 +114,15 @@ Ordered by observed frequency across components and blocker blast radius:
     - `User32CompatibilityFacadeTests` filtered suite remains green (`Passed: 2, Failed: 0`).
     - `Button_Hotkey_Fires_OnClickAsync` and dialog-result button cases are still failing on behavior assertions; remaining gap is mnemonic/modal close semantics, not input-language preconditions.
   - Attempted non-Windows `ShowDialog()` harness alignment was reverted after introducing a test hang; modal-lifecycle parity will continue via runtime behavior fixes instead of harness-level modal-loop emulation.
+- In-progress local changes (next commit):
+  - Impeller synthetic keyboard dispatch now runs WinForms key pre-processing before direct window dispatch:
+    - `ImpellerWindowInterop.PostMessageToControl` now calls `Control.PreProcessControlMessageInternal` for key/syskey/char/syschar messages and only dispatches if not already processed.
+  - This restores dialog-char/mnemonic routing behavior for synthetic `SendInput` keyboard paths.
+  - Verification:
+    - `Button_Hotkey_Fires_OnClickAsync` is now passing (`Failed: 0, Passed: 1, Skipped: 0` for targeted filter).
+    - Focused dialog-result/cancel-space group improved to one functional pass path with remaining failures concentrated on modal close visibility semantics:
+      - `Button_DialogResult_ClickDefaultButtonToCloseFormAsync`: `DialogResult` updates but form remains visible on non-Windows harness path.
+      - `Button_DialogResult_SpaceToClickFocusedButtonAsync` and `Button_CancelButton_EscapeClicksCancelButtonAsync`: click/result behavior now routes, but visibility-close expectation remains unmet.
 
 ## Task Legend
 

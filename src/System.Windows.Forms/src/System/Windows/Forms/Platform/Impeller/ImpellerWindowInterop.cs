@@ -4408,7 +4408,27 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                         WinFormsXExecutionKind.MessageDispatch,
                         $"PostMessageToControl hwnd=0x{(nint)dispatchTarget:X} msg=0x{msg:X}");
 
-                    NativeWindow.DispatchMessageDirect(dispatchTarget, msg, wParam, lParam, out _);
+                    WPARAM dispatchWParam = wParam;
+                    LPARAM dispatchLParam = lParam;
+
+                    if (msg is PInvoke.WM_KEYDOWN or PInvoke.WM_SYSKEYDOWN or PInvoke.WM_KEYUP or PInvoke.WM_SYSKEYUP or PInvoke.WM_CHAR or PInvoke.WM_SYSCHAR)
+                    {
+                        Control? preprocessTarget = Control.FromChildHandle(dispatchTarget) ?? Control.FromHandle(dispatchTarget);
+                        if (preprocessTarget is not null)
+                        {
+                            Message preprocessMessage = Message.Create(dispatchTarget, (MessageId)msg, dispatchWParam, dispatchLParam);
+                            PreProcessControlState preProcessState = Control.PreProcessControlMessageInternal(preprocessTarget, ref preprocessMessage);
+                            if (preProcessState == PreProcessControlState.MessageProcessed)
+                            {
+                                return;
+                            }
+
+                            dispatchWParam = preprocessMessage.WParamInternal;
+                            dispatchLParam = preprocessMessage.LParamInternal;
+                        }
+                    }
+
+                    NativeWindow.DispatchMessageDirect(dispatchTarget, msg, dispatchWParam, dispatchLParam, out _);
                 }
                 finally
                 {
