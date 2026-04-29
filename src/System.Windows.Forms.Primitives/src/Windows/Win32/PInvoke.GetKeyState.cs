@@ -6,7 +6,7 @@ namespace Windows.Win32;
 internal static partial class PInvoke
 {
     /// <summary>Returns the state of a virtual key via PAL.
-    /// TODO: Wire to Silk.NET keyboard state in Iteration 2.</summary>
+    /// </summary>
     public static short GetKeyState(int nVirtKey)
-        => 0; // No key pressed — stub until input pipeline wired.
+        => global::System.Windows.Forms.Platform.PlatformApi.Input.GetKeyState(nVirtKey);
 }

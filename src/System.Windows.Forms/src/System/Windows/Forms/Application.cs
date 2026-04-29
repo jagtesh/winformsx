@@ -26,6 +26,7 @@ public sealed partial class Application
     {
         Platform.PlatformApi.Initialize(new Platform.ImpellerPlatformProvider());
         Platform.WinFormsXUser32Shim.Register();
+        Platform.WinFormsXSystemEventsCompatibility.Initialize();
     }
 
     /// <summary>

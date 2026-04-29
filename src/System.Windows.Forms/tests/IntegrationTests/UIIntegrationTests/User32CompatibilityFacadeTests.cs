@@ -14,45 +14,173 @@ public class User32CompatibilityFacadeTests
     [Fact]
     public void DirectDllImports_RouteToWinFormsXPal()
     {
-        Application.EnableVisualStyles();
-
-        Assert.True(NativeUser32.SetCursorPos(321, 654));
-        Assert.True(NativeUser32.GetCursorPos(out Point cursor));
-        Assert.Equal(new Point(321, 654), cursor);
-
-        uint virtualKey = (uint)VIRTUAL_KEY.VK_RETURN;
-        uint nativeScan = NativeUser32.MapVirtualKey(virtualKey, (uint)MAP_VIRTUAL_KEY_TYPE.MAPVK_VK_TO_VSC);
-        uint managedScan = PInvoke.MapVirtualKey(virtualKey, MAP_VIRTUAL_KEY_TYPE.MAPVK_VK_TO_VSC);
-        Assert.Equal(managedScan, nativeScan);
-
-        int nativeWidth = NativeUser32.GetSystemMetrics((int)SYSTEM_METRICS_INDEX.SM_CXSCREEN);
-        int managedWidth = PInvoke.GetSystemMetrics(SYSTEM_METRICS_INDEX.SM_CXSCREEN);
-        Assert.Equal(managedWidth, nativeWidth);
-
-        Assert.NotEqual(nint.Zero, NativeUser32.GetDesktopWindow());
-
-        nint first = 0x1234;
-        nint second = 0x5678;
-        _ = NativeUser32.SetFocus(first);
-        Assert.Equal(first, NativeUser32.GetFocus());
-        Assert.Equal(first, NativeUser32.SetFocus(second));
-        Assert.Equal(second, NativeUser32.GetFocus());
-
-        unsafe
+        using (new EnvironmentOverride("WINFORMSX_SUPPRESS_HIDDEN_BACKEND", "1"))
         {
-            Span<INPUT> inputs =
-            [
-                InputBuilder.KeyDown(VIRTUAL_KEY.VK_RETURN),
-                InputBuilder.KeyUp(VIRTUAL_KEY.VK_RETURN),
-            ];
+            Application.EnableVisualStyles();
 
-            fixed (INPUT* input = inputs)
+            Assert.True(NativeUser32.SetCursorPos(321, 654));
+            Assert.True(NativeUser32.GetCursorPos(out Point cursor));
+            Assert.Equal(new Point(321, 654), cursor);
+
+            uint virtualKey = (uint)VIRTUAL_KEY.VK_RETURN;
+            uint nativeScan = NativeUser32.MapVirtualKey(virtualKey, (uint)MAP_VIRTUAL_KEY_TYPE.MAPVK_VK_TO_VSC);
+            uint managedScan = PInvoke.MapVirtualKey(virtualKey, MAP_VIRTUAL_KEY_TYPE.MAPVK_VK_TO_VSC);
+            Assert.Equal(managedScan, nativeScan);
+
+            int nativeWidth = NativeUser32.GetSystemMetrics((int)SYSTEM_METRICS_INDEX.SM_CXSCREEN);
+            int managedWidth = PInvoke.GetSystemMetrics(SYSTEM_METRICS_INDEX.SM_CXSCREEN);
+            Assert.Equal(managedWidth, nativeWidth);
+
+            Assert.NotEqual(nint.Zero, NativeUser32.GetDesktopWindow());
+
+            nint first = 0x1234;
+            nint second = 0x5678;
+            _ = NativeUser32.SetFocus(first);
+            Assert.Equal(first, NativeUser32.GetFocus());
+            Assert.Equal(first, NativeUser32.SetFocus(second));
+            Assert.Equal(second, NativeUser32.GetFocus());
+
+            unsafe
             {
-                Assert.Equal((uint)inputs.Length, NativeUser32.SendInput((uint)inputs.Length, input, Marshal.SizeOf<INPUT>()));
+                Span<INPUT> inputs =
+                [
+                    InputBuilder.KeyDown(VIRTUAL_KEY.VK_RETURN),
+                    InputBuilder.KeyUp(VIRTUAL_KEY.VK_RETURN),
+                ];
+
+                fixed (INPUT* input = inputs)
+                {
+                    Assert.Equal((uint)inputs.Length, NativeUser32.SendInput((uint)inputs.Length, input, Marshal.SizeOf<INPUT>()));
+                }
             }
+
+            Assert.Equal(PInvoke.GetAsyncKeyState((int)VIRTUAL_KEY.VK_RETURN), NativeUser32.GetAsyncKeyState((int)VIRTUAL_KEY.VK_RETURN));
+            Assert.Equal(PInvoke.GetKeyState((int)VIRTUAL_KEY.VK_RETURN), NativeUser32.GetKeyState((int)VIRTUAL_KEY.VK_RETURN));
+
+            byte[] managedKeyState = new byte[256];
+            byte[] nativeKeyState = new byte[256];
+            unsafe
+            {
+                fixed (byte* managed = managedKeyState)
+                fixed (byte* native = nativeKeyState)
+                {
+                    managedKeyState.AsSpan().Fill(0xFF);
+                    nativeKeyState.AsSpan().Fill(0xFF);
+
+                    Assert.Equal((bool)PInvoke.GetKeyboardState(managed), NativeUser32.GetKeyboardState(native));
+                    Assert.Equal(managedKeyState, nativeKeyState);
+                }
+            }
+
+            using Form form = new();
+            using Button child = new();
+            form.Controls.Add(child);
+            form.CreateControl();
+            child.CreateControl();
+
+            nint formHandle = form.Handle;
+            nint childHandle = child.Handle;
+
+            nint originalCapture = NativeUser32.GetCapture();
+            Assert.Equal(nint.Zero, NativeUser32.SetCapture(formHandle));
+            Assert.Equal(formHandle, NativeUser32.GetCapture());
+            Assert.Equal(formHandle, NativeUser32.SetCapture(formHandle));
+            Assert.Equal(formHandle, NativeUser32.GetCapture());
+            Assert.True(NativeUser32.ReleaseCapture());
+            Assert.Equal(nint.Zero, NativeUser32.GetCapture());
+
+            if (originalCapture != nint.Zero)
+            {
+                _ = NativeUser32.SetCapture(originalCapture);
+                Assert.Equal(originalCapture, NativeUser32.GetCapture());
+                Assert.True(NativeUser32.ReleaseCapture());
+            }
+
+            RECT rect;
+            RECT clientRect;
+            Assert.True(NativeUser32.GetWindowRect(formHandle, out rect));
+            Assert.True(NativeUser32.GetClientRect(formHandle, out clientRect));
+            Assert.True(PInvoke.GetWindowRect((HWND)formHandle, out RECT managedWindowRect));
+            Assert.True(PInvoke.GetClientRect((HWND)formHandle, out RECT managedClientRect));
+            Assert.True(NativeUser32.GetWindowRect(formHandle, out rect));
+            Assert.True(NativeUser32.GetClientRect(formHandle, out clientRect));
+            Assert.Equal(managedWindowRect.left, rect.left);
+            Assert.Equal(managedWindowRect.top, rect.top);
+            Assert.Equal(managedClientRect.left, clientRect.left);
+            Assert.Equal(managedClientRect.top, clientRect.top);
+            Assert.Equal((bool)PInvoke.GetWindowRect((HWND)formHandle, out managedWindowRect), (bool)NativeUser32.GetWindowRect(formHandle, out rect));
+            Assert.Equal((bool)PInvoke.GetClientRect((HWND)formHandle, out managedClientRect), (bool)NativeUser32.GetClientRect(formHandle, out clientRect));
+            Point point = new(10, 10);
+            Point managedPoint = point;
+            Assert.Equal((bool)PInvoke.ClientToScreen(form, ref managedPoint), NativeUser32.ClientToScreen(formHandle, ref point));
+            Assert.Equal(managedPoint, point);
+
+            Point screenPoint = managedPoint;
+            Point managedScreenPoint = screenPoint;
+            Assert.Equal((bool)PInvoke.ScreenToClient(form, ref managedScreenPoint), NativeUser32.ScreenToClient(formHandle, ref screenPoint));
+            Assert.Equal(managedScreenPoint, screenPoint);
+
+            var mappedPoint = new Point(1, 2);
+            var mappedPointExpected = mappedPoint;
+            int managedMap = PInvoke.MapWindowPoints(form, HWND.Null, ref mappedPoint);
+            int nativeMap = NativeUser32.MapWindowPoints(formHandle, nint.Zero, ref mappedPointExpected, 1);
+            Assert.Equal(managedMap, nativeMap);
+            Assert.Equal(mappedPoint, mappedPointExpected);
+
+            Point testPoint = form.PointToScreen(new Point(5, 5));
+            Assert.Equal((nint)PInvoke.WindowFromPoint(testPoint), NativeUser32.WindowFromPoint(testPoint));
+            Assert.Equal((nint)PInvoke.ChildWindowFromPointEx(form, new Point(5, 5), CWP_FLAGS.CWP_SKIPINVISIBLE), NativeUser32.ChildWindowFromPointEx(formHandle, new Point(5, 5), (uint)CWP_FLAGS.CWP_SKIPINVISIBLE));
+            Assert.Equal((nint)PInvoke.GetMenu(form), NativeUser32.GetMenu(formHandle));
+            Assert.Equal((nint)PInvoke.GetSystemMenu(form, bRevert: false), NativeUser32.GetSystemMenu(formHandle, false));
+            Assert.Equal(PInvoke.GetMenuItemCount(HMENU.Null), NativeUser32.GetMenuItemCount((nint)HMENU.Null));
+
+            MENUITEMINFOW menuItemInfo = new()
+            {
+                cbSize = (uint)Marshal.SizeOf<MENUITEMINFOW>(),
+            };
+
+            Assert.Equal((bool)PInvoke.EnableMenuItem(HMENU.Null, 0, MENU_ITEM_FLAGS.MF_BYPOSITION), NativeUser32.EnableMenuItem((nint)HMENU.Null, 0, (uint)MENU_ITEM_FLAGS.MF_BYPOSITION));
+            Assert.Equal((bool)PInvoke.GetMenuItemInfo(HMENU.Null, 0, fByPosition: false, ref menuItemInfo), NativeUser32.GetMenuItemInfo((nint)HMENU.Null, 0, fByPosition: false, ref menuItemInfo));
+            Assert.Equal((bool)PInvoke.SetMenu(form, HMENU.Null), NativeUser32.SetMenu(formHandle, (nint)HMENU.Null));
+            Assert.True(PInvoke.DrawMenuBar(form));
+            Assert.True(NativeUser32.DrawMenuBar(formHandle));
+
+            Assert.Equal((nint)PInvoke.GetWindowLong((HWND)formHandle, WINDOW_LONG_PTR_INDEX.GWLP_HWNDPARENT), NativeUser32.GetParent(formHandle));
+            nint originalParent = NativeUser32.GetParent(childHandle);
+            nint oldParent = NativeUser32.SetParent(childHandle, formHandle);
+            Assert.Equal(originalParent, oldParent);
+            Assert.Equal(formHandle, NativeUser32.GetParent(childHandle));
+            _ = NativeUser32.SetParent(childHandle, oldParent);
+            Assert.Equal(originalParent, NativeUser32.GetParent(childHandle));
+
+            Assert.Equal((nint)PInvoke.GetAncestor((HWND)formHandle, GET_ANCESTOR_FLAGS.GA_ROOT), NativeUser32.GetAncestor(formHandle, (uint)GET_ANCESTOR_FLAGS.GA_ROOT));
+            Assert.Equal((nint)PInvoke.GetWindow((HWND)childHandle, GET_WINDOW_CMD.GW_OWNER), NativeUser32.GetWindow(childHandle, (uint)GET_WINDOW_CMD.GW_OWNER));
+            Assert.Equal((bool)PInvoke.IsChild((HWND)formHandle, (HWND)childHandle), NativeUser32.IsChild(formHandle, childHandle));
+
+            Assert.True(NativeUser32.UpdateWindow(formHandle));
+            Assert.True(NativeUser32.InvalidateRect(formHandle, nint.Zero, true));
+            Assert.True(NativeUser32.InvalidateRect(formHandle, ref rect, true));
+            Assert.True(NativeUser32.ValidateRect(formHandle, nint.Zero));
+            Assert.True(NativeUser32.ValidateRect(formHandle, ref clientRect));
+        }
+    }
+
+    private sealed class EnvironmentOverride : IDisposable
+    {
+        private readonly string _name;
+        private readonly string? _originalValue;
+
+        public EnvironmentOverride(string name, string value)
+        {
+            _name = name;
+            _originalValue = Environment.GetEnvironmentVariable(name);
+            Environment.SetEnvironmentVariable(name, value);
         }
 
-        Assert.Equal(PInvoke.GetAsyncKeyState((int)VIRTUAL_KEY.VK_RETURN), NativeUser32.GetAsyncKeyState((int)VIRTUAL_KEY.VK_RETURN));
+        public void Dispose()
+        {
+            Environment.SetEnvironmentVariable(_name, _originalValue);
+        }
     }
 
     private static partial class NativeUser32
@@ -71,6 +199,23 @@ public class User32CompatibilityFacadeTests
         internal static extern short GetAsyncKeyState(int vkey);
 
         [DllImport(User32, ExactSpelling = true)]
+        internal static extern short GetKeyState(int vkey);
+
+        [DllImport(User32, ExactSpelling = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern unsafe bool GetKeyboardState(byte* lpKeyState);
+
+        [DllImport(User32, ExactSpelling = true)]
+        internal static extern nint GetCapture();
+
+        [DllImport(User32, ExactSpelling = true)]
+        internal static extern nint SetCapture(nint hwnd);
+
+        [DllImport(User32, ExactSpelling = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool ReleaseCapture();
+
+        [DllImport(User32, ExactSpelling = true)]
         internal static extern uint MapVirtualKey(uint code, uint mapType);
 
         [DllImport(User32, ExactSpelling = true)]
@@ -87,5 +232,91 @@ public class User32CompatibilityFacadeTests
 
         [DllImport(User32, ExactSpelling = true)]
         internal static extern int GetSystemMetrics(int index);
+
+        [DllImport(User32, ExactSpelling = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool GetWindowRect(nint hwnd, out RECT lpRect);
+
+        [DllImport(User32, ExactSpelling = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool GetClientRect(nint hwnd, out RECT lpRect);
+
+        [DllImport(User32, ExactSpelling = true)]
+        internal static extern int MapWindowPoints(nint hWndFrom, nint hWndTo, ref Point point, uint cPoints);
+
+        [DllImport(User32, ExactSpelling = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool ClientToScreen(nint hwnd, ref Point lpPoint);
+
+        [DllImport(User32, ExactSpelling = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool ScreenToClient(nint hwnd, ref Point lpPoint);
+
+        [DllImport(User32, ExactSpelling = true)]
+        internal static extern nint GetParent(nint hwnd);
+
+        [DllImport(User32, ExactSpelling = true)]
+        internal static extern nint SetParent(nint child, nint parent);
+
+        [DllImport(User32, ExactSpelling = true)]
+        internal static extern nint GetWindow(nint hwnd, uint uCmd);
+
+        [DllImport(User32, ExactSpelling = true)]
+        internal static extern nint GetAncestor(nint hwnd, uint gaFlags);
+
+        [DllImport(User32, ExactSpelling = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool IsChild(nint hWndParent, nint hWnd);
+
+        [DllImport(User32, ExactSpelling = true)]
+        internal static extern nint WindowFromPoint(Point point);
+
+        [DllImport(User32, ExactSpelling = true)]
+        internal static extern nint ChildWindowFromPointEx(nint hwndParent, Point point, uint flags);
+
+        [DllImport(User32, ExactSpelling = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool SetMenu(nint hWnd, nint hMenu);
+
+        [DllImport(User32, ExactSpelling = true)]
+        internal static extern nint GetMenu(nint hWnd);
+
+        [DllImport(User32, ExactSpelling = true)]
+        internal static extern nint GetSystemMenu(nint hWnd, bool bRevert);
+
+        [DllImport(User32, ExactSpelling = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool EnableMenuItem(nint hMenu, uint uIdEnableItem, uint uEnable);
+
+        [DllImport(User32, ExactSpelling = true)]
+        internal static extern int GetMenuItemCount(nint hMenu);
+
+        [DllImport(User32, ExactSpelling = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool GetMenuItemInfo(nint hMenu, uint item, bool fByPosition, ref MENUITEMINFOW lpMenuItemInfo);
+
+        [DllImport(User32, ExactSpelling = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool DrawMenuBar(nint hWnd);
+
+        [DllImport(User32, ExactSpelling = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool UpdateWindow(nint hwnd);
+
+        [DllImport(User32, ExactSpelling = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool InvalidateRect(nint hwnd, nint lpRect, bool erase);
+
+        [DllImport(User32, ExactSpelling = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool InvalidateRect(nint hwnd, ref RECT lpRect, bool erase);
+
+        [DllImport(User32, ExactSpelling = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool ValidateRect(nint hwnd, nint lpRect);
+
+        [DllImport(User32, ExactSpelling = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool ValidateRect(nint hwnd, ref RECT lpRect);
     }
 }
