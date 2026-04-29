@@ -10,13 +10,15 @@ Current baseline: `42 total, 41 passed, 0 failed, 1 skipped` with `MediaPlayer` 
   - Managed non-Windows drag/drop fallback path added and wired for `Control.DoDragDrop` and `ToolStripItem.DoDragDrop`.
   - WinFormsX input backend now propagates mouse key-state flags in message `wParam` for move/down/up paths.
   - `WM_MOUSEMOVE` now uses message key-state on backend-active path so drag logic sees held mouse buttons correctly.
-- Current focused rerun (`DragDropTests`) still has 6 failing cases:
+- In-progress local changes (next commit):
+  - Non-Windows `DataObject` construction no longer routes through `GlobalInterfaceTable`/`OLE32.dll`; added managed adapter path to avoid `DllNotFoundException`.
+  - `BackCompatibleStringComparer` hash code now uses `unchecked` arithmetic to avoid overflow exceptions during drag/drop data storage.
+  - Drag/drop enter/over sequencing and input-state synchronization were tightened for backend-driven mouse/key events.
+- Current focused rerun (`DragDropTests`) has 4 failing cases (was 6):
   - `DragDrop_QueryDefaultCursors_Async`
   - `DragEnter_Set_DropImageType_Message_MessageReplacementToken_ReturnsExpected_Async`
   - `PictureBox_SetData_DoDragDrop_RichTextBox_ReturnsExpected_Async`
   - `ToolStripItem_SetData_DoDragDrop_RichTextBox_ReturnsExpected_Async`
-  - `DragDrop_NonSerializedObject_ReturnsExpected_Async`
-  - `DragDrop_SerializedObject_ReturnsExpected_Async`
 
 ## Task Legend
 

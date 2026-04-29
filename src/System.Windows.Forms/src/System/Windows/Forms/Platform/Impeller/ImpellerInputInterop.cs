@@ -32,6 +32,7 @@ internal sealed unsafe class ImpellerInputInterop : IInputInterop
     private HWND _captureWindow;
     private System.Drawing.Point _cursorPos;
     private readonly HashSet<int> _pressedKeys = [];
+    private readonly object _inputStateLock = new();
 
     // --- Focus ----------------------------------------------------------
 
@@ -50,9 +51,36 @@ internal sealed unsafe class ImpellerInputInterop : IInputInterop
 
     // --- Cursor ---------------------------------------------------------
 
-    public bool GetCursorPos(out System.Drawing.Point pt) { pt = _cursorPos; return true; }
-    public bool GetPhysicalCursorPos(out System.Drawing.Point pt) { pt = _cursorPos; return true; }
-    public bool SetCursorPos(int x, int y) { _cursorPos = new System.Drawing.Point(x, y); return true; }
+    public bool GetCursorPos(out System.Drawing.Point pt)
+    {
+        lock (_inputStateLock)
+        {
+            pt = _cursorPos;
+        }
+
+        return true;
+    }
+
+    public bool GetPhysicalCursorPos(out System.Drawing.Point pt)
+    {
+        lock (_inputStateLock)
+        {
+            pt = _cursorPos;
+        }
+
+        return true;
+    }
+
+    public bool SetCursorPos(int x, int y)
+    {
+        lock (_inputStateLock)
+        {
+            _cursorPos = new System.Drawing.Point(x, y);
+        }
+
+        return true;
+    }
+
     public HCURSOR SetCursor(HCURSOR hCursor) => hCursor;
     public HCURSOR LoadCursor(HINSTANCE hInstance, PCWSTR lpCursorName) => (HCURSOR)(nint)1;
     public bool ClipCursor(RECT* lpRect) => true;
@@ -61,7 +89,14 @@ internal sealed unsafe class ImpellerInputInterop : IInputInterop
 
     // --- Keyboard -------------------------------------------------------
 
-    public short GetKeyState(int vKey) => _pressedKeys.Contains(vKey) ? unchecked((short)0x8000) : (short)0;
+    public short GetKeyState(int vKey)
+    {
+        lock (_inputStateLock)
+        {
+            return _pressedKeys.Contains(vKey) ? unchecked((short)0x8000) : (short)0;
+        }
+    }
+
     public short GetAsyncKeyState(int vKey) => GetKeyState(vKey);
     public bool GetKeyboardState(byte* lpKeyState)
     {
@@ -70,9 +105,12 @@ internal sealed unsafe class ImpellerInputInterop : IInputInterop
             return false;
         }
 
-        for (int i = 0; i < 256; i++)
+        lock (_inputStateLock)
         {
-            lpKeyState[i] = _pressedKeys.Contains(i) ? (byte)0x80 : (byte)0;
+            for (int i = 0; i < 256; i++)
+            {
+                lpKeyState[i] = _pressedKeys.Contains(i) ? (byte)0x80 : (byte)0;
+            }
         }
 
         return true;
@@ -123,11 +161,17 @@ internal sealed unsafe class ImpellerInputInterop : IInputInterop
         {
             if (keyUp)
             {
-                _pressedKeys.Remove(virtualKey);
+                lock (_inputStateLock)
+                {
+                    _pressedKeys.Remove(virtualKey);
+                }
             }
             else
             {
-                _pressedKeys.Add(virtualKey);
+                lock (_inputStateLock)
+                {
+                    _pressedKeys.Add(virtualKey);
+                }
             }
 
             PostToKeyboardTarget(keyUp ? WM_KEYUP : WM_KEYDOWN, (WPARAM)virtualKey, (LPARAM)0);
@@ -147,11 +191,17 @@ internal sealed unsafe class ImpellerInputInterop : IInputInterop
         {
             if ((flags & MOUSE_EVENT_FLAGS.MOUSEEVENTF_ABSOLUTE) != 0)
             {
-                _cursorPos = FromAbsoluteMousePoint(input.dx, input.dy);
+                lock (_inputStateLock)
+                {
+                    _cursorPos = FromAbsoluteMousePoint(input.dx, input.dy);
+                }
             }
             else
             {
-                _cursorPos.Offset(input.dx, input.dy);
+                lock (_inputStateLock)
+                {
+                    _cursorPos.Offset(input.dx, input.dy);
+                }
             }
 
             PostToMouseTarget(WM_MOUSEMOVE, (WPARAM)GetMouseKeyState());
@@ -173,14 +223,22 @@ internal sealed unsafe class ImpellerInputInterop : IInputInterop
         int key = (int)virtualKey;
         if ((flags & downFlag) != 0)
         {
-            _pressedKeys.Add(key);
+            lock (_inputStateLock)
+            {
+                _pressedKeys.Add(key);
+            }
+
             _captureWindow = GetMouseTarget();
             PostToMouseTarget(downMessage, (WPARAM)GetMouseKeyState());
         }
 
         if ((flags & upFlag) != 0)
         {
-            _pressedKeys.Remove(key);
+            lock (_inputStateLock)
+            {
+                _pressedKeys.Remove(key);
+            }
+
             PostToMouseTarget(upMessage, (WPARAM)GetMouseKeyState());
             _captureWindow = HWND.Null;
         }
@@ -208,34 +266,37 @@ internal sealed unsafe class ImpellerInputInterop : IInputInterop
     {
         nint keyState = 0;
 
-        if (_pressedKeys.Contains((int)VIRTUAL_KEY.VK_LBUTTON))
+        lock (_inputStateLock)
         {
-            keyState |= MK_LBUTTON;
-        }
+            if (_pressedKeys.Contains((int)VIRTUAL_KEY.VK_LBUTTON))
+            {
+                keyState |= MK_LBUTTON;
+            }
 
-        if (_pressedKeys.Contains((int)VIRTUAL_KEY.VK_RBUTTON))
-        {
-            keyState |= MK_RBUTTON;
-        }
+            if (_pressedKeys.Contains((int)VIRTUAL_KEY.VK_RBUTTON))
+            {
+                keyState |= MK_RBUTTON;
+            }
 
-        if (_pressedKeys.Contains((int)VIRTUAL_KEY.VK_MBUTTON))
-        {
-            keyState |= MK_MBUTTON;
-        }
+            if (_pressedKeys.Contains((int)VIRTUAL_KEY.VK_MBUTTON))
+            {
+                keyState |= MK_MBUTTON;
+            }
 
-        if (_pressedKeys.Contains((int)VIRTUAL_KEY.VK_SHIFT))
-        {
-            keyState |= MK_SHIFT;
-        }
+            if (_pressedKeys.Contains((int)VIRTUAL_KEY.VK_SHIFT))
+            {
+                keyState |= MK_SHIFT;
+            }
 
-        if (_pressedKeys.Contains((int)VIRTUAL_KEY.VK_CONTROL))
-        {
-            keyState |= MK_CONTROL;
-        }
+            if (_pressedKeys.Contains((int)VIRTUAL_KEY.VK_CONTROL))
+            {
+                keyState |= MK_CONTROL;
+            }
 
-        if (_pressedKeys.Contains((int)VIRTUAL_KEY.VK_MENU))
-        {
-            keyState |= MK_ALT;
+            if (_pressedKeys.Contains((int)VIRTUAL_KEY.VK_MENU))
+            {
+                keyState |= MK_ALT;
+            }
         }
 
         return keyState;

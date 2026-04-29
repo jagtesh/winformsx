@@ -24,7 +24,7 @@ internal class BackCompatibleStringComparer : IEqualityComparer<string>
 
                 while ((c = *szStr) != 0)
                 {
-                    hash = ((hash << 5) + hash) ^ c;
+                    hash = unchecked(((hash << 5) + hash) ^ c);
                     ++szStr;
                 }
 

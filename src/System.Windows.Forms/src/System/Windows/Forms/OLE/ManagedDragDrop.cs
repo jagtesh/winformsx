@@ -24,6 +24,10 @@ internal static class ManagedDragDrop
         Point cursorOffset,
         bool useDefaultDragImage)
     {
+        bool verbose = string.Equals(
+            Environment.GetEnvironmentVariable("WINFORMSX_DRAG_VERBOSE"),
+            "1",
+            StringComparison.Ordinal);
         IDropTarget? currentTarget = null;
         DragEventArgs? lastDragEvent = null;
         DragDropEffects currentEffect = DragDropEffects.None;
@@ -45,6 +49,11 @@ internal static class ManagedDragDrop
                 queryContinue.Action = DragAction.Continue;
             }
 
+            if (verbose)
+            {
+                Console.WriteLine($"[ManagedDragDrop] keyState=0x{keyState:X} action={queryContinue.Action} target={(currentTarget as Control)?.Name ?? currentTarget?.GetType().Name ?? "<null>"}");
+            }
+
             if (!raisedDragEvent)
             {
                 IDropTarget? primedTarget = FindDropTarget(Control.MousePosition, sourceControl);
@@ -53,6 +62,11 @@ internal static class ManagedDragDrop
                     DragEventArgs primedEvent = CreateDragEvent(dataObject, keyState, allowedEffects, currentEffect);
                     primedTarget.OnDragEnter(primedEvent);
                     primedTarget.OnDragOver(primedEvent);
+                    if (verbose)
+                    {
+                        Console.WriteLine($"[ManagedDragDrop] primed target={(primedTarget as Control)?.Name ?? primedTarget.GetType().Name} effect={primedEvent.Effect} hasButton={primedEvent.Data?.GetDataPresent(typeof(Button))}");
+                    }
+
                     currentTarget = primedTarget;
                     currentEffect = primedEvent.Effect;
                     lastDragEvent = primedEvent.Clone();
@@ -72,6 +86,11 @@ internal static class ManagedDragDrop
                 {
                     DragEventArgs dragEvent = lastDragEvent ?? CreateDragEvent(dataObject, keyState, allowedEffects, currentEffect);
                     currentTarget.OnDragDrop(dragEvent);
+                    if (verbose)
+                    {
+                        Console.WriteLine($"[ManagedDragDrop] drop target={(currentTarget as Control)?.Name ?? currentTarget.GetType().Name} effect={dragEvent.Effect} hasButton={dragEvent.Data?.GetDataPresent(typeof(Button))}");
+                    }
+
                     currentEffect = dragEvent.Effect;
                     dropped = true;
                 }
@@ -93,6 +112,11 @@ internal static class ManagedDragDrop
                 if (lastDragEvent is null)
                 {
                     currentTarget.OnDragEnter(dragEvent);
+                    currentTarget.OnDragOver(dragEvent);
+                    if (verbose)
+                    {
+                        Console.WriteLine($"[ManagedDragDrop] enter+over target={(currentTarget as Control)?.Name ?? currentTarget.GetType().Name} effect={dragEvent.Effect} hasButton={dragEvent.Data?.GetDataPresent(typeof(Button))}");
+                    }
                 }
                 else
                 {
@@ -104,6 +128,10 @@ internal static class ManagedDragDrop
                     }
 
                     currentTarget.OnDragOver(dragEvent);
+                    if (verbose)
+                    {
+                        Console.WriteLine($"[ManagedDragDrop] over target={(currentTarget as Control)?.Name ?? currentTarget.GetType().Name} effect={dragEvent.Effect} hasButton={dragEvent.Data?.GetDataPresent(typeof(Button))}");
+                    }
                 }
 
                 currentEffect = dragEvent.Effect;
@@ -131,8 +159,14 @@ internal static class ManagedDragDrop
 
     private static IDropTarget? FindDropTarget(Point screenPoint, Control? sourceControl)
     {
-        Control? pointedControl = Control.FromChildHandle(PInvoke.WindowFromPoint(screenPoint));
-        IDropTarget? pointedTarget = FindAllowDropTarget(pointedControl);
+        Control? root = sourceControl?.FindForm() ?? sourceControl?.TopLevelControl as Control ?? sourceControl;
+        IDropTarget? pointedTarget = null;
+        if (root is not null)
+        {
+            Control? pointedControl = FindDeepestControlAtScreenPoint(root, screenPoint);
+            pointedTarget = FindAllowDropTarget(pointedControl);
+        }
+
         if (pointedTarget is not null)
         {
             if (sourceControl is null || !ReferenceEquals(pointedTarget, sourceControl))
@@ -140,13 +174,13 @@ internal static class ManagedDragDrop
                 return pointedTarget;
             }
 
-            IDropTarget? alternate = FindFormFallbackTarget(sourceControl, excludeSource: true);
+            IDropTarget? alternate = FindNearestAllowDropTarget(root, screenPoint, sourceControl, excludeSource: true);
             return alternate ?? pointedTarget;
         }
 
         if (sourceControl is not null)
         {
-            IDropTarget? alternate = FindFormFallbackTarget(sourceControl, excludeSource: true);
+            IDropTarget? alternate = FindNearestAllowDropTarget(root, screenPoint, sourceControl, excludeSource: true);
             if (alternate is not null)
             {
                 return alternate;
@@ -176,31 +210,83 @@ internal static class ManagedDragDrop
         return null;
     }
 
-    private static IDropTarget? FindFormFallbackTarget(Control sourceControl, bool excludeSource)
+    private static IDropTarget? FindNearestAllowDropTarget(Control? root, Point screenPoint, Control sourceControl, bool excludeSource)
     {
-        Control? root = sourceControl.FindForm() ?? sourceControl.TopLevelControl as Control ?? sourceControl;
-        return FindFirstAllowDropTarget(root, sourceControl, excludeSource);
-    }
-
-    private static IDropTarget? FindFirstAllowDropTarget(Control control, Control sourceControl, bool excludeSource)
-    {
-        if (control.AllowDrop
-            && control is IDropTarget dropTarget
-            && (!excludeSource || !ReferenceEquals(control, sourceControl)))
+        if (root is null)
         {
-            return dropTarget;
+            return null;
         }
 
-        foreach (Control child in control.Controls)
+        IDropTarget? nearest = null;
+        long bestDistance = long.MaxValue;
+        foreach (Control control in EnumerateControls(root))
         {
-            IDropTarget? result = FindFirstAllowDropTarget(child, sourceControl, excludeSource);
-            if (result is not null)
+            if (!control.AllowDrop || control is not IDropTarget dropTarget)
             {
-                return result;
+                continue;
+            }
+
+            if (excludeSource && ReferenceEquals(control, sourceControl))
+            {
+                continue;
+            }
+
+            Rectangle bounds = GetScreenBounds(control);
+            Point center = new(bounds.Left + bounds.Width / 2, bounds.Top + bounds.Height / 2);
+            long dx = screenPoint.X - center.X;
+            long dy = screenPoint.Y - center.Y;
+            long distance = dx * dx + dy * dy;
+            if (distance < bestDistance)
+            {
+                bestDistance = distance;
+                nearest = dropTarget;
             }
         }
 
-        return null;
+        return nearest;
+    }
+
+    private static Control? FindDeepestControlAtScreenPoint(Control root, Point screenPoint)
+    {
+        if (!root.Visible || !GetScreenBounds(root).Contains(screenPoint))
+        {
+            return null;
+        }
+
+        for (int i = root.Controls.Count - 1; i >= 0; i--)
+        {
+            Control child = root.Controls[i];
+            Control? hit = FindDeepestControlAtScreenPoint(child, screenPoint);
+            if (hit is not null)
+            {
+                return hit;
+            }
+        }
+
+        return root;
+    }
+
+    private static IEnumerable<Control> EnumerateControls(Control root)
+    {
+        Stack<Control> stack = new();
+        stack.Push(root);
+
+        while (stack.Count > 0)
+        {
+            Control current = stack.Pop();
+            yield return current;
+
+            for (int i = current.Controls.Count - 1; i >= 0; i--)
+            {
+                stack.Push(current.Controls[i]);
+            }
+        }
+    }
+
+    private static Rectangle GetScreenBounds(Control control)
+    {
+        Point topLeft = control.PointToScreen(Point.Empty);
+        return new Rectangle(topLeft, control.Size);
     }
 
     private static DragEventArgs CreateDragEvent(
