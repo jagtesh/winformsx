@@ -136,6 +136,14 @@ Ordered by observed frequency across components and blocker blast radius:
     - Updated `ButtonTests` focused rerun:
       - `Failed: 10, Passed: 12, Skipped: 20, Total: 42` (improved from `15/7/30`).
       - Remaining failures are concentrated in modal close visibility semantics (`DialogResult` paths) and drag-off/drag-back click completion.
+- In-progress local changes (next commit):
+  - Closed remaining `ButtonTests` behavior gaps in non-Windows input/dialog paths:
+    - `Button.OnClick`: when `DialogResult != None` on non-Windows modeless forms, mirror dialog semantics by hiding the form after committing the result.
+    - `ImpellerWindowInterop.PostMessageToControl`: mouse-move coalescing now only applies when no mouse button is pressed, preserving drag-out/drag-back state transitions.
+    - `Button.OnMouseUp`: added non-Windows capture-aware click eligibility for in-bounds release.
+  - Verification:
+    - `UIIntegrationTests` filter `FullyQualifiedName~ButtonTests`: `Failed: 0, Passed: 22, Skipped: 0, Total: 22`.
+    - `WinformsControlsTest --control-smoke-test`: `total=42 passed=41 failed=0 skipped=1`.
 
 ## Task Legend
 
@@ -230,7 +238,7 @@ Ordered by observed frequency across components and blocker blast radius:
 
 ## Ongoing Watchlist
 
-- [~] WXA-WL01: `Buttons` (resource extraction path + catalog form hookup + non-Windows harness visibility improvements landed; remaining click/default/cancel + anchor/resize behavior gaps).
+- [x] WXA-WL01: `Buttons` (resource extraction + dialog-result visibility + mnemonic/default/cancel + anchor/resize + drag-out/drag-back click path now green in focused UIIntegrationTests).
 - [x] WXA-WL02: `MultipleControls`/`RichTextBoxes`/`TextBoxes` (controls smoke currently passing).
 - [x] WXA-WL03: `TreeView, ImageList` / `ListView` / `MDI Parent` / `TrackBars` (controls smoke currently passing).
 - [x] WXA-WL04: `Calendar` / `DateTimePicker` (controls smoke currently passing).
@@ -242,4 +250,4 @@ Ordered by observed frequency across components and blocker blast radius:
 
 - `WXA-1103` is actively in progress with managed drag/drop loop and target-resolution work.
 - `DragDropTests` targeted UI integration rerun is currently green except the intentional explorer-based skip.
-- Active priority lane is now `P1`: modal lifecycle + synthetic input parity + anchor/resize interactions (in that order).
+- Active priority lane moves to `P2`: OLE/clipboard/IME core and dialog service parity after `P1` button/modal/synthetic/resize blockers were cleared in focused UI integration coverage.

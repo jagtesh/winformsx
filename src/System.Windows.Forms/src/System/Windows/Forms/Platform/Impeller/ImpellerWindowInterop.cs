@@ -36,6 +36,10 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
     private const uint WM_RBUTTONUP = 0x0205;
     private const uint WM_MBUTTONDOWN = 0x0207;
     private const uint WM_MBUTTONUP = 0x0208;
+    private const nuint MK_LBUTTON = 0x0001;
+    private const nuint MK_RBUTTON = 0x0002;
+    private const nuint MK_MBUTTON = 0x0010;
+    private const nuint MkAnyButtonMask = MK_LBUTTON | MK_RBUTTON | MK_MBUTTON;
     private const int WheelDelta = 120;
     private const int DefaultTargetFrameRate = 60;
     private const int ManagedTabHeaderHeight = 30;
@@ -4395,7 +4399,8 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
             bool isMouseMove = msg == WM_MOUSEMOVE;
             nint dispatchHandle = (nint)dispatchTarget;
             nuint keyState = (nuint)wParam;
-            if (isMouseMove && !TryQueueMouseMove(dispatchHandle, keyState))
+            bool canCoalesceMouseMove = isMouseMove && (keyState & MkAnyButtonMask) == 0;
+            if (canCoalesceMouseMove && !TryQueueMouseMove(dispatchHandle, keyState))
             {
                 return;
             }
@@ -4432,7 +4437,7 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                 }
                 finally
                 {
-                    if (isMouseMove)
+                    if (canCoalesceMouseMove)
                     {
                         CompleteMouseMove(dispatchHandle, keyState);
                     }
