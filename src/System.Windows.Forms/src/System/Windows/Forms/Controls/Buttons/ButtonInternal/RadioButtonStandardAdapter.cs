@@ -60,19 +60,7 @@ internal class RadioButtonStandardAdapter : RadioButtonBaseAdapter
         layout.HintTextUp = false;
         layout.DotNetOneButtonCompat = !Application.RenderWithVisualStyles;
 
-        if (Application.RenderWithVisualStyles)
-        {
-            ButtonBase b = Control;
-            using var screen = GdiCache.GetScreenHdc();
-            layout.CheckSize = RadioButtonRenderer.GetGlyphSize(
-                screen,
-                RadioButtonRenderer.ConvertFromButtonState(GetState(), b.MouseIsOver),
-                b.HWNDInternal).Width;
-        }
-        else
-        {
-            layout.CheckSize = (int)(layout.CheckSize * GetDpiScaleRatio());
-        }
+        layout.CheckSize = (int)(layout.CheckSize * GetDpiScaleRatio());
 
         return layout;
     }

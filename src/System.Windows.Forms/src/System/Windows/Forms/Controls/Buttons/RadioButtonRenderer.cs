@@ -20,7 +20,8 @@ public static class RadioButtonRenderer
     /// <inheritdoc cref="ButtonRenderer.RenderMatchingApplicationState"/>
     public static bool RenderMatchingApplicationState { get; set; } = true;
 
-    private static bool RenderWithVisualStyles => !RenderMatchingApplicationState || Application.RenderWithVisualStyles;
+    private static bool RenderWithVisualStyles
+        => VisualStyleRenderer.IsSupported && (!RenderMatchingApplicationState || Application.RenderWithVisualStyles);
 
     /// <inheritdoc cref="ButtonRenderer.IsBackgroundPartiallyTransparent(PushButtonState)"/>
     public static bool IsBackgroundPartiallyTransparent(RadioButtonState state)

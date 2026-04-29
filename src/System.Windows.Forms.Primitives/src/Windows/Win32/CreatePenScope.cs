@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Drawing;
+using System.Windows.Forms.Platform;
 
 namespace Windows.Win32.Graphics.Gdi;
 
@@ -23,11 +24,10 @@ internal readonly ref struct CreatePenScope
     public HPEN HPEN { get; }
 
     /// <summary>
-    ///  Creates a solid pen based on the <paramref name="color"/> and <paramref name="width"/> using
-    ///  <see cref="PInvoke.CreatePen(PEN_STYLE, int, COLORREF)" />.
+    ///  Creates a solid pen based on the <paramref name="color"/> and <paramref name="width"/> using the PAL.
     /// </summary>
     public CreatePenScope(Color color, int width = 1) =>
-        HPEN = PInvoke.CreatePen(PEN_STYLE.PS_SOLID, width, color);
+        HPEN = PlatformApi.Gdi.CreatePen(PEN_STYLE.PS_SOLID, width, (COLORREF)(uint)ColorTranslator.ToWin32(color));
 
     public static implicit operator HPEN(in CreatePenScope scope) => scope.HPEN;
     public static implicit operator HGDIOBJ(in CreatePenScope scope) => (HGDIOBJ)scope.HPEN.Value;
@@ -38,7 +38,7 @@ internal readonly ref struct CreatePenScope
     {
         if (!HPEN.IsNull)
         {
-            PInvokeCore.DeleteObject(HPEN);
+            PlatformApi.Gdi.DeleteObject(HPEN);
         }
 
 #if DEBUG

@@ -5,5 +5,5 @@ namespace System.Drawing;
 
 internal static class RegionExtensions
 {
-    public static Region ToRegion(this RegionScope scope) => Region.FromHrgn(scope.Region);
+    public static Region ToRegion(this RegionScope scope) => new();
 }

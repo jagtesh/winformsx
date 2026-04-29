@@ -5580,20 +5580,7 @@ public partial class DataGridView
             return _cachedScrollableRegion;
         }
 
-        using (Region region = new(scroll))
-        {
-            HRGN hrgn = default;
-            using (Graphics graphics = CreateGraphicsInternal())
-            {
-                hrgn = (HRGN)region.GetHrgn(graphics);
-            }
-
-            if (!hrgn.IsNull)
-            {
-                _cachedScrollableRegion = hrgn.GetRegionRects();
-                region.ReleaseHrgn((IntPtr)hrgn);
-            }
-        }
+        _cachedScrollableRegion = [(RECT)scroll];
 
         return _cachedScrollableRegion;
     }

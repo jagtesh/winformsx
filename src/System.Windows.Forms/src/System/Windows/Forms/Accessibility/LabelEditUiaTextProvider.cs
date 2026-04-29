@@ -371,18 +371,8 @@ internal sealed unsafe class LabelEditUiaTextProvider : UiaTextProvider
 
     private unsafe bool GetTextExtentPoint32(char item, out Size size)
     {
-        size = default;
-
-        using GetDcScope hdc = new(_owningChildEdit.Handle);
-        if (hdc.IsNull)
-        {
-            return false;
-        }
-
-        // Add the width of the character at that position.
-        fixed (void* psizle = &size)
-        {
-            return PInvoke.GetTextExtentPoint32W(hdc.HDC, &item, 1, (SIZE*)psizle);
-        }
+        Font font = _owningControl.TryGetTarget(out Control? target) ? target.Font : SystemFonts.DefaultFont;
+        size = TextRenderer.MeasureText(item.ToString(), font, TextRenderer.MaxSize, TextFormatFlags.SingleLine);
+        return true;
     }
 }

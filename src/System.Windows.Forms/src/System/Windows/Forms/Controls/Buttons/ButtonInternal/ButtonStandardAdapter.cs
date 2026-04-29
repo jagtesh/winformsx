@@ -83,7 +83,7 @@ internal class ButtonStandardAdapter : ButtonBaseAdapter
                 hdc.FillRectangle(
                     bounds,
                     isHighContrastHighlighted
-                        ? PInvoke.GetSysColorBrush(SYS_COLOR_INDEX.COLOR_HIGHLIGHT)
+                        ? Platform.PlatformApi.Gdi.GetSysColorBrush(SYS_COLOR_INDEX.COLOR_HIGHLIGHT)
                         : Control.BackColorBrush);
             }
         }

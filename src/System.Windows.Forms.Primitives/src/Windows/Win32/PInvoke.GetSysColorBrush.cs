@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Drawing;
+using System.Windows.Forms.Platform;
 
 namespace Windows.Win32;
 
@@ -17,12 +18,12 @@ internal static partial class PInvoke
         if (useSolidBrush)
         {
             // We don't have a real system color, so we'll just create a solid brush.
-            return CreateSolidBrush(systemColor);
+            return PlatformApi.Gdi.CreateSolidBrush((COLORREF)(uint)ColorTranslator.ToWin32(systemColor));
         }
 
         Debug.Assert(systemColor.IsSystemColor);
 
         // Extract the COLOR value
-        return GetSysColorBrush((SYS_COLOR_INDEX)(ColorTranslator.ToOle(systemColor) & 0xFF));
+        return PlatformApi.Gdi.GetSysColorBrush((SYS_COLOR_INDEX)(ColorTranslator.ToOle(systemColor) & 0xFF));
     }
 }

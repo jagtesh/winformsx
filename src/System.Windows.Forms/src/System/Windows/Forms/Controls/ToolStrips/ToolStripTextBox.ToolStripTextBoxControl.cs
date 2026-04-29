@@ -112,24 +112,10 @@ public partial class ToolStripTextBox
                 return;
             }
 
-            var absoluteClientRectangle = AbsoluteClientRECT;
-
-            // Get the total client area, then exclude the client by using XOR
-            using RegionScope hTotalRegion = new(0, 0, Width, Height);
-            using RegionScope hClientRegion = new(
-                absoluteClientRectangle.left,
-                absoluteClientRectangle.top,
-                absoluteClientRectangle.right,
-                absoluteClientRectangle.bottom);
-            using RegionScope hNonClientRegion = new(0, 0, 0, 0);
-
-            PInvoke.CombineRgn(hNonClientRegion, hTotalRegion, hClientRegion, RGN_COMBINE_MODE.RGN_XOR);
-
-            // Call RedrawWindow with the region.
             PInvoke.RedrawWindow(
                 this,
                 lprcUpdate: null,
-                hNonClientRegion,
+                HRGN.Null,
                 REDRAW_WINDOW_FLAGS.RDW_INVALIDATE | REDRAW_WINDOW_FLAGS.RDW_ERASE | REDRAW_WINDOW_FLAGS.RDW_UPDATENOW
                     | REDRAW_WINDOW_FLAGS.RDW_ERASENOW | REDRAW_WINDOW_FLAGS.RDW_FRAME);
         }

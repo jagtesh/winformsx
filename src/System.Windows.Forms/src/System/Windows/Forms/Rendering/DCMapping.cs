@@ -30,81 +30,11 @@ internal readonly struct DCMapping : IDisposable
     {
         ArgumentNullException.ThrowIfNull(hdc);
 
-        _hdc = hdc;
-        _savedState = PInvoke.SaveDC(hdc);
-
-        // Retrieve the x-coordinates and y-coordinates of the viewport origin for the specified device context.
-        Point viewportOrg = default;
-        bool success = PInvoke.GetViewportOrgEx(hdc, &viewportOrg);
-        Debug.Assert(success, "GetViewportOrgEx() failed.");
-
-        // Create a new rectangular clipping region based off of the bounds specified, shifted over by the x & y specified in the viewport origin.
-        RegionScope clippingRegion = new(
-            viewportOrg.X + bounds.Left,
-            viewportOrg.Y + bounds.Top,
-            viewportOrg.X + bounds.Right,
-            viewportOrg.Y + bounds.Bottom);
-        Debug.Assert(!clippingRegion.IsNull, "CreateRectRgn() failed.");
-
-        try
-        {
-            RegionScope originalRegion = new(hdc);
-
-            // Shift the viewpoint origin by coordinates specified in "bounds".
-            success = PInvoke.SetViewportOrgEx(
-                hdc,
-                viewportOrg.X + bounds.Left,
-                viewportOrg.Y + bounds.Top,
-                lppt: null);
-            Debug.Assert(success, "SetViewportOrgEx() failed.");
-
-            GDI_REGION_TYPE originalRegionType;
-            if (!originalRegion.IsNull)
-            {
-                // Get the original clipping region so we can determine its type (we'll check later if we've restored the region back properly.)
-                RECT originalClipRect = default;
-                originalRegionType = PInvoke.GetRgnBox(originalRegion, &originalClipRect);
-                Debug.Assert(
-                    originalRegionType != GDI_REGION_TYPE.RGN_ERROR,
-                    "ERROR returned from SelectClipRgn while selecting the original clipping region..");
-
-                if (originalRegionType == GDI_REGION_TYPE.SIMPLEREGION)
-                {
-                    // Find the intersection of our clipping region and the current clipping region (our parent's)
-
-                    GDI_REGION_TYPE combineResult = PInvoke.CombineRgn(
-                        clippingRegion,
-                        clippingRegion,
-                        originalRegion,
-                        RGN_COMBINE_MODE.RGN_AND);
-
-                    Debug.Assert(
-                        combineResult is GDI_REGION_TYPE.SIMPLEREGION or GDI_REGION_TYPE.NULLREGION,
-                        "SIMPLEREGION or NULLREGION expected.");
-                }
-            }
-            else
-            {
-                // If there was no clipping region, then the result is a simple region.
-                originalRegionType = GDI_REGION_TYPE.SIMPLEREGION;
-            }
-
-            // Select the new clipping region; make sure it's a SIMPLEREGION or NULLREGION
-            GDI_REGION_TYPE selectResult = PInvoke.SelectClipRgn(hdc, clippingRegion);
-            Debug.Assert(
-                selectResult is GDI_REGION_TYPE.SIMPLEREGION or GDI_REGION_TYPE.NULLREGION,
-                "SIMPLEREGION or NULLLREGION expected.");
-        }
-        catch (Exception ex) when (!ex.IsCriticalException())
-        {
-        }
+        _hdc = default;
+        _savedState = 0;
     }
 
     public void Dispose()
     {
-        if (!_hdc.IsNull)
-        {
-            PInvoke.RestoreDC(_hdc, _savedState);
-        }
     }
 }

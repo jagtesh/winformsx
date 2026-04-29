@@ -1,6 +1,8 @@
 ﻿// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using System.Windows.Forms.Platform;
+
 namespace Windows.Win32.Graphics.Gdi;
 
 /// <summary>
@@ -24,16 +26,16 @@ internal readonly ref struct SelectPaletteScope
     public SelectPaletteScope(HDC hdc, HPALETTE hpalette, bool forceBackground, bool realizePalette)
     {
         HDC = hdc;
-        HPALETTE = PInvoke.SelectPalette(hdc, hpalette, forceBackground);
+        HPALETTE = PlatformApi.Gdi.SelectPalette(hdc, hpalette, forceBackground);
         if (!HPALETTE.IsNull && realizePalette)
         {
-            PInvoke.RealizePalette(hdc);
+            PlatformApi.Gdi.RealizePalette(hdc);
         }
     }
 
     public static SelectPaletteScope HalftonePalette(HDC hdc, bool forceBackground, bool realizePalette)
     {
-        if (PInvokeCore.GetDeviceCaps(hdc, GET_DEVICE_CAPS_INDEX.BITSPIXEL) > 8)
+        if (PlatformApi.Gdi.GetDeviceCaps(hdc, GET_DEVICE_CAPS_INDEX.BITSPIXEL) > 8)
         {
             // https://docs.microsoft.com/windows/win32/api/Gdiplusgraphics/nf-gdiplusgraphics-graphics-gethalftonepalette
             // The purpose of the Graphics::GetHalftonePalette method is to enable GDI+ to produce a better
@@ -62,7 +64,7 @@ internal readonly ref struct SelectPaletteScope
     {
         if (!HPALETTE.IsNull)
         {
-            PInvoke.SelectPalette(HDC, HPALETTE, bForceBkgd: false);
+            PlatformApi.Gdi.SelectPalette(HDC, HPALETTE, bForceBkgd: false);
         }
 
         DisposalTracking.SuppressFinalize(this);

@@ -6,7 +6,7 @@ using System.Drawing;
 namespace System.Windows.Forms;
 
 /// <summary>
-///  Cache of GDI objects to reuse commonly created items.
+///  Cache of PAL-shaped drawing objects to reuse commonly created items.
 /// </summary>
 internal static partial class GdiCache
 {
@@ -49,29 +49,7 @@ internal static partial class GdiCache
     public static ScreenGraphicsScope GetScreenDCGraphics()
     {
         ScreenDcCache.ScreenDcScope scope = GetScreenHdc();
-
-        try
-        {
-            return new ScreenGraphicsScope(ref scope);
-        }
-        catch (OutOfMemoryException)
-        {
-            // GDI+ throws OOM if it can't confirm a valid HDC. We'll throw a more meaningful error here
-            // for easier diagnosis.
-            ArgumentValidation.ThrowIfNull(scope.HDC, "hdc");
-
-            OBJ_TYPE type = (OBJ_TYPE)PInvoke.GetObjectType(scope.HDC);
-            if (type is OBJ_TYPE.OBJ_DC
-                or OBJ_TYPE.OBJ_ENHMETADC
-                or OBJ_TYPE.OBJ_MEMDC
-                or OBJ_TYPE.OBJ_METADC)
-            {
-                // Not sure what is wrong in this case, throw the original.
-                throw;
-            }
-
-            throw new InvalidOperationException(string.Format(SR.InvalidHdcType, type));
-        }
+        return new ScreenGraphicsScope(ref scope);
     }
 
     /// <summary>
@@ -100,13 +78,6 @@ internal static partial class GdiCache
 
     public static FontCache.Scope GetHFONT(Font? font, FONT_QUALITY quality, HDC hdc)
     {
-        if (font is not null)
-        {
-            return GetHFONT(font, quality);
-        }
-
-        // Font is null, build off of the specified HDC's current font.
-        HFONT hfont = (HFONT)PInvoke.GetCurrentObject(hdc, OBJ_TYPE.OBJ_FONT);
-        return new FontCache.Scope(hfont);
+        return GetHFONT(font ?? SystemFonts.DefaultFont, quality);
     }
 }

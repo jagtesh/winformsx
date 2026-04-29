@@ -110,8 +110,7 @@ internal abstract class CheckBoxBaseAdapter : CheckableControlBaseAdapter
 
         using CreateBrushScope hbrush = new(color);
 
-        RECT rect = bounds;
-        PInvoke.FillRect(hdc, rect, hbrush);
+        hdc.FillRectangle(bounds, hbrush);
     }
 
     protected void DrawCheckBackground(

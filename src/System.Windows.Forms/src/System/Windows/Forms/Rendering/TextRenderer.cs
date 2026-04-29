@@ -7,7 +7,7 @@ using System.Drawing.Text;
 namespace System.Windows.Forms;
 
 /// <summary>
-///  This class provides API for drawing GDI text.
+///  This class provides API-compatible text drawing through the active rendering backend.
 /// </summary>
 public static class TextRenderer
 {
@@ -301,20 +301,17 @@ public static class TextRenderer
         if (text.IsEmpty || foreColor == Color.Transparent)
             return;
 
-        // Impeller path: route text through Graphics.DrawString instead of native GDI.
-        // Graphics.IsBackendActive indicates our Impeller IRenderingBackend is driving rendering.
-        if (dc is Graphics g && Graphics.IsBackendActive)
+        if (dc is Graphics g)
         {
             DrawTextViaGraphics(g, text, font, bounds, foreColor, backColor, flags);
             return;
         }
 
-        // This MUST come before retrieving the HDC, which locks the Graphics object
-        FONT_QUALITY quality = FontQualityFromTextRenderingHint(dc);
-
-        using DeviceContextHdcScope hdc = dc.ToHdcScope(GetApplyStateFlags(dc, flags));
-
-        DrawTextInternal(hdc, text, font, bounds, foreColor, quality, backColor, flags);
+        Graphics? graphics = dc.TryGetGraphics(create: true);
+        if (graphics is not null)
+        {
+            DrawTextViaGraphics(graphics, text, font, bounds, foreColor, backColor, flags);
+        }
     }
 
     /// <summary>
@@ -394,28 +391,10 @@ public static class TextRenderer
         Color backColor,
         TextFormatFlags flags = TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter)
     {
-        // Impeller path: route through Graphics.DrawString
-        if (Graphics.IsBackendActive)
-        {
-            if (string.IsNullOrEmpty(text) || foreColor == Color.Transparent)
-                return;
-            DrawTextViaGraphics(e.Graphics, text, font, bounds, foreColor, backColor, flags);
+        if (string.IsNullOrEmpty(text) || foreColor == Color.Transparent)
             return;
-        }
 
-        HDC hdc = e.HDC;
-        if (hdc.IsNull)
-        {
-            // This MUST come before retrieving the HDC, which locks the Graphics object
-            FONT_QUALITY quality = FontQualityFromTextRenderingHint(e.GraphicsInternal);
-
-            using DeviceContextHdcScope graphicsHdc = new(e.GraphicsInternal, applyGraphicsState: false);
-            DrawTextInternal(graphicsHdc, text, font, bounds, foreColor, quality, backColor, flags);
-        }
-        else
-        {
-            DrawTextInternal(hdc, text, font, bounds, foreColor, DefaultQuality, backColor, flags);
-        }
+        DrawTextViaGraphics(e.Graphics, text, font, bounds, foreColor, backColor, flags);
     }
 
     internal static void DrawTextInternal(
@@ -438,8 +417,13 @@ public static class TextRenderer
         Color backColor,
         TextFormatFlags flags)
     {
-        using var hfont = GdiCache.GetHFONT(font, fontQuality, hdc);
-        hdc.DrawText(text, hfont, bounds, foreColor, flags, backColor);
+        if (text.IsEmpty || foreColor == Color.Transparent)
+        {
+            return;
+        }
+
+        using Graphics graphics = Graphics.FromHdcInternal((IntPtr)hdc);
+        DrawTextViaGraphics(graphics, text, font, bounds, foreColor, backColor, flags);
     }
 
     private static TextFormatFlags BlockModifyString(TextFormatFlags flags)
@@ -593,16 +577,7 @@ public static class TextRenderer
         if (text.IsEmpty)
             return Size.Empty;
 
-        // Impeller path: use Graphics.MeasureString via the backend
-        if (Graphics.IsBackendActive)
-        {
-            return MeasureTextViaGraphics(text, font ?? SystemFonts.DefaultFont, proposedSize, flags);
-        }
-
-        using var screen = GdiCache.GetScreenHdc();
-        using var hfont = GdiCache.GetHFONT(font, FONT_QUALITY.DEFAULT_QUALITY, screen);
-
-        return screen.HDC.MeasureText(text, hfont, proposedSize, flags);
+        return MeasureTextViaGraphics(text, font ?? SystemFonts.DefaultFont, proposedSize, flags);
     }
 
     private static Size MeasureTextInternal(
@@ -617,20 +592,7 @@ public static class TextRenderer
         if (text.IsEmpty)
             return Size.Empty;
 
-        // Impeller path: use Graphics.MeasureString
-        if (Graphics.IsBackendActive)
-        {
-            return MeasureTextViaGraphics(text, font ?? SystemFonts.DefaultFont, proposedSize, flags);
-        }
-
-        // This MUST come before retrieving the HDC, which locks the Graphics object
-        FONT_QUALITY quality = FontQualityFromTextRenderingHint(dc);
-
-        // Applying state may not impact text size measurements. Rather than risk missing some
-        // case we'll apply as we have historically to avoid surprise regressions.
-        using DeviceContextHdcScope hdc = dc.ToHdcScope(GetApplyStateFlags(dc, flags));
-        using var hfont = GdiCache.GetHFONT(font, quality, hdc);
-        return hdc.HDC.MeasureText(text, hfont, proposedSize, flags);
+        return MeasureTextViaGraphics(text, font ?? SystemFonts.DefaultFont, proposedSize, flags);
     }
 
     /// <summary>
@@ -638,11 +600,6 @@ public static class TextRenderer
     /// </summary>
     private static Size MeasureTextViaGraphics(ReadOnlySpan<char> text, Font font, Size proposedSize, TextFormatFlags flags)
     {
-        if (!OperatingSystem.IsWindows())
-        {
-            return MeasureTextManaged(text, font, proposedSize, flags);
-        }
-
         Graphics? g;
         try
         {
@@ -812,11 +769,6 @@ public static class TextRenderer
             // Note that there aren't flags for other transforms. Windows 9x doesn't support HDC transforms outside of
             // translation (rotation for example), and this likely impacted the decision to only have a translation
             // flag when this was originally written.
-
-            Debug.Assert(apply.HasFlag(ApplyGraphicsProperties.Clipping)
-               || graphics.Clip is null
-               || graphics.Clip.GetHrgn(graphics) == IntPtr.Zero,
-               "Must preserve Graphics clipping region!");
 
             Debug.Assert(apply.HasFlag(ApplyGraphicsProperties.TranslateTransform)
                || graphics.Transform is null

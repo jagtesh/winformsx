@@ -452,19 +452,8 @@ public abstract partial class TextBoxBase
 
             Debug.Assert(Owner.IsHandleCreated);
 
-            size = default;
-
-            using GetDcScope hdc = new(Owner.HWND);
-            if (hdc.IsNull)
-            {
-                return false;
-            }
-
-            fixed (void* pSize = &size)
-            {
-                // Add the width of the character at that position.
-                return PInvoke.GetTextExtentPoint32W(hdc, &item, 1, (SIZE*)pSize);
-            }
+            size = TextRenderer.MeasureText(item.ToString(), Owner.Font, TextRenderer.MaxSize, TextFormatFlags.SingleLine);
+            return true;
         }
     }
 }

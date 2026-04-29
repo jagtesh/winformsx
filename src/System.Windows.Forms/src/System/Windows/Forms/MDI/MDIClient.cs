@@ -281,38 +281,7 @@ public sealed partial class MdiClient : Control
     /// </summary>
     private void SetWindowRgn()
     {
-        RECT rect = default;
-        CreateParams cp = CreateParams;
-
-        AdjustWindowRectExForControlDpi(ref rect, (WINDOW_STYLE)cp.Style, false, (WINDOW_EX_STYLE)cp.ExStyle);
-
-        Rectangle bounds = Bounds;
-        using RegionScope rgn1 = new(0, 0, bounds.Width, bounds.Height);
-        using RegionScope rgn2 = new(
-            -rect.left,
-            -rect.top,
-            bounds.Width - rect.right,
-            bounds.Height - rect.bottom);
-
-        if (rgn1.IsNull || rgn2.IsNull)
-        {
-            throw new InvalidOperationException(SR.ErrorSettingWindowRegion);
-        }
-
-        if (PInvoke.CombineRgn(rgn1, rgn1, rgn2, RGN_COMBINE_MODE.RGN_DIFF) == GDI_REGION_TYPE.RGN_ERROR)
-        {
-            throw new InvalidOperationException(SR.ErrorSettingWindowRegion);
-        }
-
-        if (PInvoke.SetWindowRgn(this, rgn1, true) == 0)
-        {
-            throw new InvalidOperationException(SR.ErrorSettingWindowRegion);
-        }
-        else
-        {
-            // The hwnd now owns the region.
-            rgn1.RelinquishOwnership();
-        }
+        Invalidate();
     }
 
     internal override bool ShouldSerializeBackColor() => BackColor != SystemColors.AppWorkspace;

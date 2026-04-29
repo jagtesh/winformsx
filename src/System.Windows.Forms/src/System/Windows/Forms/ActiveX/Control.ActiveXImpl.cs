@@ -427,71 +427,14 @@ public partial class Control
                     return HRESULT.DV_E_DVASPECT;
             }
 
-            // We can paint to an enhanced metafile, but not all GDI / GDI+ is
-            // supported on classic metafiles.  We throw VIEW_E_DRAW in the hope that
-            // the caller figures it out and sends us a different DC.
-
-            OBJ_TYPE hdcType = (OBJ_TYPE)PInvoke.GetObjectType(hdcDraw);
-            if (hdcType == OBJ_TYPE.OBJ_METADC)
-            {
-                return HRESULT.VIEW_E_DRAW;
-            }
-
-            Point pVp = default;
-            Point pW = default;
-            Size sWindowExt = default;
-            Size sViewportExt = default;
-            HDC_MAP_MODE iMode = HDC_MAP_MODE.MM_TEXT;
-
             if (!_control.IsHandleCreated)
             {
                 _control.CreateHandle();
             }
 
-            // If they didn't give us a rectangle, just copy over ours.
-            if (prcBounds is not null)
-            {
-                RECT rc = *prcBounds;
-
-                // To draw to a given rect, we scale the DC in such a way as to make the values it takes match our
-                // own happy MM_TEXT. Then, we back-convert prcBounds so that we convert it to this coordinate
-                // system. This puts us in the most similar coordinates as we currently use.
-                Point p1 = new(rc.left, rc.top);
-                Point p2 = new(rc.right - rc.left, rc.bottom - rc.top);
-                PInvoke.LPtoDP(hdcDraw, [p1, p2]);
-
-                iMode = (HDC_MAP_MODE)PInvoke.SetMapMode(hdcDraw, HDC_MAP_MODE.MM_ANISOTROPIC);
-                PInvoke.SetWindowOrgEx(hdcDraw, 0, 0, &pW);
-                PInvoke.SetWindowExtEx(hdcDraw, _control.Width, _control.Height, (SIZE*)&sWindowExt);
-                PInvoke.SetViewportOrgEx(hdcDraw, p1.X, p1.Y, &pVp);
-                PInvoke.SetViewportExtEx(hdcDraw, p2.X, p2.Y, (SIZE*)&sViewportExt);
-            }
-
             // Now do the actual drawing.  We must ask all of our children to draw as well.
-            try
-            {
-                nint flags = PInvoke.PRF_CHILDREN | PInvoke.PRF_CLIENT | PInvoke.PRF_ERASEBKGND | PInvoke.PRF_NONCLIENT;
-                if (hdcType != OBJ_TYPE.OBJ_ENHMETADC)
-                {
-                    PInvoke.SendMessage(_control, PInvoke.WM_PRINT, (WPARAM)hdcDraw, (LPARAM)flags);
-                }
-                else
-                {
-                    _control.PrintToMetaFile(hdcDraw, flags);
-                }
-            }
-            finally
-            {
-                // And clean up the DC
-                if (prcBounds is not null)
-                {
-                    PInvoke.SetWindowOrgEx(hdcDraw, pW.X, pW.Y, lppt: null);
-                    PInvoke.SetWindowExtEx(hdcDraw, sWindowExt.Width, sWindowExt.Height, lpsz: null);
-                    PInvoke.SetViewportOrgEx(hdcDraw, pVp.X, pVp.Y, lppt: null);
-                    PInvoke.SetViewportExtEx(hdcDraw, sViewportExt.Width, sViewportExt.Height, lpsz: null);
-                    PInvoke.SetMapMode(hdcDraw, iMode);
-                }
-            }
+            nint flags = PInvoke.PRF_CHILDREN | PInvoke.PRF_CLIENT | PInvoke.PRF_ERASEBKGND | PInvoke.PRF_NONCLIENT;
+            PInvoke.SendMessage(_control, PInvoke.WM_PRINT, (WPARAM)hdcDraw, (LPARAM)flags);
 
             return HRESULT.S_OK;
         }

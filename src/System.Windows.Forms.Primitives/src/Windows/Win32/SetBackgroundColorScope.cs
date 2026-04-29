@@ -1,6 +1,8 @@
 ﻿// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using System.Windows.Forms.Platform;
+
 namespace Windows.Win32.Graphics.Gdi;
 
 /// <summary>
@@ -19,12 +21,11 @@ internal readonly ref struct SetBackgroundColorScope
     private readonly HDC _hdc;
 
     /// <summary>
-    ///  Sets text color <paramref name="color"/> in the given <paramref name="hdc"/> using
-    ///  <see cref="PInvoke.SetBkColor(HDC, COLORREF)"/>.
+    ///  Sets background color <paramref name="color"/> in the given <paramref name="hdc"/> using the PAL.
     /// </summary>
     public SetBackgroundColorScope(HDC hdc, COLORREF color)
     {
-        _previousColor = PInvoke.SetBkColor(hdc, color);
+        _previousColor = PlatformApi.Gdi.SetBkColor(hdc, color);
 
         // If we didn't actually change the color, don't keep the HDC so we skip putting back the same state.
         _hdc = color == _previousColor ? default : hdc;
@@ -34,7 +35,7 @@ internal readonly ref struct SetBackgroundColorScope
     {
         if (!_hdc.IsNull)
         {
-            PInvoke.SetBkColor(_hdc, _previousColor);
+            PlatformApi.Gdi.SetBkColor(_hdc, _previousColor);
         }
     }
 }

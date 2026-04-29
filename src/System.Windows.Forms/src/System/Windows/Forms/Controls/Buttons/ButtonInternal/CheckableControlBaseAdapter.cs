@@ -21,19 +21,7 @@ internal abstract class CheckableControlBaseAdapter : ButtonBaseAdapter
 
     internal override Size GetPreferredSizeCore(Size proposedSize)
     {
-        if (!OperatingSystem.IsWindows() || Graphics.IsBackendActive || Appearance == Appearance.Button)
-        {
-            return ButtonAdapter.GetPreferredSizeCore(proposedSize);
-        }
-
-        LayoutOptions? options = default;
-        using (var screen = GdiCache.GetScreenHdc())
-        using (PaintEventArgs pe = new(screen, clipRect: default))
-        {
-            options = Layout(pe);
-        }
-
-        return options.GetPreferredSizeCore(proposedSize);
+        return ButtonAdapter.GetPreferredSizeCore(proposedSize);
     }
 
     protected abstract ButtonBaseAdapter CreateButtonAdapter();

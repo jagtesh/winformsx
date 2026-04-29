@@ -1060,7 +1060,7 @@ public partial class Label : Control, IAutomationLiveRegion
         return base.GetPreferredSize(proposedSize);
     }
 
-    internal virtual bool UseGDIMeasuring() => (FlatStyle == FlatStyle.System || !UseCompatibleTextRendering);
+    internal virtual bool UseGDIMeasuring() => true;
 
     // See ComboBox.cs GetComboHeight
     internal override Size GetPreferredSizeCore(Size proposedConstraints)
@@ -1078,28 +1078,14 @@ public partial class Label : Control, IAutomationLiveRegion
         if (string.IsNullOrEmpty(Text))
         {
             // Empty labels return the font height + borders
-            using var hfont = GdiCache.GetHFONT(Font);
-            using var screen = GdiCache.GetScreenHdc();
-
             // This is the character that Windows uses to determine the extent
-            requiredSize = screen.HDC.GetTextExtent("0", hfont);
+            requiredSize = TextRenderer.MeasureText("0", Font, proposedConstraints, TextFormatFlags.SingleLine);
             requiredSize.Width = 0;
-        }
-        else if (UseGDIMeasuring())
-        {
-            TextFormatFlags format = FlatStyle == FlatStyle.System ? TextFormatFlags.Default : CreateTextFormatFlags(proposedConstraints);
-            requiredSize = MeasureTextCache.GetTextSize(Text, Font, proposedConstraints, format);
         }
         else
         {
-            // GDI+ rendering.
-            using var screen = GdiCache.GetScreenDCGraphics();
-            using StringFormat stringFormat = CreateStringFormat();
-            SizeF bounds = (proposedConstraints.Width == 1) ?
-                new SizeF(0, proposedConstraints.Height) :
-                new SizeF(proposedConstraints.Width, proposedConstraints.Height);
-
-            requiredSize = Size.Ceiling(screen.Graphics.MeasureString(Text, Font, bounds, stringFormat));
+            TextFormatFlags format = FlatStyle == FlatStyle.System ? TextFormatFlags.Default : CreateTextFormatFlags(proposedConstraints);
+            requiredSize = MeasureTextCache.GetTextSize(Text, Font, proposedConstraints, format);
         }
 
         requiredSize += bordersAndPadding;

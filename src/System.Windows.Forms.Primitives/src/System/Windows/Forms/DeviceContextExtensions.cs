@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Drawing;
+using System.Windows.Forms.Platform;
 
 namespace System.Windows.Forms;
 
@@ -34,7 +35,7 @@ internal static partial class DeviceContextExtensions
         using SetRop2Scope ropScope = new(hdc, R2_MODE.R2_COPYPEN);
         using SelectObjectScope brushScope = new(hdc, PInvokeCore.GetStockObject(GET_STOCK_OBJECT_FLAGS.NULL_BRUSH));
 
-        PInvoke.Rectangle(hdc, left, top, right, bottom);
+        PlatformApi.Gdi.Rectangle(hdc, left, top, right, bottom);
     }
 
     internal static void FillRectangle(this DeviceContextHdcScope hdc, Rectangle rectangle, HBRUSH hbrush) =>
@@ -44,7 +45,7 @@ internal static partial class DeviceContextExtensions
     {
         Debug.Assert(!hbrush.IsNull);
         RECT rect = rectangle;
-        PInvoke.FillRect(
+        PlatformApi.Gdi.FillRect(
             hdc,
             rect,
             hbrush);
@@ -89,18 +90,17 @@ internal static partial class DeviceContextExtensions
 
         for (int i = 0; i < lines.Length; i += 4)
         {
-            PInvoke.MoveToEx(hdc, lines[i], lines[i + 1], &oldPoint);
-            PInvoke.LineTo(hdc, lines[i + 2], lines[i + 3]);
-            PInvoke.MoveToEx(hdc, oldPoint.X, oldPoint.Y, lppt: null);
+            PlatformApi.Gdi.MoveToEx(hdc, lines[i], lines[i + 1], &oldPoint);
+            PlatformApi.Gdi.LineTo(hdc, lines[i + 2], lines[i + 3]);
+            PlatformApi.Gdi.MoveToEx(hdc, oldPoint.X, oldPoint.Y, lppt: null);
         }
     }
 
     internal static Color FindNearestColor(this DeviceContextHdcScope hdc, Color color) => FindNearestColor(hdc.HDC, color);
 
     /// <summary>
-    ///  Calls <see cref="PInvoke.GetNearestColor(HDC, COLORREF)"/> to get the nearest color for the given
-    ///  <paramref name="color"/>. Returns the original color if the color didn't actually change, retaining
-    ///  the state of the color.
+    ///  Returns the given <paramref name="color"/> unchanged. Impeller renders full-color output and does not
+    ///  quantize colors through a native display palette.
     /// </summary>
     /// <remarks>
     ///  <para>
@@ -114,11 +114,7 @@ internal static partial class DeviceContextExtensions
     ///   expected normal case (more than 8 BITSPIXEL for the HDC).
     ///  </para>
     /// </remarks>
-    internal static Color FindNearestColor(this HDC hdc, Color color)
-    {
-        Color newColor = ColorTranslator.FromWin32((int)PInvoke.GetNearestColor(hdc, (COLORREF)(uint)ColorTranslator.ToWin32(color)).Value);
-        return newColor.ToArgb() == color.ToArgb() ? color : newColor;
-    }
+    internal static Color FindNearestColor(this HDC hdc, Color color) => color;
 
     internal static Graphics CreateGraphics(this HDC hdc) => Graphics.FromHdcInternal(hdc);
     internal static Graphics CreateGraphics(this CreateDcScope hdc) => Graphics.FromHdcInternal(hdc.HDC);
@@ -143,7 +139,7 @@ internal static partial class DeviceContextExtensions
         using var penSelection = pen.IsNull ? default : new SelectObjectScope(hdc, (HGDIOBJ)pen.Value);
         using var brushSelection = brush.IsNull ? default : new SelectObjectScope(hdc, (HGDIOBJ)brush.Value);
 
-        PInvoke.Ellipse(hdc, left, top, right, bottom);
+        PlatformApi.Gdi.Ellipse(hdc, left, top, right, bottom);
     }
 
     internal static void FillRectangle(this GetDcScope hdc, HBRUSH hbrush, Rectangle rectangle) =>
@@ -153,7 +149,7 @@ internal static partial class DeviceContextExtensions
     {
         Debug.Assert(!hbrush.IsNull, "HBRUSH is null");
         RECT rect = rectangle;
-        PInvoke.FillRect(
+        PlatformApi.Gdi.FillRect(
             hdc,
             rect,
             hbrush);

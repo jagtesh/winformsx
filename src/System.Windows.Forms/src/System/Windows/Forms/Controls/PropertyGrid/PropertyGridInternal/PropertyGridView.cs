@@ -3705,37 +3705,26 @@ internal sealed partial class PropertyGridView :
             object[] rgItems = gridEntry.GetPropertyValueList();
             int maxWidth = 0;
 
-            // The listbox draws with GDI, not GDI+.  So we use a normal DC here.
-
-            using GetDcScope hdc = new(DropDownListBox.HWND);
-
-            TEXTMETRICW tm = default;
             int selectionIndex = -1;
+            int textHeight = Font.Height;
+            int maxCharWidth = Math.Max(1, textHeight);
 
-            // This creates a copy of the given Font, and as such we need to delete it
-            var hFont = (HFONT)Font.ToHfont();
-            using (ObjectScope fontScope = new(hFont))
+            selectionIndex = GetCurrentValueIndex(gridEntry);
+            if (rgItems is not null && rgItems.Length > 0)
             {
-                using SelectObjectScope fontSelection = new(hdc, hFont);
-
-                selectionIndex = GetCurrentValueIndex(gridEntry);
-                if (rgItems is not null && rgItems.Length > 0)
+                for (int i = 0; i < rgItems.Length; i++)
                 {
-                    for (int i = 0; i < rgItems.Length; i++)
-                    {
-                        Size textSize = default;
-                        string value = gridEntry.GetPropertyTextValue(rgItems[i]);
-                        DropDownListBox.Items.Add(value);
-                        PInvoke.GetTextExtentPoint32W(hdc.HDC, value, value.Length, textSize);
-                        maxWidth = Math.Max(textSize.Width, maxWidth);
-                    }
+                    string value = gridEntry.GetPropertyTextValue(rgItems[i]);
+                    DropDownListBox.Items.Add(value);
+                    Size textSize = TextRenderer.MeasureText(value, Font, TextRenderer.MaxSize, TextFormatFlags.SingleLine);
+                    maxWidth = Math.Max(textSize.Width, maxWidth);
+                    textHeight = Math.Max(textHeight, textSize.Height);
+                    maxCharWidth = Math.Max(maxCharWidth, Math.Max(1, textSize.Width / Math.Max(1, value.Length)));
                 }
-
-                PInvoke.GetTextMetrics(hdc, &tm);
-
-                // border + padding + scrollbar
-                maxWidth += 2 + tm.tmMaxCharWidth + SystemInformation.VerticalScrollBarWidth;
             }
+
+            // border + padding + scrollbar
+            maxWidth += 2 + maxCharWidth + SystemInformation.VerticalScrollBarWidth;
 
             if (selectionIndex != -1)
             {
@@ -3743,7 +3732,7 @@ internal sealed partial class PropertyGridView :
             }
 
             SetFlag(Flags.DropDownCommit, false);
-            DropDownListBox.Height = Math.Max(tm.tmHeight + 2, Math.Min(_maxListBoxHeight, DropDownListBox.PreferredHeight));
+            DropDownListBox.Height = Math.Max(textHeight + 2, Math.Min(_maxListBoxHeight, DropDownListBox.PreferredHeight));
             DropDownListBox.Width = Math.Max(maxWidth, GetRectangle(row, RowValue).Width);
             try
             {

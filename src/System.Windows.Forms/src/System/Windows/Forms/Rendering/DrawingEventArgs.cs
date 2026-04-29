@@ -50,17 +50,6 @@ internal partial class DrawingEventArgs
     {
         ArgumentValidation.ThrowIfNull(dc);
 
-#if DEBUG
-        if (!Graphics.IsBackendActive)
-        {
-            OBJ_TYPE type = (OBJ_TYPE)PInvoke.GetObjectType(dc);
-            Debug.Assert(type is OBJ_TYPE.OBJ_DC
-                or OBJ_TYPE.OBJ_ENHMETADC
-                or OBJ_TYPE.OBJ_MEMDC
-                or OBJ_TYPE.OBJ_METADC);
-        }
-#endif
-
         _hdc = dc;
         _graphics = null;
         _oldPalette = default;
@@ -142,7 +131,7 @@ internal partial class DrawingEventArgs
 
         if (!_oldPalette.IsNull && !_hdc.IsNull)
         {
-            PInvoke.SelectPalette(_hdc, _oldPalette, bForceBkgd: false);
+            Platform.PlatformApi.Gdi.SelectPalette(_hdc, _oldPalette, bForceBkgd: false);
             _oldPalette = default;
         }
     }

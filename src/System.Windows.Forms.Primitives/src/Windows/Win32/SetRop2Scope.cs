@@ -1,6 +1,8 @@
 ﻿// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using System.Windows.Forms.Platform;
+
 namespace Windows.Win32.Graphics.Gdi;
 
 /// <summary>
@@ -23,11 +25,11 @@ internal readonly ref struct SetRop2Scope
     private readonly HDC _hdc;
 
     /// <summary>
-    ///  Selects <paramref name="rop2"/> into the given <paramref name="hdc"/> using <see cref="PInvoke.SetROP2(HDC, R2_MODE)"/>.
+    ///  Selects <paramref name="rop2"/> into the given <paramref name="hdc"/> using the PAL.
     /// </summary>
     public SetRop2Scope(HDC hdc, R2_MODE rop2)
     {
-        _previousRop = (R2_MODE)PInvoke.SetROP2(hdc, rop2);
+        _previousRop = (R2_MODE)PlatformApi.Gdi.SetROP2(hdc, rop2);
 
         // If we didn't actually change the ROP, don't keep the HDC so we skip putting back the same state.
         _hdc = _previousRop == rop2 ? default : hdc;
@@ -37,7 +39,7 @@ internal readonly ref struct SetRop2Scope
     {
         if (!_hdc.IsNull)
         {
-            PInvoke.SetROP2(_hdc, _previousRop);
+            PlatformApi.Gdi.SetROP2(_hdc, _previousRop);
         }
 
 #if DEBUG

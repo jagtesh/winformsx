@@ -1195,12 +1195,8 @@ public partial class MonthCalendar : Control
         // Calculate calendar height
         Size textExtent;
 
-        using (var hfont = GdiCache.GetHFONT(Font))
-        using (var screen = GdiCache.GetScreenHdc())
-        {
-            // this is the string that Windows uses to determine the extent of the today string
-            textExtent = screen.HDC.GetTextExtent(DateTime.Now.ToShortDateString(), hfont);
-        }
+        // This is the string that Windows uses to determine the extent of the today string.
+        textExtent = TextRenderer.MeasureText(DateTime.Now.ToShortDateString(), Font, TextRenderer.MaxSize, TextFormatFlags.SingleLine);
 
         int todayHeight = textExtent.Height + 4;  // The constant 4 is from the comctl32 MonthCalendar source code
         int calendarHeight = minSize.Height;

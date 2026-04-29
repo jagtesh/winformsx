@@ -1354,12 +1354,7 @@ public partial class LinkLabel : Label, IButtonControl
                 return;
             }
 
-            Color color;
-            using (DeviceContextHdcScope hdc = new(g, applyGraphicsState: false))
-            {
-                color = ColorTranslator.FromWin32(
-                    (int)PInvoke.GetNearestColor(hdc, (COLORREF)(uint)ColorTranslator.ToWin32(foreBrush.Color)).Value);
-            }
+            Color color = foreBrush.Color;
 
             Rectangle clientRectWithPadding = ClientRectWithPadding;
             TextRenderer.DrawText(

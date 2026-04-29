@@ -25,7 +25,7 @@ public static class GroupBoxRenderer
     public static bool RenderMatchingApplicationState { get; set; } = true;
 
     private static bool RenderWithVisualStyles
-        => (!RenderMatchingApplicationState || Application.RenderWithVisualStyles);
+        => VisualStyleRenderer.IsSupported && (!RenderMatchingApplicationState || Application.RenderWithVisualStyles);
 
     /// <summary>
     ///  Returns true if the background corresponding to the given state is partially transparent, else false.

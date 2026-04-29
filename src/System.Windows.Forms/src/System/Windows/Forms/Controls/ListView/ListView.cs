@@ -6068,7 +6068,9 @@ public partial class ListView : Control
             else if (nmlvcd->nmcd.dwDrawStage == NMCUSTOMDRAW_DRAW_STAGE.CDDS_ITEMPREPAINT)
             {
                 // Setting the current ForeColor to the text color.
-                PInvoke.SetTextColor(nmlvcd->nmcd.hdc, ForeColor);
+                Platform.PlatformApi.Gdi.SetTextColor(
+                    nmlvcd->nmcd.hdc,
+                    (COLORREF)(uint)ColorTranslator.ToWin32(ForeColor));
 
                 // and the rest remains the same.
                 m.ResultInternal = (LRESULT)(nint)PInvoke.CDRF_DODEFAULT;
@@ -6077,7 +6079,7 @@ public partial class ListView : Control
         }
 #pragma warning restore WFO5001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
 
-        if (nmhdr->code == PInvoke.NM_CUSTOMDRAW && OperatingSystem.IsWindows() && PInvoke.UiaClientsAreListening())
+        if (nmhdr->code == PInvoke.NM_CUSTOMDRAW && PInvoke.UiaClientsAreListening())
         {
             // Checking that mouse buttons are not pressed is necessary to avoid
             // multiple annotation of the column header when resizing the column with the mouse

@@ -106,40 +106,7 @@ public sealed partial class Application
 
     private static unsafe bool InitializeComCtlSupportsVisualStyles()
     {
-        if (UseVisualStyles)
-        {
-            // At this point, we may not have loaded ComCtl6 yet, but it will eventually be loaded,
-            // so we return true here. This works because UseVisualStyles, once set, cannot be
-            // turned off.
-            return true;
-        }
-
-        // To see if we are comctl6, we look for a function that is exposed only from comctl6
-        // we do not call DllGetVersion or any direct p/invoke, because the binding will be
-        // cached.
-        //
-        // GetModuleHandle  returns a handle to a mapped module without incrementing its
-        // reference count.
-        var hModule = PInvoke.GetModuleHandle(Libraries.Comctl32);
-        fixed (byte* ptr = "ImageList_WriteEx\0"u8)
-        {
-            if (!hModule.IsNull)
-            {
-                return PInvoke.GetProcAddress(hModule, (PCSTR)ptr) != 0;
-            }
-        }
-
-        // Load comctl since GetModuleHandle failed to find it
-        nint ninthModule = PInvoke.LoadComctl32(StartupPath);
-        if (ninthModule == 0)
-        {
-            return false;
-        }
-
-        fixed (byte* ptr = "ImageList_WriteEx\0"u8)
-        {
-            return PInvoke.GetProcAddress(hModule, (PCSTR)ptr) != 0;
-        }
+        return false;
     }
 
     /// <summary>
@@ -692,19 +659,10 @@ public sealed partial class Application
                 return VisualStyleState.NoneEnabled;
             }
 
-            VisualStyleState vState = (VisualStyleState)PInvoke.GetThemeAppProperties();
-            return vState;
+            return VisualStyleState.NoneEnabled;
         }
         set
         {
-            if (VisualStyleInformation.IsSupportedByOS)
-            {
-                PInvoke.SetThemeAppProperties((SET_THEME_APP_PROPERTIES_FLAGS)value);
-
-                // 248887 we need to send a WM_THEMECHANGED to the top level windows of this application.
-                // We do it this way to ensure that we get all top level windows -- whether we created them or not.
-                PInvoke.EnumWindows(SendThemeChanged);
-            }
         }
     }
 
@@ -936,8 +894,8 @@ public sealed partial class Application
     [UnconditionalSuppressMessage("SingleFile", "IL3002", Justification = "Single-file case is handled")]
     public static void EnableVisualStyles()
     {
-        // Impeller handles all visual styling — native activation contexts don't apply.
-        UseVisualStyles = true;
+        // Native activation contexts and comctl32 visual styles are not part of the Impeller backend.
+        UseVisualStyles = false;
         s_comCtlSupportsVisualStylesInitialized = false;
     }
 

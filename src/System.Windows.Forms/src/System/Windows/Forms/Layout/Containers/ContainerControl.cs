@@ -710,53 +710,8 @@ public class ContainerControl : ScrollableControl, IContainerControl
     /// </summary>
     private unsafe SizeF GetFontAutoScaleDimensions(HFONT fontHandle)
     {
-        if (!OperatingSystem.IsWindows())
-        {
-            return new SizeF(7F, 15F);
-        }
-
-        SizeF retval = SizeF.Empty;
-
-        // Windows uses CreateCompatibleDC(NULL) to get a memory DC for
-        // the monitor the application is currently on.
-
-        using CreateDcScope dc = new(default);
-        if (dc.IsNull)
-        {
-            throw new Win32Exception();
-        }
-
-        // We clone the Windows scaling function here as closely as
-        // possible. They use textmetric for height, and textmetric
-        // for width of fixed width fonts. For variable width fonts
-        // they use GetTextExtentPoint32 and pass in a long a-Z string.
-        // We must do the same here if our dialogs are to scale in a
-        // similar fashion.
-
-        using SelectObjectScope fontSelection = new(dc, fontHandle);
-
-        TEXTMETRICW tm = default;
-        PInvoke.GetTextMetrics(dc, &tm);
-
-        retval.Height = tm.tmHeight;
-
-        if ((tm.tmPitchAndFamily & TMPF_FLAGS.TMPF_FIXED_PITCH) != 0)
-        {
-            Size size = default;
-            fixed (char* ps = FontMeasureString)
-            {
-                PInvoke.GetTextExtentPoint32W(dc, ps, FontMeasureString.Length, (SIZE*)(void*)&size);
-            }
-
-            // Note: intentional integer round off here for Win32 compat
-            retval.Width = (int)Math.Round(size.Width / ((float)FontMeasureString.Length));
-        }
-        else
-        {
-            retval.Width = tm.tmAveCharWidth;
-        }
-
-        return retval;
+        Size size = TextRenderer.MeasureText(FontMeasureString, Font, TextRenderer.MaxSize, TextFormatFlags.SingleLine);
+        return new SizeF(size.Width / (float)FontMeasureString.Length, size.Height);
     }
 
     /// <summary>

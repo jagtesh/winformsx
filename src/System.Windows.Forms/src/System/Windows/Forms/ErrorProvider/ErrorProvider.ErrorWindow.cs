@@ -163,41 +163,35 @@ public partial class ErrorProvider
             DestroyHandle();
         }
 
-        private unsafe void MirrorDcIfNeeded(HDC hdc)
+        private void MirrorGraphicsIfNeeded(Graphics graphics)
         {
             if (_parent.IsMirrored)
             {
-                // Mirror the DC
-                PInvoke.SetMapMode(hdc, HDC_MAP_MODE.MM_ANISOTROPIC);
-                SIZE originalExtents = default;
-                PInvoke.GetViewportExtEx(hdc, &originalExtents);
-                PInvoke.SetViewportExtEx(hdc, -originalExtents.Width, originalExtents.Height, lpsz: null);
-                Point originalOrigin = default;
-                PInvoke.GetViewportOrgEx(hdc, &originalOrigin);
-                PInvoke.SetViewportOrgEx(hdc, originalOrigin.X + _windowBounds.Width - 1, originalOrigin.Y, lppt: null);
+                graphics.TranslateTransform(_windowBounds.Width - 1, 0);
+                graphics.ScaleTransform(-1, 1);
             }
         }
 
         /// <summary>
         ///  This is called when the error window needs to paint. We paint each icon at its correct location.
         /// </summary>
-        private unsafe void OnPaint()
+        private void OnPaint()
         {
             using BeginPaintScope hdc = new(HWND);
-            using SaveDcScope save = new(hdc);
-
-            MirrorDcIfNeeded(hdc);
+            using Graphics graphics = hdc.HDC.CreateGraphics();
+            MirrorGraphicsIfNeeded(graphics);
 
             for (int i = 0; i < _items.Count; i++)
             {
                 ControlItem item = _items[i];
                 Rectangle bounds = item.GetIconBounds(_provider.Region.Size);
-                PInvoke.DrawIconEx(
-                    hdc,
+                graphics.DrawIcon(
+                    _provider.Region.Icon,
+                    new Rectangle(
                     bounds.X - _windowBounds.X,
                     bounds.Y - _windowBounds.Y,
-                    _provider.Region,
-                    bounds.Width, bounds.Height);
+                    bounds.Width,
+                    bounds.Height));
             }
         }
 
@@ -366,18 +360,6 @@ public partial class ErrorProvider
             if (timerCaused)
             {
                 _provider._showIcon = !_provider._showIcon;
-            }
-
-            using GetDcScope hdc = new(HWND);
-            using SaveDcScope save = new(hdc);
-            MirrorDcIfNeeded(hdc);
-
-            using Graphics g = hdc.CreateGraphics();
-            using RegionScope windowRegionHandle = new(windowRegion, g);
-            if (PInvoke.SetWindowRgn(this, windowRegionHandle, fRedraw: true) != 0)
-            {
-                // The HWnd owns the region.
-                windowRegionHandle.RelinquishOwnership();
             }
 
             PInvoke.SetWindowPos(

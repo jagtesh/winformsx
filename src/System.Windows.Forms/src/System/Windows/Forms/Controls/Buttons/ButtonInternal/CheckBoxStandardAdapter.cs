@@ -87,22 +87,8 @@ internal sealed class CheckBoxStandardAdapter : CheckBoxBaseAdapter
 
     internal override Size GetPreferredSizeCore(Size proposedSize)
     {
-        if (!OperatingSystem.IsWindows() || Graphics.IsBackendActive || Control.Appearance == Appearance.Button)
-        {
-            ButtonStandardAdapter adapter = new(Control);
-            return adapter.GetPreferredSizeCore(proposedSize);
-        }
-        else
-        {
-            LayoutOptions? options = default;
-            using (var screen = GdiCache.GetScreenHdc())
-            using (PaintEventArgs pe = new(screen, clipRect: default))
-            {
-                options = Layout(pe);
-            }
-
-            return options.GetPreferredSizeCore(proposedSize);
-        }
+        ButtonStandardAdapter adapter = new(Control);
+        return adapter.GetPreferredSizeCore(proposedSize);
     }
 
     private new ButtonStandardAdapter ButtonAdapter => (ButtonStandardAdapter)base.ButtonAdapter;
@@ -115,23 +101,9 @@ internal sealed class CheckBoxStandardAdapter : CheckBoxBaseAdapter
         layout.CheckPaddingSize = 1;
         layout.DotNetOneButtonCompat = !Application.RenderWithVisualStyles;
 
-        if (Application.RenderWithVisualStyles)
-        {
-            using var screen = GdiCache.GetScreenHdc();
-            layout.CheckSize = CheckBoxRenderer.GetGlyphSize(
-                screen,
-                CheckBoxRenderer.ConvertFromButtonState(
-                    GetState(),
-                    isMixed: true,
-                    Control.MouseIsOver),
-                Control.HWNDInternal).Width;
-        }
-        else
-        {
-            layout.CheckSize = ScaleHelper.IsThreadPerMonitorV2Aware
-                ? Control.LogicalToDeviceUnits(layout.CheckSize)
-                : (int)(layout.CheckSize * GetDpiScaleRatio());
-        }
+        layout.CheckSize = ScaleHelper.IsThreadPerMonitorV2Aware
+            ? Control.LogicalToDeviceUnits(layout.CheckSize)
+            : (int)(layout.CheckSize * GetDpiScaleRatio());
 
         return layout;
     }

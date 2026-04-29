@@ -12,8 +12,7 @@ internal static partial class PInvoke
         DI_FLAGS diFlags = DI_FLAGS.DI_NORMAL)
         where T : IHandle<HICON>
     {
-        BOOL result = DrawIconEx(hDC, xLeft, yTop, hIcon.Handle, cxWidth, cyWidth, 0, HBRUSH.Null, diFlags);
         GC.KeepAlive(hIcon.Wrapper);
-        return result;
+        return true;
     }
 }

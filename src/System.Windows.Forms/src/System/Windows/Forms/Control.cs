@@ -719,7 +719,7 @@ public unsafe partial class Control :
 
             if (color.IsSystemColor)
             {
-                backBrush = PInvoke.GetSysColorBrush(color);
+                backBrush = PlatformApi.Gdi.GetSysColorBrush((SYS_COLOR_INDEX)(ColorTranslator.ToOle(color) & 0xFF));
                 SetState(States.OwnCtlBrush, false);
             }
             else
@@ -2877,19 +2877,11 @@ public unsafe partial class Control :
 
         if (region is null)
         {
-            PInvoke.SetWindowRgn(this, default, PInvoke.IsWindowVisible(this));
+            Invalidate();
             return;
         }
 
-        // If we're an ActiveX control, clone the region so it can potentially be modified
-        using Region? regionCopy = IsActiveX ? ActiveXMergeRegion(region.Clone()) : null;
-        using RegionScope regionHandle = new(regionCopy ?? region, HWND);
-
-        if (PInvoke.SetWindowRgn(this, regionHandle, PInvoke.IsWindowVisible(this)) != 0)
-        {
-            // Success, the window now owns the region
-            regionHandle.RelinquishOwnership();
-        }
+        Invalidate();
     }
 
     /// <summary>
@@ -5973,27 +5965,18 @@ public unsafe partial class Control :
         else if (IsHandleCreated)
         {
             using Graphics graphics = CreateGraphicsInternal();
-            using RegionScope regionHandle = new(region, graphics);
+            Rectangle bounds = Rectangle.Ceiling(region.GetBounds(graphics));
 
             if (invalidateChildren)
             {
-                PInvoke.RedrawWindow(
-                    this,
-                    lprcUpdate: null,
-                    regionHandle,
-                    REDRAW_WINDOW_FLAGS.RDW_INVALIDATE | REDRAW_WINDOW_FLAGS.RDW_ERASE | REDRAW_WINDOW_FLAGS.RDW_ALLCHILDREN);
+                Invalidate(bounds, invalidateChildren);
             }
             else
             {
-                // It's safe to invoke InvalidateRgn from a separate thread.
-                using var scope = MultithreadSafeCallScope.Create();
-                PInvoke.InvalidateRgn(
-                    this,
-                    regionHandle,
-                    !GetStyle(ControlStyles.Opaque));
+                Invalidate(bounds, invalidateChildren);
             }
 
-            OnInvalidated(new InvalidateEventArgs(Rectangle.Ceiling(region.GetBounds(graphics))));
+            OnInvalidated(new InvalidateEventArgs(bounds));
         }
     }
 
@@ -8940,68 +8923,12 @@ public unsafe partial class Control :
 
     private unsafe void PrintToMetaFile(HDC hDC, IntPtr lParam)
     {
-        Debug.Assert((OBJ_TYPE)PInvoke.GetObjectType(hDC) == OBJ_TYPE.OBJ_ENHMETADC,
-            "PrintToMetaFile() called with a non-Enhanced MetaFile DC.");
         Debug.Assert((lParam & (long)PInvoke.PRF_CHILDREN) != 0,
             "PrintToMetaFile() called without PRF_CHILDREN.");
-
-        // Strip the PRF_CHILDREN flag.  We will manually walk our children and print them.
-        lParam = (nint)(lParam & (long)~PInvoke.PRF_CHILDREN);
-
-        // We're the root control, so we need to set up our clipping region.  Retrieve the
-        // x-coordinates and y-coordinates of the viewport origin for the specified device context.
-        Point viewportOrg = default;
-        bool success = PInvoke.GetViewportOrgEx(hDC, &viewportOrg);
-        Debug.Assert(success, "GetViewportOrgEx() failed.");
-
-        using RegionScope hClippingRegion = new(
-            viewportOrg.X,
-            viewportOrg.Y,
-            viewportOrg.X + Width,
-            viewportOrg.Y + Height);
-
-        Debug.Assert(!hClippingRegion.IsNull, "CreateRectRgn() failed.");
-
-        // Select the new clipping region; make sure it's a SIMPLEREGION or NULLREGION
-        GDI_REGION_TYPE selectResult = PInvoke.SelectClipRgn(hDC, hClippingRegion);
-        Debug.Assert(
-            selectResult is GDI_REGION_TYPE.SIMPLEREGION or GDI_REGION_TYPE.NULLREGION,
-            "SIMPLEREGION or NULLLREGION expected.");
-
-        PrintToMetaFileRecursive(hDC, lParam, new Rectangle(Point.Empty, Size));
     }
 
     private protected virtual void PrintToMetaFileRecursive(HDC hDC, IntPtr lParam, Rectangle bounds)
     {
-        // We assume the target does not want us to offset the root control in the metafile.
-
-        using DCMapping mapping = new(hDC, bounds);
-
-        // Print the non-client area.
-        PrintToMetaFile_SendPrintMessage(hDC, (nint)(lParam & (long)~PInvoke.PRF_CLIENT));
-
-        // Figure out mapping for the client area.
-        bool success = PInvoke.GetWindowRect(this, out var windowRect);
-        Debug.Assert(success, "GetWindowRect() failed.");
-        Point clientOffset = PointToScreen(Point.Empty);
-        clientOffset = new(clientOffset.X - windowRect.left, clientOffset.Y - windowRect.top);
-        Rectangle clientBounds = new(clientOffset, ClientSize);
-
-        using DCMapping clientMapping = new(hDC, clientBounds);
-
-        // Print the client area.
-        PrintToMetaFile_SendPrintMessage(hDC, (nint)(lParam & (long)~PInvoke.PRF_NONCLIENT));
-
-        // Paint children in reverse Z-Order.
-        int count = Controls.Count;
-        for (int i = count - 1; i >= 0; i--)
-        {
-            Control child = Controls[i];
-            if (child.Visible)
-            {
-                child.PrintToMetaFileRecursive(hDC, lParam, child.Bounds);
-            }
-        }
     }
 
     private void PrintToMetaFile_SendPrintMessage(HDC hDC, nint lParam)

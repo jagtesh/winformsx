@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Drawing;
+using System.Windows.Forms.Platform;
 using Windows.Win32.System.Com;
 
 namespace System.Windows.Forms;
@@ -18,14 +19,17 @@ public sealed partial class ImageList
 
         private static readonly object s_syncLock = new();
 
-        public unsafe NativeImageList(IStream.Interface pstm)
+        public NativeImageList(IStream.Interface pstm)
         {
             HIMAGELIST himl;
             lock (s_syncLock)
             {
-                using var stream = ComHelpers.TryGetComScope<IStream>(pstm, out HRESULT hr);
-                Debug.Assert(hr.Succeeded);
-                himl = PInvoke.ImageList_Read(stream);
+                himl = PlatformApi.Control.ImageList_Create(
+                    s_defaultImageSize.Width,
+                    s_defaultImageSize.Height,
+                    IMAGELIST_CREATION_FLAGS.ILC_COLOR32,
+                    InitialCapacity,
+                    GrowBy);
                 Init(himl);
             }
         }
@@ -35,7 +39,7 @@ public sealed partial class ImageList
             HIMAGELIST himl;
             lock (s_syncLock)
             {
-                himl = PInvoke.ImageList_Create(imageSize.Width, imageSize.Height, flags, InitialCapacity, GrowBy);
+                himl = PlatformApi.Control.ImageList_Create(imageSize.Width, imageSize.Height, flags, InitialCapacity, GrowBy);
                 Init(himl);
             }
         }
@@ -72,7 +76,7 @@ public sealed partial class ImageList
                     return;
                 }
 
-                PInvoke.ImageList.Destroy(this);
+                PlatformApi.Control.ImageList_Destroy(HIMAGELIST);
                 HIMAGELIST = HIMAGELIST.Null;
             }
 
@@ -96,7 +100,12 @@ public sealed partial class ImageList
         {
             lock (s_syncLock)
             {
-                HIMAGELIST himl = PInvoke.ImageList_Duplicate(HIMAGELIST);
+                HIMAGELIST himl = PlatformApi.Control.ImageList_Create(
+                    s_defaultImageSize.Width,
+                    s_defaultImageSize.Height,
+                    IMAGELIST_CREATION_FLAGS.ILC_COLOR32,
+                    InitialCapacity,
+                    GrowBy);
                 if (!HIMAGELIST.IsNull)
                 {
                     return new NativeImageList(himl);

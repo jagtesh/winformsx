@@ -1006,12 +1006,8 @@ public partial class ComboBox : ListControl
         // controls to be the same height.
         Size textExtent = Size.Empty;
 
-        using (var hfont = GdiCache.GetHFONT(Font))
-        using (var screen = GdiCache.GetScreenHdc())
-        {
-            // this is the character that Windows uses to determine the extent
-            textExtent = screen.HDC.GetTextExtent("0", hfont);
-        }
+        // This is the character that Windows uses to determine the extent.
+        textExtent = TextRenderer.MeasureText("0", Font, TextRenderer.MaxSize, TextFormatFlags.SingleLine);
 
         int dyEdit = textExtent.Height + SystemInformation.Border3DSize.Height;
 
@@ -4068,36 +4064,13 @@ public partial class ComboBox : ListControl
                     && (FlatStyle == FlatStyle.Flat || FlatStyle == FlatStyle.Popup)
                     && !(SystemInformation.HighContrast && BackColor == SystemColors.Window))
                 {
-                    using RegionScope dropDownRegion = new(FlatComboBoxAdapter._dropDownRect);
-                    using RegionScope windowRegion = new(Bounds);
-
-                    // Stash off the region we have to update (the base is going to clear this off in BeginPaint)
-                    bool getRegionSucceeded = PInvoke.GetUpdateRgn(HWND, windowRegion, bErase: true) != GDI_REGION_TYPE.RGN_ERROR;
-
-                    PInvoke.CombineRgn(dropDownRegion, windowRegion, dropDownRegion, RGN_COMBINE_MODE.RGN_DIFF);
-                    RECT updateRegionBoundingRect = default;
-                    PInvoke.GetRgnBox(windowRegion, &updateRegionBoundingRect);
-
-                    // Call the base class to do its painting (with a clipped DC).
                     bool useBeginPaint = m.WParamInternal == 0u;
                     using var paintScope = useBeginPaint ? new BeginPaintScope(HWND) : default;
 
                     HDC dc = useBeginPaint ? paintScope! : (HDC)m.WParamInternal;
 
-                    using SaveDcScope savedDcState = new(dc);
-
-                    if (getRegionSucceeded)
-                    {
-                        PInvoke.SelectClipRgn(dc, dropDownRegion);
-                    }
-
                     m.WParamInternal = (WPARAM)dc;
                     DefWndProc(ref m);
-
-                    if (getRegionSucceeded)
-                    {
-                        PInvoke.SelectClipRgn(dc, windowRegion);
-                    }
 
                     using Graphics g = Graphics.FromHdcInternal((IntPtr)dc);
                     FlatComboBoxAdapter.DrawFlatCombo(this, g);

@@ -29,7 +29,8 @@ public static class ButtonRenderer
     /// </remarks>
     public static bool RenderMatchingApplicationState { get; set; } = true;
 
-    private static bool RenderWithVisualStyles => !RenderMatchingApplicationState || Application.RenderWithVisualStyles;
+    private static bool RenderWithVisualStyles
+        => VisualStyleRenderer.IsSupported && (!RenderMatchingApplicationState || Application.RenderWithVisualStyles);
 
     /// <summary>
     ///  Indicates whether the background has semitransparent or alpha-blended pieces.

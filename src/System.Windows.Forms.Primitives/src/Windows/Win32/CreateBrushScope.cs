@@ -3,6 +3,7 @@
 
 using System.ComponentModel;
 using System.Drawing;
+using System.Windows.Forms.Platform;
 
 namespace Windows.Win32.Graphics.Gdi;
 
@@ -24,13 +25,13 @@ internal readonly ref struct CreateBrushScope
     public HBRUSH HBRUSH { get; }
 
     /// <summary>
-    ///  Creates a solid brush based on the <paramref name="color"/> using <see cref="PInvoke.CreateSolidBrush(COLORREF)"/>.
+    ///  Creates a solid brush based on the <paramref name="color"/> using the PAL.
     /// </summary>
     public CreateBrushScope(Color color)
     {
         HBRUSH = color.IsSystemColor
-            ? PInvoke.GetSysColorBrush(color)
-            : PInvoke.CreateSolidBrush(color);
+            ? PlatformApi.Gdi.GetSysColorBrush((SYS_COLOR_INDEX)(ColorTranslator.ToOle(color) & 0xFF))
+            : PlatformApi.Gdi.CreateSolidBrush((COLORREF)(uint)ColorTranslator.ToWin32(color));
         ValidateBrushHandle();
     }
 
@@ -44,7 +45,7 @@ internal readonly ref struct CreateBrushScope
         if (!HBRUSH.IsNull)
         {
             // Note that this is a no-op if the original brush was a system brush
-            PInvokeCore.DeleteObject(HBRUSH);
+            PlatformApi.Gdi.DeleteObject(HBRUSH);
         }
 
 #if DEBUG

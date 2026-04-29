@@ -496,37 +496,34 @@ public partial class GroupBox : Control
         }
         else
         {
-            using DeviceContextHdcScope hdc = new(e);
-
-            DRAW_TEXT_FORMAT flags = DRAW_TEXT_FORMAT.DT_WORDBREAK | DRAW_TEXT_FORMAT.DT_EDITCONTROL;
+            TextFormatFlags flags = TextFormatFlags.WordBreak | TextFormatFlags.TextBoxControl;
 
             if (!ShowKeyboardCues)
             {
-                flags |= DRAW_TEXT_FORMAT.DT_HIDEPREFIX;
+                flags |= TextFormatFlags.HidePrefix;
             }
 
             if (RightToLeft == RightToLeft.Yes)
             {
-                flags |= DRAW_TEXT_FORMAT.DT_RTLREADING;
-                flags |= DRAW_TEXT_FORMAT.DT_RIGHT;
+                flags |= TextFormatFlags.RightToLeft;
+                flags |= TextFormatFlags.Right;
             }
 
-            using var hfont = GdiCache.GetHFONT(Font);
-            textSize = hdc.HDC.MeasureText(Text, hfont, new Size(textRectangle.Width, int.MaxValue), (TextFormatFlags)flags);
+            textSize = TextRenderer.MeasureText(Text, Font, new Size(textRectangle.Width, int.MaxValue), flags);
 
             if (Enabled)
             {
-                hdc.HDC.DrawText(Text, hfont, textRectangle, ForeColor, (TextFormatFlags)flags);
+                TextRenderer.DrawText(e.GraphicsInternal, Text, Font, textRectangle, ForeColor, flags);
             }
             else
             {
                 ControlPaint.DrawStringDisabled(
-                    hdc,
+                    e.GraphicsInternal,
                     Text,
                     Font,
                     backColor,
                     textRectangle,
-                    (TextFormatFlags)flags);
+                    flags);
             }
         }
 
@@ -663,17 +660,9 @@ public partial class GroupBox : Control
         PInvoke.GetClientRect(this, out RECT rect);
         Color backColor = BackColor;
 
-        if (backColor.HasTransparency())
-        {
-            using Graphics graphics = Graphics.FromHdcInternal((HDC)m.WParamInternal);
-            using var brush = backColor.GetCachedSolidBrushScope();
-            graphics.FillRectangle(brush, rect);
-        }
-        else
-        {
-            using var hbrush = new CreateBrushScope(backColor);
-            PInvoke.FillRect((HDC)m.WParamInternal, rect, hbrush);
-        }
+        using Graphics graphics = Graphics.FromHdcInternal((HDC)m.WParamInternal);
+        using var brush = backColor.GetCachedSolidBrushScope();
+        graphics.FillRectangle(brush, rect);
 
         m.ResultInternal = (LRESULT)1;
     }
