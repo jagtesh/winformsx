@@ -55,6 +55,22 @@ eng/run-winformsx-stability-suite.sh /tmp/winformsx_stability_visual_modern_fina
 Expected result: `[STABILITY_OK]`, with no `PAL_SEHException`, `USER32.dll`,
 native load, descriptor-pool, or blank-client-frame failures.
 
+Windows x64 Impeller SDK patching is automated. From macOS/Linux/Git Bash:
+
+```sh
+eng/fetch-impeller-sdk.sh --platform windows-x64
+```
+
+From Windows PowerShell:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\eng\fetch-impeller-windows-sdk.ps1
+```
+
+Both commands download the pinned Flutter Impeller SDK, patch `impeller.dll`,
+and copy it to
+`artifacts/bin/WinFormsX.Samples/Debug/net9.0/runtimes/win-x64/native/`.
+
 ## Current Git State
 
 The current work branch in the `winforms/` submodule is:
@@ -84,8 +100,9 @@ Short version:
 
 - Renderer allocation stability is fixed at the Impeller integration boundary.
   The SDK patch retries descriptor-set allocation on any allocation failure,
-  including `ErrorFragmentedPool`; the managed backend keeps bounded paragraph
-  caching, diagnostic text modes, and deferred frame-resource retirement.
+  including `ErrorFragmentedPool`, for macOS arm64 and Windows x64 Impeller
+  artifacts; the managed backend keeps bounded paragraph caching, diagnostic
+  text modes, and deferred frame-resource retirement.
 - Crash-prone native fallbacks have been replaced with synthetic behavior in the
   Impeller path. This currently covers cursors, unsupported scroll APIs,
   ListBox/TreeView/ListView/DataGridView/ScrollBar/AutoScroll wheel and key
@@ -234,14 +251,19 @@ when Vulkan returned `ErrorOutOfPoolMemory`. The observed failure was
 incomplete frame instead of allocating a fresh per-frame descriptor pool.
 
 `eng/patch-impeller-descriptor-pool-retry.sh` patches the downloaded macOS arm64
-`libimpeller.dylib` so descriptor allocation retries once on any non-success
-result, then reports the error if the second allocation still fails. This keeps
-the normal success path unchanged and handles the Vulkan fragmentation result in
-the same way as pool exhaustion.
+`libimpeller.dylib` and Windows x64 `impeller.dll` so descriptor allocation
+retries once on any non-success result, then reports the error if the second
+allocation still fails. This keeps the normal success path unchanged and handles
+the Vulkan fragmentation result in the same way as pool exhaustion.
 
 `eng/fetch-impeller-sdk.sh` now applies that patch to both the cached SDK copy
 and the sample runtime copy after download/extraction. The local artifact was
 also patched in place for verification.
+
+On Windows, use `eng/fetch-impeller-windows-sdk.ps1` for the same pinned
+download, extraction, byte patch, and sample-runtime copy flow without requiring
+Bash tools. The current Flutter SDK hash publishes `windows-x64`; `windows-arm64`
+was not available from Flutter storage for this pinned hash during verification.
 
 Verification after the patch:
 

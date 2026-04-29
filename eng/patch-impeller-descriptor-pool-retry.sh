@@ -19,13 +19,26 @@ case "$library_info:$(basename "$library")" in
     expected="080f8552888cb8721f00086b01020054"
     replacement="080080521f2003d51f00086b00020054"
     ;;
+  *"PE32+ executable (DLL)"*"x86-64"*:impeller.dll)
+    offset=$((0x34a01c))
+    # Replace "cmp eax, VK_ERROR_OUT_OF_POOL_MEMORY; jne skip_retry" with
+    # "test eax, eax; je skip_retry" so all non-success results retry once.
+    expected="3d782864c47546"
+    replacement="85c09090907446"
+    ;;
   *)
     echo "No descriptor-pool retry patch is defined for this library: $library_info" >&2
     exit 0
     ;;
 esac
 
-actual="$(xxd -p -s "$offset" -l 16 "$library" | tr -d '\n')"
+if [[ ${#expected} -ne ${#replacement} ]]; then
+  echo "Impeller descriptor-pool retry patch has mismatched byte lengths." >&2
+  exit 1
+fi
+
+patch_length=$((${#expected} / 2))
+actual="$(xxd -p -s "$offset" -l "$patch_length" "$library" | tr -d '\n')"
 if [[ "$actual" == "$replacement" ]]; then
   echo "Impeller descriptor-pool retry patch already applied: $library"
   exit 0
