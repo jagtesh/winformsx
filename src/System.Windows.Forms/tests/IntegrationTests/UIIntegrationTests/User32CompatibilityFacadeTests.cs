@@ -14,6 +14,34 @@ public class User32CompatibilityFacadeTests
     private const uint SPIF_SENDCHANGE = 0x0002;
 
     [Fact]
+    public void CommonSystemMetrics_ResolveConsistentlyForManagedAndNativeUser32Facade()
+    {
+        SYSTEM_METRICS_INDEX[] metrics =
+        [
+            SYSTEM_METRICS_INDEX.SM_CXSCREEN,
+            SYSTEM_METRICS_INDEX.SM_CYSCREEN,
+            SYSTEM_METRICS_INDEX.SM_CXVIRTUALSCREEN,
+            SYSTEM_METRICS_INDEX.SM_CYVIRTUALSCREEN,
+            SYSTEM_METRICS_INDEX.SM_CXICONSPACING,
+            SYSTEM_METRICS_INDEX.SM_CYICONSPACING,
+            SYSTEM_METRICS_INDEX.SM_CXDRAG,
+            SYSTEM_METRICS_INDEX.SM_CYDRAG,
+            SYSTEM_METRICS_INDEX.SM_CXMINTRACK,
+            SYSTEM_METRICS_INDEX.SM_CYMINTRACK,
+            SYSTEM_METRICS_INDEX.SM_CMOUSEBUTTONS,
+            SYSTEM_METRICS_INDEX.SM_CMONITORS,
+        ];
+
+        foreach (SYSTEM_METRICS_INDEX metric in metrics)
+        {
+            int managed = PInvoke.GetSystemMetrics(metric);
+            int native = NativeUser32.GetSystemMetrics((int)metric);
+            Assert.Equal(managed, native);
+            Assert.True(managed > 0, $"Expected a positive metric value for {metric}, got {managed}.");
+        }
+    }
+
+    [Fact]
     public void DirectDllImports_RouteToWinFormsXPal()
     {
         using (new EnvironmentOverride("WINFORMSX_SUPPRESS_HIDDEN_BACKEND", "1"))

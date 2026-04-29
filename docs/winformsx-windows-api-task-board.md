@@ -62,8 +62,11 @@ Current baseline: `42 total, 41 passed, 0 failed, 1 skipped` with `MediaPlayer` 
   - Full `--control-smoke-test`: `total=42 passed=41 failed=0 skipped=1` (only `MediaPlayer` skipped).
 - In-progress local changes (next commit):
   - Expanded non-Windows `ImpellerSystemInterop.GetSystemMetrics` coverage with deterministic defaults for virtual-screen, fixed frame/size, icon spacing, mouse, monitor, drag/focus border, minimized/maximized window, and legacy compatibility metrics used by `SystemInformation`.
+  - Updated non-Windows DPI resolution to derive from real WinFormsX handles/forms when available (`GetDpiForWindow`/`GetDpiForSystem`) with safe `96` fallback.
+  - Added `User32CompatibilityFacadeTests.CommonSystemMetrics_ResolveConsistentlyForManagedAndNativeUser32Facade` coverage for common metrics parity.
   - Verified build for `System.Windows.Forms` and targeted USER32 facade regression:
     - `User32CompatibilityFacadeTests.DirectDllImports_RouteToWinFormsXPal` -> `Passed`.
+    - `User32CompatibilityFacadeTests.CommonSystemMetrics_ResolveConsistentlyForManagedAndNativeUser32Facade` -> `Passed`.
 
 ## Task Legend
 

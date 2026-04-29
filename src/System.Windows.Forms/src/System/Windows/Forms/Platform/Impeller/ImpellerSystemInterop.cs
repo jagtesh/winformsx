@@ -369,8 +369,34 @@ internal sealed unsafe class ImpellerSystemInterop : ISystemInterop
 
     // --- DPI ------------------------------------------------------------
 
-    public uint GetDpiForWindow(HWND hwnd) => 96;
-    public uint GetDpiForSystem() => 96;
+    public uint GetDpiForWindow(HWND hwnd)
+    {
+        if (hwnd == HWND.Null)
+        {
+            return GetDpiForSystem();
+        }
+
+        if (Control.FromHandle(hwnd) is { DeviceDpi: > 0 } control)
+        {
+            return (uint)control.DeviceDpi;
+        }
+
+        return GetDpiForSystem();
+    }
+
+    public uint GetDpiForSystem()
+    {
+        foreach (Form form in Application.OpenForms)
+        {
+            if (form.DeviceDpi > 0)
+            {
+                return (uint)form.DeviceDpi;
+            }
+        }
+
+        return 96;
+    }
+
     public DPI_AWARENESS_CONTEXT GetThreadDpiAwarenessContext() => DPI_AWARENESS_CONTEXT.DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2;
     public DPI_AWARENESS_CONTEXT SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT ctx) => ctx;
     public bool AdjustWindowRectExForDpi(ref RECT rect, WINDOW_STYLE style, bool menu, WINDOW_EX_STYLE exStyle, uint dpi) => true;
