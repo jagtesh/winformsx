@@ -135,5 +135,7 @@ if [[ ! -f "$output_dir/lib/$native_lib" ]]; then
   exit 1
 fi
 
+"$repo_root/eng/patch-impeller-descriptor-pool-retry.sh" "$output_dir/lib/$native_lib"
 cp "$output_dir/lib/$native_lib" "$sample_output/$native_lib"
+"$repo_root/eng/patch-impeller-descriptor-pool-retry.sh" "$sample_output/$native_lib"
 echo "Copied $native_lib to $sample_output"

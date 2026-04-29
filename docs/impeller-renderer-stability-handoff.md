@@ -242,6 +242,51 @@ The basic-controls script should fail if:
 
 ## Diagnostic Findings So Far
 
+### 2026-04-28 Descriptor Pool Fix
+
+Root cause isolation showed that the crash/blanking path was not general
+surface lifetime, geometry, or a single control:
+
+- `WINFORMSX_IMPELLER_TEXT_MODE=none` passed.
+- `WINFORMSX_IMPELLER_TEXT_MODE=static` passed.
+- Native paragraph rendering with the full Basic Controls frame failed around
+  the 32 paragraph-draw range.
+- Managed glyph-outline text was worse because it converted text into many path
+  draws.
+
+The matching Impeller source for this SDK only retried descriptor-set allocation
+when Vulkan returned `ErrorOutOfPoolMemory`. The observed failure was
+`ErrorFragmentedPool`, so Impeller logged the error and carried on with an
+incomplete frame instead of allocating a fresh per-frame descriptor pool.
+
+`eng/patch-impeller-descriptor-pool-retry.sh` patches the downloaded macOS arm64
+`libimpeller.dylib` so descriptor allocation retries once on any non-success
+result, then reports the error if the second allocation still fails. This keeps
+the normal success path unchanged and handles the Vulkan fragmentation result in
+the same way as pool exhaustion.
+
+`eng/fetch-impeller-sdk.sh` now applies that patch to both the cached SDK copy
+and the sample runtime copy after download/extraction. The local artifact was
+also patched in place for verification.
+
+Verification after the patch:
+
+```sh
+dotnet build src/System.Windows.Forms/src/System.Windows.Forms.csproj -v:minimal
+eng/verify-impeller-only.sh
+WINFORMSX_TRACE_FILE=/tmp/winformsx_paint_trace.log \
+  eng/capture-winforms-basic-controls-regression.sh /tmp/winformsx_basic_controls_regression_patched
+eng/capture-winforms-frame-stress-regression.sh /tmp/winformsx_frame_stress_regression_patched
+eng/capture-winforms-hover-regression.sh /tmp/winformsx_hover_regression_patched
+eng/capture-winforms-usability-regression.sh /tmp/winformsx_usability_regression_patched
+eng/capture-winforms-textbox-regression.sh /tmp/winformsx_textbox_regression_patched
+```
+
+The Basic Controls run rendered full native paragraph text with
+`textDraw=38`, `textSkip=0`, and `textBudget=unlimited` on the heavy frames.
+No `ErrorFragmentedPool`, `Paint ERROR`, `EndFrame error`, crash, or blank-client
+failure signatures were present after the verification runs.
+
 The latest failing run showed:
 
 - First correct frame on Basic Controls was visually good.

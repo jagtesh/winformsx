@@ -5,6 +5,7 @@
 
 using System.Drawing.Impeller;
 using System.Text;
+using System.Threading;
 
 namespace System.Drawing;
 
@@ -20,6 +21,14 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend, IDisposable
             Stroke,
         }
 
+        private enum TextDiagnosticMode
+        {
+            ManagedGlyphs,
+            NativeParagraph,
+            None,
+            StaticParagraph,
+        }
+
         private readonly record struct PaintKey(int Argb, PaintKind Kind, int StrokeWidthBits);
         private readonly record struct ParagraphKey(
             string Text,
@@ -32,20 +41,40 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend, IDisposable
         private readonly record struct TransformSnapshot(float ScaleX, float ScaleY, float OffsetX, float OffsetY);
 
         private const int MaxGlyphsPerPath = 64;
+        private const int DefaultMaxParagraphCacheEntries = 512;
+        private const int DefaultMaxDeferredFrames = 4;
+        private const int DefaultMaxTextDrawsPerFrame = 0;
 
         private readonly IPlatformBackend _platformBackend;
         private readonly nint _impellerContext;
         private static readonly HarfBuzzTextEngine s_textEngine = new();
+        private static readonly string? s_traceFile = Environment.GetEnvironmentVariable("WINFORMSX_TRACE_FILE");
+        private static readonly TextDiagnosticMode s_textDiagnosticMode = ResolveTextDiagnosticMode();
+        private static readonly int s_maxParagraphCacheEntries = ResolvePositiveInt(
+            "WINFORMSX_IMPELLER_MAX_PARAGRAPH_CACHE",
+            DefaultMaxParagraphCacheEntries);
+        private static readonly int s_maxDeferredFrames = ResolvePositiveInt(
+            "WINFORMSX_IMPELLER_DEFERRED_FRAMES",
+            DefaultMaxDeferredFrames);
+        private static readonly int s_maxTextDrawsPerFrame = ResolveNonNegativeInt(
+            "WINFORMSX_IMPELLER_MAX_TEXT_DRAWS",
+            DefaultMaxTextDrawsPerFrame);
+        private static long s_nextFrameId;
         private readonly Dictionary<PaintKey, nint> _framePaintCache = [];
         private readonly Dictionary<ParagraphKey, NativeParagraphEntry> _paragraphCache = [];
+        private readonly Queue<ParagraphKey> _paragraphCacheOrder = [];
+        private readonly Queue<DeferredFrameResources> _deferredFrameResources = [];
         private readonly Dictionary<int, List<PositionedGlyphOutline>> _frameGlyphBatches = [];
         private readonly Stack<TransformSnapshot> _transformStack = [];
         private DisplayListBuilder? _builder;
+        private FrameCounters _frameCounters;
         private nint _frameSurface;
+        private long _frameId;
         private float _scaleX = 1f;
         private float _scaleY = 1f;
         private float _offsetX;
         private float _offsetY;
+        private bool _staticDiagnosticParagraphDrawn;
         private bool _disposed;
 
     public ImpellerRenderingBackend(IPlatformBackend platformBackend, nint impellerContext)
@@ -66,15 +95,23 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend, IDisposable
             return false;
         }
 
+        _frameId = Interlocked.Increment(ref s_nextFrameId);
+        _frameCounters = new FrameCounters();
+        _staticDiagnosticParagraphDrawn = false;
         _frameSurface = _platformBackend.AcquireNextSurface();
         if (_frameSurface == nint.Zero)
+        {
+            Trace($"[ImpellerFrame:{_frameId}] Acquire surface failed size={width}x{height}");
             return false;
+        }
+
         _framePaintCache.Clear();
         _frameGlyphBatches.Clear();
         ResetTrackedTransform();
         _builder = width > 0 && height > 0
             ? new DisplayListBuilder(width, height)
             : new DisplayListBuilder();
+        Trace($"[ImpellerFrame:{_frameId}] Begin size={width}x{height} surface=0x{_frameSurface:X} textMode={s_textDiagnosticMode} paragraphCache={_paragraphCache.Count}");
         return true;
     }
 
@@ -93,30 +130,49 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend, IDisposable
         }
 
         nint displayList = nint.Zero;
+        bool presented = false;
         try
         {
             FlushGlyphBatches();
             displayList = _builder.Build();
-            if (!NativeMethods.ImpellerSurfaceDrawDisplayList(_frameSurface, displayList))
+            Trace($"[ImpellerFrame:{_frameId}] Build displayList=0x{displayList:X} {FormatFrameCounters()}");
+            bool drawSucceeded = NativeMethods.ImpellerSurfaceDrawDisplayList(_frameSurface, displayList);
+            Trace($"[ImpellerFrame:{_frameId}] DrawDisplayList success={drawSucceeded} surface=0x{_frameSurface:X} displayList=0x{displayList:X}");
+            if (!drawSucceeded)
             {
                 throw new InvalidOperationException("Impeller failed to draw the display list.");
             }
 
-            if (!_platformBackend.PresentSurface(_frameSurface))
+            bool presentSucceeded = _platformBackend.PresentSurface(_frameSurface);
+            Trace($"[ImpellerFrame:{_frameId}] Present success={presentSucceeded} surface=0x{_frameSurface:X}");
+            if (!presentSucceeded)
             {
                 throw new InvalidOperationException("Impeller failed to present the frame surface.");
             }
+
+            presented = true;
         }
         finally
         {
-            if (displayList != nint.Zero)
+            if (presented)
             {
-                NativeMethods.ImpellerDisplayListRelease(displayList);
+                EnqueueDeferredFrameResources(displayList, DetachFramePaints());
+                displayList = nint.Zero;
+            }
+            else
+            {
+                if (displayList != nint.Zero)
+                {
+                    NativeMethods.ImpellerDisplayListRelease(displayList);
+                    Trace($"[ImpellerFrame:{_frameId}] Release displayList=0x{displayList:X}");
+                }
+
+                ReleaseFramePaints();
             }
 
+            Trace($"[ImpellerFrame:{_frameId}] Release surface=0x{_frameSurface:X}");
             NativeMethods.ImpellerSurfaceRelease(_frameSurface);
             _frameSurface = nint.Zero;
-            ReleaseFramePaints();
             _frameGlyphBatches.Clear();
             ResetTrackedTransform();
             _builder.Dispose();
@@ -128,6 +184,7 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend, IDisposable
     {
         if (_frameSurface != nint.Zero)
         {
+            Trace($"[ImpellerFrame:{_frameId}] Abort release surface=0x{_frameSurface:X} {FormatFrameCounters()}");
             NativeMethods.ImpellerSurfaceRelease(_frameSurface);
             _frameSurface = nint.Zero;
         }
@@ -148,12 +205,14 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend, IDisposable
 
         _disposed = true;
         AbortFrame();
+        ReleaseDeferredFrameResources(0);
         foreach (NativeParagraphEntry entry in _paragraphCache.Values)
         {
             entry.Dispose();
         }
 
         _paragraphCache.Clear();
+        _paragraphCacheOrder.Clear();
     }
 
     public void FlushPending()
@@ -167,12 +226,14 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend, IDisposable
     {
         FlushGlyphBatches();
         _transformStack.Push(new TransformSnapshot(_scaleX, _scaleY, _offsetX, _offsetY));
+        _frameCounters.Saves++;
         _builder?.Save();
     }
 
     public void Restore()
     {
         FlushGlyphBatches();
+        _frameCounters.Restores++;
         _builder?.Restore();
         if (_transformStack.TryPop(out TransformSnapshot transform))
         {
@@ -184,6 +245,7 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend, IDisposable
     public void RestoreToCount(uint count)
     {
         FlushGlyphBatches();
+        _frameCounters.Restores++;
         _builder?.RestoreToCount(count);
         while (_transformStack.Count > count)
         {
@@ -243,6 +305,7 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend, IDisposable
         if (!PrepareNonTextDraw())
             return;
         var rect = new ImpellerRect(x, y, w, h);
+        _frameCounters.Clips++;
         _builder.ClipRect(ref rect);
     }
 
@@ -252,6 +315,7 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend, IDisposable
     {
         if (!PrepareNonTextDraw())
             return;
+        _frameCounters.DrawPaints++;
         _builder.DrawPaint(GetFillPaint(color));
     }
 
@@ -260,6 +324,7 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend, IDisposable
         if (!PrepareNonTextDraw())
             return;
         var rect = new ImpellerRect(x, y, w, h);
+        _frameCounters.Rects++;
         _builder.DrawRect(ref rect, GetFillPaint(color));
     }
 
@@ -268,6 +333,7 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend, IDisposable
         if (!PrepareNonTextDraw())
             return;
         var rect = new ImpellerRect(x, y, w, h);
+        _frameCounters.Ovals++;
         _builder.DrawOval(ref rect, GetFillPaint(color));
     }
 
@@ -277,6 +343,7 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend, IDisposable
             return;
         var paintHandle = GetFillPaint(color);
         nint pathBuilder = NativeMethods.ImpellerPathBuilderNew();
+        _frameCounters.PathBuilders++;
         nint path = nint.Zero;
         try
         {
@@ -290,6 +357,7 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend, IDisposable
 
             NativeMethods.ImpellerPathBuilderClose(pathBuilder);
             path = NativeMethods.ImpellerPathBuilderCopyPathNew(pathBuilder, 0);
+            _frameCounters.Paths++;
             _builder.DrawPath(path, paintHandle);
         }
         finally
@@ -310,6 +378,7 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend, IDisposable
         if (!PrepareNonTextDraw())
             return;
         var rect = new ImpellerRect(x, y, w, h);
+        _frameCounters.Rects++;
         _builder.DrawRect(ref rect, GetStrokePaint(color, lineWidth));
     }
 
@@ -318,6 +387,7 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend, IDisposable
         if (!PrepareNonTextDraw())
             return;
         var rect = new ImpellerRect(x, y, w, h);
+        _frameCounters.Ovals++;
         _builder.DrawOval(ref rect, GetStrokePaint(color, lineWidth));
     }
 
@@ -327,6 +397,7 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend, IDisposable
             return;
         var from = new ImpellerPoint(x1, y1);
         var to = new ImpellerPoint(x2, y2);
+        _frameCounters.Lines++;
         _builder.DrawLine(ref from, ref to, GetStrokePaint(color, lineWidth));
     }
 
@@ -336,6 +407,7 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend, IDisposable
             return;
         var paintHandle = GetStrokePaint(color, lineWidth);
         nint pathBuilder = NativeMethods.ImpellerPathBuilderNew();
+        _frameCounters.PathBuilders++;
         nint path = nint.Zero;
         try
         {
@@ -349,6 +421,7 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend, IDisposable
 
             NativeMethods.ImpellerPathBuilderClose(pathBuilder);
             path = NativeMethods.ImpellerPathBuilderCopyPathNew(pathBuilder, 0);
+            _frameCounters.Paths++;
             _builder.DrawPath(path, paintHandle);
         }
         finally
@@ -367,6 +440,12 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend, IDisposable
     public void DrawString(string text, float x, float y, Color color,
                            string fontFamily, float fontSize, bool bold, bool italic)
     {
+        if (s_textDiagnosticMode == TextDiagnosticMode.ManagedGlyphs)
+        {
+            DrawManagedGlyphText(text, x, y, color, fontFamily, fontSize, bold, italic);
+            return;
+        }
+
         DrawNativeParagraphText(text, x, y, color, fontFamily, fontSize, bold, italic);
     }
 
@@ -375,6 +454,12 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend, IDisposable
     {
         if (string.IsNullOrEmpty(text))
         {
+            return;
+        }
+
+        if (s_textDiagnosticMode == TextDiagnosticMode.ManagedGlyphs)
+        {
+            DrawManagedGlyphTextAligned(text, bounds, alignment, color, fontFamily, fontSize, bold, italic);
             return;
         }
 
@@ -423,6 +508,25 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend, IDisposable
             return;
         }
 
+        _frameCounters.TextRequests++;
+        if (s_textDiagnosticMode == TextDiagnosticMode.None)
+        {
+            _frameCounters.TextSkipped++;
+            return;
+        }
+
+        if (s_textDiagnosticMode == TextDiagnosticMode.StaticParagraph)
+        {
+            if (_staticDiagnosticParagraphDrawn)
+            {
+                _frameCounters.TextSkipped++;
+                return;
+            }
+
+            text = "Impeller diagnostic paragraph";
+            _staticDiagnosticParagraphDrawn = true;
+        }
+
         string normalized = SanitizeNativeText(text).Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n');
         string[] lines = normalized.Split('\n');
         float lineHeight = MathF.Max(1f, MeasureString("Ag", fontFamily, fontSize, bold, italic).Height);
@@ -455,6 +559,78 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend, IDisposable
         }
     }
 
+    private void DrawManagedGlyphText(
+        string text,
+        float x,
+        float y,
+        Color color,
+        string fontFamily,
+        float fontSize,
+        bool bold,
+        bool italic)
+    {
+        if (string.IsNullOrEmpty(text) || _builder is null)
+        {
+            return;
+        }
+
+        _frameCounters.TextRequests++;
+        if (TextBudgetExhausted())
+        {
+            _frameCounters.TextSkipped++;
+            return;
+        }
+
+        try
+        {
+            s_textEngine.DrawString(this, text, x, y, color, fontFamily, fontSize, bold, italic);
+            _frameCounters.TextDrawn++;
+        }
+        catch (InvalidOperationException ex)
+        {
+            _frameCounters.TextSkipped++;
+            WinFormsXCompatibilityWarning.Once(
+                "ImpellerRenderingBackend.ManagedGlyphText.NoFont",
+                $"No managed glyph font could be resolved for '{fontFamily}'; the text draw command was ignored. {ex.Message}");
+        }
+    }
+
+    private void DrawManagedGlyphTextAligned(
+        string text,
+        RectangleF bounds,
+        ContentAlignment alignment,
+        Color color,
+        string fontFamily,
+        float fontSize,
+        bool bold,
+        bool italic)
+    {
+        if (string.IsNullOrEmpty(text) || _builder is null)
+        {
+            return;
+        }
+
+        _frameCounters.TextRequests++;
+        if (TextBudgetExhausted())
+        {
+            _frameCounters.TextSkipped++;
+            return;
+        }
+
+        try
+        {
+            s_textEngine.DrawStringAligned(this, text, bounds, alignment, color, fontFamily, fontSize, bold, italic);
+            _frameCounters.TextDrawn++;
+        }
+        catch (InvalidOperationException ex)
+        {
+            _frameCounters.TextSkipped++;
+            WinFormsXCompatibilityWarning.Once(
+                "ImpellerRenderingBackend.ManagedGlyphText.NoFont",
+                $"No managed glyph font could be resolved for '{fontFamily}'; the text draw command was ignored. {ex.Message}");
+        }
+    }
+
     private void DrawNativeParagraphLine(
         string line,
         float x,
@@ -468,6 +644,12 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend, IDisposable
         nint typography = TypographyProvider.Context;
         if (typography == nint.Zero || _builder is null)
         {
+            return;
+        }
+
+        if (TextBudgetExhausted())
+        {
+            _frameCounters.TextSkipped++;
             return;
         }
 
@@ -485,6 +667,8 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend, IDisposable
         }
 
         var point = new ImpellerPoint(x, y);
+        _frameCounters.ParagraphDrawn++;
+        _frameCounters.TextDrawn++;
         _builder.DrawParagraph(paragraphEntry.Paragraph, ref point);
     }
 
@@ -507,6 +691,7 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend, IDisposable
 
         if (_paragraphCache.TryGetValue(key, out NativeParagraphEntry? cached))
         {
+            _frameCounters.ParagraphReused++;
             return cached;
         }
 
@@ -578,6 +763,9 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend, IDisposable
             paragraph = nint.Zero;
             paint = nint.Zero;
             _paragraphCache[key] = entry;
+            _paragraphCacheOrder.Enqueue(key);
+            _frameCounters.ParagraphCreated++;
+            TrimParagraphCache();
             return entry;
         }
         finally
@@ -632,6 +820,7 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend, IDisposable
             return;
         var paintHandle = GetStrokePaint(color, lineWidth);
         nint pathBuilder = NativeMethods.ImpellerPathBuilderNew();
+        _frameCounters.PathBuilders++;
         nint path = nint.Zero;
         try
         {
@@ -642,6 +831,7 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend, IDisposable
             var end = new ImpellerPoint(x2, y2);
             NativeMethods.ImpellerPathBuilderCubicCurveTo(pathBuilder, ref cp1, ref cp2, ref end);
             path = NativeMethods.ImpellerPathBuilderCopyPathNew(pathBuilder, 0);
+            _frameCounters.Paths++;
             _builder.DrawPath(path, paintHandle);
         }
         finally
@@ -659,6 +849,7 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend, IDisposable
     {
         if (!PrepareNonTextDraw())
             return;
+        _frameCounters.Paths++;
         _builder.DrawPath(pathHandle, GetStrokePaint(color, lineWidth));
     }
 
@@ -666,6 +857,7 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend, IDisposable
     {
         if (!PrepareNonTextDraw())
             return;
+        _frameCounters.Paths++;
         _builder.DrawPath(pathHandle, GetFillPaint(color));
     }
 
@@ -676,6 +868,7 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend, IDisposable
 
         var paintHandle = GetFillPaint(color);
         var pathBuilder = NativeMethods.ImpellerPathBuilderNew();
+        _frameCounters.PathBuilders++;
         try
         {
             foreach (RectangleF rectangle in rectangles)
@@ -695,6 +888,7 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend, IDisposable
             }
 
             var path = NativeMethods.ImpellerPathBuilderCopyPathNew(pathBuilder, 0);
+            _frameCounters.Paths++;
             _builder.DrawPath(path, paintHandle);
             NativeMethods.ImpellerPathRelease(path);
         }
@@ -715,6 +909,7 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend, IDisposable
             return;
 
         nint pathBuilder = NativeMethods.ImpellerPathBuilderNew();
+        _frameCounters.PathBuilders++;
         nint path = nint.Zero;
         try
         {
@@ -736,10 +931,13 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend, IDisposable
             path = NativeMethods.ImpellerPathBuilderCopyPathNew(pathBuilder, ImpellerFillType.NonZero);
             if (path != nint.Zero)
             {
+                _frameCounters.Paths++;
                 _builder.Save();
+                _frameCounters.Saves++;
                 _builder.ResetTransform();
                 _builder.DrawPath(path, GetFillPaint(color));
                 _builder.Restore();
+                _frameCounters.Restores++;
             }
         }
         finally
@@ -767,6 +965,7 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend, IDisposable
 
         foreach (PositionedGlyphOutline glyph in glyphs)
         {
+            _frameCounters.GlyphsEnqueued++;
             batch.Add(glyph with
             {
                 X = glyph.X * _scaleX + _offsetX,
@@ -794,6 +993,7 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend, IDisposable
         _frameGlyphBatches.Clear();
     }
 
+    [System.Diagnostics.CodeAnalysis.MemberNotNullWhen(true, nameof(_builder))]
     private bool PrepareNonTextDraw()
     {
         if (_builder is null)
@@ -940,10 +1140,12 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend, IDisposable
     {
         if (_framePaintCache.TryGetValue(key, out nint existing))
         {
+            _frameCounters.PaintsReused++;
             return existing;
         }
 
         var handle = NativeMethods.ImpellerPaintNew();
+        _frameCounters.PaintsCreated++;
         var ic = color.ToImpellerColor();
         NativeMethods.ImpellerPaintSetColor(handle, ref ic);
         NativeMethods.ImpellerPaintSetDrawStyle(handle, key.Kind == PaintKind.Fill ? ImpellerDrawStyle.Fill : ImpellerDrawStyle.Stroke);
@@ -958,13 +1160,132 @@ internal sealed class ImpellerRenderingBackend : IRenderingBackend, IDisposable
 
     private void ReleaseFramePaints()
     {
-        foreach (nint paint in _framePaintCache.Values)
+        List<nint> paints = DetachFramePaints();
+        foreach (nint paint in paints)
         {
             NativeMethods.ImpellerPaintRelease(paint);
         }
 
-        _framePaintCache.Clear();
+        if (paints.Count > 0)
+        {
+            Trace($"[ImpellerFrame:{_frameId}] Release framePaints={paints.Count}");
+        }
     }
+
+    private List<nint> DetachFramePaints()
+    {
+        var paints = new List<nint>(_framePaintCache.Values);
+        _framePaintCache.Clear();
+        return paints;
+    }
+
+    private void EnqueueDeferredFrameResources(nint displayList, List<nint> paints)
+    {
+        _deferredFrameResources.Enqueue(new DeferredFrameResources(_frameId, displayList, paints));
+        Trace($"[ImpellerFrame:{_frameId}] Defer displayList=0x{displayList:X} framePaints={paints.Count} deferredFrames={_deferredFrameResources.Count}");
+        ReleaseDeferredFrameResources(s_maxDeferredFrames);
+    }
+
+    private void ReleaseDeferredFrameResources(int retainFrames)
+    {
+        while (_deferredFrameResources.Count > retainFrames)
+        {
+            DeferredFrameResources resources = _deferredFrameResources.Dequeue();
+            if (resources.DisplayList != nint.Zero)
+            {
+                NativeMethods.ImpellerDisplayListRelease(resources.DisplayList);
+            }
+
+            foreach (nint paint in resources.Paints)
+            {
+                NativeMethods.ImpellerPaintRelease(paint);
+            }
+
+            Trace($"[ImpellerFrame:{_frameId}] Retire deferredFrame={resources.FrameId} displayList=0x{resources.DisplayList:X} framePaints={resources.Paints.Count} remainingDeferredFrames={_deferredFrameResources.Count}");
+        }
+    }
+
+    private void TrimParagraphCache()
+    {
+        while (_paragraphCache.Count > s_maxParagraphCacheEntries && _paragraphCacheOrder.TryDequeue(out ParagraphKey oldest))
+        {
+            if (_paragraphCache.Remove(oldest, out NativeParagraphEntry? entry))
+            {
+                _frameCounters.ParagraphEvicted++;
+                entry.Dispose();
+            }
+        }
+    }
+
+    private bool TextBudgetExhausted()
+        => s_maxTextDrawsPerFrame > 0 && _frameCounters.TextDrawn >= s_maxTextDrawsPerFrame;
+
+    private string FormatFrameCounters()
+        => $"ops paint={_frameCounters.DrawPaints} rect={_frameCounters.Rects} oval={_frameCounters.Ovals} line={_frameCounters.Lines} path={_frameCounters.Paths} pathBuilder={_frameCounters.PathBuilders} clip={_frameCounters.Clips} save={_frameCounters.Saves} restore={_frameCounters.Restores} textReq={_frameCounters.TextRequests} textDraw={_frameCounters.TextDrawn} textSkip={_frameCounters.TextSkipped} textBudget={FormatTextBudget()} paraDraw={_frameCounters.ParagraphDrawn} paraCreate={_frameCounters.ParagraphCreated} paraReuse={_frameCounters.ParagraphReused} paraEvict={_frameCounters.ParagraphEvicted} glyphs={_frameCounters.GlyphsEnqueued} paintsCreate={_frameCounters.PaintsCreated} paintsReuse={_frameCounters.PaintsReused} paragraphCache={_paragraphCache.Count}";
+
+    private static string FormatTextBudget()
+        => s_maxTextDrawsPerFrame > 0 ? s_maxTextDrawsPerFrame.ToString() : "unlimited";
+
+    private static TextDiagnosticMode ResolveTextDiagnosticMode()
+        => Environment.GetEnvironmentVariable("WINFORMSX_IMPELLER_TEXT_MODE")?.Trim().ToLowerInvariant() switch
+        {
+            "none" or "off" or "0" => TextDiagnosticMode.None,
+            "static" or "static-paragraph" or "one" => TextDiagnosticMode.StaticParagraph,
+            "native" or "paragraph" or "native-paragraph" => TextDiagnosticMode.NativeParagraph,
+            "managed" or "glyphs" or "harfbuzz" => TextDiagnosticMode.ManagedGlyphs,
+            _ => TextDiagnosticMode.NativeParagraph,
+        };
+
+    private static int ResolvePositiveInt(string variableName, int defaultValue)
+        => int.TryParse(Environment.GetEnvironmentVariable(variableName), out int value) && value > 0
+            ? value
+            : defaultValue;
+
+    private static int ResolveNonNegativeInt(string variableName, int defaultValue)
+        => int.TryParse(Environment.GetEnvironmentVariable(variableName), out int value) && value >= 0
+            ? value
+            : defaultValue;
+
+    private static void Trace(string message)
+    {
+        if (string.IsNullOrWhiteSpace(s_traceFile))
+        {
+            return;
+        }
+
+        try
+        {
+            System.IO.File.AppendAllText(s_traceFile, $"{DateTime.UtcNow:O} {message}{Environment.NewLine}");
+        }
+        catch
+        {
+        }
+    }
+
+    private struct FrameCounters
+    {
+        public int DrawPaints;
+        public int Rects;
+        public int Ovals;
+        public int Lines;
+        public int Paths;
+        public int PathBuilders;
+        public int Clips;
+        public int Saves;
+        public int Restores;
+        public int TextRequests;
+        public int TextDrawn;
+        public int TextSkipped;
+        public int ParagraphDrawn;
+        public int ParagraphCreated;
+        public int ParagraphReused;
+        public int ParagraphEvicted;
+        public int GlyphsEnqueued;
+        public int PaintsCreated;
+        public int PaintsReused;
+    }
+
+    private sealed record DeferredFrameResources(long FrameId, nint DisplayList, List<nint> Paints);
 
     private sealed class NativeParagraphEntry : IDisposable
     {
