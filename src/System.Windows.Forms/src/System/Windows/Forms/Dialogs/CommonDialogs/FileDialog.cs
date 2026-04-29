@@ -733,11 +733,10 @@ public abstract partial class FileDialog : CommonDialog
 
             if (string.IsNullOrEmpty(selected))
             {
-                return false;
+                return TryAcceptPrepopulatedBackendSelection();
             }
 
-            FileName = selected;
-            return true;
+            return TryApplySelectedFileNames([selected]);
         }
 
         if (Control.CheckForIllegalCrossThreadCalls && Application.OleRequired() != ApartmentState.STA)
@@ -752,6 +751,64 @@ public abstract partial class FileDialog : CommonDialog
         }
 
         return RunDialogOld((HWND)hWndOwner);
+    }
+
+    private bool TryAcceptPrepopulatedBackendSelection()
+    {
+        string[] selectedFiles = FileNames;
+        if (selectedFiles.Length == 0)
+        {
+            return false;
+        }
+
+        return TryApplySelectedFileNames(selectedFiles);
+    }
+
+    private bool TryApplySelectedFileNames(string[] selectedFileNames)
+    {
+        OPEN_FILENAME_FLAGS saveOptions = _fileNameFlags;
+        int saveFilterIndex = FilterIndex;
+        string[]? saveFileNames = _fileNames;
+        bool ok = false;
+
+        try
+        {
+            _fileNames = (string[])selectedFileNames.Clone();
+            if (!ProcessFileNames(_fileNames))
+            {
+                return false;
+            }
+
+            CancelEventArgs ceevent = new();
+            if (NativeWindow.WndProcShouldBeDebuggable)
+            {
+                OnFileOk(ceevent);
+                ok = !ceevent.Cancel;
+            }
+            else
+            {
+                try
+                {
+                    OnFileOk(ceevent);
+                    ok = !ceevent.Cancel;
+                }
+                catch (Exception e)
+                {
+                    Application.OnThreadException(e);
+                }
+            }
+
+            return ok;
+        }
+        finally
+        {
+            if (!ok)
+            {
+                _fileNames = saveFileNames;
+                _fileNameFlags = saveOptions;
+                FilterIndex = saveFilterIndex;
+            }
+        }
     }
 
     private unsafe bool RunDialogOld(HWND owner)
