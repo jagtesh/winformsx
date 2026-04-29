@@ -68,7 +68,7 @@ public abstract class ControlTestBase : IAsyncLifetime, IDisposable
         // Record the mouse position so it can be restored at the end of the test
         _mousePosition = Cursor.Position;
 
-        if (Thread.CurrentThread.GetApartmentState() == ApartmentState.STA)
+        if (!OperatingSystem.IsWindows() || Thread.CurrentThread.GetApartmentState() == ApartmentState.STA)
         {
             JoinableTaskContext = new JoinableTaskContext();
         }
@@ -143,6 +143,13 @@ public abstract class ControlTestBase : IAsyncLifetime, IDisposable
 
     protected async Task WaitForIdleAsync()
     {
+        if (!OperatingSystem.IsWindows())
+        {
+            await Task.Yield();
+            Application.DoEvents();
+            return;
+        }
+
         TaskCompletionSource<VoidResult> idleCompletionSource = new(TaskCreationOptions.RunContinuationsAsynchronously);
         Application.Idle += HandleApplicationIdle;
         Application.LeaveThreadModal += HandleApplicationIdle;
@@ -301,6 +308,29 @@ public abstract class ControlTestBase : IAsyncLifetime, IDisposable
     {
         using var screenRecordService = new ScreenRecordService();
 
+        if (!OperatingSystem.IsWindows())
+        {
+            var (winFormsXDialog, winFormsXControl) = createDialog();
+            screenRecordService.RegisterEvents(winFormsXDialog);
+
+            Assert.NotNull(winFormsXDialog);
+            Assert.NotNull(winFormsXControl);
+
+            winFormsXDialog.Show();
+            await WaitForIdleAsync();
+            try
+            {
+                await testDriverAsync(winFormsXDialog, winFormsXControl);
+            }
+            finally
+            {
+                winFormsXDialog.Close();
+                winFormsXDialog.Dispose();
+            }
+
+            return;
+        }
+
         Form? dialog = null;
         T? control = default;
 
@@ -308,7 +338,11 @@ public abstract class ControlTestBase : IAsyncLifetime, IDisposable
         JoinableTask test = JoinableTaskFactory.RunAsync(async () =>
         {
             await gate.Task;
-            await JoinableTaskFactory.SwitchToMainThreadAsync();
+            if (OperatingSystem.IsWindows())
+            {
+                await JoinableTaskFactory.SwitchToMainThreadAsync();
+            }
+
             await WaitForIdleAsync();
             try
             {
@@ -326,7 +360,11 @@ public abstract class ControlTestBase : IAsyncLifetime, IDisposable
             }
         });
 
-        await JoinableTaskFactory.SwitchToMainThreadAsync();
+        if (OperatingSystem.IsWindows())
+        {
+            await JoinableTaskFactory.SwitchToMainThreadAsync();
+        }
+
         (dialog, control) = createDialog();
         screenRecordService.RegisterEvents(dialog);
 
@@ -334,6 +372,15 @@ public abstract class ControlTestBase : IAsyncLifetime, IDisposable
         Assert.NotNull(control);
 
         dialog.Activated += (sender, e) => gate.TrySetResult(default);
+        dialog.Shown += (sender, e) => gate.TrySetResult(default);
+        if (!OperatingSystem.IsWindows())
+        {
+            gate.TrySetResult(default);
+            dialog.Show();
+            await test.JoinAsync();
+            return;
+        }
+
 #pragma warning disable VSTHRD103 // Call async methods when in an async method
         dialog.ShowDialog();
 #pragma warning restore VSTHRD103 // Call async methods when in an async method
@@ -346,13 +393,39 @@ public abstract class ControlTestBase : IAsyncLifetime, IDisposable
     {
         using var screenRecordService = new ScreenRecordService();
 
+        if (!OperatingSystem.IsWindows())
+        {
+            TForm winFormsXDialog = createForm();
+            screenRecordService.RegisterEvents(winFormsXDialog);
+
+            Assert.NotNull(winFormsXDialog);
+
+            winFormsXDialog.Show();
+            await WaitForIdleAsync();
+            try
+            {
+                await testDriverAsync(winFormsXDialog);
+            }
+            finally
+            {
+                winFormsXDialog.Close();
+                winFormsXDialog.Dispose();
+            }
+
+            return;
+        }
+
         TForm? dialog = null;
 
         TaskCompletionSource<VoidResult> gate = new(TaskCreationOptions.RunContinuationsAsynchronously);
         JoinableTask test = JoinableTaskFactory.RunAsync(async () =>
         {
             await gate.Task;
-            await JoinableTaskFactory.SwitchToMainThreadAsync();
+            if (OperatingSystem.IsWindows())
+            {
+                await JoinableTaskFactory.SwitchToMainThreadAsync();
+            }
+
             await WaitForIdleAsync();
             try
             {
@@ -370,13 +443,26 @@ public abstract class ControlTestBase : IAsyncLifetime, IDisposable
             }
         });
 
-        await JoinableTaskFactory.SwitchToMainThreadAsync();
+        if (OperatingSystem.IsWindows())
+        {
+            await JoinableTaskFactory.SwitchToMainThreadAsync();
+        }
+
         dialog = createForm();
         screenRecordService.RegisterEvents(dialog);
 
         Assert.NotNull(dialog);
 
         dialog.Activated += (sender, e) => gate.TrySetResult(default);
+        dialog.Shown += (sender, e) => gate.TrySetResult(default);
+        if (!OperatingSystem.IsWindows())
+        {
+            gate.TrySetResult(default);
+            dialog.Show();
+            await test.JoinAsync();
+            return;
+        }
+
 #pragma warning disable VSTHRD103 // Call async methods when in an async method
         dialog.ShowDialog();
 #pragma warning restore VSTHRD103 // Call async methods when in an async method
