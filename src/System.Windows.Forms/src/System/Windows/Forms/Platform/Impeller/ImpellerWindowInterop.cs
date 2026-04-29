@@ -3365,10 +3365,10 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
 
         if (_windows.TryGetValue(handle, out var state))
         {
-            // Silk input coordinates are logical window coordinates. Do not divide
-            // by framebuffer scale here; doing so makes hit testing drift on HiDPI.
             int logicalW = state.LastLogicalWidth;
             int logicalH = state.LastLogicalHeight;
+            int framebufferW = state.LastFramebufferWidth;
+            int framebufferH = state.LastFramebufferHeight;
 
             if ((logicalW <= 0 || logicalH <= 0) && state.Width > 0 && state.Height > 0)
             {
@@ -3376,15 +3376,51 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                 logicalH = state.Height;
             }
 
-            if (logicalW > 0)
+            if ((framebufferW <= 0 || framebufferH <= 0) && state.SilkWindow is IWindow silkWindow)
             {
-                x = Math.Clamp(x, 0, logicalW - 1);
+                (framebufferW, framebufferH) = ResolveFramebufferSize(silkWindow, logicalW, logicalH);
             }
 
-            if (logicalH > 0)
-            {
-                y = Math.Clamp(y, 0, logicalH - 1);
-            }
+            return ScaleMousePointToLogical(
+                new System.Drawing.PointF(x, y),
+                logicalW,
+                logicalH,
+                framebufferW,
+                framebufferH);
+        }
+
+        return new System.Drawing.Point((int)Math.Floor(x), (int)Math.Floor(y));
+    }
+
+    internal static System.Drawing.Point ScaleMousePointToLogical(
+        System.Drawing.PointF point,
+        int logicalW,
+        int logicalH,
+        int framebufferW,
+        int framebufferH)
+    {
+        float x = point.X;
+        float y = point.Y;
+        var (scaleX, scaleY) = ResolveHiDpiScale(logicalW, logicalH, framebufferW, framebufferH);
+
+        if (scaleX > 0f && Math.Abs(scaleX - 1f) >= 0.01f)
+        {
+            x /= scaleX;
+        }
+
+        if (scaleY > 0f && Math.Abs(scaleY - 1f) >= 0.01f)
+        {
+            y /= scaleY;
+        }
+
+        if (logicalW > 0)
+        {
+            x = Math.Clamp(x, 0, logicalW - 1);
+        }
+
+        if (logicalH > 0)
+        {
+            y = Math.Clamp(y, 0, logicalH - 1);
         }
 
         return new System.Drawing.Point((int)Math.Floor(x), (int)Math.Floor(y));
