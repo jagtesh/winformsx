@@ -15,6 +15,11 @@ internal static partial class PInvoke
     /// </summary>
     public static unsafe BOOL EnumCurrentThreadWindows(EnumThreadWindowsCallback callback)
     {
+        if (!OperatingSystem.IsWindows())
+        {
+            return true;
+        }
+
         // We pass a function pointer to the native function and supply the callback as
         // reference data, so that the CLR doesn't need to generate a native code block for
         // each callback delegate instance (for storing the closure pointer).

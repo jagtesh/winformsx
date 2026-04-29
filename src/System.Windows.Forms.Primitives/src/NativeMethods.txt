@@ -166,7 +166,6 @@ GET_ANCESTOR_FLAGS
 GET_CLASS_LONG_INDEX
 GET_MODULE_HANDLE_EX_FLAG*
 GET_WINDOW_CMD
-GetAsyncKeyState
 GetAwarenessFromDpiAwarenessContext
 GetBitmapBits
 GetBkColor
@@ -196,7 +195,6 @@ GetDoubleClickTime
 GetDpiForSystem
 GetErrorInfo
 GetExitCodeThread
-GetForegroundWindow
 GetHGlobalFromILockBytes
 GetIconInfo
 GetKeyboardLayout
@@ -214,7 +212,6 @@ GetObject
 GetObjectType
 GetOpenFileName
 GetPaletteEntries
-GetPhysicalCursorPos
 GetProcAddress
 GetProcessDpiAwareness
 GetProcessWindowStation
@@ -348,6 +345,8 @@ IMAGE_LIST_WRITE_STREAM_FLAGS
 IMAGEINFO
 IMAGELIST_CREATION_FLAGS
 IME_COMPOSITION_STRING
+INPUT
+INPUT_TYPE
 ImmAssociateContext
 ImmCreateContext
 ImmGetContext
@@ -421,6 +420,8 @@ IViewObject
 IViewObject2
 IWebBrowser2
 KF_*
+KEYBD_EVENT_FLAGS
+KEYBDINPUT
 LAYERED_WINDOW_ATTRIBUTES_FLAGS
 LB_*
 LBN_*
@@ -498,6 +499,8 @@ MONITORINFOF_PRIMARY
 MONTH_CALDENDAR_MESSAGES_VIEW
 MONTHCAL_CLASS
 MOUSEHOOKSTRUCT
+MOUSE_EVENT_FLAGS
+MOUSEINPUT
 MoveToEx
 MSFTEDIT_CLASS
 MsgWaitForMultipleObjectsEx
@@ -606,12 +609,10 @@ ScrollWindowEx
 SelectClipRgn
 SelectPalette
 SendDlgItemMessage
-SendInput
 SendMessageCallback
 SendMessageTimeout
 SetBkMode
 SetCursor
-SetCursorPos
 SetKeyboardState
 SetLayeredWindowAttributes
 SetMapMode

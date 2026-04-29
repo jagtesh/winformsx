@@ -3,6 +3,8 @@
 
 namespace System.Windows.Forms.Platform;
 
+using global::Windows.Win32.UI.Input.KeyboardAndMouse;
+
 /// <summary>
 /// Input abstraction — keyboard, mouse, cursor, focus, and capture.
 /// </summary>
@@ -26,6 +28,7 @@ internal unsafe interface IInputInterop
     // ─── Cursor ─────────────────────────────────────────────────────────
 
     bool GetCursorPos(out System.Drawing.Point lpPoint);
+    bool GetPhysicalCursorPos(out System.Drawing.Point lpPoint);
     bool SetCursorPos(int x, int y);
     HCURSOR SetCursor(HCURSOR hCursor);
     HCURSOR LoadCursor(HINSTANCE hInstance, PCWSTR lpCursorName);
@@ -38,6 +41,7 @@ internal unsafe interface IInputInterop
     short GetKeyState(int nVirtKey);
     short GetAsyncKeyState(int vKey);
     bool GetKeyboardState(byte* lpKeyState);
+    uint SendInput(ReadOnlySpan<INPUT> inputs, int cbSize);
     uint MapVirtualKey(uint uCode, uint uMapType);
     int ToUnicode(uint wVirtKey, uint wScanCode, byte* lpKeyState, char* pwszBuff, int cchBuff, uint wFlags);
     nint GetKeyboardLayout(uint idThread);
