@@ -18,6 +18,12 @@ Ordered by observed frequency across components and blocker blast radius:
 
 ## Latest Progress (2026-04-29)
 
+- In-progress local changes (next commit):
+  - Fixed managed drag/drop re-entry on non-Windows (`ManagedDragDrop.DoDragDrop`) by rejecting nested drag-loop invocations while a drag is already active.
+  - This prevents a single gesture from triggering multiple `DoDragDrop` operations when `Application.DoEvents()` pumps source `MouseMove` messages during an active drag.
+  - Verification:
+    - `UIIntegrationTests` filter `FullyQualifiedName~DragDrop_QueryDefaultCursors_Async`: `Failed: 0, Passed: 1, Skipped: 0`.
+    - `WinformsControlsTest --control-smoke-test`: `total=42 passed=41 failed=0 skipped=1`.
 - Landed in `b888d27ff`:
   - Managed non-Windows drag/drop fallback path added and wired for `Control.DoDragDrop` and `ToolStripItem.DoDragDrop`.
   - WinFormsX input backend now propagates mouse key-state flags in message `wParam` for move/down/up paths.

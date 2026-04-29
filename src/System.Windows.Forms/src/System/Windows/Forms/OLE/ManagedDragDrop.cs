@@ -27,6 +27,13 @@ internal static class ManagedDragDrop
         Point cursorOffset,
         bool useDefaultDragImage)
     {
+        // Managed drag/drop pumps the message loop and can re-enter the source MouseMove
+        // path. Ignore nested calls so a single gesture yields a single drag operation.
+        if (IsInProgress)
+        {
+            return DragDropEffects.None;
+        }
+
         Interlocked.Increment(ref s_dragOperationDepth);
         try
         {
