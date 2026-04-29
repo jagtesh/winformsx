@@ -423,7 +423,25 @@ public class KitchenSinkForm : Form
         grpDock.Controls.Add(dockTop);
         grpDock.Controls.Add(dockBottom);
 
-        quad4.Controls.Add(grpDock);
+        var grpScrollBars = new GroupBox { Text = "ScrollBar", Width = 380, Height = 92 };
+        var scrollValue = new Label { Text = "Value: 25", Location = new Point(16, 24), Size = new Size(90, 20) };
+        var vScroll = new VScrollBar { Location = new Point(115, 18), Height = 58, Minimum = 0, Maximum = 109, LargeChange = 10, SmallChange = 5, Value = 25 };
+        var hScroll = new HScrollBar { Location = new Point(150, 34), Width = 190, Minimum = 0, Maximum = 109, LargeChange = 10, SmallChange = 5, Value = 25 };
+        void UpdateScrollValue(object? sender, EventArgs e)
+        {
+            var value = sender == vScroll ? vScroll.Value : hScroll.Value;
+            vScroll.Value = value;
+            hScroll.Value = value;
+            scrollValue.Text = $"Value: {value}";
+            SetStatus($"ScrollBar.ValueChanged: {value}");
+        }
+
+        vScroll.ValueChanged += UpdateScrollValue;
+        hScroll.ValueChanged += UpdateScrollValue;
+        grpScrollBars.Controls.AddRange(scrollValue, vScroll, hScroll);
+
+        grpDock.Height = 150;
+        quad4.Controls.AddRange(grpDock, grpScrollBars);
         mainLayout.Controls.Add(quad4);
 
         page.Controls.Add(mainLayout);
@@ -493,10 +511,17 @@ public class KitchenSinkForm : Form
             SetStatus("FontDialog opened (stub — full CHOOSEFONTW in Phase 3)");
         };
 
+        var btnMessage = new Button { Text = "MessageBox", Size = new Size(180, 40), BackColor = Color.FromArgb(69, 90, 100), ForeColor = Color.White };
+        btnMessage.Click += (_, _) => {
+            var result = MessageBox.Show(this, "Managed synthetic dialog path", "WinFormsX", MessageBoxButtons.OKCancel, MessageBoxIcon.Information);
+            resultLabel.Text = $"> MessageBox: {result}\n> No native OS dialog APIs were used.";
+            SetStatus($"MessageBox: {result}");
+        };
+
         var colorFlow = new FlowLayoutPanel { AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, Margin = new Padding(0, 0, 16, 0) };
         colorFlow.Controls.AddRange(btnColor, colorPreview);
         
-        buttonFlow.Controls.AddRange(btnOpen, btnSave, btnColor, colorPreview, btnFont);
+        buttonFlow.Controls.AddRange(btnOpen, btnSave, btnColor, colorPreview, btnFont, btnMessage);
         
         mainFlow.Controls.AddRange(lblTitle, lblDesc, buttonFlow, resultPanel);
 

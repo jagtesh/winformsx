@@ -56,6 +56,8 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
     private const int ManagedListViewHeaderHeight = 24;
     private const int ManagedDataGridHeaderHeight = 24;
     private const int ManagedDataGridRowHeight = 24;
+    private const int ManagedScrollBarArrowLength = 17;
+    private const int ManagedScrollBarMinThumbLength = 18;
     private const int DefaultDirtyCoalesceMs = 33;
     private const int DefaultRenderFailureCooldownMs = 250;
 
@@ -68,7 +70,10 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
     private static readonly long s_dirtyCoalesceMs = ParseMilliseconds("WINFORMSX_DIRTY_COALESCE_MS", DefaultDirtyCoalesceMs, 0, 250);
     private static readonly long s_renderFailureCooldownMs = ParseMilliseconds("WINFORMSX_RENDER_FAILURE_COOLDOWN_MS", DefaultRenderFailureCooldownMs, 0, 2000);
     private static readonly Dictionary<ListView, int> s_managedListViewSelection = [];
+    private static readonly Dictionary<ListView, int> s_managedListViewTopRow = [];
+    private static readonly Dictionary<TreeView, int> s_managedTreeViewTopRow = [];
     private static readonly Dictionary<DataGridView, int> s_managedDataGridViewSelection = [];
+    private static readonly Dictionary<DataGridView, int> s_managedDataGridViewTopRow = [];
     private static readonly HashSet<Control> s_pressedControls = [];
     private HWND _activeWindow;
     private readonly Dictionary<nint, ImpellerWindowState> _windows = [];
@@ -429,6 +434,11 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                             return;
                         }
 
+                        if (TryHandleManagedControlKeyDown(handle, target, kb, key))
+                        {
+                            return;
+                        }
+
                         uint vk = SilkKeyToWin32(key);
                         PostMessageToControl(target, handle, WM_KEYDOWN, (WPARAM)(nuint)vk, (LPARAM)(nint)scancode);
                         MarkDirty(handle);
@@ -475,6 +485,11 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                         if (target == HWND.Null || !TryGetClientPoint(target, pt, out clientPt))
                         {
                             target = HitTest(handle, pt, out clientPt);
+                        }
+
+                        if (TryUpdateManagedTextBoxSelectionDrag(handle, target, clientPt))
+                        {
+                            return;
                         }
 
                         PostMessageToControl(target, handle, WM_MOUSEMOVE, (WPARAM)0, PackMouseLParam(clientPt));
@@ -624,6 +639,7 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
 
                                 bool clickMatchesMouseDown = mouseUpState.MouseDownTarget == target;
                                 mouseUpState.MouseDownTarget = HWND.Null;
+                                mouseUpState.ActiveTextSelectionBox = null;
                                 PlatformApi.Input.ReleaseCapture();
                                 bool handledManagedClick = clickMatchesMouseDown
                                     && TryPerformManagedControlClick(handle, target, clientPt);
@@ -840,6 +856,10 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
             else if (control is DataGridView dataGridView)
             {
                 DrawDataGridView(dataGridView, g);
+            }
+            else if (control is ScrollBar scrollBar)
+            {
+                DrawScrollBar(scrollBar, g);
             }
             else if (control is MenuStrip menuStrip)
             {
@@ -1134,13 +1154,24 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
         var rows = new List<(TreeNode Node, int Depth)>();
         foreach (TreeNode node in treeView.Nodes)
         {
-            AddVisibleTreeRows(node, 0, rows, treeView.Height / ManagedTreeItemHeight + 2);
+            AddVisibleTreeRows(node, 0, rows, int.MaxValue);
         }
 
         TreeNode? selected = treeView.SelectedNode;
-        for (int i = 0; i < rows.Count; i++)
+        int visibleRows = Math.Max(1, (treeView.Height - 2) / ManagedTreeItemHeight);
+        int topRow = Math.Clamp(
+            s_managedTreeViewTopRow.TryGetValue(treeView, out int storedTopRow) ? storedTopRow : 0,
+            0,
+            Math.Max(0, rows.Count - visibleRows));
+        for (int visible = 0; visible < visibleRows; visible++)
         {
-            int y = 1 + i * ManagedTreeItemHeight;
+            int i = topRow + visible;
+            if (i < 0 || i >= rows.Count)
+            {
+                break;
+            }
+
+            int y = 1 + visible * ManagedTreeItemHeight;
             if (y > treeView.Height - ManagedTreeItemHeight)
             {
                 break;
@@ -1187,8 +1218,19 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
         }
 
         int rowY = ManagedListViewHeaderHeight + 1;
-        for (int row = 0; row < listView.Items.Count && rowY < listView.Height - ManagedListItemHeight; row++)
+        int visibleRows = Math.Max(1, (listView.Height - rowY) / ManagedListItemHeight);
+        int topRow = Math.Clamp(
+            s_managedListViewTopRow.TryGetValue(listView, out int storedTopRow) ? storedTopRow : 0,
+            0,
+            Math.Max(0, listView.Items.Count - visibleRows));
+        for (int visible = 0; visible < visibleRows && rowY < listView.Height - ManagedListItemHeight; visible++)
         {
+            int row = topRow + visible;
+            if (row < 0 || row >= listView.Items.Count)
+            {
+                break;
+            }
+
             ListViewItem item = listView.Items[row];
             if (item is null)
             {
@@ -1246,8 +1288,18 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
 
         int rowY = ManagedDataGridHeaderHeight + 1;
         int visibleRows = Math.Max(1, (dataGridView.Height - rowY) / ManagedDataGridRowHeight);
-        for (int i = 0; i < dataGridView.Rows.Count && i < visibleRows; i++)
+        int topRow = Math.Clamp(
+            s_managedDataGridViewTopRow.TryGetValue(dataGridView, out int storedTopRow) ? storedTopRow : 0,
+            0,
+            Math.Max(0, GetManagedDataGridViewRowCount(dataGridView) - visibleRows));
+        for (int visible = 0; visible < visibleRows; visible++)
         {
+            int i = topRow + visible;
+            if (i < 0 || i >= dataGridView.Rows.Count)
+            {
+                break;
+            }
+
             DataGridViewRow row = dataGridView.Rows[i];
             if (row.IsNewRow)
             {
@@ -1283,6 +1335,103 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
 
             rowY += ManagedDataGridRowHeight;
         }
+    }
+
+    private static void DrawScrollBar(ScrollBar scrollBar, System.Drawing.Graphics g)
+    {
+        bool vertical = scrollBar is VScrollBar;
+        var bounds = new System.Drawing.Rectangle(0, 0, Math.Max(1, scrollBar.Width), Math.Max(1, scrollBar.Height));
+
+        using var trackBrush = new System.Drawing.SolidBrush(System.Drawing.Color.FromArgb(238, 238, 238));
+        g.FillRectangle(trackBrush, bounds);
+        DrawSimpleBorder(g, bounds.X, bounds.Y, bounds.Width, bounds.Height, System.Drawing.Color.FromArgb(170, 170, 170));
+
+        int arrow = Math.Min(ManagedScrollBarArrowLength, vertical ? bounds.Height / 2 : bounds.Width / 2);
+        var firstArrow = vertical
+            ? new System.Drawing.Rectangle(0, 0, bounds.Width, arrow)
+            : new System.Drawing.Rectangle(0, 0, arrow, bounds.Height);
+        var lastArrow = vertical
+            ? new System.Drawing.Rectangle(0, Math.Max(0, bounds.Height - arrow), bounds.Width, arrow)
+            : new System.Drawing.Rectangle(Math.Max(0, bounds.Width - arrow), 0, arrow, bounds.Height);
+
+        using var arrowBrush = new System.Drawing.SolidBrush(scrollBar.Enabled
+            ? System.Drawing.Color.FromArgb(224, 224, 224)
+            : System.Drawing.Color.FromArgb(245, 245, 245));
+        g.FillRectangle(arrowBrush, firstArrow);
+        g.FillRectangle(arrowBrush, lastArrow);
+        DrawSimpleBorder(g, firstArrow.X, firstArrow.Y, firstArrow.Width, firstArrow.Height, System.Drawing.Color.FromArgb(185, 185, 185));
+        DrawSimpleBorder(g, lastArrow.X, lastArrow.Y, lastArrow.Width, lastArrow.Height, System.Drawing.Color.FromArgb(185, 185, 185));
+
+        using var glyphPen = new System.Drawing.Pen(System.Drawing.Color.FromArgb(70, 70, 70), 1.5f);
+        DrawScrollBarArrowGlyph(g, glyphPen, firstArrow, vertical, decrement: true);
+        DrawScrollBarArrowGlyph(g, glyphPen, lastArrow, vertical, decrement: false);
+
+        var thumb = GetScrollBarThumbRectangle(scrollBar);
+        if (thumb.Width > 0 && thumb.Height > 0)
+        {
+            using var thumbBrush = new System.Drawing.SolidBrush(scrollBar.Enabled
+                ? System.Drawing.Color.FromArgb(178, 178, 178)
+                : System.Drawing.Color.FromArgb(215, 215, 215));
+            g.FillRectangle(thumbBrush, thumb);
+            DrawSimpleBorder(g, thumb.X, thumb.Y, thumb.Width, thumb.Height, System.Drawing.Color.FromArgb(120, 120, 120));
+        }
+    }
+
+    private static void DrawScrollBarArrowGlyph(
+        System.Drawing.Graphics g,
+        System.Drawing.Pen pen,
+        System.Drawing.Rectangle rect,
+        bool vertical,
+        bool decrement)
+    {
+        if (rect.Width <= 4 || rect.Height <= 4)
+        {
+            return;
+        }
+
+        int cx = rect.Left + rect.Width / 2;
+        int cy = rect.Top + rect.Height / 2;
+        if (vertical)
+        {
+            int direction = decrement ? -1 : 1;
+            g.DrawLine(pen, cx - 4, cy - direction * 2, cx, cy + direction * 3);
+            g.DrawLine(pen, cx, cy + direction * 3, cx + 4, cy - direction * 2);
+        }
+        else
+        {
+            int direction = decrement ? -1 : 1;
+            g.DrawLine(pen, cx - direction * 2, cy - 4, cx + direction * 3, cy);
+            g.DrawLine(pen, cx + direction * 3, cy, cx - direction * 2, cy + 4);
+        }
+    }
+
+    private static System.Drawing.Rectangle GetScrollBarThumbRectangle(ScrollBar scrollBar)
+    {
+        bool vertical = scrollBar is VScrollBar;
+        int length = Math.Max(1, vertical ? scrollBar.Height : scrollBar.Width);
+        int thickness = Math.Max(1, vertical ? scrollBar.Width : scrollBar.Height);
+        int arrow = Math.Min(ManagedScrollBarArrowLength, length / 2);
+        int trackStart = arrow;
+        int trackLength = Math.Max(0, length - arrow * 2);
+        if (trackLength <= 0)
+        {
+            return System.Drawing.Rectangle.Empty;
+        }
+
+        int minimum = scrollBar.Minimum;
+        int maximum = Math.Max(minimum, scrollBar.Maximum);
+        int largeChange = Math.Max(1, scrollBar.LargeChange);
+        int range = Math.Max(1, maximum - minimum + 1);
+        int thumbLength = Math.Clamp((int)MathF.Round(trackLength * (largeChange / (float)range)), ManagedScrollBarMinThumbLength, trackLength);
+        int maxValue = GetScrollBarMaximumValue(scrollBar);
+        float ratio = maxValue <= minimum
+            ? 0f
+            : (Math.Clamp(scrollBar.Value, minimum, maxValue) - minimum) / (float)(maxValue - minimum);
+        int thumbStart = trackStart + (int)MathF.Round((trackLength - thumbLength) * ratio);
+
+        return vertical
+            ? new System.Drawing.Rectangle(1, thumbStart, Math.Max(1, thickness - 2), thumbLength)
+            : new System.Drawing.Rectangle(thumbStart, 1, thumbLength, Math.Max(1, thickness - 2));
     }
 
     private static void DrawStatusStrip(StatusStrip statusStrip, System.Drawing.Graphics g)
@@ -1916,18 +2065,387 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
         return true;
     }
 
+    private bool TryHandleManagedControlKeyDown(HWND rootHandle, HWND target, IKeyboard keyboard, Key key)
+    {
+        _ = keyboard;
+
+        if (_windows.TryGetValue(rootHandle, out var state))
+        {
+            if (state.ActiveComboBox is { } activeComboBox && TryHandleManagedComboKeyDown(rootHandle, state, activeComboBox, key))
+            {
+                return true;
+            }
+
+            if (state.ActiveMenuItem is not null && key == Key.Escape)
+            {
+                state.ActiveMenuItem = null;
+                state.ActiveMenuBounds = System.Drawing.Rectangle.Empty;
+                MarkDirty(rootHandle);
+                return true;
+            }
+        }
+
+        Control? control = Control.FromHandle(target);
+        if (control is null || !control.Enabled)
+        {
+            return false;
+        }
+
+        using var guard = WinFormsXExecutionGuard.Enter(
+            WinFormsXExecutionKind.Input,
+            $"ManagedKeyDown control={control.GetType().Name} key={key}");
+
+        switch (control)
+        {
+            case ListBox listBox:
+                return InvokeManagedKeyInteraction(rootHandle, listBox, () => NavigateManagedListBox(listBox, key));
+            case ComboBox comboBox:
+                return InvokeManagedKeyInteraction(rootHandle, comboBox, () => NavigateManagedComboBox(rootHandle, comboBox, key));
+            case TreeView treeView:
+                return InvokeManagedKeyInteraction(rootHandle, treeView, () => NavigateManagedTreeView(treeView, key));
+            case ListView listView:
+                return InvokeManagedKeyInteraction(rootHandle, listView, () => NavigateManagedListView(listView, key));
+            case DataGridView dataGridView:
+                return InvokeManagedKeyInteraction(rootHandle, dataGridView, () => NavigateManagedDataGridView(dataGridView, key));
+            case ScrollBar scrollBar:
+                return InvokeManagedKeyInteraction(rootHandle, scrollBar, () => NavigateManagedScrollBar(scrollBar, key));
+            case CheckBox or RadioButton or IButtonControl when key is Key.Space or Key.Enter:
+                return InvokeManagedKeyInteraction(rootHandle, control, () => TryPerformManagedControlClick(rootHandle, target, System.Drawing.Point.Empty));
+            default:
+                return false;
+        }
+    }
+
+    private bool InvokeManagedKeyInteraction(HWND rootHandle, Control control, Func<bool> action)
+    {
+        try
+        {
+            bool handled = action();
+            if (handled)
+            {
+                MarkDirtyDeferred(rootHandle);
+            }
+
+            return handled;
+        }
+        catch (Exception ex)
+        {
+            _ = control;
+            Application.OnThreadException(ex);
+            return true;
+        }
+    }
+
+    private bool TryHandleManagedComboKeyDown(HWND rootHandle, ImpellerWindowState state, ComboBox comboBox, Key key)
+    {
+        switch (key)
+        {
+            case Key.Up:
+                SelectManagedComboIndex(comboBox, comboBox.SelectedIndex <= 0 ? 0 : comboBox.SelectedIndex - 1);
+                MarkDirty(rootHandle);
+                return true;
+            case Key.Down:
+                SelectManagedComboIndex(comboBox, Math.Min(comboBox.Items.Count - 1, comboBox.SelectedIndex + 1));
+                MarkDirty(rootHandle);
+                return true;
+            case Key.Enter:
+            case Key.Escape:
+                state.ActiveComboBox = null;
+                state.ActiveComboBounds = System.Drawing.Rectangle.Empty;
+                MarkDirty(rootHandle);
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    private bool NavigateManagedComboBox(HWND rootHandle, ComboBox comboBox, Key key)
+    {
+        switch (key)
+        {
+            case Key.F4:
+            case Key.Space:
+            case Key.Enter:
+                ShowManagedComboDropDown(rootHandle, comboBox);
+                return true;
+            case Key.Up:
+                SelectManagedComboIndex(comboBox, comboBox.SelectedIndex <= 0 ? 0 : comboBox.SelectedIndex - 1);
+                return true;
+            case Key.Down:
+                SelectManagedComboIndex(comboBox, Math.Min(comboBox.Items.Count - 1, comboBox.SelectedIndex + 1));
+                return true;
+            case Key.Home:
+                SelectManagedComboIndex(comboBox, 0);
+                return true;
+            case Key.End:
+                SelectManagedComboIndex(comboBox, comboBox.Items.Count - 1);
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    private static void SelectManagedComboIndex(ComboBox comboBox, int index)
+    {
+        if (comboBox.Items.Count == 0)
+        {
+            return;
+        }
+
+        comboBox.SelectedIndex = Math.Clamp(index, 0, comboBox.Items.Count - 1);
+    }
+
+    private static bool NavigateManagedListBox(ListBox listBox, Key key)
+    {
+        if (listBox.Items.Count == 0)
+        {
+            return false;
+        }
+
+        int visibleItems = Math.Max(1, listBox.Height / Math.Max(1, listBox.ItemHeight));
+        int current = listBox.SelectedIndex >= 0 ? listBox.SelectedIndex : Math.Clamp(listBox.TopIndex, 0, listBox.Items.Count - 1);
+        int next = key switch
+        {
+            Key.Up => current - 1,
+            Key.Down => current + 1,
+            Key.Home => 0,
+            Key.End => listBox.Items.Count - 1,
+            Key.PageUp => current - visibleItems,
+            Key.PageDown => current + visibleItems,
+            _ => current,
+        };
+
+        if (next == current && key is not (Key.Up or Key.Down or Key.Home or Key.End or Key.PageUp or Key.PageDown))
+        {
+            return false;
+        }
+
+        next = Math.Clamp(next, 0, listBox.Items.Count - 1);
+        listBox.SelectedIndex = next;
+        int maximumTopIndex = Math.Max(0, listBox.Items.Count - visibleItems);
+        if (next < listBox.TopIndex)
+        {
+            listBox.TopIndex = next;
+        }
+        else if (next >= listBox.TopIndex + visibleItems)
+        {
+            listBox.TopIndex = Math.Clamp(next - visibleItems + 1, 0, maximumTopIndex);
+        }
+
+        return true;
+    }
+
+    private static bool NavigateManagedTreeView(TreeView treeView, Key key)
+    {
+        var rows = new List<(TreeNode Node, int Depth)>();
+        foreach (TreeNode node in treeView.Nodes)
+        {
+            AddVisibleTreeRows(node, 0, rows, int.MaxValue);
+        }
+
+        if (rows.Count == 0)
+        {
+            return false;
+        }
+
+        int current = treeView.SelectedNode is { } selectedNode
+            ? Math.Max(0, rows.FindIndex(row => ReferenceEquals(row.Node, selectedNode)))
+            : 0;
+        int visibleRows = Math.Max(1, (treeView.Height - 2) / ManagedTreeItemHeight);
+        int next = key switch
+        {
+            Key.Up => current - 1,
+            Key.Down => current + 1,
+            Key.Home => 0,
+            Key.End => rows.Count - 1,
+            Key.PageUp => current - visibleRows,
+            Key.PageDown => current + visibleRows,
+            _ => current,
+        };
+
+        if (key == Key.Left)
+        {
+            TreeNode node = rows[current].Node;
+            if (node.IsExpanded && node.Nodes.Count > 0)
+            {
+                node.Collapse();
+            }
+            else if (node.Parent is not null)
+            {
+                treeView.SelectedNode = node.Parent;
+                EnsureManagedTreeNodeVisible(treeView, node.Parent);
+            }
+
+            return true;
+        }
+
+        if (key == Key.Right)
+        {
+            TreeNode node = rows[current].Node;
+            if (node.Nodes.Count > 0)
+            {
+                if (!node.IsExpanded)
+                {
+                    node.Expand();
+                }
+                else
+                {
+                    treeView.SelectedNode = node.Nodes[0];
+                    EnsureManagedTreeNodeVisible(treeView, node.Nodes[0]);
+                }
+            }
+
+            return true;
+        }
+
+        if (key == Key.Space && treeView.CheckBoxes)
+        {
+            rows[current].Node.Checked = !rows[current].Node.Checked;
+            return true;
+        }
+
+        if (next == current && key is not (Key.Up or Key.Down or Key.Home or Key.End or Key.PageUp or Key.PageDown))
+        {
+            return false;
+        }
+
+        next = Math.Clamp(next, 0, rows.Count - 1);
+        treeView.SelectedNode = rows[next].Node;
+        EnsureManagedTreeRowVisible(treeView, next);
+        return true;
+    }
+
+    private static bool NavigateManagedListView(ListView listView, Key key)
+    {
+        if (listView.Items.Count == 0)
+        {
+            return false;
+        }
+
+        int visibleRows = Math.Max(1, (listView.Height - ManagedListViewHeaderHeight - 1) / ManagedListItemHeight);
+        int current = GetManagedListViewSelectedIndex(listView);
+        int next = key switch
+        {
+            Key.Up => current - 1,
+            Key.Down => current + 1,
+            Key.Home => 0,
+            Key.End => listView.Items.Count - 1,
+            Key.PageUp => current - visibleRows,
+            Key.PageDown => current + visibleRows,
+            _ => current,
+        };
+
+        if (next == current && key is not (Key.Up or Key.Down or Key.Home or Key.End or Key.PageUp or Key.PageDown))
+        {
+            return false;
+        }
+
+        SelectManagedListViewIndex(listView, Math.Clamp(next, 0, listView.Items.Count - 1));
+        return true;
+    }
+
+    private static bool NavigateManagedDataGridView(DataGridView dataGridView, Key key)
+    {
+        int rowCount = GetManagedDataGridViewRowCount(dataGridView);
+        if (rowCount == 0)
+        {
+            return false;
+        }
+
+        int visibleRows = Math.Max(1, (dataGridView.Height - ManagedDataGridHeaderHeight - 1) / ManagedDataGridRowHeight);
+        int current = GetManagedDataGridViewSelectedRow(dataGridView);
+        int next = key switch
+        {
+            Key.Up => current - 1,
+            Key.Down => current + 1,
+            Key.Home => 0,
+            Key.End => rowCount - 1,
+            Key.PageUp => current - visibleRows,
+            Key.PageDown => current + visibleRows,
+            _ => current,
+        };
+
+        if (next == current && key is not (Key.Up or Key.Down or Key.Home or Key.End or Key.PageUp or Key.PageDown))
+        {
+            return false;
+        }
+
+        SelectManagedDataGridViewRowIndex(dataGridView, Math.Clamp(next, 0, rowCount - 1));
+        return true;
+    }
+
+    private static bool NavigateManagedScrollBar(ScrollBar scrollBar, Key key)
+    {
+        bool vertical = scrollBar is VScrollBar;
+        int delta = key switch
+        {
+            Key.Home => scrollBar.Minimum - scrollBar.Value,
+            Key.End => GetScrollBarMaximumValue(scrollBar) - scrollBar.Value,
+            Key.PageUp => -scrollBar.LargeChange,
+            Key.PageDown => scrollBar.LargeChange,
+            Key.Up when vertical => -scrollBar.SmallChange,
+            Key.Down when vertical => scrollBar.SmallChange,
+            Key.Left when !vertical => -scrollBar.SmallChange,
+            Key.Right when !vertical => scrollBar.SmallChange,
+            _ => 0,
+        };
+
+        if (delta == 0 && key is not (Key.Home or Key.End))
+        {
+            return false;
+        }
+
+        SetManagedScrollBarValue(scrollBar, scrollBar.Value + delta);
+        return true;
+    }
+
     private void BeginManagedTextBoxMouseDown(HWND rootHandle, TextBoxBase textBox, System.Drawing.Point clientPoint)
     {
+        int index = EstimateTextBoxCaretIndex(textBox, clientPoint);
+        if (_windows.TryGetValue(rootHandle, out var state))
+        {
+            state.ActiveTextSelectionBox = textBox;
+            state.TextSelectionAnchor = index;
+        }
+
         textBox.BeginInvoke(new Action(() =>
         {
             using var guard = WinFormsXExecutionGuard.Enter(
                 WinFormsXExecutionKind.Input,
                 $"TextBoxMouseDown text={textBox.Name}");
 
-            int index = EstimateTextBoxCaretIndex(textBox, clientPoint);
             textBox.Select(index, 0);
             MarkDirty(rootHandle);
         }));
+    }
+
+    private bool TryUpdateManagedTextBoxSelectionDrag(HWND rootHandle, HWND target, System.Drawing.Point clientPoint)
+    {
+        if (!_windows.TryGetValue(rootHandle, out var state)
+            || state.ActiveTextSelectionBox is not { } textBox
+            || (HWND)(nint)textBox.Handle != target)
+        {
+            return false;
+        }
+
+        int caretIndex = EstimateTextBoxCaretIndex(textBox, clientPoint);
+        int anchor = Math.Clamp(state.TextSelectionAnchor, 0, textBox.Text.Length);
+        textBox.BeginInvoke(new Action(() =>
+        {
+            int current = Math.Clamp(caretIndex, 0, textBox.Text.Length);
+            if (current < anchor)
+            {
+                textBox.Select(current, anchor - current);
+            }
+            else
+            {
+                textBox.Select(anchor, current - anchor);
+            }
+
+            MarkDirty(rootHandle);
+        }));
+
+        return true;
     }
 
     private void ReplaceManagedTextSelection(HWND rootHandle, TextBoxBase textBox, string replacement)
@@ -2061,6 +2579,9 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
             case DataGridView dataGridView:
                 InvokeManagedInteraction(rootHandle, control, () => SelectManagedDataGridViewRow(dataGridView, clientPoint));
                 return true;
+            case ScrollBar scrollBar:
+                InvokeManagedInteraction(rootHandle, control, () => ScrollManagedScrollBarFromClick(scrollBar, clientPoint));
+                return true;
             default:
                 return false;
         }
@@ -2094,10 +2615,15 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
         var rows = new List<(TreeNode Node, int Depth)>();
         foreach (TreeNode node in treeView.Nodes)
         {
-            AddVisibleTreeRows(node, 0, rows, treeView.Height / ManagedTreeItemHeight + 2);
+            AddVisibleTreeRows(node, 0, rows, int.MaxValue);
         }
 
-        int row = Math.Max(0, clientPoint.Y - 1) / ManagedTreeItemHeight;
+        int visibleRows = Math.Max(1, (treeView.Height - 2) / ManagedTreeItemHeight);
+        int topRow = Math.Clamp(
+            s_managedTreeViewTopRow.TryGetValue(treeView, out int storedTopRow) ? storedTopRow : 0,
+            0,
+            Math.Max(0, rows.Count - visibleRows));
+        int row = topRow + Math.Max(0, clientPoint.Y - 1) / ManagedTreeItemHeight;
         if (row < 0 || row >= rows.Count)
         {
             return;
@@ -2123,8 +2649,40 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
 
     private static void SelectManagedListViewItem(ListView listView, System.Drawing.Point clientPoint)
     {
-        int row = (clientPoint.Y - ManagedListViewHeaderHeight - 1) / ManagedListItemHeight;
+        int visibleRows = Math.Max(1, (listView.Height - ManagedListViewHeaderHeight - 1) / ManagedListItemHeight);
+        int topRow = Math.Clamp(
+            s_managedListViewTopRow.TryGetValue(listView, out int storedTopRow) ? storedTopRow : 0,
+            0,
+            Math.Max(0, listView.Items.Count - visibleRows));
+        int row = topRow + (clientPoint.Y - ManagedListViewHeaderHeight - 1) / ManagedListItemHeight;
         if (row < 0 || row >= listView.Items.Count)
+        {
+            return;
+        }
+
+        SelectManagedListViewIndex(listView, row);
+    }
+
+    private static void SelectManagedDataGridViewRow(DataGridView dataGridView, System.Drawing.Point clientPoint)
+    {
+        int visibleRows = Math.Max(1, (dataGridView.Height - ManagedDataGridHeaderHeight - 1) / ManagedDataGridRowHeight);
+        int topRow = Math.Clamp(
+            s_managedDataGridViewTopRow.TryGetValue(dataGridView, out int storedTopRow) ? storedTopRow : 0,
+            0,
+            Math.Max(0, GetManagedDataGridViewRowCount(dataGridView) - visibleRows));
+        int rowIndex = topRow + (clientPoint.Y - ManagedDataGridHeaderHeight - 1) / ManagedDataGridRowHeight;
+        if (rowIndex < 0 || rowIndex >= dataGridView.Rows.Count || dataGridView.Rows[rowIndex].IsNewRow)
+        {
+            return;
+        }
+
+        SelectManagedDataGridViewRowIndex(dataGridView, rowIndex);
+    }
+
+    private static void SelectManagedListViewIndex(ListView listView, int row)
+    {
+        row = Math.Clamp(row, 0, Math.Max(0, listView.Items.Count - 1));
+        if (listView.Items.Count == 0)
         {
             return;
         }
@@ -2136,17 +2694,53 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
             previous.Focused = false;
         }
 
+        foreach (ListViewItem item in listView.SelectedItems)
+        {
+            if (item != selected)
+            {
+                item.Selected = false;
+            }
+        }
+
         selected.Selected = true;
         selected.Focused = true;
         listView.FocusedItem = selected;
         s_managedListViewSelection[listView] = row;
+
+        int visibleRows = Math.Max(1, (listView.Height - ManagedListViewHeaderHeight - 1) / ManagedListItemHeight);
+        int topRow = s_managedListViewTopRow.TryGetValue(listView, out int storedTopRow) ? storedTopRow : 0;
+        if (row < topRow)
+        {
+            s_managedListViewTopRow[listView] = row;
+        }
+        else if (row >= topRow + visibleRows)
+        {
+            s_managedListViewTopRow[listView] = Math.Clamp(row - visibleRows + 1, 0, Math.Max(0, listView.Items.Count - visibleRows));
+        }
+
         InvokeProtectedEvent(listView, "OnSelectedIndexChanged", EventArgs.Empty);
         TraceInput($"[ManagedListViewSelect] index={row} text={selected.Text}");
     }
 
-    private static void SelectManagedDataGridViewRow(DataGridView dataGridView, System.Drawing.Point clientPoint)
+    private static int GetManagedListViewSelectedIndex(ListView listView)
     {
-        int rowIndex = (clientPoint.Y - ManagedDataGridHeaderHeight - 1) / ManagedDataGridRowHeight;
+        if (s_managedListViewSelection.TryGetValue(listView, out int stored)
+            && stored >= 0
+            && stored < listView.Items.Count)
+        {
+            return stored;
+        }
+
+        if (listView.FocusedItem is { } focused)
+        {
+            return Math.Max(0, focused.Index);
+        }
+
+        return listView.SelectedIndices.Count > 0 ? listView.SelectedIndices[0] : 0;
+    }
+
+    private static void SelectManagedDataGridViewRowIndex(DataGridView dataGridView, int rowIndex)
+    {
         if (rowIndex < 0 || rowIndex >= dataGridView.Rows.Count || dataGridView.Rows[rowIndex].IsNewRow)
         {
             return;
@@ -2154,10 +2748,138 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
 
         dataGridView.ClearSelection();
         dataGridView.Rows[rowIndex].Selected = true;
+        if (dataGridView.Rows[rowIndex].Cells.Count > 0)
+        {
+            try
+            {
+                dataGridView.CurrentCell = dataGridView.Rows[rowIndex].Cells[0];
+            }
+            catch
+            {
+            }
+        }
+
         s_managedDataGridViewSelection[dataGridView] = rowIndex;
+
+        int visibleRows = Math.Max(1, (dataGridView.Height - ManagedDataGridHeaderHeight - 1) / ManagedDataGridRowHeight);
+        int topRow = s_managedDataGridViewTopRow.TryGetValue(dataGridView, out int storedTopRow) ? storedTopRow : 0;
+        if (rowIndex < topRow)
+        {
+            s_managedDataGridViewTopRow[dataGridView] = rowIndex;
+        }
+        else if (rowIndex >= topRow + visibleRows)
+        {
+            s_managedDataGridViewTopRow[dataGridView] = Math.Clamp(rowIndex - visibleRows + 1, 0, Math.Max(0, GetManagedDataGridViewRowCount(dataGridView) - visibleRows));
+        }
 
         TraceInput($"[ManagedDataGridViewSelect] row={rowIndex}");
     }
+
+    private static int GetManagedDataGridViewSelectedRow(DataGridView dataGridView)
+    {
+        if (s_managedDataGridViewSelection.TryGetValue(dataGridView, out int stored)
+            && stored >= 0
+            && stored < dataGridView.Rows.Count
+            && !dataGridView.Rows[stored].IsNewRow)
+        {
+            return stored;
+        }
+
+        if (dataGridView.CurrentRow is { } current && !current.IsNewRow)
+        {
+            return Math.Max(0, current.Index);
+        }
+
+        return dataGridView.SelectedRows.Count > 0 ? dataGridView.SelectedRows[0].Index : 0;
+    }
+
+    private static int GetManagedDataGridViewRowCount(DataGridView dataGridView)
+    {
+        int count = 0;
+        foreach (DataGridViewRow row in dataGridView.Rows)
+        {
+            if (!row.IsNewRow)
+            {
+                count++;
+            }
+        }
+
+        return count;
+    }
+
+    private static void EnsureManagedTreeNodeVisible(TreeView treeView, TreeNode node)
+    {
+        var rows = new List<(TreeNode Node, int Depth)>();
+        foreach (TreeNode root in treeView.Nodes)
+        {
+            AddVisibleTreeRows(root, 0, rows, int.MaxValue);
+        }
+
+        int rowIndex = rows.FindIndex(row => ReferenceEquals(row.Node, node));
+        if (rowIndex >= 0)
+        {
+            EnsureManagedTreeRowVisible(treeView, rowIndex);
+        }
+    }
+
+    private static void EnsureManagedTreeRowVisible(TreeView treeView, int rowIndex)
+    {
+        var rows = new List<(TreeNode Node, int Depth)>();
+        foreach (TreeNode root in treeView.Nodes)
+        {
+            AddVisibleTreeRows(root, 0, rows, int.MaxValue);
+        }
+
+        int visibleRows = Math.Max(1, (treeView.Height - 2) / ManagedTreeItemHeight);
+        int topRow = s_managedTreeViewTopRow.TryGetValue(treeView, out int storedTopRow) ? storedTopRow : 0;
+        if (rowIndex < topRow)
+        {
+            s_managedTreeViewTopRow[treeView] = rowIndex;
+        }
+        else if (rowIndex >= topRow + visibleRows)
+        {
+            s_managedTreeViewTopRow[treeView] = Math.Clamp(rowIndex - visibleRows + 1, 0, Math.Max(0, rows.Count - visibleRows));
+        }
+    }
+
+    private static void ScrollManagedScrollBarFromClick(ScrollBar scrollBar, System.Drawing.Point clientPoint)
+    {
+        bool vertical = scrollBar is VScrollBar;
+        int coordinate = vertical ? clientPoint.Y : clientPoint.X;
+        int length = Math.Max(1, vertical ? scrollBar.Height : scrollBar.Width);
+        int arrow = Math.Min(ManagedScrollBarArrowLength, length / 2);
+        var thumb = GetScrollBarThumbRectangle(scrollBar);
+
+        if (coordinate < arrow)
+        {
+            SetManagedScrollBarValue(scrollBar, scrollBar.Value - scrollBar.SmallChange);
+        }
+        else if (coordinate >= length - arrow)
+        {
+            SetManagedScrollBarValue(scrollBar, scrollBar.Value + scrollBar.SmallChange);
+        }
+        else if ((vertical && coordinate < thumb.Top) || (!vertical && coordinate < thumb.Left))
+        {
+            SetManagedScrollBarValue(scrollBar, scrollBar.Value - scrollBar.LargeChange);
+        }
+        else if ((vertical && coordinate > thumb.Bottom) || (!vertical && coordinate > thumb.Right))
+        {
+            SetManagedScrollBarValue(scrollBar, scrollBar.Value + scrollBar.LargeChange);
+        }
+    }
+
+    private static void SetManagedScrollBarValue(ScrollBar scrollBar, int value)
+    {
+        int newValue = Math.Clamp(value, scrollBar.Minimum, GetScrollBarMaximumValue(scrollBar));
+        if (scrollBar.Value != newValue)
+        {
+            scrollBar.Value = newValue;
+            scrollBar.Invalidate();
+        }
+    }
+
+    private static int GetScrollBarMaximumValue(ScrollBar scrollBar)
+        => Math.Clamp(scrollBar.Maximum - Math.Max(1, scrollBar.LargeChange) + 1, scrollBar.Minimum, scrollBar.Maximum);
 
     private static void InvokeProtectedEvent(Control control, string methodName, EventArgs args)
     {
@@ -2219,7 +2941,8 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
             or ComboBox
             or TreeView
             or ListView
-            or DataGridView;
+            or DataGridView
+            or ScrollBar;
 
     private static bool IsManagedPushButton(Control? control)
         => control is System.Windows.Forms.Button;
@@ -2244,6 +2967,7 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
             or TreeView
             or ListView
             or DataGridView
+            or ScrollBar
             or TabControl
             or ScrollableControl { AutoScroll: true };
     }
@@ -2269,42 +2993,131 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
 
     private bool TryHandleManagedMouseWheel(HWND topLevel, HWND target, int wheelDelta)
     {
-        if (Control.FromHandle(target) is not ListBox listBox)
+        Control? control = Control.FromHandle(target);
+        if (control is null)
         {
             return false;
         }
 
-        listBox.BeginInvoke(new Action(() =>
+        switch (control)
         {
-            int itemHeight = Math.Max(1, listBox.ItemHeight);
-            int visibleItems = Math.Max(1, listBox.Height / itemHeight);
-            int maximumTopIndex = Math.Max(0, listBox.Items.Count - visibleItems);
-            if (maximumTopIndex == 0)
-            {
-                return;
-            }
+            case ListBox listBox:
+                listBox.BeginInvoke(new Action(() =>
+                {
+                    int itemHeight = Math.Max(1, listBox.ItemHeight);
+                    int visibleItems = Math.Max(1, listBox.Height / itemHeight);
+                    int lineDelta = GetManagedWheelLineDelta(wheelDelta, visibleItems);
+                    int maximumTopIndex = Math.Max(0, listBox.Items.Count - visibleItems);
+                    if (lineDelta != 0 && maximumTopIndex > 0)
+                    {
+                        listBox.TopIndex = Math.Clamp(listBox.TopIndex + lineDelta, 0, maximumTopIndex);
+                        MarkDirty(topLevel);
+                    }
+                }));
+                return true;
+            case TreeView treeView:
+                treeView.BeginInvoke(new Action(() =>
+                {
+                    int visibleRows = Math.Max(1, (treeView.Height - 2) / ManagedTreeItemHeight);
+                    ScrollManagedTreeView(treeView, GetManagedWheelLineDelta(wheelDelta, visibleRows));
+                    MarkDirty(topLevel);
+                }));
+                return true;
+            case ListView listView:
+                listView.BeginInvoke(new Action(() =>
+                {
+                    int visibleRows = Math.Max(1, (listView.Height - ManagedListViewHeaderHeight - 1) / ManagedListItemHeight);
+                    ScrollManagedListView(listView, GetManagedWheelLineDelta(wheelDelta, visibleRows));
+                    MarkDirty(topLevel);
+                }));
+                return true;
+            case DataGridView dataGridView:
+                dataGridView.BeginInvoke(new Action(() =>
+                {
+                    int visibleRows = Math.Max(1, (dataGridView.Height - ManagedDataGridHeaderHeight - 1) / ManagedDataGridRowHeight);
+                    ScrollManagedDataGridView(dataGridView, GetManagedWheelLineDelta(wheelDelta, visibleRows));
+                    MarkDirty(topLevel);
+                }));
+                return true;
+            case ScrollBar scrollBar:
+                scrollBar.BeginInvoke(new Action(() =>
+                {
+                    int lineDelta = GetManagedWheelLineDelta(wheelDelta, 1);
+                    SetManagedScrollBarValue(scrollBar, scrollBar.Value + lineDelta * Math.Max(1, scrollBar.SmallChange));
+                    MarkDirty(topLevel);
+                }));
+                return true;
+            case ScrollableControl scrollableControl when scrollableControl.AutoScroll:
+                scrollableControl.BeginInvoke(new Action(() =>
+                {
+                    int lineDelta = GetManagedWheelLineDelta(wheelDelta, 3);
+                    var current = scrollableControl.AutoScrollPosition;
+                    scrollableControl.AutoScrollPosition = new System.Drawing.Point(
+                        Math.Abs(current.X),
+                        Math.Max(0, Math.Abs(current.Y) + lineDelta * ManagedListItemHeight));
+                    scrollableControl.Invalidate();
+                    MarkDirty(topLevel);
+                }));
+                return true;
+            default:
+                return false;
+        }
+    }
 
-            int wheelScrollLines = SystemInformation.MouseWheelScrollLines;
-            if (wheelScrollLines == 0)
-            {
-                return;
-            }
+    private static int GetManagedWheelLineDelta(int wheelDelta, int visibleItems)
+    {
+        int wheelScrollLines = SystemInformation.MouseWheelScrollLines;
+        if (wheelScrollLines == 0)
+        {
+            return 0;
+        }
 
-            if (wheelScrollLines == -1)
-            {
-                wheelScrollLines = visibleItems;
-            }
+        if (wheelScrollLines == -1)
+        {
+            wheelScrollLines = Math.Max(1, visibleItems);
+        }
 
-            int scrollLines = Math.Max(1, Math.Abs(wheelDelta) * wheelScrollLines / WheelDelta);
-            int newTopIndex = wheelDelta > 0
-                ? listBox.TopIndex - scrollLines
-                : listBox.TopIndex + scrollLines;
+        int scrollLines = Math.Max(1, Math.Abs(wheelDelta) * Math.Max(1, wheelScrollLines) / WheelDelta);
+        return wheelDelta > 0 ? -scrollLines : scrollLines;
+    }
 
-            listBox.TopIndex = Math.Clamp(newTopIndex, 0, maximumTopIndex);
-            MarkDirty(topLevel);
-        }));
+    private static int ScrollManagedTreeView(TreeView treeView, int rowDelta)
+    {
+        var rows = new List<(TreeNode Node, int Depth)>();
+        foreach (TreeNode node in treeView.Nodes)
+        {
+            AddVisibleTreeRows(node, 0, rows, int.MaxValue);
+        }
 
-        return true;
+        int visibleRows = Math.Max(1, (treeView.Height - 2) / ManagedTreeItemHeight);
+        int maxTopRow = Math.Max(0, rows.Count - visibleRows);
+        int oldTopRow = s_managedTreeViewTopRow.TryGetValue(treeView, out int storedTopRow) ? storedTopRow : 0;
+        int newTopRow = Math.Clamp(oldTopRow + rowDelta, 0, maxTopRow);
+        s_managedTreeViewTopRow[treeView] = newTopRow;
+        treeView.Invalidate();
+        return newTopRow;
+    }
+
+    private static int ScrollManagedListView(ListView listView, int rowDelta)
+    {
+        int visibleRows = Math.Max(1, (listView.Height - ManagedListViewHeaderHeight - 1) / ManagedListItemHeight);
+        int maxTopRow = Math.Max(0, listView.Items.Count - visibleRows);
+        int oldTopRow = s_managedListViewTopRow.TryGetValue(listView, out int storedTopRow) ? storedTopRow : 0;
+        int newTopRow = Math.Clamp(oldTopRow + rowDelta, 0, maxTopRow);
+        s_managedListViewTopRow[listView] = newTopRow;
+        listView.Invalidate();
+        return newTopRow;
+    }
+
+    private static int ScrollManagedDataGridView(DataGridView dataGridView, int rowDelta)
+    {
+        int visibleRows = Math.Max(1, (dataGridView.Height - ManagedDataGridHeaderHeight - 1) / ManagedDataGridRowHeight);
+        int maxTopRow = Math.Max(0, GetManagedDataGridViewRowCount(dataGridView) - visibleRows);
+        int oldTopRow = s_managedDataGridViewTopRow.TryGetValue(dataGridView, out int storedTopRow) ? storedTopRow : 0;
+        int newTopRow = Math.Clamp(oldTopRow + rowDelta, 0, maxTopRow);
+        s_managedDataGridViewTopRow[dataGridView] = newTopRow;
+        dataGridView.Invalidate();
+        return newTopRow;
     }
 
     private static bool TryGetClientPoint(HWND target, System.Drawing.Point rootPoint, out System.Drawing.Point clientPoint)
@@ -3110,4 +3923,6 @@ internal sealed class ImpellerWindowState
     public System.Drawing.Rectangle ActiveComboBounds;
     public HWND MouseDownTarget;
     public Control? PressedControl;
+    public TextBoxBase? ActiveTextSelectionBox;
+    public int TextSelectionAnchor;
 }

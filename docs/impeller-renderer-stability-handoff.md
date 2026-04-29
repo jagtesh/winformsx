@@ -111,11 +111,21 @@ Input and harness follow-ups completed after the descriptor-pool fix:
 - ListBox wheel input now updates `TopIndex` through managed state when the
   Impeller backend is active; the scroll regression checks both survival and a
   visible ListBox content change.
+- TreeView, ListView, DataGridView, ScrollBar, and AutoScroll wheel/key paths
+  now have first-pass managed handling in the Impeller input layer.
+- TextBox selection supports managed select-all, shift/caret movement, and drag
+  selection painting without native edit control APIs.
+- MessageBox now returns a deterministic synthetic result on the Impeller path
+  instead of loading native dialog dependencies.
 - `GetScrollInfo`, `SetScrollInfo`, and `ScrollWindowEx` now route through
   synthetic state/no-op behavior rather than native USER32 calls.
 - `eng/capture-winforms-scroll-regression.sh` posts wheel input over the list
   tab and fails on process exit, `PAL_SEHException`, `USER32.dll`, or native
   load signatures.
+- `eng/capture-winforms-input-regression.sh` exercises mixed keyboard, wheel,
+  text selection, data navigation, and scrollbar input.
+- `eng/run-winformsx-stability-suite.sh` runs the build, architecture guard,
+  and screenshot/log regressions as one local green bar.
 - `eng/capture-winforms-basic-controls-regression.sh` now fails on low
   client-crop variance, low unique-color count, low tab text score, lost
   client content versus baseline, and native/runtime error logs.
@@ -158,8 +168,15 @@ Run broader frame/input regressions:
 eng/capture-winforms-frame-stress-regression.sh /tmp/winformsx_frame_stress_regression
 eng/capture-winforms-hover-regression.sh /tmp/winformsx_hover_regression
 eng/capture-winforms-scroll-regression.sh /tmp/winformsx_scroll_regression
+eng/capture-winforms-input-regression.sh /tmp/winformsx_input_regression
 eng/capture-winforms-usability-regression.sh /tmp/winformsx_usability_regression
 eng/capture-winforms-textbox-regression.sh /tmp/winformsx_textbox_regression
+```
+
+Run the full local stability suite:
+
+```sh
+eng/run-winformsx-stability-suite.sh /tmp/winformsx_stability_suite
 ```
 
 Run architecture checks:
@@ -181,20 +198,24 @@ Work through these in order. Keep each checkpoint small enough to verify with
 the screenshot/log harnesses before moving on.
 
 1. Keep all crash guards green: basic controls, frame stress, hover, scroll,
-   usability, textbox, and `eng/verify-impeller-only.sh`.
+   input, usability, textbox, and `eng/verify-impeller-only.sh`.
 2. Continue replacing scroll no-op behavior with a managed scroll model.
-   ListBox wheel movement has the first managed slice; remaining controls are
-   ListView/TreeView/DataGridView and ScrollableControl, plus deeper ListBox
-   scrollbar integration. Do not call USER32 on any OS.
-3. Add managed scrollbar/clipping/virtualization behavior once wheel input can
-   safely update control state.
-4. Add splitter drag coverage and then implement the synthetic SplitContainer
+   ListBox, TreeView, ListView, DataGridView, ScrollBar, and basic AutoScroll
+   now have first-pass wheel/key support; remaining work is deeper shared
+   clipping, scrollbar integration, virtualized ranges, and event parity. Do
+   not call USER32 on any OS.
+3. Add managed scrollbar/clipping/virtualization behavior that is shared across
+   controls instead of duplicated in the Impeller input layer.
+4. Replace the deterministic synthetic MessageBox result with a rendered
+   managed modal dialog surface, then do the same for common dialogs where
+   feasible.
+5. Add splitter drag coverage and then implement the synthetic SplitContainer
    drag path.
-5. Add menu/combo dropdown state-machine coverage before implementing popup
+6. Add menu/combo dropdown state-machine coverage before implementing popup
    behavior.
-6. Add renderer frame/resource counters and back-pressure so failed frames are
+7. Add renderer frame/resource counters and back-pressure so failed frames are
    skipped instead of presented.
-7. Promote the local architecture checks and screenshot harnesses into the
+8. Promote the local architecture checks and screenshot harnesses into the
    normal pre-commit/CI path.
 
 The former first item was the basic-controls screenshot oracle. It is now fixed:

@@ -453,6 +453,12 @@ public class MessageBox
         }
 
         MESSAGEBOX_STYLE style = GetMessageBoxStyle(owner, buttons, icon, defaultButton, options, showHelp);
+        if (System.Drawing.Graphics.IsBackendActive)
+        {
+            DialogResult result = GetBackendSyntheticDialogResult(buttons, defaultButton);
+            Console.Error.WriteLine($"[WINFORMSX_WARNING] MessageBox.Show is handled by the managed Impeller dialog layer; returning {result} without native OS APIs.");
+            return result;
+        }
 
         HandleRef<HWND> handle = default;
         if (showHelp || ((options & (MessageBoxOptions.ServiceNotification | MessageBoxOptions.DefaultDesktopOnly)) == 0))
@@ -491,5 +497,30 @@ public class MessageBox
             // we enable the main window.
             PInvoke.SendMessage(handle, PInvoke.WM_SETFOCUS);
         }
+    }
+
+    private static DialogResult GetBackendSyntheticDialogResult(MessageBoxButtons buttons, MessageBoxDefaultButton defaultButton)
+    {
+        DialogResult[] results = buttons switch
+        {
+            MessageBoxButtons.OK => [DialogResult.OK],
+            MessageBoxButtons.OKCancel => [DialogResult.OK, DialogResult.Cancel],
+            MessageBoxButtons.AbortRetryIgnore => [DialogResult.Abort, DialogResult.Retry, DialogResult.Ignore],
+            MessageBoxButtons.YesNoCancel => [DialogResult.Yes, DialogResult.No, DialogResult.Cancel],
+            MessageBoxButtons.YesNo => [DialogResult.Yes, DialogResult.No],
+            MessageBoxButtons.RetryCancel => [DialogResult.Retry, DialogResult.Cancel],
+            MessageBoxButtons.CancelTryContinue => [DialogResult.Cancel, DialogResult.TryAgain, DialogResult.Continue],
+            _ => [DialogResult.OK],
+        };
+
+        int index = defaultButton switch
+        {
+            MessageBoxDefaultButton.Button2 => 1,
+            MessageBoxDefaultButton.Button3 => 2,
+            MessageBoxDefaultButton.Button4 => 3,
+            _ => 0,
+        };
+
+        return results[Math.Clamp(index, 0, results.Length - 1)];
     }
 }
