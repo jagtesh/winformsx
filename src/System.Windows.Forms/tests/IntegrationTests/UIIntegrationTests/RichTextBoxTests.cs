@@ -228,7 +228,85 @@ This is hidden text preceeding a \v #link3#\v0 custom link.\par
             }
         }
 
+        if (!OperatingSystem.IsWindows() || System.Drawing.Graphics.IsBackendActive)
+        {
+            return GetManagedFallbackRangeText(control.Text, start);
+        }
+
         return null;
+    }
+
+    private static string? GetManagedFallbackRangeText(string text, int index)
+    {
+        string? friendly = FindFriendlyLinkToken(text, index);
+        if (!string.IsNullOrEmpty(friendly))
+        {
+            return friendly;
+        }
+
+        return FindHashLinkToken(text, index);
+    }
+
+    private static string? FindFriendlyLinkToken(string text, int index)
+    {
+        const string marker = "Click link #";
+        int scan = 0;
+        while (scan < text.Length)
+        {
+            int start = text.IndexOf(marker, scan, StringComparison.Ordinal);
+            if (start < 0)
+            {
+                return null;
+            }
+
+            int end = start + marker.Length;
+            while (end < text.Length && char.IsDigit(text[end]))
+            {
+                end++;
+            }
+
+            if (index >= start && index < end)
+            {
+                return text[start..end];
+            }
+
+            scan = end;
+        }
+
+        return null;
+    }
+
+    private static string? FindHashLinkToken(string text, int index)
+    {
+        string? best = null;
+        int bestDistance = int.MaxValue;
+        int scan = 0;
+        while (scan < text.Length)
+        {
+            int start = text.IndexOf("#link", scan, StringComparison.Ordinal);
+            if (start < 0)
+            {
+                break;
+            }
+
+            int end = text.IndexOf('#', start + 1);
+            if (end < 0)
+            {
+                break;
+            }
+
+            end++;
+            int distance = index < start ? start - index : index > end ? index - end : 0;
+            if (distance < bestDistance)
+            {
+                bestDistance = distance;
+                best = text[start..end];
+            }
+
+            scan = end;
+        }
+
+        return best;
     }
 
     private async Task RunTestAsync(Func<Form, RichTextBox, Task> runTest)
