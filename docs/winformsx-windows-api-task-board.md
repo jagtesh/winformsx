@@ -77,6 +77,10 @@ Current baseline: `42 total, 41 passed, 0 failed, 1 skipped` with `MediaPlayer` 
 - In-progress local changes (next commit):
   - Hardened UIIntegration screenshot capture on non-Windows/Impeller-only runs:
     - `ScreenshotService.TryCaptureFullScreen()` now catches `NotSupportedException`/`PlatformNotSupportedException` from `Graphics.CopyFromScreen` and returns `null` instead of failing the test harness.
+  - Added deterministic non-Windows input-language baseline for keyboard layout state:
+    - `ImpellerInputInterop.GetKeyboardLayout`/`ActivateKeyboardLayout` now keep managed HKL state (default `0x04090409`, en-US).
+    - `InputLanguage.LayoutName` now has a non-Windows fallback (`"US"` for `0x0409`, otherwise `Culture.EnglishName`) when Windows registry layout metadata is unavailable.
+  - Verified targeted `Button_Hotkey_Fires_OnClickAsync` moved from environment precondition failure (`Please, switch to the US input language`) to a real behavior assertion (`wasClicked == false`).
   - Re-ran targeted `ButtonTests` after the screenshot hardening:
     - `Failed: 15, Passed: 7, Skipped: 30, Total: 52`
   - Outcome:

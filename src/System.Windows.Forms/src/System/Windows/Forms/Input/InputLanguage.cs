@@ -106,6 +106,17 @@ public sealed class InputLanguage
     {
         get
         {
+            if (!OperatingSystem.IsWindows())
+            {
+                int langId = PARAM.LOWORD(_handle);
+                if (langId == 0x0409)
+                {
+                    return "US";
+                }
+
+                return Culture.EnglishName;
+            }
+
             // https://learn.microsoft.com/windows/win32/intl/using-registry-string-redirection#create-resources-for-keyboard-layout-strings
             RegistryKey? localMachine = Registry.LocalMachine;
             if (localMachine is null)

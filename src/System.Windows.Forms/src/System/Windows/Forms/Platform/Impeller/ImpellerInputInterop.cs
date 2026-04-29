@@ -30,6 +30,7 @@ internal sealed unsafe class ImpellerInputInterop : IInputInterop
     private HWND _focusWindow;
     private HWND _activeWindow;
     private HWND _captureWindow;
+    private nint _keyboardLayout = unchecked((nint)0x04090409);
     private System.Drawing.Point _cursorPos;
     private readonly HashSet<int> _pressedKeys = [];
     private readonly object _inputStateLock = new();
@@ -148,8 +149,27 @@ internal sealed unsafe class ImpellerInputInterop : IInputInterop
 
     public uint MapVirtualKey(uint code, uint type) => 0;
     public int ToUnicode(uint vKey, uint scanCode, byte* keyState, char* buf, int bufLen, uint flags) => 0;
-    public nint GetKeyboardLayout(uint idThread) => 0;
-    public nint ActivateKeyboardLayout(nint hkl, uint flags) => hkl;
+    public nint GetKeyboardLayout(uint idThread)
+    {
+        lock (_inputStateLock)
+        {
+            return _keyboardLayout;
+        }
+    }
+
+    public nint ActivateKeyboardLayout(nint hkl, uint flags)
+    {
+        lock (_inputStateLock)
+        {
+            nint previous = _keyboardLayout;
+            if (hkl != 0)
+            {
+                _keyboardLayout = hkl;
+            }
+
+            return previous;
+        }
+    }
 
     // --- Mouse ----------------------------------------------------------
 
