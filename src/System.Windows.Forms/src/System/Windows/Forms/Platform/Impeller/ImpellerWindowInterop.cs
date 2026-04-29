@@ -4241,7 +4241,7 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
         nint bestHandle = 0;
         foreach ((nint handleKey, ImpellerWindowState state) in _windows)
         {
-            if (state.Parent != HWND.Null || !state.Visible)
+            if (state.Parent != HWND.Null)
             {
                 continue;
             }
@@ -4256,6 +4256,20 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
             {
                 best = handle;
                 bestHandle = handleKey;
+            }
+        }
+
+        foreach (Form form in Application.OpenForms)
+        {
+            if (!form.Visible || !form.IsHandleCreated)
+            {
+                continue;
+            }
+
+            System.Drawing.Rectangle bounds = form.RectangleToScreen(form.ClientRectangle);
+            if (bounds.Contains(pt))
+            {
+                return (HWND)(nint)form.Handle;
             }
         }
 
