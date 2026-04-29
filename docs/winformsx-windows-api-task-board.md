@@ -19,6 +19,15 @@ Ordered by observed frequency across components and blocker blast radius:
 ## Latest Progress (2026-04-29)
 
 - In-progress local changes (next commit):
+  - Added managed non-Windows USER32 caret facades (`PInvoke.HideCaret` / `PInvoke.ShowCaret`) in `System.Windows.Forms.Primitives` and removed generated native imports for both symbols.
+  - Guarded ToolStrip modal message-hook activation so non-Windows non-message-loop paths do not attempt Windows hook setup.
+  - Re-ran focused ToolStrip regression with blame-hang:
+    - `ToolStrip_Hiding_ToolStripMenuItem_OnDropDownClosed_ShouldNotThrow`
+    - Current state: deterministic hang/crash capture (no `EntryPointNotFoundException` for caret APIs).
+    - Artifacts: `src/System.Windows.Forms/tests/IntegrationTests/UIIntegrationTests/TestResults/c91ded58-ecc0-4ceb-a752-e9c991b6c237/`
+  - Control smoke verification remains stable:
+    - `CONTROL_SMOKE_SUMMARY total=42 passed=41 failed=0 skipped=1`.
+- In-progress local changes (next commit):
   - Added non-Windows timeout diagnostics in UI integration harness (`ControlTestBase`):
     - Non-Windows `RunFormAsync` / `RunFormWithoutControlAsync` test drivers now run with a bounded timeout (`30s`) and emit focus/active/foreground/capture/open-form diagnostics before failing.
     - This converts silent hangs into actionable failures while preserving existing test behavior on Windows.

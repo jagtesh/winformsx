@@ -281,7 +281,6 @@ HFONT
 HH_AKLINK
 HH_FTS_QUERY
 HH_POPUP
-HideCaret
 HIGHCONTRASTW
 HIMAGELIST
 HitTestThemeBackground
@@ -646,7 +645,6 @@ SHGetKnownFolderPath
 SHGetPathFromIDListEx
 SHGetSpecialFolderLocation
 SHGetSpecialFolderLocation
-ShowCaret
 ShowCursor
 SHParseDisplayName
 SIATTRIBFLAGS
