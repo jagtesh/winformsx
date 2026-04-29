@@ -74,6 +74,13 @@ Current baseline: `42 total, 41 passed, 0 failed, 1 skipped` with `MediaPlayer` 
     - `User32CompatibilityFacadeTests.DirectDllImports_RouteToWinFormsXPal` -> `Passed`.
     - `User32CompatibilityFacadeTests.CommonSystemMetrics_ResolveConsistentlyForManagedAndNativeUser32Facade` -> `Passed`.
     - `User32CompatibilityFacadeTests` filtered suite -> `Passed: 2, Failed: 0`.
+- In-progress local changes (next commit):
+  - Hardened UIIntegration screenshot capture on non-Windows/Impeller-only runs:
+    - `ScreenshotService.TryCaptureFullScreen()` now catches `NotSupportedException`/`PlatformNotSupportedException` from `Graphics.CopyFromScreen` and returns `null` instead of failing the test harness.
+  - Re-ran targeted `ButtonTests` after the screenshot hardening:
+    - `Failed: 15, Passed: 7, Skipped: 30, Total: 52`
+  - Outcome:
+    - Failure mode moved from infrastructure crash (`CopyFromScreen requires a Drawing PAL implementation`) to real behavior gaps (dialog-result close semantics, cancel-button escape behavior, anchor/resize interaction, and drag-off/drag-back click flow).
 
 ## Task Legend
 

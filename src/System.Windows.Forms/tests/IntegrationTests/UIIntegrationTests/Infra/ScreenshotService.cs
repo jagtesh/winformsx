@@ -62,13 +62,21 @@ internal static class ScreenshotService
         Bitmap bitmap = new(width, height, PixelFormat.Format32bppArgb);
 
         using var graphics = Graphics.FromImage(bitmap);
-        graphics.CopyFromScreen(
-            sourceX: primaryScreen.Bounds.X,
-            sourceY: primaryScreen.Bounds.Y,
-            destinationX: 0,
-            destinationY: 0,
-            blockRegionSize: bitmap.Size,
-            copyPixelOperation: CopyPixelOperation.SourceCopy);
+        try
+        {
+            graphics.CopyFromScreen(
+                sourceX: primaryScreen.Bounds.X,
+                sourceY: primaryScreen.Bounds.Y,
+                destinationX: 0,
+                destinationY: 0,
+                blockRegionSize: bitmap.Size,
+                copyPixelOperation: CopyPixelOperation.SourceCopy);
+        }
+        catch (Exception ex) when (ex is NotSupportedException or PlatformNotSupportedException)
+        {
+            bitmap.Dispose();
+            return null;
+        }
 
         if (Cursor.Current is { } cursor)
         {
