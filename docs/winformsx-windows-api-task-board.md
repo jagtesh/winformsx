@@ -123,6 +123,19 @@ Ordered by observed frequency across components and blocker blast radius:
     - Focused dialog-result/cancel-space group improved to one functional pass path with remaining failures concentrated on modal close visibility semantics:
       - `Button_DialogResult_ClickDefaultButtonToCloseFormAsync`: `DialogResult` updates but form remains visible on non-Windows harness path.
       - `Button_DialogResult_SpaceToClickFocusedButtonAsync` and `Button_CancelButton_EscapeClicksCancelButtonAsync`: click/result behavior now routes, but visibility-close expectation remains unmet.
+- In-progress local changes (next commit):
+  - Added managed form-edge resize simulation in `ImpellerInputInterop` for synthetic left-drag on top-level form right/bottom edges.
+  - This enables resize interaction parity for non-client-like resize gestures used by UI integration tests.
+  - Verification:
+    - Focused anchor/resize suite now passes:
+      - `Button_AchorNone_NoResizeOnWindowSizeWiderAsync`
+      - `Button_AchorNone_NoResizeOnWindowSizeTallerAsync`
+      - `Button_Anchor_ResizeOnWindowSizeWiderAsync`
+      - `Button_Anchor_ResizeOnWindowSizeTallerAsync`
+      - Result: `Failed: 0, Passed: 4, Skipped: 0`.
+    - Updated `ButtonTests` focused rerun:
+      - `Failed: 10, Passed: 12, Skipped: 20, Total: 42` (improved from `15/7/30`).
+      - Remaining failures are concentrated in modal close visibility semantics (`DialogResult` paths) and drag-off/drag-back click completion.
 
 ## Task Legend
 

@@ -33,6 +33,11 @@ internal sealed unsafe class ImpellerInputInterop : IInputInterop
     private HWND _focusWindow;
     private HWND _activeWindow;
     private HWND _captureWindow;
+    private Form? _resizeForm;
+    private System.Drawing.Point _resizeStartCursor;
+    private System.Drawing.Size _resizeStartSize;
+    private bool _resizeRightEdge;
+    private bool _resizeBottomEdge;
     private nint _keyboardLayout = unchecked((nint)0x04090409);
     private System.Drawing.Point _cursorPos;
     private readonly HashSet<int> _pressedKeys = [];
@@ -260,6 +265,7 @@ internal sealed unsafe class ImpellerInputInterop : IInputInterop
                 }
             }
 
+            ApplyFormResizeFromPointer();
             PostToMouseTarget(WM_MOUSEMOVE, (WPARAM)GetMouseKeyState());
         }
 
@@ -284,6 +290,7 @@ internal sealed unsafe class ImpellerInputInterop : IInputInterop
                 _pressedKeys.Add(key);
             }
 
+            TryBeginFormResize();
             _captureWindow = GetMouseTarget();
             PostToMouseTarget(downMessage, (WPARAM)GetMouseKeyState());
         }
@@ -297,7 +304,94 @@ internal sealed unsafe class ImpellerInputInterop : IInputInterop
 
             PostToMouseTarget(upMessage, (WPARAM)GetMouseKeyState());
             _captureWindow = HWND.Null;
+            EndFormResize();
         }
+    }
+
+    private void TryBeginFormResize()
+    {
+        if (_resizeForm is not null)
+        {
+            return;
+        }
+
+        HWND target = GetMouseTarget();
+        Control? control = Control.FromHandle(target);
+        if (control is null)
+        {
+            return;
+        }
+
+        Form? form = control as Form ?? control.FindForm();
+        if (form is null || !form.TopLevel || !form.Visible)
+        {
+            return;
+        }
+
+        System.Drawing.Point cursorPos;
+        lock (_inputStateLock)
+        {
+            cursorPos = _cursorPos;
+        }
+
+        System.Drawing.Point client = cursorPos;
+        if (!PlatformApi.Window.ScreenToClient((HWND)(nint)form.Handle, ref client))
+        {
+            return;
+        }
+
+        const int resizeEdgeThreshold = 4;
+        bool rightEdge = Math.Abs(client.X - form.DisplayRectangle.Right) <= resizeEdgeThreshold;
+        bool bottomEdge = Math.Abs(client.Y - form.DisplayRectangle.Bottom) <= resizeEdgeThreshold;
+        if (!rightEdge && !bottomEdge)
+        {
+            return;
+        }
+
+        _resizeForm = form;
+        _resizeStartCursor = cursorPos;
+        _resizeStartSize = form.Size;
+        _resizeRightEdge = rightEdge;
+        _resizeBottomEdge = bottomEdge;
+    }
+
+    private void ApplyFormResizeFromPointer()
+    {
+        if (_resizeForm is null)
+        {
+            return;
+        }
+
+        System.Drawing.Point cursorPos;
+        lock (_inputStateLock)
+        {
+            cursorPos = _cursorPos;
+        }
+
+        int deltaX = cursorPos.X - _resizeStartCursor.X;
+        int deltaY = cursorPos.Y - _resizeStartCursor.Y;
+        int width = _resizeStartSize.Width;
+        int height = _resizeStartSize.Height;
+        if (_resizeRightEdge)
+        {
+            width = Math.Max(1, _resizeStartSize.Width + deltaX);
+        }
+
+        if (_resizeBottomEdge)
+        {
+            height = Math.Max(1, _resizeStartSize.Height + deltaY);
+        }
+
+        _resizeForm.Size = new System.Drawing.Size(width, height);
+    }
+
+    private void EndFormResize()
+    {
+        _resizeForm = null;
+        _resizeStartCursor = default;
+        _resizeStartSize = default;
+        _resizeRightEdge = false;
+        _resizeBottomEdge = false;
     }
 
     private void PostToKeyboardTarget(uint message, WPARAM wParam, LPARAM lParam)
