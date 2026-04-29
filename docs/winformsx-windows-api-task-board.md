@@ -20,9 +20,9 @@ Ordered by observed frequency across components and blocker blast radius:
 
 - In-progress local changes (next commit):
   - Started KERNEL32 compatibility surface routing in `System.Windows.Forms.Primitives`:
-    - Added managed/PAL wrappers for `GetCurrentProcess`, `GetCurrentThread`, `GetCurrentProcessId`, `GetProcAddress`, and `LoadLibraryEx`.
+    - Added managed/PAL wrappers for `GetCurrentProcess`, `GetCurrentThread`, `GetCurrentProcessId`, `GetProcAddress`, `LoadLibraryEx`, `FreeLibrary`, `GetLastError`, and `SetLastError`.
     - Removed generated direct native imports for those symbols from `NativeMethods.txt` so non-Windows runs do not bind to unavailable Windows entrypoints.
-    - Kept `LoadLibrary` behavior source-compatible by preserving WinForms callsites and moving flag usage to numeric constants in managed code.
+    - Kept `LoadLibrary` behavior source-compatible by preserving WinForms callsites, moving flag usage to numeric constants in managed code, and tracking managed-loaded handles for safe `FreeLibrary` no-op/cleanup behavior.
   - Verification:
     - `dotnet build src/System.Windows.Forms.Primitives/src/System.Windows.Forms.Primitives.csproj -c Release` -> `Build succeeded`.
     - `WinformsControlsTest --control-smoke-test` -> `total=42 passed=41 failed=0 skipped=1`.
@@ -261,7 +261,7 @@ Ordered by observed frequency across components and blocker blast radius:
 ## KERNEL32 / Process / Loader
 
 - [ ] WXA-1304: Implement process/module query compatibility stubs where PAL cannot supply native handles (`GetModuleFileName`, `GetWindowThreadProcessId`, `GetCurrentProcess`, activation context basics).
-- [ ] WXA-1305: Implement error reporting compatibility (`GetLastError`/`SetLastError`) for direct-PInvoke consumers.
+- [~] WXA-1305: Implement error reporting compatibility (`GetLastError`/`SetLastError`) for direct-PInvoke consumers.
 
 ## Accessibility / UI Automation
 
