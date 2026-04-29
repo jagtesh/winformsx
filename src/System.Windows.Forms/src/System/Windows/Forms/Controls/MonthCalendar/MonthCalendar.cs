@@ -1283,6 +1283,276 @@ public partial class MonthCalendar : Control
         return new SelectionRange(start, end);
     }
 
+    private static DayOfWeek GetDayOfWeek(Day value)
+        => value == Day.Default
+            ? CultureInfo.CurrentCulture.DateTimeFormat.FirstDayOfWeek
+            : (DayOfWeek)((int)value - 1);
+
+    private bool IsManagedCalendarGridFallbackEnabled()
+        => !OperatingSystem.IsWindows() && Graphics.IsBackendActive;
+
+    private Rectangle GetManagedCalendarBounds()
+    {
+        Rectangle rect = ClientRectangle;
+        if (rect.Width <= 0 || rect.Height <= 0)
+        {
+            return Rectangle.Empty;
+        }
+
+        rect.Inflate(-4, -4);
+        return rect;
+    }
+
+    private (Rectangle Calendar, Rectangle Header, Rectangle Body, Rectangle Footer) GetManagedCalendarLayout()
+    {
+        Rectangle calendar = GetManagedCalendarBounds();
+        if (calendar.IsEmpty)
+        {
+            return (Rectangle.Empty, Rectangle.Empty, Rectangle.Empty, Rectangle.Empty);
+        }
+
+        int headerHeight = Math.Max(Font.Height + 10, 24);
+        int footerHeight = ShowToday ? Math.Max(Font.Height + 8, 20) : 0;
+        int spacing = 2;
+        int bodyHeight = Math.Max(0, calendar.Height - headerHeight - footerHeight - (spacing * 2));
+
+        Rectangle header = new(calendar.Left, calendar.Top, calendar.Width, headerHeight);
+        Rectangle body = new(calendar.Left, header.Bottom + spacing, calendar.Width, bodyHeight);
+        Rectangle footer = footerHeight > 0
+            ? new(calendar.Left, body.Bottom + spacing, calendar.Width, footerHeight)
+            : Rectangle.Empty;
+
+        return (calendar, header, body, footer);
+    }
+
+    private Rectangle GetManagedCalendarPartRectangle(MCGRIDINFO_PART part, int row, int column)
+    {
+        (Rectangle calendar, Rectangle header, Rectangle body, Rectangle footer) = GetManagedCalendarLayout();
+        if (calendar.IsEmpty)
+        {
+            return Rectangle.Empty;
+        }
+
+        int buttonSize = Math.Max(Font.Height, 14);
+        int buttonY = header.Top + Math.Max(2, (header.Height - buttonSize) / 2);
+        Rectangle prevButton = new(header.Left + 4, buttonY, buttonSize, buttonSize);
+        Rectangle nextButton = new(header.Right - buttonSize - 4, buttonY, buttonSize, buttonSize);
+
+        int dayHeaderHeight = Math.Max(Font.Height + 4, 18);
+        Rectangle dayHeader = new(body.Left, body.Top, body.Width, Math.Min(dayHeaderHeight, body.Height));
+        Rectangle daysBody = new(body.Left, dayHeader.Bottom, body.Width, Math.Max(0, body.Height - dayHeader.Height));
+
+        int columns = 7;
+        int rows = 6;
+        int cellWidth = Math.Max(1, daysBody.Width / columns);
+        int cellHeight = Math.Max(1, daysBody.Height / rows);
+
+        Rectangle NormalizeDateRowCell(int dateRow, int dateColumn)
+        {
+            dateRow = Math.Clamp(dateRow, 0, rows - 1);
+            dateColumn = Math.Clamp(dateColumn, 0, columns - 1);
+            return new(
+                daysBody.Left + (dateColumn * cellWidth),
+                daysBody.Top + (dateRow * cellHeight),
+                cellWidth,
+                cellHeight);
+        }
+
+        return part switch
+        {
+            MCGRIDINFO_PART.MCGIP_CALENDAR => calendar,
+            MCGRIDINFO_PART.MCGIP_CALENDARHEADER => header,
+            MCGRIDINFO_PART.MCGIP_CALENDARBODY => body,
+            MCGRIDINFO_PART.MCGIP_FOOTER => footer,
+            MCGRIDINFO_PART.MCGIP_PREV => prevButton,
+            MCGRIDINFO_PART.MCGIP_NEXT => nextButton,
+            MCGRIDINFO_PART.MCGIP_CALENDARROW when row == -1 => dayHeader,
+            MCGRIDINFO_PART.MCGIP_CALENDARROW => NormalizeDateRowCell(row, 0) with { Width = daysBody.Width },
+            MCGRIDINFO_PART.MCGIP_CALENDARCELL when row == -1 => new(
+                dayHeader.Left + (Math.Clamp(column, 0, columns - 1) * Math.Max(1, dayHeader.Width / columns)),
+                dayHeader.Top,
+                Math.Max(1, dayHeader.Width / columns),
+                dayHeader.Height),
+            MCGRIDINFO_PART.MCGIP_CALENDARCELL => NormalizeDateRowCell(row, column),
+            _ => Rectangle.Empty,
+        };
+    }
+
+    private bool TryGetManagedCalendarPartInfo(
+        MCGRIDINFO_PART part,
+        int row,
+        int column,
+        out Rectangle rect,
+        out DateTime start,
+        out DateTime end,
+        out string name,
+        out bool selected)
+    {
+        rect = GetManagedCalendarPartRectangle(part, row, column);
+        selected = false;
+        name = string.Empty;
+        start = _selectionStart.Date;
+        end = _selectionEnd.Date;
+
+        if (rect.IsEmpty)
+        {
+            return false;
+        }
+
+        DateTime monthStart = new(_selectionStart.Year, _selectionStart.Month, 1);
+        DayOfWeek firstDayOfWeek = GetDayOfWeek(_firstDayOfWeek);
+        int dayOffset = ((int)monthStart.DayOfWeek - (int)firstDayOfWeek + 7) % 7;
+        DateTime visibleStart = monthStart.AddDays(-dayOffset);
+
+        switch (part)
+        {
+            case MCGRIDINFO_PART.MCGIP_CALENDARCELL when row == -1:
+            {
+                int safeColumn = Math.Clamp(column, 0, 6);
+                DayOfWeek day = (DayOfWeek)(((int)firstDayOfWeek + safeColumn) % 7);
+                name = CultureInfo.CurrentCulture.DateTimeFormat.GetAbbreviatedDayName(day);
+                break;
+            }
+
+            case MCGRIDINFO_PART.MCGIP_CALENDARCELL:
+            {
+                int safeRow = Math.Clamp(row, 0, 5);
+                int safeColumn = Math.Clamp(column, 0, 6);
+                DateTime cellDate = visibleStart.AddDays((safeRow * 7) + safeColumn);
+                start = cellDate;
+                end = cellDate;
+                selected = cellDate.Date >= _selectionStart.Date && cellDate.Date <= _selectionEnd.Date;
+                name = cellDate.Day.ToString(CultureInfo.CurrentCulture);
+                break;
+            }
+
+            case MCGRIDINFO_PART.MCGIP_CALENDARROW when row >= 0:
+            {
+                int safeRow = Math.Clamp(row, 0, 5);
+                start = visibleStart.AddDays(safeRow * 7);
+                end = start.AddDays(6);
+                break;
+            }
+
+            case MCGRIDINFO_PART.MCGIP_CALENDAR:
+            {
+                start = visibleStart;
+                end = visibleStart.AddDays(41);
+                break;
+            }
+
+            case MCGRIDINFO_PART.MCGIP_CALENDARHEADER:
+                name = monthStart.ToString("Y", CultureInfo.CurrentCulture);
+                break;
+            case MCGRIDINFO_PART.MCGIP_PREV:
+                name = "<";
+                break;
+            case MCGRIDINFO_PART.MCGIP_NEXT:
+                name = ">";
+                break;
+            case MCGRIDINFO_PART.MCGIP_FOOTER:
+                if (ShowToday)
+                {
+                    name = _todaysDate.ToString("d", CultureInfo.CurrentCulture);
+                }
+
+                break;
+        }
+
+        return true;
+    }
+
+    private unsafe bool TryHandleManagedCalendarGridInfo(ref Message m)
+    {
+        if (!IsManagedCalendarGridFallbackEnabled())
+        {
+            return false;
+        }
+
+        MCGRIDINFO* gridInfo = (MCGRIDINFO*)m.LParamInternal;
+        if (gridInfo is null)
+        {
+            m.ResultInternal = (LRESULT)0;
+            return true;
+        }
+
+        if (!TryGetManagedCalendarPartInfo(
+            gridInfo->dwPart,
+            gridInfo->iRow,
+            gridInfo->iCol,
+            out Rectangle rect,
+            out DateTime start,
+            out DateTime end,
+            out string name,
+            out bool selected))
+        {
+            m.ResultInternal = (LRESULT)0;
+            return true;
+        }
+
+        if ((gridInfo->dwFlags & MCGRIDINFO_FLAGS.MCGIF_RECT) != 0)
+        {
+            gridInfo->rc = rect;
+        }
+
+        if ((gridInfo->dwFlags & MCGRIDINFO_FLAGS.MCGIF_DATE) != 0)
+        {
+            gridInfo->stStart = (SYSTEMTIME)start;
+            gridInfo->stEnd = (SYSTEMTIME)end;
+        }
+
+        gridInfo->bSelected = selected;
+
+        char* nameBuffer = (char*)gridInfo->pszName.Value;
+        if ((gridInfo->dwFlags & MCGRIDINFO_FLAGS.MCGIF_NAME) != 0
+            && nameBuffer is not null
+            && gridInfo->cchName != UIntPtr.Zero)
+        {
+            int maxChars = checked((int)gridInfo->cchName);
+            int copyLength = Math.Min(name.Length, maxChars);
+            for (int i = 0; i < copyLength; i++)
+            {
+                nameBuffer[i] = name[i];
+            }
+
+            nameBuffer[copyLength] = '\0';
+        }
+
+        m.ResultInternal = (LRESULT)1;
+        return true;
+    }
+
+    private bool TryHandleManagedNavigationClick(Point clientPoint)
+    {
+        if (!IsManagedCalendarGridFallbackEnabled())
+        {
+            return false;
+        }
+
+        Rectangle next = GetManagedCalendarPartRectangle(MCGRIDINFO_PART.MCGIP_NEXT, row: 0, column: 0);
+        Rectangle prev = GetManagedCalendarPartRectangle(MCGRIDINFO_PART.MCGIP_PREV, row: 0, column: 0);
+
+        int monthOffset = next.Contains(clientPoint) ? 1 : prev.Contains(clientPoint) ? -1 : 0;
+        if (monthOffset == 0)
+        {
+            return false;
+        }
+
+        DateTime target = _selectionStart.AddMonths(monthOffset);
+        if (target < _minDate)
+        {
+            target = _minDate;
+        }
+        else if (target > _maxDate)
+        {
+            target = _maxDate;
+        }
+
+        SetDate(target);
+        Invalidate();
+        return true;
+    }
+
     /// <summary>
     ///  Calculate the number of visible months, even though they may be partially visible.
     ///  It is necessary to send to Windows correct info about all bolded dates that are visible.
@@ -2227,7 +2497,20 @@ public partial class MonthCalendar : Control
         {
             case PInvoke.WM_LBUTTONDOWN:
                 Focus();
+                if (TryHandleManagedNavigationClick(PARAM.ToPoint(m.LParamInternal)))
+                {
+                    m.ResultInternal = (LRESULT)1;
+                    break;
+                }
+
                 if (!ValidationCancelled)
+                {
+                    base.WndProc(ref m);
+                }
+
+                break;
+            case PInvoke.MCM_GETCALENDARGRIDINFO:
+                if (!TryHandleManagedCalendarGridInfo(ref m))
                 {
                     base.WndProc(ref m);
                 }
