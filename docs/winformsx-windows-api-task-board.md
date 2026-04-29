@@ -60,6 +60,10 @@ Current baseline: `42 total, 41 passed, 0 failed, 1 skipped` with `MediaPlayer` 
 - Fresh controls verification (current workspace build):
   - Targeted `--control-smoke-test-case Buttons`: `PASS Buttons controls=1 handles=19`.
   - Full `--control-smoke-test`: `total=42 passed=41 failed=0 skipped=1` (only `MediaPlayer` skipped).
+- In-progress local changes (next commit):
+  - Expanded non-Windows `ImpellerSystemInterop.GetSystemMetrics` coverage with deterministic defaults for virtual-screen, fixed frame/size, icon spacing, mouse, monitor, drag/focus border, minimized/maximized window, and legacy compatibility metrics used by `SystemInformation`.
+  - Verified build for `System.Windows.Forms` and targeted USER32 facade regression:
+    - `User32CompatibilityFacadeTests.DirectDllImports_RouteToWinFormsXPal` -> `Passed`.
 
 ## Task Legend
 
@@ -104,7 +108,7 @@ Current baseline: `42 total, 41 passed, 0 failed, 1 skipped` with `MediaPlayer` 
 - [x] WXA-1402 (tier-1): Implement menu APIs (`SetMenu`, `GetMenu`, `GetSystemMenu`, `EnableMenuItem`, `GetMenuItemInfo`, `GetMenuItemCount`, `DrawMenuBar`).
 - [x] WXA-1403 (tier-1): Implement additional window-state/geometry APIs not yet shimmed (`SetCapture`, `ReleaseCapture`, `GetWindowRect`, `GetClientRect`, `MapWindowPoints`, `WindowFromPoint`, `ChildWindowFromPointEx`, `GetParent`, `GetWindow`, `GetAncestor`, `IsChild`).
 - [x] WXA-1404 (tier-1): Implement invalidation/render queue APIs in USER32 facade (`UpdateWindow`, `InvalidateRect`, `ValidateRect`) with deterministic no-op/safe behavior.
-- [ ] WXA-1405 (tier-2): Implement common system metric/accessibility queries with stable defaults (`SystemParametersInfo`, `GetDpiForWindow`, `GetDpiForSystem`, theme/system metrics).
+- [~] WXA-1405 (tier-2): Implement common system metric/accessibility queries with stable defaults (`SystemParametersInfo`, `GetDpiForWindow`, `GetDpiForSystem`, theme/system metrics).
 - [ ] WXA-1406 (tier-3, cautious): Implement message-loop callbacks (`SendMessage`, `PostMessage`, `PeekMessage`, `GetMessage`, `DispatchMessage`, `TranslateMessage`) once PAL message pump can guarantee contract fidelity.
 
 ## GDI / GDI+ and Resource Handles
