@@ -1,6 +1,9 @@
 ﻿// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using Windows.Win32.UI.Accessibility;
+using System.Runtime.CompilerServices;
+
 namespace System.Windows.Forms.Platform;
 
 /// <summary>
@@ -8,10 +11,45 @@ namespace System.Windows.Forms.Platform;
 /// </summary>
 internal sealed unsafe class ImpellerSystemInterop : ISystemInterop
 {
+    private const int DefaultWorkAreaWidth = 1920;
+    private const int DefaultWorkAreaHeight = 1080;
+
     private long _nextTimerId = 1;
     private readonly Dictionary<nint, System.Threading.Timer> _timers = [];
     private readonly Dictionary<string, uint> _clipboardFormats = [];
     private uint _nextClipboardFormat = 0xC000;
+    private bool _clientAreaAnimation = true;
+    private bool _dragFullWindows = true;
+    private int _wheelScrollLines = 3;
+    private int _mouseHoverWidth = 4;
+    private int _mouseHoverHeight = 4;
+    private int _mouseHoverTime = 400;
+    private int _mouseSpeed = 10;
+    private int _keyBoardDelay = 1;
+    private int _menuDropAlignment;
+    private int _menuShowDelay = 400;
+    private bool _menuFade;
+    private bool _menuAnimation;
+    private bool _fontSmoothing = true;
+    private bool _iconTitleWrap;
+    private bool _keyboardCues = true;
+    private bool _keyboardPref = true;
+    private bool _listBoxSmoothScrolling = true;
+    private bool _comboBoxAnimation = true;
+    private bool _gradientCaptions = true;
+    private bool _hotTracking = true;
+    private bool _selectionFade = true;
+    private bool _toolTipAnimation = true;
+    private bool _uiEffects = true;
+    private bool _activeWindowTracking;
+    private int _activeWindowTrackingTimeout = 1000;
+    private bool _animation = true;
+    private int _caretWidth = 1;
+    private int _caretBlinkTime = 500;
+    private int _border = 4;
+    private int _snapToDefButton = 1;
+    private int _mouseTrails = 0;
+    private RECT _workArea = new(0, 0, DefaultWorkAreaWidth, DefaultWorkAreaHeight);
 
     // --- Timers ---------------------------------------------------------
 
@@ -60,8 +98,195 @@ internal sealed unsafe class ImpellerSystemInterop : ISystemInterop
         _ => 0,
     };
 
-    public bool SystemParametersInfo(SYSTEM_PARAMETERS_INFO_ACTION action, uint param, void* pvParam, uint flags)
-        => true;
+    public unsafe bool SystemParametersInfo(SYSTEM_PARAMETERS_INFO_ACTION action, uint param, void* pvParam, uint flags)
+    {
+        return action switch
+        {
+            SYSTEM_PARAMETERS_INFO_ACTION.SPI_GETCLIENTAREAANIMATION => ReadBoolean(pvParam, _clientAreaAnimation),
+            SYSTEM_PARAMETERS_INFO_ACTION.SPI_GETDRAGFULLWINDOWS => ReadBoolean(pvParam, _dragFullWindows),
+            SYSTEM_PARAMETERS_INFO_ACTION.SPI_GETFONTSMOOTHING => ReadBoolean(pvParam, _fontSmoothing),
+            SYSTEM_PARAMETERS_INFO_ACTION.SPI_GETICONTITLEWRAP => ReadBoolean(pvParam, _iconTitleWrap),
+            SYSTEM_PARAMETERS_INFO_ACTION.SPI_GETKEYBOARDCUES => ReadBoolean(pvParam, _keyboardCues),
+            SYSTEM_PARAMETERS_INFO_ACTION.SPI_GETKEYBOARDPREF => ReadBoolean(pvParam, _keyboardPref),
+            SYSTEM_PARAMETERS_INFO_ACTION.SPI_GETLISTBOXSMOOTHSCROLLING => ReadBoolean(pvParam, _listBoxSmoothScrolling),
+            SYSTEM_PARAMETERS_INFO_ACTION.SPI_GETTOOLTIPANIMATION => ReadBoolean(pvParam, _toolTipAnimation),
+            SYSTEM_PARAMETERS_INFO_ACTION.SPI_GETUIEFFECTS => ReadBoolean(pvParam, _uiEffects),
+            SYSTEM_PARAMETERS_INFO_ACTION.SPI_GETMENUFADE => ReadBoolean(pvParam, _menuFade),
+            SYSTEM_PARAMETERS_INFO_ACTION.SPI_GETACTIVEWINDOWTRACKING => ReadBoolean(pvParam, _activeWindowTracking),
+            SYSTEM_PARAMETERS_INFO_ACTION.SPI_GETANIMATION => ReadBoolean(pvParam, _animation),
+            SYSTEM_PARAMETERS_INFO_ACTION.SPI_GETCOMBOBOXANIMATION => ReadBoolean(pvParam, _comboBoxAnimation),
+            SYSTEM_PARAMETERS_INFO_ACTION.SPI_GETGRADIENTCAPTIONS => ReadBoolean(pvParam, _gradientCaptions),
+            SYSTEM_PARAMETERS_INFO_ACTION.SPI_GETHOTTRACKING => ReadBoolean(pvParam, _hotTracking),
+            SYSTEM_PARAMETERS_INFO_ACTION.SPI_GETSELECTIONFADE => ReadBoolean(pvParam, _selectionFade),
+            SYSTEM_PARAMETERS_INFO_ACTION.SPI_GETDROPSHADOW => ReadBoolean(pvParam, true),
+            SYSTEM_PARAMETERS_INFO_ACTION.SPI_GETFLATMENU => ReadBoolean(pvParam, true),
+            SYSTEM_PARAMETERS_INFO_ACTION.SPI_GETSNAPTODEFBUTTON => ReadBoolean(pvParam, _snapToDefButton == 1),
+            SYSTEM_PARAMETERS_INFO_ACTION.SPI_GETMENUSHOWDELAY => ReadInt(pvParam, _menuShowDelay),
+            SYSTEM_PARAMETERS_INFO_ACTION.SPI_GETMOUSEHOVERWIDTH => ReadInt(pvParam, _mouseHoverWidth),
+            SYSTEM_PARAMETERS_INFO_ACTION.SPI_GETMOUSEHOVERHEIGHT => ReadInt(pvParam, _mouseHoverHeight),
+            SYSTEM_PARAMETERS_INFO_ACTION.SPI_GETMOUSEHOVERTIME => ReadInt(pvParam, _mouseHoverTime),
+            SYSTEM_PARAMETERS_INFO_ACTION.SPI_GETMENUANIMATION => ReadInt(pvParam, _menuAnimation ? 1 : 0),
+            SYSTEM_PARAMETERS_INFO_ACTION.SPI_GETKEYBOARDSPEED => ReadInt(pvParam, _mouseSpeed),
+            SYSTEM_PARAMETERS_INFO_ACTION.SPI_GETKEYBOARDDELAY => ReadInt(pvParam, _keyBoardDelay),
+            SYSTEM_PARAMETERS_INFO_ACTION.SPI_GETBORDER => ReadInt(pvParam, _border),
+            SYSTEM_PARAMETERS_INFO_ACTION.SPI_ICONHORIZONTALSPACING => ReadInt(pvParam, 75),
+            SYSTEM_PARAMETERS_INFO_ACTION.SPI_ICONVERTICALSPACING => ReadInt(pvParam, 75),
+            SYSTEM_PARAMETERS_INFO_ACTION.SPI_GETMENUDROPALIGNMENT => ReadInt(pvParam, _menuDropAlignment),
+            SYSTEM_PARAMETERS_INFO_ACTION.SPI_GETFONTSMOOTHINGCONTRAST => ReadInt(pvParam, 0),
+            SYSTEM_PARAMETERS_INFO_ACTION.SPI_GETFONTSMOOTHINGTYPE => ReadInt(pvParam, 2),
+            SYSTEM_PARAMETERS_INFO_ACTION.SPI_GETCARETWIDTH => ReadInt(pvParam, _caretWidth),
+            SYSTEM_PARAMETERS_INFO_ACTION.SPI_GETWHEELSCROLLLINES => ReadInt(pvParam, _wheelScrollLines),
+            SYSTEM_PARAMETERS_INFO_ACTION.SPI_GETACTIVEWNDTRKTIMEOUT => ReadInt(pvParam, _activeWindowTrackingTimeout),
+            SYSTEM_PARAMETERS_INFO_ACTION.SPI_GETSCREENSAVERRUNNING => ReadInt(pvParam, 0),
+            SYSTEM_PARAMETERS_INFO_ACTION.SPI_GETSCREENREADER => ReadInt(pvParam, 0),
+            SYSTEM_PARAMETERS_INFO_ACTION.SPI_GETMOUSESPEED => ReadInt(pvParam, _mouseSpeed),
+            SYSTEM_PARAMETERS_INFO_ACTION.SPI_GETWORKAREA => ReadRect(pvParam, in _workArea),
+            SYSTEM_PARAMETERS_INFO_ACTION.SPI_GETHIGHCONTRAST => ReadHighContrast(pvParam, (int)param),
+            SYSTEM_PARAMETERS_INFO_ACTION.SPI_GETNONCLIENTMETRICS => ReadNonClientMetrics(pvParam, (int)param),
+            SYSTEM_PARAMETERS_INFO_ACTION.SPI_SETCLIENTAREAANIMATION => SetBoolean(pvParam, ref _clientAreaAnimation),
+            SYSTEM_PARAMETERS_INFO_ACTION.SPI_SETDRAGFULLWINDOWS => SetBoolean(pvParam, ref _dragFullWindows),
+            SYSTEM_PARAMETERS_INFO_ACTION.SPI_SETFONTSMOOTHING => SetBoolean(pvParam, ref _fontSmoothing),
+            SYSTEM_PARAMETERS_INFO_ACTION.SPI_SETICONTITLEWRAP => SetBoolean(pvParam, ref _iconTitleWrap),
+            SYSTEM_PARAMETERS_INFO_ACTION.SPI_SETKEYBOARDCUES => SetBoolean(pvParam, ref _keyboardCues),
+            SYSTEM_PARAMETERS_INFO_ACTION.SPI_SETKEYBOARDPREF => SetBoolean(pvParam, ref _keyboardPref),
+            SYSTEM_PARAMETERS_INFO_ACTION.SPI_SETLISTBOXSMOOTHSCROLLING => SetBoolean(pvParam, ref _listBoxSmoothScrolling),
+            SYSTEM_PARAMETERS_INFO_ACTION.SPI_SETTOOLTIPANIMATION => SetBoolean(pvParam, ref _toolTipAnimation),
+            SYSTEM_PARAMETERS_INFO_ACTION.SPI_SETUIEFFECTS => SetBoolean(pvParam, ref _uiEffects),
+            SYSTEM_PARAMETERS_INFO_ACTION.SPI_SETMENUFADE => SetBoolean(pvParam, ref _menuFade),
+            SYSTEM_PARAMETERS_INFO_ACTION.SPI_SETBEEP => true,
+            SYSTEM_PARAMETERS_INFO_ACTION.SPI_SETACTIVEWINDOWTRACKING => SetBoolean(pvParam, ref _activeWindowTracking),
+            SYSTEM_PARAMETERS_INFO_ACTION.SPI_SETDOUBLECLICKTIME => SetIntFromParam(param, ref _caretBlinkTime),
+            SYSTEM_PARAMETERS_INFO_ACTION.SPI_SETWHEELSCROLLLINES => SetIntFromParam(param, ref _wheelScrollLines),
+            SYSTEM_PARAMETERS_INFO_ACTION.SPI_SETMOUSESPEED => SetIntFromParam(param, ref _mouseSpeed),
+            SYSTEM_PARAMETERS_INFO_ACTION.SPI_SETWORKAREA => StoreRectAndWrite(pvParam, ref _workArea),
+            SYSTEM_PARAMETERS_INFO_ACTION.SPI_SETMOUSEHOVERWIDTH => SetIntFromParam(param, ref _mouseHoverWidth),
+            SYSTEM_PARAMETERS_INFO_ACTION.SPI_SETMOUSEHOVERHEIGHT => SetIntFromParam(param, ref _mouseHoverHeight),
+            SYSTEM_PARAMETERS_INFO_ACTION.SPI_SETMOUSETRAILS => SetIntFromParam(param, ref _mouseTrails),
+            SYSTEM_PARAMETERS_INFO_ACTION.SPI_SETMENUANIMATION => SetBoolean(pvParam, ref _menuAnimation),
+            SYSTEM_PARAMETERS_INFO_ACTION.SPI_SETSCREENSAVETIMEOUT => true,
+            SYSTEM_PARAMETERS_INFO_ACTION.SPI_SETMENUDROPALIGNMENT => SetIntFromParam(param, ref _menuDropAlignment),
+            SYSTEM_PARAMETERS_INFO_ACTION.SPI_SETMENUSHOWDELAY => SetIntFromParam(param, ref _menuShowDelay),
+            SYSTEM_PARAMETERS_INFO_ACTION.SPI_SETKEYBOARDDELAY => SetIntFromParam(param, ref _keyBoardDelay),
+            SYSTEM_PARAMETERS_INFO_ACTION.SPI_SETCARETWIDTH => SetIntFromParam(param, ref _caretWidth),
+            SYSTEM_PARAMETERS_INFO_ACTION.SPI_SETACTIVEWNDTRKTIMEOUT => SetIntFromParam(param, ref _activeWindowTrackingTimeout),
+            _ => true,
+        };
+    }
+
+    private static unsafe bool SetBoolean(void* pvParam, ref bool destination)
+    {
+        if (pvParam is not null)
+        {
+            destination = *(BOOL*)pvParam != 0;
+        }
+
+        return true;
+    }
+
+    private static unsafe bool ReadBoolean(void* pvParam, bool value)
+    {
+        if (pvParam is null)
+        {
+            return true;
+        }
+
+        *((uint*)pvParam) = value ? 1u : 0u;
+        return true;
+    }
+
+    private static unsafe bool SetIntFromParam(uint param, ref int destination)
+    {
+        destination = (int)param;
+        return true;
+    }
+
+    private static unsafe bool ReadInt(void* pvParam, int value)
+    {
+        if (pvParam is null)
+        {
+            return true;
+        }
+
+        *((int*)pvParam) = value;
+        return true;
+    }
+
+    private static unsafe bool ReadRect(void* pvParam, in RECT value)
+    {
+        if (pvParam is null)
+        {
+            return true;
+        }
+
+        *(RECT*)pvParam = value;
+        return true;
+    }
+
+    private static unsafe bool StoreRectAndWrite(void* pvParam, ref RECT destination)
+    {
+        if (pvParam is null)
+        {
+            return true;
+        }
+
+        destination = *(RECT*)pvParam;
+        return true;
+    }
+
+    private static unsafe bool ReadHighContrast(void* pvParam, int uiParam)
+    {
+        if (pvParam is null)
+        {
+            return true;
+        }
+
+        var highContrast = (HIGHCONTRASTW*)pvParam;
+        highContrast->cbSize = (uint)(uiParam == 0
+            ? (uint)sizeof(HIGHCONTRASTW)
+            : (uint)uiParam);
+        highContrast->dwFlags = 0;
+        highContrast->lpszDefaultScheme = null;
+        return true;
+    }
+
+    private static unsafe bool ReadNonClientMetrics(void* pvParam, int uiParam)
+    {
+        if (pvParam is null)
+        {
+            return true;
+        }
+
+        var metrics = (NONCLIENTMETRICSW*)pvParam;
+        metrics->cbSize = (uint)(uiParam == 0
+            ? (uint)sizeof(NONCLIENTMETRICSW)
+            : (uint)uiParam);
+        metrics->iBorderWidth = (int)1;
+        metrics->iScrollWidth = (int)17;
+        metrics->iScrollHeight = (int)17;
+        metrics->iCaptionHeight = (int)30;
+        metrics->iCaptionWidth = (int)136;
+        metrics->iPaddedBorderWidth = (int)4;
+        metrics->lfCaptionFont = ToLogicalFont(System.Drawing.SystemFonts.CaptionFont);
+        metrics->lfMenuFont = ToLogicalFont(System.Drawing.SystemFonts.MenuFont);
+        metrics->lfMessageFont = ToLogicalFont(System.Drawing.SystemFonts.MessageBoxFont);
+        metrics->lfStatusFont = ToLogicalFont(System.Drawing.SystemFonts.StatusFont);
+        metrics->lfSmCaptionFont = ToLogicalFont(System.Drawing.SystemFonts.SmallCaptionFont);
+        metrics->iMenuHeight = 20;
+        metrics->iMenuWidth = 0;
+        return true;
+    }
+
+    private static unsafe global::Windows.Win32.Graphics.Gdi.LOGFONTW ToLogicalFont(System.Drawing.Font? font)
+    {
+        if (font is null)
+        {
+            return default;
+        }
+
+        global::System.Drawing.Interop.LOGFONT logicalFont = default;
+        font.ToLogFont(out logicalFont);
+        return Unsafe.As<global::System.Drawing.Interop.LOGFONT, global::Windows.Win32.Graphics.Gdi.LOGFONTW>(ref logicalFont);
+    }
 
     public COLORREF GetSysColor(SYS_COLOR_INDEX idx) => idx switch
     {

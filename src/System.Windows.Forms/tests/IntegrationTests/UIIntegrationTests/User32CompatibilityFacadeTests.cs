@@ -11,6 +11,8 @@ namespace System.Windows.Forms.UITests;
 
 public class User32CompatibilityFacadeTests
 {
+    private const uint SPIF_SENDCHANGE = 0x0002;
+
     [Fact]
     public void DirectDllImports_RouteToWinFormsXPal()
     {
@@ -162,6 +164,42 @@ public class User32CompatibilityFacadeTests
             Assert.True(NativeUser32.InvalidateRect(formHandle, ref rect, true));
             Assert.True(NativeUser32.ValidateRect(formHandle, nint.Zero));
             Assert.True(NativeUser32.ValidateRect(formHandle, ref clientRect));
+
+            unsafe
+            {
+                bool managedClientAreaAnimation = true;
+                Assert.True(PInvoke.SystemParametersInfo(SYSTEM_PARAMETERS_INFO_ACTION.SPI_GETCLIENTAREAANIMATION, ref managedClientAreaAnimation));
+
+                int nativeClientAreaAnimation = managedClientAreaAnimation ? 1 : 0;
+                Assert.Equal(1, NativeUser32.SystemParametersInfo((uint)SYSTEM_PARAMETERS_INFO_ACTION.SPI_GETCLIENTAREAANIMATION, 0, &nativeClientAreaAnimation, 0));
+                Assert.Equal(managedClientAreaAnimation ? 1 : 0, nativeClientAreaAnimation);
+
+                int disabled = 0;
+                Assert.Equal(1, NativeUser32.SystemParametersInfo((uint)SYSTEM_PARAMETERS_INFO_ACTION.SPI_SETCLIENTAREAANIMATION, 0, &disabled, SPIF_SENDCHANGE));
+
+                bool afterSet = true;
+                Assert.True(PInvoke.SystemParametersInfo(SYSTEM_PARAMETERS_INFO_ACTION.SPI_GETCLIENTAREAANIMATION, ref afterSet));
+                Assert.False(afterSet);
+
+                bool restore = managedClientAreaAnimation;
+                Assert.True(PInvoke.SystemParametersInfo(SYSTEM_PARAMETERS_INFO_ACTION.SPI_SETCLIENTAREAANIMATION, ref restore, SPIF_SENDCHANGE));
+
+                uint nativeWindowDpi = NativeUser32.GetDpiForWindow(formHandle);
+                Assert.Equal(PInvoke.GetDpiForWindow(form), nativeWindowDpi);
+                Assert.Equal(PInvoke.GetDpiForSystem(), NativeUser32.GetDpiForSystem());
+
+                var managedMetrics = new NONCLIENTMETRICSW();
+                managedMetrics.cbSize = (uint)sizeof(NONCLIENTMETRICSW);
+                Assert.True(PInvoke.TrySystemParametersInfoForDpi(ref managedMetrics, nativeWindowDpi));
+
+                var nativeMetrics = new NONCLIENTMETRICSW();
+                Assert.Equal(1, NativeUser32.SystemParametersInfoForDpi(
+                    (uint)SYSTEM_PARAMETERS_INFO_ACTION.SPI_GETNONCLIENTMETRICS,
+                    (uint)sizeof(NONCLIENTMETRICSW),
+                    &nativeMetrics,
+                    0,
+                    nativeWindowDpi));
+            }
         }
     }
 
@@ -183,7 +221,7 @@ public class User32CompatibilityFacadeTests
         }
     }
 
-    private static partial class NativeUser32
+    private static unsafe partial class NativeUser32
     {
         private const string User32 = "USER32.dll";
 
@@ -318,5 +356,17 @@ public class User32CompatibilityFacadeTests
         [DllImport(User32, ExactSpelling = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
         internal static extern bool ValidateRect(nint hwnd, ref RECT lpRect);
+
+        [DllImport(User32, ExactSpelling = true)]
+        internal static extern int SystemParametersInfo(uint uiAction, uint uiParam, void* pvParam, uint fWinIni);
+
+        [DllImport(User32, ExactSpelling = true)]
+        internal static extern int SystemParametersInfoForDpi(uint uiAction, uint uiParam, void* pvParam, uint fWinIni, uint dpi);
+
+        [DllImport(User32, ExactSpelling = true)]
+        internal static extern uint GetDpiForWindow(nint hwnd);
+
+        [DllImport(User32, ExactSpelling = true)]
+        internal static extern uint GetDpiForSystem();
     }
 }
