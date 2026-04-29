@@ -14,6 +14,10 @@ Current baseline: `42 total, 41 passed, 0 failed, 1 skipped` with `MediaPlayer` 
   - Non-Windows `DataObject` construction no longer routes through `GlobalInterfaceTable`/`OLE32.dll`; added managed adapter path to avoid `DllNotFoundException`.
   - `BackCompatibleStringComparer` hash code now uses `unchecked` arithmetic to avoid overflow exceptions during drag/drop data storage.
   - Drag/drop enter/over sequencing and input-state synchronization were tightened for backend-driven mouse/key events.
+- In-progress local changes (next commit):
+  - Implemented `WindowFromPoint`, `ChildWindowFromPointEx`, `ScreenToClient`, `ClientToScreen`, and `MapWindowPoints` in `ImpellerWindowInterop`.
+  - Wired mouse message posting in `ImpellerInputInterop` to convert cursor screen coordinates to target-client coordinates before posting.
+  - Mouse target selection now prefers hit-testing via `WindowFromPoint` when capture is not active.
 - Current focused rerun (`DragDropTests`) has 4 failing cases (was 6):
   - `DragDrop_QueryDefaultCursors_Async`
   - `DragEnter_Set_DropImageType_Message_MessageReplacementToken_ReturnsExpected_Async`
@@ -124,4 +128,4 @@ Current baseline: `42 total, 41 passed, 0 failed, 1 skipped` with `MediaPlayer` 
 ## Active Work Notes
 
 - `WXA-1103` is actively in progress with managed drag/drop loop and target-resolution work.
-- Remaining DragDrop failures are event-order and target-hit behavior, not missing `OLE32.dll` load failures.
+- Remaining DragDrop failures are now narrowed to drag start/target behavior in specific UI flows; `OLE32.dll`/GIT failures are fixed.

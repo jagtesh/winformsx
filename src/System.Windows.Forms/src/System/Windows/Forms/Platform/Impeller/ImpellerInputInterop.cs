@@ -258,7 +258,15 @@ internal sealed unsafe class ImpellerInputInterop : IInputInterop
         HWND target = GetMouseTarget();
         if (target != HWND.Null)
         {
-            PlatformApi.Message.PostMessage(target, message, wParam, MakePointLParam(_cursorPos));
+            System.Drawing.Point cursorPos;
+            lock (_inputStateLock)
+            {
+                cursorPos = _cursorPos;
+            }
+
+            System.Drawing.Point clientPoint = cursorPos;
+            PlatformApi.Window.ScreenToClient(target, ref clientPoint);
+            PlatformApi.Message.PostMessage(target, message, wParam, MakePointLParam(clientPoint));
         }
     }
 
@@ -303,7 +311,26 @@ internal sealed unsafe class ImpellerInputInterop : IInputInterop
     }
 
     private HWND GetMouseTarget()
-        => _captureWindow != HWND.Null ? _captureWindow : _focusWindow != HWND.Null ? _focusWindow : _activeWindow;
+    {
+        if (_captureWindow != HWND.Null)
+        {
+            return _captureWindow;
+        }
+
+        System.Drawing.Point cursorPos;
+        lock (_inputStateLock)
+        {
+            cursorPos = _cursorPos;
+        }
+
+        HWND hitTarget = PlatformApi.Window.WindowFromPoint(cursorPos);
+        if (hitTarget != HWND.Null)
+        {
+            return hitTarget;
+        }
+
+        return _focusWindow != HWND.Null ? _focusWindow : _activeWindow;
+    }
 
     private static LPARAM MakePointLParam(System.Drawing.Point point)
         => (LPARAM)(nint)(((point.Y & 0xFFFF) << 16) | (point.X & 0xFFFF));

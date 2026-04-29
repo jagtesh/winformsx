@@ -60,6 +60,9 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
     private const int ManagedDataGridRowHeight = 24;
     private const int ManagedScrollBarArrowLength = 17;
     private const int ManagedScrollBarMinThumbLength = 18;
+    private const uint CwpSkipInvisible = 0x0001;
+    private const uint CwpSkipDisabled = 0x0002;
+    private const uint CwpSkipTransparent = 0x0004;
     private const int CwUseDefault = unchecked((int)0x80000000);
     private const int DefaultTopLevelWindowX = 100;
     private const int DefaultTopLevelWindowY = 100;
@@ -3853,13 +3856,53 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
 
     public int MapWindowPoints(HWND from, HWND to, ref RECT rect)
     {
-        // TODO: implement coordinate transformation between windows
-        return 0;
+        System.Drawing.Point topLeft = new(rect.left, rect.top);
+        System.Drawing.Point bottomRight = new(rect.right, rect.bottom);
+        if (!TryMapWindowPoint(from, to, ref topLeft) || !TryMapWindowPoint(from, to, ref bottomRight))
+        {
+            return 0;
+        }
+
+        rect.left = topLeft.X;
+        rect.top = topLeft.Y;
+        rect.right = bottomRight.X;
+        rect.bottom = bottomRight.Y;
+        return 2;
     }
 
-    public int MapWindowPoints(HWND from, HWND to, ref System.Drawing.Point pts, uint count) => 0;
-    public bool ScreenToClient(HWND hWnd, ref System.Drawing.Point pt) => true;
-    public bool ClientToScreen(HWND hWnd, ref System.Drawing.Point pt) => true;
+    public int MapWindowPoints(HWND from, HWND to, ref System.Drawing.Point pts, uint count)
+    {
+        if (count == 0)
+        {
+            return 0;
+        }
+
+        return TryMapWindowPoint(from, to, ref pts) ? 1 : 0;
+    }
+
+    public bool ScreenToClient(HWND hWnd, ref System.Drawing.Point pt)
+    {
+        if (!TryGetScreenOrigin(hWnd, out System.Drawing.Point origin))
+        {
+            return false;
+        }
+
+        pt.X -= origin.X;
+        pt.Y -= origin.Y;
+        return true;
+    }
+
+    public bool ClientToScreen(HWND hWnd, ref System.Drawing.Point pt)
+    {
+        if (!TryGetScreenOrigin(hWnd, out System.Drawing.Point origin))
+        {
+            return false;
+        }
+
+        pt.X += origin.X;
+        pt.Y += origin.Y;
+        return true;
+    }
 
     public nint GetWindowLong(HWND hWnd, WINDOW_LONG_PTR_INDEX index)
     {
@@ -3957,8 +4000,55 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
 
     public HWND GetAncestor(HWND hwnd, GET_ANCESTOR_FLAGS flags) => GetParent(hwnd);
     public HWND GetDesktopWindow() => (HWND)(nint)0x10000;
-    public HWND WindowFromPoint(System.Drawing.Point pt) => HWND.Null; // TODO: hit-test
-    public HWND ChildWindowFromPointEx(HWND parent, System.Drawing.Point pt, uint flags) => HWND.Null;
+
+    public HWND WindowFromPoint(System.Drawing.Point pt)
+    {
+        HWND root = FindTopLevelWindowAtPoint(pt);
+        if (root == HWND.Null)
+        {
+            return HWND.Null;
+        }
+
+        return HitTest(root, pt, out _);
+    }
+
+    public HWND ChildWindowFromPointEx(HWND parent, System.Drawing.Point pt, uint flags)
+    {
+        if (!TryGetScreenOrigin(parent, out System.Drawing.Point parentOrigin))
+        {
+            return HWND.Null;
+        }
+
+        System.Drawing.Point screenPoint = new(parentOrigin.X + pt.X, parentOrigin.Y + pt.Y);
+        if (!TryGetScreenRect(parent, out System.Drawing.Rectangle parentRect) || !parentRect.Contains(screenPoint))
+        {
+            return HWND.Null;
+        }
+
+        Control? parentControl = Control.FromHandle(parent);
+        if (parentControl is null)
+        {
+            return parent;
+        }
+
+        for (int i = 0; i < parentControl.Controls.Count; i++)
+        {
+            Control child = parentControl.Controls[i];
+            if (ShouldSkipChildForPointQuery(child, flags))
+            {
+                continue;
+            }
+
+            System.Drawing.Rectangle childRect = GetControlScreenBounds(child);
+            if (childRect.Contains(screenPoint))
+            {
+                return (HWND)(nint)child.Handle;
+            }
+        }
+
+        return parent;
+    }
+
     public bool EnumChildWindows(HWND parent, Func<HWND, bool> callback) => true;
     public bool EnumWindows(Func<HWND, bool> callback) => true;
 
@@ -4095,6 +4185,7 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
     private HWND HitTest(HWND root, System.Drawing.Point pt, out System.Drawing.Point clientPt)
     {
         clientPt = pt;
+        ScreenToClient(root, ref clientPt);
         HWND current = root;
 
         while (true)
@@ -4131,6 +4222,149 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
         }
 
         return current;
+    }
+
+    private static System.Drawing.Rectangle GetControlScreenBounds(Control control)
+    {
+        System.Drawing.Point topLeft = control.PointToScreen(System.Drawing.Point.Empty);
+        return new System.Drawing.Rectangle(topLeft, control.Size);
+    }
+
+    private HWND FindTopLevelWindowAtPoint(System.Drawing.Point pt)
+    {
+        if (_activeWindow != HWND.Null && TryGetScreenRect(_activeWindow, out System.Drawing.Rectangle activeBounds) && activeBounds.Contains(pt))
+        {
+            return _activeWindow;
+        }
+
+        HWND best = HWND.Null;
+        nint bestHandle = 0;
+        foreach ((nint handleKey, ImpellerWindowState state) in _windows)
+        {
+            if (state.Parent != HWND.Null || !state.Visible)
+            {
+                continue;
+            }
+
+            HWND handle = (HWND)handleKey;
+            if (!TryGetScreenRect(handle, out System.Drawing.Rectangle bounds) || !bounds.Contains(pt))
+            {
+                continue;
+            }
+
+            if (handleKey >= bestHandle)
+            {
+                best = handle;
+                bestHandle = handleKey;
+            }
+        }
+
+        return best;
+    }
+
+    private bool TryMapWindowPoint(HWND from, HWND to, ref System.Drawing.Point point)
+    {
+        if (from != HWND.Null)
+        {
+            if (!TryGetScreenOrigin(from, out System.Drawing.Point fromOrigin))
+            {
+                return false;
+            }
+
+            point.X += fromOrigin.X;
+            point.Y += fromOrigin.Y;
+        }
+
+        if (to != HWND.Null)
+        {
+            if (!TryGetScreenOrigin(to, out System.Drawing.Point toOrigin))
+            {
+                return false;
+            }
+
+            point.X -= toOrigin.X;
+            point.Y -= toOrigin.Y;
+        }
+
+        return true;
+    }
+
+    private bool TryGetScreenRect(HWND hwnd, out System.Drawing.Rectangle rect)
+    {
+        if (TryGetScreenOrigin(hwnd, out System.Drawing.Point origin) && _windows.TryGetValue(hwnd, out ImpellerWindowState? state))
+        {
+            rect = new System.Drawing.Rectangle(origin.X, origin.Y, state.Width, state.Height);
+            return true;
+        }
+
+        Control? control = Control.FromHandle(hwnd);
+        if (control is not null)
+        {
+            rect = GetControlScreenBounds(control);
+            return true;
+        }
+
+        rect = default;
+        return false;
+    }
+
+    private bool TryGetScreenOrigin(HWND hwnd, out System.Drawing.Point origin)
+    {
+        origin = System.Drawing.Point.Empty;
+        if (hwnd == HWND.Null)
+        {
+            return true;
+        }
+
+        if (_windows.TryGetValue(hwnd, out ImpellerWindowState? state))
+        {
+            int x = state.X;
+            int y = state.Y;
+            HWND currentParent = state.Parent;
+            while (currentParent != HWND.Null && _windows.TryGetValue(currentParent, out ImpellerWindowState? parentState))
+            {
+                x += parentState.X;
+                y += parentState.Y;
+                currentParent = parentState.Parent;
+            }
+
+            origin = new System.Drawing.Point(x, y);
+            return true;
+        }
+
+        Control? control = Control.FromHandle(hwnd);
+        if (control?.IsHandleCreated == true)
+        {
+            origin = control.PointToScreen(System.Drawing.Point.Empty);
+            return true;
+        }
+
+        return false;
+    }
+
+    private bool ShouldSkipChildForPointQuery(Control child, uint flags)
+    {
+        if ((flags & CwpSkipInvisible) != 0 && !child.Visible)
+        {
+            return true;
+        }
+
+        if ((flags & CwpSkipDisabled) != 0 && !child.Enabled)
+        {
+            return true;
+        }
+
+        if ((flags & CwpSkipTransparent) != 0)
+        {
+            HWND handle = (HWND)(nint)child.Handle;
+            if (_windows.TryGetValue(handle, out ImpellerWindowState? state)
+                && state.ExStyle.HasFlag(WINDOW_EX_STYLE.WS_EX_TRANSPARENT))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private void PostMessageToControl(HWND targetWindow, HWND fallbackTopLevel, uint msg, WPARAM wParam, LPARAM lParam)
