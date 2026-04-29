@@ -2,12 +2,13 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Runtime.InteropServices;
-using Windows.Win32.System.LibraryLoader;
 
 namespace Windows.Win32;
 
 internal static partial class PInvoke
 {
+    private const int LOAD_LIBRARY_SEARCH_SYSTEM32 = 0x00000800;
+
     public static HINSTANCE LoadComctl32(string startupPath)
     {
         // NOTE: we don't look for the loaded module!
@@ -47,7 +48,7 @@ internal static partial class PInvoke
 
         // LOAD_LIBRARY_SEARCH_SYSTEM32 was introduced in KB2533623. Check for its presence
         // to preserve compat with Windows 7 SP1 without this patch.
-        HINSTANCE result = LoadLibraryEx(libraryName, LOAD_LIBRARY_FLAGS.LOAD_LIBRARY_SEARCH_SYSTEM32);
+        HINSTANCE result = LoadLibraryEx(libraryName, LOAD_LIBRARY_SEARCH_SYSTEM32);
         if (!result.IsNull)
         {
             return result;

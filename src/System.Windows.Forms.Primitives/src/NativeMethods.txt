@@ -180,10 +180,7 @@ GetClipRgn
 GetComboBoxInfo
 GetCurrentActCtx
 GetCurrentObject
-GetCurrentProcess
-GetCurrentProcessId
 GetCurrentThemeName
-GetCurrentThread
 GetCursor
 GetDesktopWindow
 GetDeviceCaps
@@ -210,7 +207,6 @@ GetObject
 GetObjectType
 GetOpenFileName
 GetPaletteEntries
-GetProcAddress
 GetProcessDpiAwareness
 GetProcessWindowStation
 GETPROPERTYSTOREFLAGS
@@ -433,7 +429,6 @@ LIST_VIEW_GROUP_STATE_FLAGS
 LIST_VIEW_ITEM_FLAGS
 LIST_VIEW_ITEM_STATE_FLAGS
 LoadCursor
-LoadLibraryEx
 LoadTypeLib
 LOCALE_IMEASURE
 LOCALE_NAME_SYSTEM_DEFAULT

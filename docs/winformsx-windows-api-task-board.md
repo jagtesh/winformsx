@@ -19,6 +19,14 @@ Ordered by observed frequency across components and blocker blast radius:
 ## Latest Progress (2026-04-29)
 
 - In-progress local changes (next commit):
+  - Started KERNEL32 compatibility surface routing in `System.Windows.Forms.Primitives`:
+    - Added managed/PAL wrappers for `GetCurrentProcess`, `GetCurrentThread`, `GetCurrentProcessId`, `GetProcAddress`, and `LoadLibraryEx`.
+    - Removed generated direct native imports for those symbols from `NativeMethods.txt` so non-Windows runs do not bind to unavailable Windows entrypoints.
+    - Kept `LoadLibrary` behavior source-compatible by preserving WinForms callsites and moving flag usage to numeric constants in managed code.
+  - Verification:
+    - `dotnet build src/System.Windows.Forms.Primitives/src/System.Windows.Forms.Primitives.csproj -c Release` -> `Build succeeded`.
+    - `WinformsControlsTest --control-smoke-test` -> `total=42 passed=41 failed=0 skipped=1`.
+- In-progress local changes (next commit):
   - Added managed non-Windows USER32 caret facades (`PInvoke.HideCaret` / `PInvoke.ShowCaret`) in `System.Windows.Forms.Primitives` and removed generated native imports for both symbols.
   - Guarded ToolStrip modal message-hook activation so non-Windows non-message-loop paths do not attempt Windows hook setup.
   - Re-ran focused ToolStrip regression with blame-hang:
@@ -195,7 +203,7 @@ Ordered by observed frequency across components and blocker blast radius:
 
 ## KERNEL32 Surface
 
-- [ ] WXA-1100: Add KERNEL32 compatibility for process/thread/module/memory primitives used by WinForms (`GetModuleHandle`, `LoadLibrary`, `FreeLibrary`, `GetProcAddress`, `GetCurrentProcessId`, `GetCurrentThreadId`, `GetCurrentThread`, `Global*/Local*`, `GetLastError`, `SetLastError`).
+- [~] WXA-1100: Add KERNEL32 compatibility for process/thread/module/memory primitives used by WinForms (`GetModuleHandle`, `LoadLibrary`, `FreeLibrary`, `GetProcAddress`, `GetCurrentProcessId`, `GetCurrentThreadId`, `GetCurrentThread`, `Global*/Local*`, `GetLastError`, `SetLastError`).
 
 ## OLE, COM, Clipboard, IME, Drag/Drop
 
