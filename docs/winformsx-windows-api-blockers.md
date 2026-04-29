@@ -454,6 +454,28 @@ cases were previously blockers and should remain regression targets:
 8. Add Shell/GDI/theme facades only where tests or production-style source
    compatibility requires them.
 
+## Task Board
+
+- [ ] OLE/drag-drop baseline: close remaining `DragDropTests` behavior gaps.
+- [ ] OLE/clipboard baseline: managed clipboard set/get and format mapping.
+- [ ] IME/input-language baseline: `InputLanguage`/IME no-crash managed state.
+- [ ] Dialog baseline: open/save/folder/color/font/message/task dialog parity.
+- [ ] Print baseline: no-printer `PrinterSettings` + `PrintDialog` behavior.
+- [ ] USER32 tier expansion: geometry/menu/message APIs used by UI tests.
+- [ ] KERNEL32 tier expansion: minimal module/resource and last-error semantics.
+- [ ] COMCTL32/ImageList tier: image list ops required by ListView/TreeView tests.
+- [ ] Shell/resources tier: stock icons/cursors/resource resolver centralization.
+- [ ] RichText tier: drag/drop + link/range compatibility follow-ups.
+- [ ] Accessibility tier: PropertyGrid/ListView/ToolStrip UIA parity gaps.
+- [ ] Theme/DPI tier: deterministic non-Windows UXTHEME/DWM/SHCore behavior.
+- [ ] SystemEvents tier: WinFormsX compatibility layer for common event subset.
+
+### In Progress (current pass)
+
+- [x] Input key-state fidelity for mouse move messages on WinFormsX backend.
+- [x] Managed non-Windows `DoDragDrop` fallback path wired for Control/ToolStripItem.
+- [ ] Drag/drop target resolution and event ordering parity for UIIntegration tests.
+
 ## Acceptance Bar
 
 - Public `System.Windows.Forms` APIs remain source-compatible with Microsoft

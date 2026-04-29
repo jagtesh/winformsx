@@ -20,6 +20,12 @@ internal sealed unsafe class ImpellerInputInterop : IInputInterop
     private const uint WM_RBUTTONUP = 0x0205;
     private const uint WM_MBUTTONDOWN = 0x0207;
     private const uint WM_MBUTTONUP = 0x0208;
+    private const nint MK_LBUTTON = 0x0001;
+    private const nint MK_RBUTTON = 0x0002;
+    private const nint MK_SHIFT = 0x0004;
+    private const nint MK_CONTROL = 0x0008;
+    private const nint MK_MBUTTON = 0x0010;
+    private const nint MK_ALT = 0x0020;
 
     private HWND _focusWindow;
     private HWND _activeWindow;
@@ -148,7 +154,7 @@ internal sealed unsafe class ImpellerInputInterop : IInputInterop
                 _cursorPos.Offset(input.dx, input.dy);
             }
 
-            PostToMouseTarget(WM_MOUSEMOVE, (WPARAM)0);
+            PostToMouseTarget(WM_MOUSEMOVE, (WPARAM)GetMouseKeyState());
         }
 
         DispatchMouseButton(flags, MOUSE_EVENT_FLAGS.MOUSEEVENTF_LEFTDOWN, MOUSE_EVENT_FLAGS.MOUSEEVENTF_LEFTUP, VIRTUAL_KEY.VK_LBUTTON, WM_LBUTTONDOWN, WM_LBUTTONUP);
@@ -169,13 +175,13 @@ internal sealed unsafe class ImpellerInputInterop : IInputInterop
         {
             _pressedKeys.Add(key);
             _captureWindow = GetMouseTarget();
-            PostToMouseTarget(downMessage, (WPARAM)0);
+            PostToMouseTarget(downMessage, (WPARAM)GetMouseKeyState());
         }
 
         if ((flags & upFlag) != 0)
         {
             _pressedKeys.Remove(key);
-            PostToMouseTarget(upMessage, (WPARAM)0);
+            PostToMouseTarget(upMessage, (WPARAM)GetMouseKeyState());
             _captureWindow = HWND.Null;
         }
     }
@@ -196,6 +202,43 @@ internal sealed unsafe class ImpellerInputInterop : IInputInterop
         {
             PlatformApi.Message.PostMessage(target, message, wParam, MakePointLParam(_cursorPos));
         }
+    }
+
+    private nint GetMouseKeyState()
+    {
+        nint keyState = 0;
+
+        if (_pressedKeys.Contains((int)VIRTUAL_KEY.VK_LBUTTON))
+        {
+            keyState |= MK_LBUTTON;
+        }
+
+        if (_pressedKeys.Contains((int)VIRTUAL_KEY.VK_RBUTTON))
+        {
+            keyState |= MK_RBUTTON;
+        }
+
+        if (_pressedKeys.Contains((int)VIRTUAL_KEY.VK_MBUTTON))
+        {
+            keyState |= MK_MBUTTON;
+        }
+
+        if (_pressedKeys.Contains((int)VIRTUAL_KEY.VK_SHIFT))
+        {
+            keyState |= MK_SHIFT;
+        }
+
+        if (_pressedKeys.Contains((int)VIRTUAL_KEY.VK_CONTROL))
+        {
+            keyState |= MK_CONTROL;
+        }
+
+        if (_pressedKeys.Contains((int)VIRTUAL_KEY.VK_MENU))
+        {
+            keyState |= MK_ALT;
+        }
+
+        return keyState;
     }
 
     private HWND GetMouseTarget()

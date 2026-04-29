@@ -2213,6 +2213,7 @@ public abstract partial class ToolStripItem :
     [EditorBrowsable(EditorBrowsableState.Advanced)]
     public unsafe DragDropEffects DoDragDrop(object data, DragDropEffects allowedEffects, Bitmap? dragImage, Point cursorOffset, bool useDefaultDragImage)
     {
+        IDataObject? managedDataObject = null;
         if (data is not IComDataObject dataObject)
         {
             DataObject? iwdata = null;
@@ -2238,6 +2239,12 @@ public abstract partial class ToolStripItem :
             }
 
             dataObject = iwdata;
+        }
+
+        if (!OperatingSystem.IsWindows() || Graphics.IsBackendActive)
+        {
+            managedDataObject = dataObject as IDataObject ?? new DataObject(dataObject);
+            return ManagedDragDrop.DoDragDrop(this, ParentInternal, managedDataObject, allowedEffects, dragImage, cursorOffset, useDefaultDragImage);
         }
 
         DROPEFFECT finalEffect;

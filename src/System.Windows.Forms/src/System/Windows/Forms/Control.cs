@@ -17,8 +17,8 @@ using Windows.Win32.System.Ole;
 using Windows.Win32.UI.Accessibility;
 using Windows.Win32.UI.Input.KeyboardAndMouse;
 using Com = Windows.Win32.System.Com;
-using ComTypes = System.Runtime.InteropServices.ComTypes;
 using Encoding = System.Text.Encoding;
+using IComDataObject = System.Runtime.InteropServices.ComTypes.IDataObject;
 
 namespace System.Windows.Forms;
 
@@ -4996,7 +4996,12 @@ public unsafe partial class Control :
         Point cursorOffset,
         bool useDefaultDragImage)
     {
-        ComTypes.IDataObject dataObject = CreateRuntimeDataObjectForDrag(data);
+        DataObject dataObject = CreateRuntimeDataObjectForDrag(data);
+
+        if (!OperatingSystem.IsWindows() || Graphics.IsBackendActive)
+        {
+            return ManagedDragDrop.DoDragDrop((ISupportOleDropSource)this, this, dataObject, allowedEffects, dragImage, cursorOffset, useDefaultDragImage);
+        }
 
         DROPEFFECT finalEffect;
 
@@ -5012,9 +5017,9 @@ public unsafe partial class Control :
         }
         finally
         {
-            if (DragDropHelper.IsInDragLoop(dataObject))
+            if (DragDropHelper.IsInDragLoop((IComDataObject)dataObject))
             {
-                DragDropHelper.SetInDragLoop(dataObject, inDragLoop: false);
+                DragDropHelper.SetInDragLoop((IComDataObject)dataObject, inDragLoop: false);
             }
         }
 
@@ -11789,7 +11794,41 @@ public unsafe partial class Control :
             DefWndProc(ref m);
         }
 
-        OnMouseMove(new MouseEventArgs(MouseButtons, 0, PARAM.ToPoint(m.LParamInternal)));
+        MouseButtons mouseButtons = Graphics.IsBackendActive ? GetMouseButtonsFromMessage(m.WParamInternal) : MouseButtons;
+        OnMouseMove(new MouseEventArgs(mouseButtons, 0, PARAM.ToPoint(m.LParamInternal)));
+    }
+
+    private static MouseButtons GetMouseButtonsFromMessage(WPARAM wParam)
+    {
+        nint state = (nint)wParam;
+        MouseButtons buttons = MouseButtons.None;
+
+        if ((state & 0x0001) != 0)
+        {
+            buttons |= MouseButtons.Left;
+        }
+
+        if ((state & 0x0002) != 0)
+        {
+            buttons |= MouseButtons.Right;
+        }
+
+        if ((state & 0x0010) != 0)
+        {
+            buttons |= MouseButtons.Middle;
+        }
+
+        if ((state & 0x0020) != 0)
+        {
+            buttons |= MouseButtons.XButton1;
+        }
+
+        if ((state & 0x0040) != 0)
+        {
+            buttons |= MouseButtons.XButton2;
+        }
+
+        return buttons;
     }
 
     /// <summary>
