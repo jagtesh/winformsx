@@ -221,6 +221,18 @@ public class User32CompatibilityFacadeTests
                 Assert.Equal(PInvoke.GetDpiForWindow(form), nativeWindowDpi);
                 Assert.Equal(PInvoke.GetDpiForSystem(), NativeUser32.GetDpiForSystem());
 
+                nint managedInputLanguage = 0;
+                Assert.True(PInvoke.SystemParametersInfo(SYSTEM_PARAMETERS_INFO_ACTION.SPI_GETDEFAULTINPUTLANG, ref managedInputLanguage));
+
+                nint nativeInputLanguage = 0;
+                Assert.Equal(1, NativeUser32.SystemParametersInfo(
+                    (uint)SYSTEM_PARAMETERS_INFO_ACTION.SPI_GETDEFAULTINPUTLANG,
+                    0,
+                    &nativeInputLanguage,
+                    0));
+                Assert.Equal(managedInputLanguage, nativeInputLanguage);
+                Assert.NotEqual(nint.Zero, nativeInputLanguage);
+
                 var managedMetrics = new NONCLIENTMETRICSW();
                 managedMetrics.cbSize = (uint)sizeof(NONCLIENTMETRICSW);
                 Assert.True(PInvoke.TrySystemParametersInfoForDpi(ref managedMetrics, nativeWindowDpi));

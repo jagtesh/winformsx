@@ -49,6 +49,8 @@ internal sealed unsafe class ImpellerSystemInterop : ISystemInterop
     private int _border = 4;
     private int _snapToDefButton = 1;
     private int _mouseTrails = 0;
+    private uint _highContrastFlags = 0;
+    private nint _defaultInputLanguage = unchecked((nint)0x04090409);
     private RECT _workArea = new(0, 0, DefaultWorkAreaWidth, DefaultWorkAreaHeight);
 
     // --- Timers ---------------------------------------------------------
@@ -191,7 +193,8 @@ internal sealed unsafe class ImpellerSystemInterop : ISystemInterop
             SYSTEM_PARAMETERS_INFO_ACTION.SPI_GETSCREENREADER => ReadInt(pvParam, 0),
             SYSTEM_PARAMETERS_INFO_ACTION.SPI_GETMOUSESPEED => ReadInt(pvParam, _mouseSpeed),
             SYSTEM_PARAMETERS_INFO_ACTION.SPI_GETWORKAREA => ReadRect(pvParam, in _workArea),
-            SYSTEM_PARAMETERS_INFO_ACTION.SPI_GETHIGHCONTRAST => ReadHighContrast(pvParam, (int)param),
+            SYSTEM_PARAMETERS_INFO_ACTION.SPI_GETHIGHCONTRAST => ReadHighContrast(pvParam, (int)param, _highContrastFlags),
+            SYSTEM_PARAMETERS_INFO_ACTION.SPI_GETDEFAULTINPUTLANG => ReadNint(pvParam, _defaultInputLanguage),
             SYSTEM_PARAMETERS_INFO_ACTION.SPI_GETNONCLIENTMETRICS => ReadNonClientMetrics(pvParam, (int)param),
             SYSTEM_PARAMETERS_INFO_ACTION.SPI_SETCLIENTAREAANIMATION => SetBoolean(pvParam, ref _clientAreaAnimation),
             SYSTEM_PARAMETERS_INFO_ACTION.SPI_SETDRAGFULLWINDOWS => SetBoolean(pvParam, ref _dragFullWindows),
@@ -219,6 +222,10 @@ internal sealed unsafe class ImpellerSystemInterop : ISystemInterop
             SYSTEM_PARAMETERS_INFO_ACTION.SPI_SETKEYBOARDDELAY => SetIntFromParam(param, ref _keyBoardDelay),
             SYSTEM_PARAMETERS_INFO_ACTION.SPI_SETCARETWIDTH => SetIntFromParam(param, ref _caretWidth),
             SYSTEM_PARAMETERS_INFO_ACTION.SPI_SETACTIVEWNDTRKTIMEOUT => SetIntFromParam(param, ref _activeWindowTrackingTimeout),
+            SYSTEM_PARAMETERS_INFO_ACTION.SPI_SETHIGHCONTRAST => SetHighContrast(pvParam),
+            SYSTEM_PARAMETERS_INFO_ACTION.SPI_SETNONCLIENTMETRICS => SetNonClientMetrics(pvParam),
+            SYSTEM_PARAMETERS_INFO_ACTION.SPI_SETICONTITLELOGFONT => true,
+            SYSTEM_PARAMETERS_INFO_ACTION.SPI_SETDESKWALLPAPER => true,
             _ => true,
         };
     }
@@ -272,6 +279,17 @@ internal sealed unsafe class ImpellerSystemInterop : ISystemInterop
         return true;
     }
 
+    private static unsafe bool ReadNint(void* pvParam, nint value)
+    {
+        if (pvParam is null)
+        {
+            return true;
+        }
+
+        *(nint*)pvParam = value;
+        return true;
+    }
+
     private static unsafe bool StoreRectAndWrite(void* pvParam, ref RECT destination)
     {
         if (pvParam is null)
@@ -283,7 +301,7 @@ internal sealed unsafe class ImpellerSystemInterop : ISystemInterop
         return true;
     }
 
-    private static unsafe bool ReadHighContrast(void* pvParam, int uiParam)
+    private static unsafe bool ReadHighContrast(void* pvParam, int uiParam, uint flags)
     {
         if (pvParam is null)
         {
@@ -294,8 +312,20 @@ internal sealed unsafe class ImpellerSystemInterop : ISystemInterop
         highContrast->cbSize = (uint)(uiParam == 0
             ? (uint)sizeof(HIGHCONTRASTW)
             : (uint)uiParam);
-        highContrast->dwFlags = 0;
+        highContrast->dwFlags = (HIGHCONTRASTW_FLAGS)flags;
         highContrast->lpszDefaultScheme = null;
+        return true;
+    }
+
+    private unsafe bool SetHighContrast(void* pvParam)
+    {
+        if (pvParam is null)
+        {
+            _highContrastFlags = 0;
+            return true;
+        }
+
+        _highContrastFlags = (uint)((HIGHCONTRASTW*)pvParam)->dwFlags;
         return true;
     }
 
@@ -323,6 +353,18 @@ internal sealed unsafe class ImpellerSystemInterop : ISystemInterop
         metrics->lfSmCaptionFont = ToLogicalFont(System.Drawing.SystemFonts.SmallCaptionFont);
         metrics->iMenuHeight = 20;
         metrics->iMenuWidth = 0;
+        return true;
+    }
+
+    private bool SetNonClientMetrics(void* pvParam)
+    {
+        if (pvParam is null)
+        {
+            return true;
+        }
+
+        NONCLIENTMETRICSW* metrics = (NONCLIENTMETRICSW*)pvParam;
+        _border = metrics->iBorderWidth;
         return true;
     }
 
