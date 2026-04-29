@@ -87,7 +87,7 @@ internal sealed class CheckBoxStandardAdapter : CheckBoxBaseAdapter
 
     internal override Size GetPreferredSizeCore(Size proposedSize)
     {
-        if (!OperatingSystem.IsWindows() || Control.Appearance == Appearance.Button)
+        if (!OperatingSystem.IsWindows() || Graphics.IsBackendActive || Control.Appearance == Appearance.Button)
         {
             ButtonStandardAdapter adapter = new(Control);
             return adapter.GetPreferredSizeCore(proposedSize);

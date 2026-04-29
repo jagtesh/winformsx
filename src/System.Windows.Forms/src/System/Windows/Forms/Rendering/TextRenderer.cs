@@ -643,21 +643,32 @@ public static class TextRenderer
             return MeasureTextManaged(text, font, proposedSize, flags);
         }
 
-        // Use a temporary Graphics backed by the Impeller backend
-        using var g = Graphics.FromHwndInternal(IntPtr.Zero);
-        using var sf = new StringFormat(StringFormat.GenericTypographic);
-
-        if (flags.HasFlag(TextFormatFlags.SingleLine) || !flags.HasFlag(TextFormatFlags.WordBreak))
+        Graphics? g;
+        try
         {
-            sf.FormatFlags |= StringFormatFlags.NoWrap;
+            g = Graphics.FromHwndInternal(IntPtr.Zero);
+        }
+        catch (InvalidOperationException)
+        {
+            return MeasureTextManaged(text, font, proposedSize, flags);
         }
 
-        var layoutArea = new SizeF(
-            proposedSize.Width > 0 ? proposedSize.Width : 10000f,
-            proposedSize.Height > 0 ? proposedSize.Height : 10000f);
-        var size = g.MeasureString(text.ToString(), font, layoutArea, sf);
-        // GDI MeasureText adds internal padding; approximate by ceiling
-        return new Size((int)MathF.Ceiling(size.Width) + 4, (int)MathF.Ceiling(size.Height));
+        using (g)
+        {
+            using var sf = new StringFormat(StringFormat.GenericTypographic);
+
+            if (flags.HasFlag(TextFormatFlags.SingleLine) || !flags.HasFlag(TextFormatFlags.WordBreak))
+            {
+                sf.FormatFlags |= StringFormatFlags.NoWrap;
+            }
+
+            var layoutArea = new SizeF(
+                proposedSize.Width > 0 ? proposedSize.Width : 10000f,
+                proposedSize.Height > 0 ? proposedSize.Height : 10000f);
+            var size = g.MeasureString(text.ToString(), font, layoutArea, sf);
+            // GDI MeasureText adds internal padding; approximate by ceiling
+            return new Size((int)MathF.Ceiling(size.Width) + 4, (int)MathF.Ceiling(size.Height));
+        }
     }
 
     private static Size MeasureTextManaged(ReadOnlySpan<char> text, Font font, Size proposedSize, TextFormatFlags flags)

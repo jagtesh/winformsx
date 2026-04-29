@@ -47,7 +47,7 @@ internal abstract partial class ButtonBaseAdapter
 
     internal virtual Size GetPreferredSizeCore(Size proposedSize)
     {
-        if (!OperatingSystem.IsWindows())
+        if (!OperatingSystem.IsWindows() || Graphics.IsBackendActive)
         {
             Size textSize = string.IsNullOrEmpty(Control.Text)
                 ? Size.Empty
