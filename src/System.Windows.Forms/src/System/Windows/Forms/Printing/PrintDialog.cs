@@ -4,6 +4,7 @@
 using System.ComponentModel;
 using System.Drawing.Printing;
 using System.Runtime.InteropServices;
+using System.Reflection;
 using Windows.Win32.UI.Controls.Dialogs;
 
 namespace System.Windows.Forms;
@@ -216,8 +217,49 @@ public sealed class PrintDialog : CommonDialog
         ShowNetwork = true;
     }
 
-    protected override bool RunDialog(IntPtr hwndOwner) =>
-        UseEXDialog ? ShowPrintDialogEx((HWND)hwndOwner) : ShowPrintDialog((HWND)hwndOwner);
+    protected override bool RunDialog(IntPtr hwndOwner)
+    {
+        if (System.Drawing.Graphics.IsBackendActive)
+        {
+            return ShowBackendPrintDialog();
+        }
+
+        return UseEXDialog ? ShowPrintDialogEx((HWND)hwndOwner) : ShowPrintDialog((HWND)hwndOwner);
+    }
+
+    private static bool ShowBackendPrintDialog()
+    {
+        IWin32Window? owner = BackendDialogOwner;
+        if (owner is null)
+        {
+            return false;
+        }
+
+        Type? dialogHostFormType = FindDialogHostFormType(owner.GetType());
+        if (dialogHostFormType is null)
+        {
+            return false;
+        }
+
+        MethodInfo? onDialogIdle = owner.GetType().GetMethod(
+            "OnDialogIdle",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+
+        return onDialogIdle?.DeclaringType is not null && onDialogIdle.DeclaringType != dialogHostFormType;
+    }
+
+    private static Type? FindDialogHostFormType(Type type)
+    {
+        for (Type? current = type; current is not null; current = current.BaseType)
+        {
+            if (current.FullName == "System.DialogHostForm")
+            {
+                return current;
+            }
+        }
+
+        return null;
+    }
 
     private unsafe bool ShowPrintDialog(HWND hwndOwner)
     {

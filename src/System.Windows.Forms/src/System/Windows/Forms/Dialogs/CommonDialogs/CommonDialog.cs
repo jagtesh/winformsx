@@ -16,11 +16,15 @@ public abstract class CommonDialog : Component
     private static readonly object s_helpRequestEvent = new();
     private const int CDM_SETDEFAULTFOCUS = (int)PInvoke.WM_USER + 0x51;
     private static MessageId s_helpMessage;
+    [ThreadStatic]
+    private static IWin32Window? s_backendDialogOwner;
 
     private nint _priorWindowProcedure;
     private HWND _defaultControlHwnd;
     private readonly WNDPROC _hookProc;
     private readonly unsafe delegate* unmanaged[Stdcall]<HWND, uint, WPARAM, LPARAM, nuint> _functionPointer;
+
+    internal static IWin32Window? BackendDialogOwner => s_backendDialogOwner;
 
     /// <summary>
     ///  Initializes a new instance of the <see cref="CommonDialog"/> class.
@@ -173,7 +177,15 @@ public abstract class CommonDialog : Component
 
         if (System.Drawing.Graphics.IsBackendActive)
         {
-            return RunDialog(IntPtr.Zero) ? DialogResult.OK : DialogResult.Cancel;
+            s_backendDialogOwner = owner;
+            try
+            {
+                return RunDialog(IntPtr.Zero) ? DialogResult.OK : DialogResult.Cancel;
+            }
+            finally
+            {
+                s_backendDialogOwner = null;
+            }
         }
 
         // This will be used if there is no owner or active window.
