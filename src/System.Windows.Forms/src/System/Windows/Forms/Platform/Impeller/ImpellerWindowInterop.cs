@@ -4390,14 +4390,24 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
             HWND dispatchTarget = Control.FromHandle(targetWindow) is null
                 ? (HWND)(nint)ctrl.Handle
                 : targetWindow;
-            ctrl.BeginInvoke(new Action(() =>
+
+            void Dispatch()
             {
                 using var guard = WinFormsXExecutionGuard.Enter(
                     WinFormsXExecutionKind.MessageDispatch,
                     $"PostMessageToControl hwnd=0x{(nint)dispatchTarget:X} msg=0x{msg:X}");
 
                 NativeWindow.DispatchMessageDirect(dispatchTarget, msg, wParam, lParam, out _);
-            }));
+            }
+
+            if (ctrl.InvokeRequired)
+            {
+                ctrl.BeginInvoke(new Action(Dispatch));
+            }
+            else
+            {
+                Dispatch();
+            }
         }
     }
 
