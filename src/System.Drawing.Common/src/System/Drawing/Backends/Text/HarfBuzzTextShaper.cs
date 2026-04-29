@@ -1,5 +1,5 @@
 using System.IO;
-using System.Runtime.InteropServices;
+using HarfBuzzSharp;
 
 namespace System.Drawing;
 
@@ -19,9 +19,9 @@ internal readonly record struct ShapedFontMetrics(float Ascender, float Descende
 internal sealed class HarfBuzzTextShaper : IDisposable
 {
     private readonly float _fontSize;
-    private nint _blob;
-    private nint _face;
-    private nint _font;
+    private Blob? _blob;
+    private Face? _face;
+    private HarfBuzzSharp.Font? _font;
     private bool _disposed;
 
     public HarfBuzzTextShaper(string fontPath, string familyName, float fontSize, bool bold, bool italic)
@@ -31,17 +31,17 @@ internal sealed class HarfBuzzTextShaper : IDisposable
         Bold = bold;
         Italic = italic;
         _fontSize = MathF.Max(1f, fontSize);
-        _blob = HarfBuzzNative.BlobCreateFromFile(fontPath);
-        if (_blob == nint.Zero)
+        if (!File.Exists(fontPath))
         {
             throw new FileNotFoundException($"Font file not found: {fontPath}", fontPath);
         }
 
-        _face = HarfBuzzNative.FaceCreate(_blob, 0);
-        _font = HarfBuzzNative.FontCreate(_face);
+        _blob = Blob.FromFile(fontPath);
+        _face = new Face(_blob, 0);
+        _font = new HarfBuzzSharp.Font(_face);
         int scale = checked((int)MathF.Round(_fontSize * 64f));
-        HarfBuzzNative.FontSetScale(_font, scale, scale);
-        HarfBuzzNative.OpenTypeFontSetFunctions(_font);
+        _font.SetScale(scale, scale);
+        _font.SetFunctionsOpenType();
     }
 
     public string FamilyName { get; }
@@ -63,30 +63,23 @@ internal sealed class HarfBuzzTextShaper : IDisposable
             return [];
         }
 
-        nint buffer = HarfBuzzNative.BufferCreate();
+        ObjectDisposedException.ThrowIf(_font is null, this);
+
+        using var buffer = new HarfBuzzSharp.Buffer();
         try
         {
-            unsafe
-            {
-                fixed (char* textPtr = text)
-                {
-                    HarfBuzzNative.BufferAddUtf16(buffer, (nint)textPtr, text.Length, 0, text.Length);
-                }
-            }
+            buffer.AddUtf16(text);
+            buffer.GuessSegmentProperties();
+            _font.Shape(buffer);
 
-            HarfBuzzNative.BufferGuessSegmentProperties(buffer);
-            HarfBuzzNative.Shape(_font, buffer, nint.Zero, 0);
+            ReadOnlySpan<GlyphInfo> infos = buffer.GlyphInfos;
+            ReadOnlySpan<GlyphPosition> positions = buffer.GlyphPositions;
+            ShapedGlyph[] result = new ShapedGlyph[infos.Length];
 
-            nint infos = HarfBuzzNative.BufferGetGlyphInfos(buffer, out uint glyphCount);
-            nint positions = HarfBuzzNative.BufferGetGlyphPositions(buffer, out _);
-            ShapedGlyph[] result = new ShapedGlyph[glyphCount];
-
-            int infoSize = Marshal.SizeOf<HarfBuzzGlyphInfo>();
-            int positionSize = Marshal.SizeOf<HarfBuzzGlyphPosition>();
             for (int i = 0; i < result.Length; i++)
             {
-                HarfBuzzGlyphInfo info = Marshal.PtrToStructure<HarfBuzzGlyphInfo>(infos + (i * infoSize));
-                HarfBuzzGlyphPosition position = Marshal.PtrToStructure<HarfBuzzGlyphPosition>(positions + (i * positionSize));
+                GlyphInfo info = infos[i];
+                GlyphPosition position = positions[i];
                 result[i] = new ShapedGlyph(
                     info.Codepoint,
                     info.Cluster,
@@ -100,7 +93,6 @@ internal sealed class HarfBuzzTextShaper : IDisposable
         }
         finally
         {
-            HarfBuzzNative.BufferDestroy(buffer);
         }
     }
 
@@ -140,8 +132,9 @@ internal sealed class HarfBuzzTextShaper : IDisposable
     public ShapedFontMetrics GetMetrics()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
+        ObjectDisposedException.ThrowIf(_font is null, this);
 
-        if (HarfBuzzNative.FontGetHorizontalExtents(_font, out HarfBuzzFontExtents extents))
+        if (_font.TryGetHorizontalFontExtents(out FontExtents extents))
         {
             return new ShapedFontMetrics(extents.Ascender / 64f, extents.Descender / 64f, extents.LineGap / 64f);
         }
@@ -157,23 +150,11 @@ internal sealed class HarfBuzzTextShaper : IDisposable
         }
 
         _disposed = true;
-        if (_font != nint.Zero)
-        {
-            HarfBuzzNative.FontDestroy(_font);
-        }
-
-        if (_face != nint.Zero)
-        {
-            HarfBuzzNative.FaceDestroy(_face);
-        }
-
-        if (_blob != nint.Zero)
-        {
-            HarfBuzzNative.BlobDestroy(_blob);
-        }
-
-        _font = nint.Zero;
-        _face = nint.Zero;
-        _blob = nint.Zero;
+        _font?.Dispose();
+        _face?.Dispose();
+        _blob?.Dispose();
+        _font = null;
+        _face = null;
+        _blob = null;
     }
 }

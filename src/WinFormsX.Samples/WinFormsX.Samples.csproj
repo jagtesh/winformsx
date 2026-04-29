@@ -22,34 +22,31 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
-  <!-- Reference pre-built winforms DLLs from the fork's artifacts -->
   <ItemGroup>
-    <Reference Include="System.Windows.Forms">
-      <HintPath>..\..\artifacts\bin\System.Windows.Forms\Debug\net9.0\System.Windows.Forms.dll</HintPath>
-    </Reference>
-    <Reference Include="System.Windows.Forms.Primitives">
-      <HintPath>..\..\artifacts\bin\System.Windows.Forms\Debug\net9.0\System.Windows.Forms.Primitives.dll</HintPath>
-    </Reference>
-    <Reference Include="System.Drawing.Common">
-      <HintPath>..\..\artifacts\bin\System.Windows.Forms\Debug\net9.0\System.Drawing.Common.dll</HintPath>
-    </Reference>
-    <Reference Include="Accessibility">
-      <HintPath>..\..\artifacts\bin\System.Windows.Forms\Debug\net9.0\Accessibility.dll</HintPath>
-    </Reference>
-    <Reference Include="System.Private.Windows.Core">
-      <HintPath>..\..\artifacts\bin\System.Windows.Forms\Debug\net9.0\System.Private.Windows.Core.dll</HintPath>
-    </Reference>
-    <PackageReference Include="Microsoft.Win32.SystemEvents" Version="9.0.0" />
-    <PackageReference Include="Silk.NET.Windowing" Version="2.23.0" />
-    <PackageReference Include="Silk.NET.Input" Version="2.23.0" />
+    <ProjectReference Include="..\System.Windows.Forms\src\System.Windows.Forms.csproj" />
   </ItemGroup>
 
-  <ItemGroup>
-    <Content Include="..\..\artifacts\bin\System.Windows.Forms\Debug\net9.0\System\Drawing\Fonts\**\*.*"
+  <ItemGroup Condition="'$(UseWasm)'!='true'">
+    <WinFormsXImpellerNative Include="..\..\artifacts\impeller\windows-x64\*\lib\impeller.dll" />
+    <Content Include="@(WinFormsXImpellerNative)"
+             Link="impeller.dll"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="@(WinFormsXImpellerNative)"
+             Link="runtimes\win-x64\native\impeller.dll"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="..\System.Drawing.Common\src\System\Drawing\Fonts\**\*.*"
              Link="System\Drawing\Fonts\%(RecursiveDir)%(Filename)%(Extension)"
              CopyToOutputDirectory="PreserveNewest"
              CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
+
+  <Target Name="ValidateWinFormsXNativeDependencies"
+          BeforeTargets="ResolveReferences"
+          Condition="'$(UseWasm)'!='true' and '@(WinFormsXImpellerNative)'==''">
+    <Error Text="WinFormsX.Samples requires a built Impeller native binary. Expected artifacts\impeller\windows-x64\*\lib\impeller.dll under the winforms repository root." />
+  </Target>
 
   <!-- Copy wwwroot content to WASM AppBundle -->
   <ItemGroup Condition="'$(UseWasm)'=='true'">
