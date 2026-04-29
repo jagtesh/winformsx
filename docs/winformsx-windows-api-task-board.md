@@ -20,6 +20,12 @@ Current baseline: `42 total, 41 passed, 0 failed, 1 skipped` with `MediaPlayer` 
   - Mouse target selection now prefers hit-testing via `WindowFromPoint` when capture is not active.
   - Added top-level form fallback in `WindowFromPoint` resolution (`Application.OpenForms`), but focused `DragDropTests` still remain at the same 4 failing cases.
   - Added focused/active-root fallback in `ImpellerInputInterop.GetMouseTarget` via `ChildWindowFromPointEx`; focused `DragDropTests` remain unchanged at 4 failures.
+- In-progress local changes (next commit):
+  - Fixed managed `PInvoke.MapWindowPoints(HWND, HWND, ref Point)` wrapper to call the PAL point/count overload directly (returns `1` for one point, matching USER32/native shim path).
+  - Replaced managed `PInvoke.WindowFromPoint` TODO/null stub with PAL-backed implementation (`PlatformApi.Window.WindowFromPoint`).
+  - Updated USER32 compatibility integration assertion flow for explicit managed-vs-native parity checks on `WindowFromPoint` and `ChildWindowFromPointEx`.
+  - Focused USER32 facade regression now passes:
+    - `User32CompatibilityFacadeTests.DirectDllImports_RouteToWinFormsXPal`
 - Current focused rerun (`DragDropTests`) has 4 failing cases (was 6):
   - `DragDrop_QueryDefaultCursors_Async`
   - `DragEnter_Set_DropImageType_Message_MessageReplacementToken_ReturnsExpected_Async`

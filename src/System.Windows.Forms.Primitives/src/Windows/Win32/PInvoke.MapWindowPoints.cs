@@ -21,14 +21,9 @@ internal static partial class PInvoke
         where TFrom : IHandle<HWND> where TTo : IHandle<HWND>
     { int r = MapWindowPoints(hWndFrom.Handle, hWndTo.Handle, ref lpRect); GC.KeepAlive(hWndFrom.Wrapper); GC.KeepAlive(hWndTo.Wrapper); return r; }
 
-    // -- Point variants (3-arg convenience — maps 1 point) ------------
+    // -- Point variants (3-arg convenience maps 1 point) ---------------
     public static int MapWindowPoints(HWND hWndFrom, HWND hWndTo, ref global::System.Drawing.Point lpPoint)
-    {
-        var r = new RECT { left = lpPoint.X, top = lpPoint.Y, right = lpPoint.X, bottom = lpPoint.Y };
-        int result = MapWindowPoints(hWndFrom, hWndTo, ref r);
-        lpPoint = new global::System.Drawing.Point(r.left, r.top);
-        return result;
-    }
+        => PlatformApi.Window.MapWindowPoints(hWndFrom, hWndTo, ref lpPoint, 1);
 
     public static int MapWindowPoints<TFrom>(TFrom hWndFrom, HWND hWndTo, ref global::System.Drawing.Point lpPoint) where TFrom : IHandle<HWND>
     { int r = MapWindowPoints(hWndFrom.Handle, hWndTo, ref lpPoint); GC.KeepAlive(hWndFrom.Wrapper); return r; }

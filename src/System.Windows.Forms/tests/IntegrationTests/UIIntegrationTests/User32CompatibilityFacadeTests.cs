@@ -130,8 +130,13 @@ public class User32CompatibilityFacadeTests
             Assert.Equal(mappedPoint, mappedPointExpected);
 
             Point testPoint = form.PointToScreen(new Point(5, 5));
-            Assert.Equal((nint)PInvoke.WindowFromPoint(testPoint), NativeUser32.WindowFromPoint(testPoint));
-            Assert.Equal((nint)PInvoke.ChildWindowFromPointEx(form, new Point(5, 5), CWP_FLAGS.CWP_SKIPINVISIBLE), NativeUser32.ChildWindowFromPointEx(formHandle, new Point(5, 5), (uint)CWP_FLAGS.CWP_SKIPINVISIBLE));
+            nint managedWindowFromPoint = (nint)PInvoke.WindowFromPoint(testPoint);
+            nint nativeWindowFromPoint = NativeUser32.WindowFromPoint(testPoint);
+            Assert.Equal(managedWindowFromPoint, nativeWindowFromPoint);
+
+            nint managedChildFromPoint = (nint)PInvoke.ChildWindowFromPointEx(form, new Point(5, 5), CWP_FLAGS.CWP_SKIPINVISIBLE);
+            nint nativeChildFromPoint = NativeUser32.ChildWindowFromPointEx(formHandle, new Point(5, 5), (uint)CWP_FLAGS.CWP_SKIPINVISIBLE);
+            Assert.Equal(managedChildFromPoint, nativeChildFromPoint);
             Assert.Equal((nint)PInvoke.GetMenu(form), NativeUser32.GetMenu(formHandle));
             Assert.Equal((nint)PInvoke.GetSystemMenu(form, bRevert: false), NativeUser32.GetSystemMenu(formHandle, false));
             Assert.Equal(PInvoke.GetMenuItemCount(HMENU.Null), NativeUser32.GetMenuItemCount((nint)HMENU.Null));
