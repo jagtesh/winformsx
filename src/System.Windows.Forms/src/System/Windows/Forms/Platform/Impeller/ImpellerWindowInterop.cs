@@ -89,6 +89,8 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
     private static readonly Dictionary<DataGridView, int> s_managedDataGridViewTopRow = [];
     private static readonly Dictionary<ToolStrip, ToolStripItem> s_managedActiveMenuItems = [];
     private static readonly HashSet<Control> s_pressedControls = [];
+    private static readonly object s_pendingMouseMoveLock = new();
+    private static readonly HashSet<(nint Handle, nuint KeyState)> s_pendingMouseMoveTargets = [];
     private HWND _activeWindow;
     private readonly Dictionary<nint, ImpellerWindowState> _windows = [];
 
@@ -4390,14 +4392,31 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
             HWND dispatchTarget = Control.FromHandle(targetWindow) is null
                 ? (HWND)(nint)ctrl.Handle
                 : targetWindow;
+            bool isMouseMove = msg == WM_MOUSEMOVE;
+            nint dispatchHandle = (nint)dispatchTarget;
+            nuint keyState = (nuint)wParam;
+            if (isMouseMove && !TryQueueMouseMove(dispatchHandle, keyState))
+            {
+                return;
+            }
 
             void Dispatch()
             {
-                using var guard = WinFormsXExecutionGuard.Enter(
-                    WinFormsXExecutionKind.MessageDispatch,
-                    $"PostMessageToControl hwnd=0x{(nint)dispatchTarget:X} msg=0x{msg:X}");
+                try
+                {
+                    using var guard = WinFormsXExecutionGuard.Enter(
+                        WinFormsXExecutionKind.MessageDispatch,
+                        $"PostMessageToControl hwnd=0x{(nint)dispatchTarget:X} msg=0x{msg:X}");
 
-                NativeWindow.DispatchMessageDirect(dispatchTarget, msg, wParam, lParam, out _);
+                    NativeWindow.DispatchMessageDirect(dispatchTarget, msg, wParam, lParam, out _);
+                }
+                finally
+                {
+                    if (isMouseMove)
+                    {
+                        CompleteMouseMove(dispatchHandle, keyState);
+                    }
+                }
             }
 
             ctrl.BeginInvoke(new Action(Dispatch));
@@ -4437,6 +4456,22 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
         }
 
         return Application.OpenForms.Count > 0 ? Application.OpenForms[0] : null;
+    }
+
+    private static bool TryQueueMouseMove(nint handle, nuint keyState)
+    {
+        lock (s_pendingMouseMoveLock)
+        {
+            return s_pendingMouseMoveTargets.Add((handle, keyState));
+        }
+    }
+
+    private static void CompleteMouseMove(nint handle, nuint keyState)
+    {
+        lock (s_pendingMouseMoveLock)
+        {
+            s_pendingMouseMoveTargets.Remove((handle, keyState));
+        }
     }
 }
 

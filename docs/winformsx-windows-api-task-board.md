@@ -37,9 +37,13 @@ Current baseline: `42 total, 41 passed, 0 failed, 1 skipped` with `MediaPlayer` 
   - Added top-level hit refinement for synthetic pointer targeting (`WindowFromPoint` -> `ChildWindowFromPointEx`) and move-only packet coalescing in Impeller input dispatch.
   - Added opt-in input tracing (`WINFORMSX_TRACE_FILE`) to capture target resolution and posted messages while validating drag/start target routing.
   - Focused drag/drop rerun improved from `4 failed / 2 passed / 9 skipped` to `2 failed / 4 passed / 5 skipped`.
-- Current focused rerun (`DragDropTests`) has 2 failing cases (was 6):
-  - `DragDrop_QueryDefaultCursors_Async` (expected drop count `1`, observed `4`)
-  - `DragEnter_Set_DropImageType_Message_MessageReplacementToken_ReturnsExpected_Async` (expected enter count `2`, observed `8`)
+- In-progress local changes (next commit):
+  - Added pending `WM_MOUSEMOVE` coalescing in `ImpellerWindowInterop` keyed by target + key-state to prevent repeated drag-start loops from queued synthetic move packets.
+  - Re-ran `UIIntegrationTests` filtered to `DragDropTests`; targeted suite is now green except for the intentional explorer-based skip.
+- Current focused rerun (`DragDropTests`) status:
+  - `Failed: 0, Passed: 6, Skipped: 1, Total: 7`
+  - Remaining skip:
+    - `DragDrop_RTF_FromExplorer_ToRichTextBox_ReturnsExpected_Async` (existing test-level skip)
 
 ## Task Legend
 
