@@ -1,6 +1,6 @@
 # Impeller Renderer Stability Handoff
 
-Last updated: 2026-04-28
+Last updated: 2026-04-29
 
 This handoff is for the current WinFormsX renderer/resource-exhaustion work. It
 does not restate the full project architecture. Read these first for the broader
@@ -27,28 +27,17 @@ The immediate blocker is renderer stability. Clicking, hovering, switching tabs,
 and resizing must not produce blank/white/black frames, missing text, descriptor
 pool errors, process crashes, or stale stretched content.
 
-## Current Symptom
+## Current Status
 
-The app can render a correct-looking frame, but after subsequent frames or input
-activity it can present a cleared client area while the native macOS window
-chrome remains visible.
+The app is stable for normal exploratory use on the Impeller/Silk.NET/Vulkan
+path. The previous renderer-wide failures that caused blank client frames,
+missing text, `ErrorFragmentedPool` spam, and crashes during normal clicking,
+hovering, tab switching, textbox input, and frame stress have been resolved.
 
-Observed variants:
-
-- All tab labels disappear after the Draw-tab stress path.
-- Data/DataTable shapes remain but text disappears.
-- Clicking or hovering can eventually cause a full client whiteout.
-- Runtime log fills with:
-
-```text
-[ERROR:flutter/impeller/renderer/backend/vulkan/descriptor_pool_vk.cc(94)]
-Break on 'ImpellerValidationBreak' to inspect point of failure:
-Could not allocate descriptor sets: ErrorFragmentedPool
-```
-
-The important pattern is that this is not a single broken control. The same
-failure appears across tab text, DataTable text, hover, and repeated click paths.
-Treat it as a renderer/frame-resource lifecycle bug until proven otherwise.
+The current stability follow-up is native cursor loading. Scrolling or hovering
+around list/splitter areas exposed a `USER32.dll` load through `Cursors.Default`.
+Project policy is consistent behavior on all OSes: cursor behavior should be
+synthetic everywhere, not native on Windows and synthetic elsewhere.
 
 ## Current Git State
 
@@ -64,99 +53,42 @@ Expected branch at handoff time:
 codex/winformsx-stability
 ```
 
-Recent relevant commits:
+Latest completed stability checkpoint:
 
 ```text
-857a485 fix: stabilize impeller text checkpoint
-6832abb fix: preserve impeller text draw order
-c53b7f4 fix: stabilize impeller frame scheduling
-da4c63f winformsx: add managed stability guards
-79e268b winformsx: stabilize impeller interactions
-6d949ee winformsx: batch glyph path rendering
-d1e6e3e winformsx: render harfbuzz font outlines
-58f519a docs: pin microsoft comparison
+5b39b27 fix: stabilize impeller descriptor pool allocation
 ```
 
-At the time this document was written, the latest in-progress code experiment was
-committed as:
+## Completed Stability Work
 
-```text
-a3a599d wip: cache impeller paragraph handles
-```
+The descriptor-pool/whiteout issue was resolved as a renderer integration bug,
+not as a control-specific bug.
 
-It modifies:
+What was learned:
 
-```text
-src/System.Drawing.Common/src/System/Drawing/Backends/ImpellerRenderingBackend.cs
-```
+- Frame scheduling and text draw ordering improvements helped but did not fully
+  solve resource exhaustion.
+- Native paragraph caching reduced construction churn but did not address the
+  actual backend allocation failure.
+- Diagnostic text modes proved that full native paragraph command pressure was
+  the trigger: geometry-only and one-static-paragraph runs passed, while full
+  text-heavy frames failed.
+- Managed glyph-outline fallback was worse because it turned text into many path
+  commands.
+- The Impeller SDK retried descriptor allocation only for
+  `ErrorOutOfPoolMemory`; this app was hitting `ErrorFragmentedPool`.
 
-The experiment caches native Impeller paragraph handles and their foreground
-paint handles across frames. It builds through
-`src/System.Windows.Forms/src/System.Windows.Forms.csproj`, but it has not fixed
-the descriptor-pool spam or the later whiteout. Do not treat it as a completed
-fix unless the screenshot regressions pass.
+Completed fix:
 
-## What Was Already Tried
-
-### Frame Scheduling
-
-Commit `c53b7f4` moved toward one render owner and coalesced dirty state into the
-Silk render callback. This reduced uncontrolled repaint churn, but did not fully
-eliminate descriptor exhaustion.
-
-Key file:
-
-```text
-src/System.Windows.Forms/src/System/Windows/Forms/Platform/Impeller/ImpellerWindowInterop.cs
-```
-
-### Text Draw Ordering
-
-Commit `6832abb` flushed managed glyph batches before display-list state changes
-and non-text draws. This fixed draw-order problems where text could be painted
-behind later geometry or be invalidated by later state operations. It did not
-solve the descriptor pool exhaustion.
-
-Key file:
-
-```text
-src/System.Drawing.Common/src/System/Drawing/Backends/ImpellerRenderingBackend.cs
-```
-
-### Native Impeller Paragraph Path
-
-Commit `857a485` moved basic UI text drawing back toward native Impeller
-paragraphs, closer to the older parent implementation in:
-
-```text
-/Volumes/Dev/code/jagtesh/UniWinForms/src/WinFormsX/Drawing/Backends/ImpellerRenderingBackend.cs
-```
-
-The parent implementation also used native paragraphs, so the concept is not
-wrong by itself. The current fork has a more complex frame lifecycle, HiDPI
-scaling, clipping, cached paints, and swapchain presentation path, so the failure
-is likely in integration/lifecycle rather than "paragraphs are impossible".
-
-### Paragraph Cache Experiment
-
-Commit `a3a599d` adds:
-
-- `ParagraphKey` keyed by text, font family, font size, color, bold, and italic.
-- `_paragraphCache` on `ImpellerRenderingBackend`.
-- `NativeParagraphEntry` to retain/release paragraph and paint handles.
-- `IDisposable` on `ImpellerRenderingBackend`.
-
-Result so far:
-
-- `dotnet build src/System.Windows.Forms/src/System.Windows.Forms.csproj -v:minimal`
-  succeeds.
-- `eng/capture-winforms-basic-controls-regression.sh ...` still fails due to
-  `ErrorFragmentedPool`.
-- The final screenshot still whiteouts.
-
-Conclusion: the descriptor failure is not fixed by merely reducing paragraph
-construction churn. Continue investigation at display-list, surface, swapchain,
-glyph-atlas, or Impeller command volume/resource-retention boundaries.
+- `eng/patch-impeller-descriptor-pool-retry.sh` patches the downloaded macOS
+  arm64 Impeller SDK so descriptor-set allocation retries once on any allocation
+  failure.
+- `eng/fetch-impeller-sdk.sh` applies that patch to both the cached SDK copy and
+  the sample runtime copy.
+- `ImpellerRenderingBackend` keeps frame/resource tracing, bounded paragraph
+  caching, diagnostic text modes, and deferred frame-resource retirement.
+- Default rendering now uses native Impeller paragraphs with no text draw
+  budget.
 
 ## Exact Reproduction Commands
 
@@ -178,14 +110,8 @@ Run the current basic-controls stress harness:
 eng/capture-winforms-basic-controls-regression.sh /tmp/winformsx_basic_controls_regression
 ```
 
-Expected current failure:
-
-- The script launches `WinFormsX.Samples`.
-- It captures a good `basic-ready.png`.
-- It clicks/toggles controls repeatedly.
-- `after-rapid-toggle.png` can show a blank beige client area.
-- The script fails because `/tmp/winformsx_capture_run.log` contains many
-  `ErrorFragmentedPool` lines.
+Expected current result: pass, with no descriptor-pool errors, no process crash,
+and no blank client capture.
 
 Useful artifacts:
 
@@ -202,6 +128,7 @@ Run broader frame/input regressions:
 eng/capture-winforms-frame-stress-regression.sh /tmp/winformsx_frame_stress_regression
 eng/capture-winforms-hover-regression.sh /tmp/winformsx_hover_regression
 eng/capture-winforms-usability-regression.sh /tmp/winformsx_usability_regression
+eng/capture-winforms-textbox-regression.sh /tmp/winformsx_textbox_regression
 ```
 
 Run architecture checks:
@@ -240,9 +167,9 @@ The basic-controls script should fail if:
 - logs contain `ErrorFragmentedPool`, `Paint ERROR`, `EndFrame error`,
   `ThreadException`, `DllNotFound`, `Program crashed`, or `Bus error`.
 
-## Diagnostic Findings So Far
+## Diagnostic Findings
 
-### 2026-04-28 Descriptor Pool Fix
+### 2026-04-28 Descriptor Pool Fix, Historical
 
 Root cause isolation showed that the crash/blanking path was not general
 surface lifetime, geometry, or a single control:
@@ -287,7 +214,7 @@ The Basic Controls run rendered full native paragraph text with
 No `ErrorFragmentedPool`, `Paint ERROR`, `EndFrame error`, crash, or blank-client
 failure signatures were present after the verification runs.
 
-The latest failing run showed:
+The pre-fix failing runs showed:
 
 - First correct frame on Basic Controls was visually good.
 - Later final capture was a blank beige client area.
@@ -296,11 +223,31 @@ The latest failing run showed:
   traversal. The managed paint path did not obviously stop walking controls.
 
 That means the WinForms tree can still be walked, but the presented GPU result
-can be incomplete/empty after Impeller reports descriptor allocation failures.
+could become incomplete/empty after Impeller reported descriptor allocation
+failures.
 
-Do not focus narrowly on CheckBox, RadioButton, DataGridView, TabControl, or
-MenuStrip until the shared frame/resource failure is fixed. Control-specific
-fixes may hide symptoms while leaving the shared renderer broken.
+If descriptor-pool errors or whiteout return, treat them as shared renderer
+failures first. Do not chase CheckBox, RadioButton, DataGridView, TabControl, or
+MenuStrip polish until the shared frame/resource path is healthy again.
+
+### 2026-04-29 Synthetic Cursor Follow-Up
+
+The current crash report did not originate from Impeller allocation. It came
+from `Cursors.Default` loading the Win32 stock cursor through `USER32.dll` while
+handling mouse movement around list/splitter UI. That violates the project rule:
+cross-platform behavior should be consistent and synthetic on all OSes, with no
+native cursor P/Invoke path.
+
+Expected direction:
+
+- `Cursors.*` must create synthetic handles without loading stock OS cursors.
+- `Cursor.Current`, `Clip`, `Position`, `Hide`, and `Show` should be managed
+  no-ops/placeholders until a real cross-platform cursor PAL exists.
+- File/stream cursor constructors may preserve raw cursor bytes for
+  serialization, but should not parse through native image/COM APIs.
+- Regression logs should fail on `USER32.dll`, `DllNotFound`, `LoadCursor`,
+  `CopyCursor`, `DestroyCursor`, `GetIconInfo`, `DrawIcon`, or other native
+  cursor calls.
 
 ## Likely Failure Classes
 
@@ -415,20 +362,18 @@ Next step:
 
 ## Suggested Immediate TDD Sequence
 
-1. Fix the basic-controls screenshot oracle so it fails on client whiteout.
-2. Add a minimal text/geometry diagnostic switch matrix:
-   - normal rendering;
-   - geometry only;
-   - one static paragraph only;
-   - no text;
-   - no custom user paint.
-3. Add assertions to fail on descriptor errors, whiteout, and missing tab labels.
-4. Run the matrix against Basic Controls, Draw, and Data tabs.
-5. Based on the matrix:
-   - If only text paths fail, fix paragraph/glyph atlas lifetime and caching.
-   - If geometry-only fails, fix display list/surface/swapchain lifecycle.
-   - If only high-op frames fail, add retained layer/display-list caching and
-     frame budgets.
+1. Add/keep a regression that moves the mouse over splitter/list surfaces and
+   scrolls the list view.
+2. Assert that the run does not load `USER32.dll` or hit native cursor APIs.
+3. Keep the broader renderer regressions green:
+   - Basic Controls;
+   - frame stress;
+   - hover stress;
+   - usability;
+   - textbox input.
+4. Fix the basic-controls screenshot oracle so it fails on client whiteout.
+5. If descriptor or whiteout failures return, rerun the text/geometry diagnostic
+   switch matrix from the historical notes before changing individual controls.
 6. Commit each passing checkpoint with `type: summary` format.
 
 ## "Flutter-Like" Direction
@@ -451,7 +396,7 @@ Borrow these concepts, but keep them adapted to WinForms semantics:
 Do not add a second renderer or fallback renderer. The supported path remains
 Impeller/Silk.NET/Vulkan.
 
-## Future Work After The Descriptor/Whiteout Bug Is Fixed
+## Future Work After Renderer Stabilization
 
 Keep the original project sequence in `ARCHITECTURE.md` and
 `docs/winformsx-upstream-comparison.md` as the authority. The next tasks below
@@ -529,8 +474,10 @@ starting this work.
 
 ## Practical Rules For The Next Agent
 
-- Do not chase individual control polish while descriptor-pool errors still
-  occur during normal tab/mouse use.
+- If descriptor-pool errors return during normal tab/mouse use, fix the shared
+  renderer/resource path before chasing individual control polish.
+- Cursor behavior must remain synthetic and consistent on all OSes until a
+  cross-platform cursor PAL is designed.
 - Do not introduce real Win32, GDI, GDI+, COMCTL32, shell, or OS common-dialog
   calls.
 - Do not add control-specific backend branches unless they are temporary

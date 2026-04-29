@@ -4,10 +4,7 @@
 using System.ComponentModel;
 using System.Drawing;
 using System.Drawing.Design;
-using System.Runtime.InteropServices;
 using System.Runtime.Serialization;
-using Windows.Win32.System.Com;
-using Windows.Win32.System.Ole;
 
 namespace System.Windows.Forms;
 
@@ -20,10 +17,15 @@ namespace System.Windows.Forms;
 public sealed class Cursor : IDisposable, ISerializable, IHandle<HICON>, IHandle<HANDLE>, IHandle<HCURSOR>
 {
     private static Size s_cursorSize = Size.Empty;
+    private static Rectangle s_clip = SystemInformation.VirtualScreen;
+    private static Cursor? s_currentCursor;
+    private static bool s_currentCursorInitialized;
+    private static int s_nextSyntheticCursorHandle;
+    private static Point s_position;
 
     private readonly byte[]? _cursorData;
+    private readonly bool _disposeHandle;
     private HCURSOR _handle;
-    private readonly bool _freeHandle;
 
     /// <summary>
     ///  If created by the <see cref="Cursors"/> class, this is the property name that created it.
@@ -33,21 +35,17 @@ public sealed class Cursor : IDisposable, ISerializable, IHandle<HICON>, IHandle
     internal unsafe Cursor(PCWSTR nResourceId, string cursorsProperty)
     {
         GC.SuppressFinalize(this);
-        _freeHandle = false;
+        _ = nResourceId;
         CursorsProperty = cursorsProperty;
-        _handle = PInvoke.LoadCursor((HINSTANCE)0, nResourceId);
-        if (_handle.IsNull)
-        {
-            throw new Win32Exception(string.Format(SR.FailedToLoadCursor, Marshal.GetLastWin32Error()));
-        }
+        _handle = CreateSyntheticCursorHandle();
     }
 
     internal Cursor(string resource, string cursorsProperty)
-        : this(typeof(Cursors).Assembly.GetManifestResourceStream(typeof(Cursor), resource).OrThrowIfNull())
     {
         GC.SuppressFinalize(this);
+        _ = resource;
         CursorsProperty = cursorsProperty;
-        _freeHandle = false;
+        _handle = CreateSyntheticCursorHandle();
     }
 
     /// <summary>
@@ -61,7 +59,6 @@ public sealed class Cursor : IDisposable, ISerializable, IHandle<HICON>, IHandle
             throw new ArgumentException(string.Format(SR.InvalidGDIHandle, (typeof(Cursor)).Name), nameof(handle));
         }
 
-        _freeHandle = false;
         _handle = (HCURSOR)handle;
     }
 
@@ -71,10 +68,8 @@ public sealed class Cursor : IDisposable, ISerializable, IHandle<HICON>, IHandle
     public Cursor(string fileName)
     {
         _cursorData = File.ReadAllBytes(fileName);
-        _freeHandle = true;
-        LoadPicture(
-            new ComManagedStream(new MemoryStream(_cursorData)),
-            nameof(fileName));
+        _disposeHandle = true;
+        _handle = CreateSyntheticCursorHandle();
     }
 
     /// <summary>
@@ -102,38 +97,18 @@ public sealed class Cursor : IDisposable, ISerializable, IHandle<HICON>, IHandle
 
         stream.CopyTo(memoryStream);
         _cursorData = memoryStream.ToArray();
-        _freeHandle = true;
-
-        // stream.CopyTo causes both streams to advance. So reset it for LoadPicture.
-        memoryStream.Position = 0;
-        LoadPicture(
-            new ComManagedStream(memoryStream),
-            nameof(stream));
+        _disposeHandle = true;
+        _handle = CreateSyntheticCursorHandle();
     }
 
     /// <summary>
     ///  Gets or sets a <see cref="Rectangle"/> that represents the current clipping
     ///  rectangle for this <see cref="Cursor"/> in screen coordinates.
     /// </summary>
-    public static unsafe Rectangle Clip
+    public static Rectangle Clip
     {
-        get
-        {
-            PInvoke.GetClipCursor(out RECT rect);
-            return rect;
-        }
-        set
-        {
-            if (value.IsEmpty)
-            {
-                PInvoke.ClipCursor((RECT*)null);
-            }
-            else
-            {
-                RECT rect = value;
-                PInvoke.ClipCursor(&rect);
-            }
-        }
+        get => s_clip;
+        set => s_clip = value.IsEmpty ? SystemInformation.VirtualScreen : Rectangle.Intersect(value, SystemInformation.VirtualScreen);
     }
 
     /// <summary>
@@ -142,12 +117,12 @@ public sealed class Cursor : IDisposable, ISerializable, IHandle<HICON>, IHandle
     /// </summary>
     public static Cursor? Current
     {
-        get
+        get => s_currentCursorInitialized ? s_currentCursor : new Cursor(Cursors.Default.Handle);
+        set
         {
-            HCURSOR cursor = PInvoke.GetCursor();
-            return cursor.IsNull ? null : new Cursor(cursor);
+            s_currentCursorInitialized = true;
+            s_currentCursor = value;
         }
-        set => PInvoke.SetCursor(value?._handle ?? HCURSOR.Null);
     }
 
     /// <summary>
@@ -169,8 +144,8 @@ public sealed class Cursor : IDisposable, ISerializable, IHandle<HICON>, IHandle
     {
         get
         {
-            using ICONINFO info = PInvoke.GetIconInfo(this);
-            return new Point((int)info.xHotspot, (int)info.yHotspot);
+            ObjectDisposedException.ThrowIf(_handle.IsNull, this);
+            return Point.Empty;
         }
     }
 
@@ -179,12 +154,8 @@ public sealed class Cursor : IDisposable, ISerializable, IHandle<HICON>, IHandle
     /// </summary>
     public static Point Position
     {
-        get
-        {
-            PInvoke.GetCursorPos(out Point p);
-            return p;
-        }
-        set => PInvoke.SetCursorPos(value.X, value.Y);
+        get => s_position;
+        set => s_position = value;
     }
 
     /// <summary>
@@ -221,8 +192,8 @@ public sealed class Cursor : IDisposable, ISerializable, IHandle<HICON>, IHandle
     /// </summary>
     public IntPtr CopyHandle()
     {
-        Size sz = Size;
-        return (nint)PInvoke.CopyCursor(this, sz.Width, sz.Height, IMAGE_FLAGS.LR_DEFAULTCOLOR);
+        ObjectDisposedException.ThrowIf(_handle.IsNull, this);
+        return (nint)CreateSyntheticCursorHandle();
     }
 
     /// <summary>
@@ -230,9 +201,8 @@ public sealed class Cursor : IDisposable, ISerializable, IHandle<HICON>, IHandle
     /// </summary>
     public void Dispose()
     {
-        if (!_handle.IsNull && _freeHandle)
+        if (_disposeHandle)
         {
-            PInvoke.DestroyCursor(_handle);
             _handle = HCURSOR.Null;
         }
 
@@ -245,111 +215,15 @@ public sealed class Cursor : IDisposable, ISerializable, IHandle<HICON>, IHandle
     ///  it passes the call to the actual image.  This version crops the image to the given
     ///  dimensions and allows the user to specify a rectangle within the image to draw.
     /// </summary>
-    private void DrawImageCore(Graphics graphics, Rectangle imageRect, Rectangle targetRect, bool stretch)
-    {
-        ArgumentNullException.ThrowIfNull(graphics);
-
-        // Support GDI+ Translate method
-        targetRect.X += (int)graphics.Transform.OffsetX;
-        targetRect.Y += (int)graphics.Transform.OffsetY;
-
-        using DeviceContextHdcScope dc = new(graphics, applyGraphicsState: false);
-
-        int imageX = 0;
-        int imageY = 0;
-        int imageWidth;
-        int imageHeight;
-        int targetX = 0;
-        int targetY = 0;
-        int targetWidth = 0;
-        int targetHeight = 0;
-
-        Size cursorSize = Size;
-
-        // compute the dimensions of the icon, if needed
-        if (!imageRect.IsEmpty)
-        {
-            imageX = imageRect.X;
-            imageY = imageRect.Y;
-            imageWidth = imageRect.Width;
-            imageHeight = imageRect.Height;
-        }
-        else
-        {
-            imageWidth = cursorSize.Width;
-            imageHeight = cursorSize.Height;
-        }
-
-        if (!targetRect.IsEmpty)
-        {
-            targetX = targetRect.X;
-            targetY = targetRect.Y;
-            targetWidth = targetRect.Width;
-            targetHeight = targetRect.Height;
-        }
-        else
-        {
-            targetWidth = cursorSize.Width;
-            targetHeight = cursorSize.Height;
-        }
-
-        int drawWidth, drawHeight;
-        int clipWidth, clipHeight;
-
-        if (stretch)
-        {
-            // Short circuit the simple case of blasting an icon to the screen
-            if (targetWidth == imageWidth && targetHeight == imageHeight
-                && imageX == 0 && imageY == 0
-                && imageWidth == cursorSize.Width && imageHeight == cursorSize.Height)
-            {
-                PInvoke.DrawIcon(dc, targetX, targetY, this);
-                return;
-            }
-
-            drawWidth = cursorSize.Width * targetWidth / imageWidth;
-            drawHeight = cursorSize.Height * targetHeight / imageHeight;
-            clipWidth = targetWidth;
-            clipHeight = targetHeight;
-        }
-        else
-        {
-            // Short circuit the simple case of blasting an icon to the screen
-            if (imageX == 0 && imageY == 0
-                && cursorSize.Width <= targetWidth && cursorSize.Height <= targetHeight
-                && cursorSize.Width == imageWidth && cursorSize.Height == imageHeight)
-            {
-                PInvoke.DrawIcon(dc, targetX, targetY, this);
-                return;
-            }
-
-            drawWidth = cursorSize.Width;
-            drawHeight = cursorSize.Height;
-            clipWidth = targetWidth < imageWidth ? targetWidth : imageWidth;
-            clipHeight = targetHeight < imageHeight ? targetHeight : imageHeight;
-        }
-
-        // The ROP is SRCCOPY, so we can be simple here and take advantage of clipping regions.
-        // Drawing the cursor is merely a matter of offsetting and clipping.
-        PInvoke.IntersectClipRect(dc, targetX, targetY, targetX + clipWidth, targetY + clipHeight);
-        PInvoke.DrawIconEx(
-            (HDC)dc,
-            targetX - imageX,
-            targetY - imageY,
-            this,
-            drawWidth,
-            drawHeight);
-
-        // Let GDI+ restore clipping
-        return;
-    }
+    private static void DrawImageCore(Graphics graphics)
+        => ArgumentNullException.ThrowIfNull(graphics);
 
     /// <summary>
     ///  Draws this <see cref="Cursor"/> to a <see cref="Graphics"/>.
     /// </summary>
     public void Draw(Graphics g, Rectangle targetRect)
     {
-        DrawImageCore(g, Rectangle.Empty, targetRect, stretch: false);
+        DrawImageCore(g);
     }
 
     /// <summary>
@@ -357,7 +231,7 @@ public sealed class Cursor : IDisposable, ISerializable, IHandle<HICON>, IHandle
     /// </summary>
     public void DrawStretched(Graphics g, Rectangle targetRect)
     {
-        DrawImageCore(g, Rectangle.Empty, targetRect, stretch: true);
+        DrawImageCore(g);
     }
 
     ~Cursor() => Dispose();
@@ -370,75 +244,8 @@ public sealed class Cursor : IDisposable, ISerializable, IHandle<HICON>, IHandle
     /// <summary>
     ///  Hides the cursor. For every call to Cursor.hide() there must be a balancing call to Cursor.show().
     /// </summary>
-    public static void Hide() => PInvoke.ShowCursor(bShow: false);
-
-    private Size GetIconSize(HICON iconHandle)
+    public static void Hide()
     {
-        // this code is adapted from Icon.GetIconSize please take this into account when changing this
-
-        using ICONINFO info = PInvoke.GetIconInfo(iconHandle);
-        if (!info.hbmColor.IsNull)
-        {
-            PInvoke.GetObject(info.hbmColor, out BITMAP bitmap);
-            return new Size(bitmap.bmWidth, bitmap.bmHeight);
-        }
-        else if (!info.hbmMask.IsNull)
-        {
-            PInvoke.GetObject(info.hbmMask, out BITMAP bitmap);
-            return new Size(bitmap.bmWidth, bitmap.bmHeight / 2);
-        }
-        else
-        {
-            return Size;
-        }
-    }
-
-    /// <summary>
-    ///  Loads a picture from the requested stream.
-    /// </summary>
-    private unsafe void LoadPicture(IStream.Interface stream, string paramName)
-    {
-        Debug.Assert(stream is not null, "Stream should be validated before this method is called.");
-
-        try
-        {
-            using ComScope<IPicture> picture = new(null);
-            PInvoke.OleCreatePictureIndirect(lpPictDesc: null, IID.Get<IPicture>(), fOwn: true, picture).ThrowOnFailure();
-
-            using ComScope<IPersistStream> persist = new(null);
-            picture.Value->QueryInterface(IID.Get<IPersistStream>(), persist).ThrowOnFailure();
-
-            using var pStream = ComHelpers.GetComScope<IStream>(stream);
-            persist.Value->Load(pStream);
-            picture.Value->get_Type(out PICTYPE type).ThrowOnFailure();
-
-            if (type == PICTYPE.PICTYPE_ICON)
-            {
-                picture.Value->get_Handle(out OLE_HANDLE oleHandle);
-                HICON cursorHandle = (HICON)oleHandle;
-                Size picSize = ScaleHelper.ScaleToDpi(GetIconSize(cursorHandle), ScaleHelper.InitialSystemDpi);
-
-                _handle = (HCURSOR)PInvoke.CopyImage(
-                    (HANDLE)cursorHandle.Value,
-                    GDI_IMAGE_TYPE.IMAGE_CURSOR,
-                    picSize.Width,
-                    picSize.Height,
-                    IMAGE_FLAGS.LR_DEFAULTCOLOR).Value;
-
-                if (_handle.IsNull)
-                {
-                    throw new Win32Exception(string.Format(SR.FailedToLoadCursor, Marshal.GetLastWin32Error()));
-                }
-            }
-            else
-            {
-                throw new ArgumentException(string.Format(SR.InvalidPictureType, nameof(picture), nameof(Cursor)), paramName);
-            }
-        }
-        catch (COMException e)
-        {
-            throw new ArgumentException(SR.InvalidPictureFormat, paramName, e);
-        }
     }
 
     /// <summary>
@@ -460,7 +267,14 @@ public sealed class Cursor : IDisposable, ISerializable, IHandle<HICON>, IHandle
     ///  Displays the cursor. For every call to Cursor.show() there must have been
     ///  a previous call to Cursor.hide().
     /// </summary>
-    public static void Show() => PInvoke.ShowCursor(bShow: true);
+    public static void Show()
+    {
+    }
+
+#pragma warning disable IDE0004 // Cast is required for generated Win32 handle structs.
+    private static HCURSOR CreateSyntheticCursorHandle()
+        => (HCURSOR)(nint)Interlocked.Increment(ref s_nextSyntheticCursorHandle);
+#pragma warning restore IDE0004
 
     /// <summary>
     ///  Retrieves a human readable string representing this <see cref="Cursor"/>.
