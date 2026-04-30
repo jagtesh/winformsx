@@ -123,6 +123,10 @@ Ordered by observed frequency across components and blocker blast radius:
       packaged native facade for `DwmSetWindowAttribute` and
       `DwmGetWindowAttribute`, preserving deterministic per-window attribute
       state for callers that have not been converted to PAL wrappers.
+    - Direct source-compatible `UXTHEME.dll` imports now resolve through a
+      packaged native facade for first-tier no-theme behavior: open/close,
+      app properties, part size, margins, text metrics, simple queries, and
+      no-op-safe draw/background acknowledgements.
     - `ImageList.GetBitmap` now tolerates WinFormsX synthetic bitmap handles
       returned by managed/common-control image-list state and falls back to the
       existing draw path instead of failing through `Image.FromHbitmap`.
@@ -132,7 +136,7 @@ Ordered by observed frequency across components and blocker blast radius:
     - Verification:
       `WinformsControlsTest --control-smoke-test` ->
       `total=42 passed=41 failed=0 skipped=1`; full UIIntegration ->
-      `Failed: 0, Passed: 252, Skipped: 1, Total: 253`.
+      `Failed: 0, Passed: 253, Skipped: 1, Total: 254`.
   - Added WinFormsX virtual-window handling for ToolStrip dropdown overlays and
     hidden dropdown owner windows so they no longer create nested Silk/GLFW
     windows during UIIntegration runs.
@@ -1048,7 +1052,7 @@ Ordered by observed frequency across components and blocker blast radius:
 ## SystemInformation / Theme / Power / Misc
 
 - [~] WXA-2001: Implement `SystemParametersInfo` and `SystemParametersInfoForDpi` compatibility with deterministic defaults where side effects are not available.
-- [~] WXA-2002: Implement `UXTHEME` and `DWMAPI` no-op-safe stubs used by theme rendering. Managed internal `DwmSetWindowAttribute` / `DwmGetWindowAttribute` wrappers now avoid generated `DWMAPI.dll` imports and preserve deterministic per-window attribute state; native direct-DllImport `DWMAPI.dll` facade now covers first-tier direct callers. Broader UXTHEME draw/query stubs remain.
+- [~] WXA-2002: Implement `UXTHEME` and `DWMAPI` no-op-safe stubs used by theme rendering. Managed internal `DwmSetWindowAttribute` / `DwmGetWindowAttribute` wrappers now avoid generated `DWMAPI.dll` imports and preserve deterministic per-window attribute state; native direct-DllImport `DWMAPI.dll` facade now covers first-tier direct callers. Native direct-DllImport `UXTHEME.dll` facade now covers first-tier no-theme metrics, simple query, and draw acknowledgement paths; richer visual-style drawing remains managed/PAL-owned.
 - [ ] WXA-2003: Add Power status and session change notifications where feasible (`PowerModeChanged`, `SessionSwitch`) from managed sources.
 - [x] WXA-2004: Remove remaining direct public-surface throw paths for lightweight WinForms compatibility objects. `WindowsFormsSection` now constructs and exposes `JitDebugging`, and `BindingContext.CollectionChanged` now subscribes/raises instead of throwing.
 

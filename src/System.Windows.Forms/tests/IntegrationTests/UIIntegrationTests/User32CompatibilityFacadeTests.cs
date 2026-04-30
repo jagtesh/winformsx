@@ -717,6 +717,30 @@ public class User32CompatibilityFacadeTests
         Assert.True(actualDarkMode);
     }
 
+    [Fact]
+    public unsafe void DirectUxThemeDllImports_ResolveToWinFormsXFacade()
+    {
+        nint theme = NativeUxTheme.OpenThemeData(0x1234, "Button");
+        Assert.NotEqual(0, theme);
+
+        NativeUxTheme.NativeSize size;
+        Assert.Equal(0, NativeUxTheme.GetThemePartSize(theme, 0, 1, 1, null, 0, &size));
+        Assert.Equal(13, size.cx);
+        Assert.Equal(13, size.cy);
+
+        NativeUxTheme.NativeRect bounds = new() { left = 0, top = 0, right = 20, bottom = 20 };
+        NativeUxTheme.NativeMargins margins;
+        Assert.Equal(0, NativeUxTheme.GetThemeMargins(theme, 0, 1, 1, 0, &bounds, &margins));
+        Assert.Equal(0, margins.cxLeftWidth);
+        Assert.Equal(0, margins.cxRightWidth);
+        Assert.Equal(0, margins.cyTopHeight);
+        Assert.Equal(0, margins.cyBottomHeight);
+
+        Assert.Equal(0, NativeUxTheme.SetWindowTheme(0x1234, "Explorer", null));
+        Assert.False(NativeUxTheme.IsThemePartDefined(theme, 1, 1));
+        Assert.Equal(0, NativeUxTheme.CloseThemeData(theme));
+    }
+
     private sealed class EnvironmentOverride : IDisposable
     {
         private readonly string _name;
@@ -1298,5 +1322,50 @@ public class User32CompatibilityFacadeTests
 
         [DllImport(DwmApi, ExactSpelling = true)]
         internal static extern int DwmGetWindowAttribute(nint hwnd, uint dwAttribute, void* pvAttribute, uint cbAttribute);
+    }
+
+    private static unsafe partial class NativeUxTheme
+    {
+        private const string UxTheme = "UXTHEME.dll";
+
+        [DllImport(UxTheme, ExactSpelling = true, CharSet = CharSet.Unicode)]
+        internal static extern nint OpenThemeData(nint hwnd, string classList);
+
+        [DllImport(UxTheme, ExactSpelling = true)]
+        internal static extern int CloseThemeData(nint theme);
+
+        [DllImport(UxTheme, ExactSpelling = true, CharSet = CharSet.Unicode)]
+        internal static extern int SetWindowTheme(nint hwnd, string? subAppName, string? subIdList);
+
+        [DllImport(UxTheme, ExactSpelling = true)]
+        internal static extern bool IsThemePartDefined(nint theme, int partId, int stateId);
+
+        [DllImport(UxTheme, ExactSpelling = true)]
+        internal static extern int GetThemePartSize(nint theme, nint hdc, int partId, int stateId, NativeRect* rect, int sizeType, NativeSize* size);
+
+        [DllImport(UxTheme, ExactSpelling = true)]
+        internal static extern int GetThemeMargins(nint theme, nint hdc, int partId, int stateId, int propId, NativeRect* rect, NativeMargins* margins);
+
+        internal struct NativeRect
+        {
+            public int left;
+            public int top;
+            public int right;
+            public int bottom;
+        }
+
+        internal struct NativeSize
+        {
+            public int cx;
+            public int cy;
+        }
+
+        internal struct NativeMargins
+        {
+            public int cxLeftWidth;
+            public int cxRightWidth;
+            public int cyTopHeight;
+            public int cyBottomHeight;
+        }
     }
 }

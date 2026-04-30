@@ -81,6 +81,9 @@
     <WinFormsXDwmApiShimSource>$(MSBuildProjectDirectory)/Native/DwmApiShim/winformsx_dwmapi.c</WinFormsXDwmApiShimSource>
     <WinFormsXDwmApiShimOutputDirectory>$(IntermediateOutputPath)winformsx-dwmapi/</WinFormsXDwmApiShimOutputDirectory>
     <WinFormsXDwmApiShimBinary>$(WinFormsXDwmApiShimOutputDirectory)DWMAPI.dll</WinFormsXDwmApiShimBinary>
+    <WinFormsXUxThemeShimSource>$(MSBuildProjectDirectory)/Native/UxThemeShim/winformsx_uxtheme.c</WinFormsXUxThemeShimSource>
+    <WinFormsXUxThemeShimOutputDirectory>$(IntermediateOutputPath)winformsx-uxtheme/</WinFormsXUxThemeShimOutputDirectory>
+    <WinFormsXUxThemeShimBinary>$(WinFormsXUxThemeShimOutputDirectory)UXTHEME.dll</WinFormsXUxThemeShimBinary>
   </PropertyGroup>
 
   <ItemGroup Condition="'$(OS)' != 'Windows_NT'">
@@ -146,6 +149,15 @@
     <None Include="$(WinFormsXDwmApiShimOutputDirectory)libDWMAPI.dll.so" TargetPath="libDWMAPI.dll.so" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
     <None Include="$(WinFormsXDwmApiShimOutputDirectory)DWMAPI.dll.so" TargetPath="DWMAPI.dll.so" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
     <None Include="$(WinFormsXDwmApiShimOutputDirectory)libdwmapi.so" TargetPath="libdwmapi.so" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+    <None Include="$(WinFormsXUxThemeShimOutputDirectory)UXTHEME.dll" TargetPath="UXTHEME.dll" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" />
+    <None Include="$(WinFormsXUxThemeShimOutputDirectory)uxtheme.dll" TargetPath="uxtheme.dll" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" />
+    <None Include="$(WinFormsXUxThemeShimOutputDirectory)uxtheme" TargetPath="uxtheme" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" />
+    <None Include="$(WinFormsXUxThemeShimOutputDirectory)UXTHEME.dll.dylib" TargetPath="UXTHEME.dll.dylib" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+    <None Include="$(WinFormsXUxThemeShimOutputDirectory)libUXTHEME.dll.dylib" TargetPath="libUXTHEME.dll.dylib" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+    <None Include="$(WinFormsXUxThemeShimOutputDirectory)libuxtheme.dylib" TargetPath="libuxtheme.dylib" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+    <None Include="$(WinFormsXUxThemeShimOutputDirectory)libUXTHEME.dll.so" TargetPath="libUXTHEME.dll.so" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+    <None Include="$(WinFormsXUxThemeShimOutputDirectory)UXTHEME.dll.so" TargetPath="UXTHEME.dll.so" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+    <None Include="$(WinFormsXUxThemeShimOutputDirectory)libuxtheme.so" TargetPath="libuxtheme.so" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
   </ItemGroup>
 
   <Target Name="BuildWinFormsXKernel32Shim"
@@ -285,6 +297,26 @@
     <Copy SourceFiles="$(WinFormsXDwmApiShimBinary)" DestinationFiles="$(WinFormsXDwmApiShimOutputDirectory)libDWMAPI.dll.so" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
     <Copy SourceFiles="$(WinFormsXDwmApiShimBinary)" DestinationFiles="$(WinFormsXDwmApiShimOutputDirectory)DWMAPI.dll.so" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
     <Copy SourceFiles="$(WinFormsXDwmApiShimBinary)" DestinationFiles="$(WinFormsXDwmApiShimOutputDirectory)libdwmapi.so" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+  </Target>
+
+  <Target Name="BuildWinFormsXUxThemeShim"
+          BeforeTargets="PrepareForBuild;GetCopyToOutputDirectoryItems"
+          Inputs="$(WinFormsXUxThemeShimSource)"
+          Outputs="$(WinFormsXUxThemeShimBinary)"
+          Condition="'$(OS)' != 'Windows_NT'">
+    <MakeDir Directories="$(WinFormsXUxThemeShimOutputDirectory)" />
+    <Exec Condition="$([MSBuild]::IsOSPlatform('OSX'))"
+          Command="cc -dynamiclib -fvisibility=hidden &quot;$(WinFormsXUxThemeShimSource)&quot; -o &quot;$(WinFormsXUxThemeShimBinary)&quot;" />
+    <Exec Condition="$([MSBuild]::IsOSPlatform('Linux'))"
+          Command="cc -shared -fPIC -fvisibility=hidden &quot;$(WinFormsXUxThemeShimSource)&quot; -o &quot;$(WinFormsXUxThemeShimBinary)&quot;" />
+    <Copy SourceFiles="$(WinFormsXUxThemeShimBinary)" DestinationFiles="$(WinFormsXUxThemeShimOutputDirectory)uxtheme.dll" />
+    <Copy SourceFiles="$(WinFormsXUxThemeShimBinary)" DestinationFiles="$(WinFormsXUxThemeShimOutputDirectory)uxtheme" />
+    <Copy SourceFiles="$(WinFormsXUxThemeShimBinary)" DestinationFiles="$(WinFormsXUxThemeShimOutputDirectory)UXTHEME.dll.dylib" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+    <Copy SourceFiles="$(WinFormsXUxThemeShimBinary)" DestinationFiles="$(WinFormsXUxThemeShimOutputDirectory)libUXTHEME.dll.dylib" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+    <Copy SourceFiles="$(WinFormsXUxThemeShimBinary)" DestinationFiles="$(WinFormsXUxThemeShimOutputDirectory)libuxtheme.dylib" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+    <Copy SourceFiles="$(WinFormsXUxThemeShimBinary)" DestinationFiles="$(WinFormsXUxThemeShimOutputDirectory)libUXTHEME.dll.so" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+    <Copy SourceFiles="$(WinFormsXUxThemeShimBinary)" DestinationFiles="$(WinFormsXUxThemeShimOutputDirectory)UXTHEME.dll.so" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+    <Copy SourceFiles="$(WinFormsXUxThemeShimBinary)" DestinationFiles="$(WinFormsXUxThemeShimOutputDirectory)libuxtheme.so" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
   </Target>
 
 </Project>

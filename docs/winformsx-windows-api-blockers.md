@@ -238,8 +238,11 @@ compatibility-facade coverage.
   from internal WinForms calls, stores window attributes in managed state, and
   adds a native `DWMAPI.dll` facade for direct source-compatible DllImport
   callers. Dark-mode and form-corner probes no longer depend on host DWMAPI
-  resolution. The latest broad UIIntegration snapshot is now green at
-  `Failed: 0, Passed: 252, Skipped: 1, Total: 253`.
+  resolution. The latest UXTHEME pass adds a native `UXTHEME.dll` facade for
+  first-tier no-theme defaults covering theme open/close, theme metrics,
+  margins, simple text/background queries, and no-op draw acknowledgements.
+  The latest broad UIIntegration snapshot is now green at
+  `Failed: 0, Passed: 253, Skipped: 1, Total: 254`.
 - First UIIntegration blockers observed:
   - `OLE32.dll` missing through `Application.ThreadContext.OleRequired()`,
     clipboard, and drag/drop paths. `InputLanguage.CurrentInputLanguage`,
@@ -805,8 +808,10 @@ Plan:
 
 Impacted APIs:
 
-- `UXTHEME.dll`: theme open/close, theme fonts, colors, drawing, app
-  properties, documentation properties, and parent background drawing.
+- `UXTHEME.dll`: first-tier native facade coverage for theme open/close, app
+  properties, part-size/margin/text metrics, simple string/color/bool queries,
+  and no-op-safe draw/background acknowledgements; richer visual-style drawing
+  remains managed/PAL-owned.
 - `DWMAPI.dll`: first-tier window attribute get/set coverage for corner
   preference, dark-mode, caption-color, and similar stored values; broader
   composition behavior remains out of scope until a real control/test needs it.
@@ -961,6 +966,9 @@ cases were previously blockers and should remain regression targets:
 - [x] Native `DWMAPI.dll` facade now resolves direct source-compatible
   `DwmSetWindowAttribute` / `DwmGetWindowAttribute` imports through the same
   deterministic WinFormsX-style attribute state.
+- [x] Native `UXTHEME.dll` facade now resolves first-tier direct
+  source-compatible theme imports with deterministic no-theme metrics and
+  no-op draw/query behavior.
 
 ## Acceptance Bar
 
