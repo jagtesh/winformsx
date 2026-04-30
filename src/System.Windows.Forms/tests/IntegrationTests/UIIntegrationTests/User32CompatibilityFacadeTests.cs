@@ -409,6 +409,21 @@ public class User32CompatibilityFacadeTests
         }
     }
 
+    [Fact]
+    public void DirectWinSpoolDllImports_RouteToWinFormsXPal()
+    {
+        using (new EnvironmentOverride("WINFORMSX_SUPPRESS_HIDDEN_BACKEND", "1"))
+        {
+            Application.EnableVisualStyles();
+
+            Assert.True(NativeWinSpool.EnumPrinters(0, nint.Zero, 4, nint.Zero, 0, out uint needed, out uint returned));
+            Assert.Equal(0u, needed);
+            Assert.Equal(0u, returned);
+            Assert.Equal(1, NativeWinSpool.DeviceCapabilities(nint.Zero, nint.Zero, 18, nint.Zero, nint.Zero));
+            Assert.True(NativeWinSpool.DocumentProperties(nint.Zero, nint.Zero, nint.Zero, nint.Zero, nint.Zero, 0) > 0);
+        }
+    }
+
     private sealed class EnvironmentOverride : IDisposable
     {
         private readonly string _name;
@@ -700,5 +715,27 @@ public class User32CompatibilityFacadeTests
 
         [DllImport(ComDlg32, ExactSpelling = true)]
         internal static extern uint CommDlgExtendedError();
+    }
+
+    private static partial class NativeWinSpool
+    {
+        private const string WinSpool = "winspool.drv";
+
+        [DllImport(WinSpool, EntryPoint = "EnumPrintersW", ExactSpelling = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool EnumPrinters(
+            uint flags,
+            nint name,
+            uint level,
+            nint printerEnum,
+            uint bufferSize,
+            out uint needed,
+            out uint returned);
+
+        [DllImport(WinSpool, EntryPoint = "DeviceCapabilitiesW", ExactSpelling = true)]
+        internal static extern int DeviceCapabilities(nint device, nint port, ushort capability, nint output, nint devMode);
+
+        [DllImport(WinSpool, EntryPoint = "DocumentPropertiesW", ExactSpelling = true)]
+        internal static extern int DocumentProperties(nint hwnd, nint printer, nint deviceName, nint devModeOutput, nint devModeInput, uint mode);
     }
 }

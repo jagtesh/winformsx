@@ -28,6 +28,7 @@ public sealed partial class Application
         Platform.WinFormsXUser32Shim.Register();
         Platform.WinFormsXImm32Shim.Register();
         Platform.WinFormsXComDlg32Shim.Register();
+        Platform.WinFormsXWinSpoolShim.Register();
     }
 
     private static void InitializeMessageLoopPlatform()

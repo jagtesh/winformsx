@@ -69,7 +69,7 @@ Ordered by observed frequency across components and blocker blast radius:
     - Verification:
       `WinformsControlsTest --control-smoke-test` ->
       `total=42 passed=41 failed=0 skipped=1`; full UIIntegration ->
-      `Failed: 0, Passed: 193, Skipped: 1, Total: 194`.
+      `Failed: 0, Passed: 194, Skipped: 1, Total: 195`.
   - Added WinFormsX virtual-window handling for ToolStrip dropdown overlays and
     hidden dropdown owner windows so they no longer create nested Silk/GLFW
     windows during UIIntegration runs.
@@ -137,8 +137,18 @@ Ordered by observed frequency across components and blocker blast radius:
     - Latest unfiltered broad snapshot after COMDLG32 facade coverage:
       `Failed: 0, Passed: 193, Skipped: 1, Total: 194`. The active
       UIIntegration slice remains green.
+    - Latest spooler/default-printer pass:
+      managed print settings paths now avoid generated `winspool.drv` imports
+      for `EnumPrinters`, `DeviceCapabilities`, and `DocumentProperties`;
+      `PrintDlgEx(PD_RETURNDEFAULT)` seeds a deterministic WinFormsX virtual
+      printer; and a native `winspool.drv` facade forwards source-compatible
+      direct DllImports through the same managed defaults. Focused
+      `User32CompatibilityFacadeTests` now reports
+      `Passed: 5, Failed: 0`, including direct WINSPOOL coverage. Full
+      UIIntegration now reports
+      `Failed: 0, Passed: 194, Skipped: 1, Total: 195`.
   - Priority order moves to remaining high-impact infrastructure gaps:
-    dialog/print visible-service parity, no-printer spooler behavior, then
+    dialog/print visible-service parity, print-controller output, then
     lower-volume accessibility/provider breadth and resource polish.
   - Active lane update: focused PropertyGrid UIIntegration coverage is now
     green: `Passed: 38, Failed: 0, Skipped: 0, Total: 38`.
@@ -761,14 +771,14 @@ Ordered by observed frequency across components and blocker blast radius:
 ## Dialog and Common Controls
 
 - [ ] WXA-1201: Implement managed fallbacks for `OpenFileDialog`, `SaveFileDialog`, `FolderBrowserDialog`, `ColorDialog`, `FontDialog`.
-- [ ] WXA-1202: Implement managed `PrintDialog` and `PageSetupDialog` with no-spooler fallback path.
+- [~] WXA-1202: Implement managed `PrintDialog` and `PageSetupDialog` with no-spooler fallback path. Focused `PrintDialog` coverage and `PrintDlgEx(PD_RETURNDEFAULT)` default-printer state are covered; visible `PageSetupDialog` parity remains.
 - [ ] WXA-1203: Implement WinFormsX fallback for internal modal dialogs (`PrintPreviewDialog`, `TaskDialog`, `GridErrorDialog`, `ThreadExceptionDialog`).
 - [~] WXA-1204: Route native `COMDLG32.dll` symbols used by `PInvoke` (`GetOpenFileName`, `GetSaveFileName`, `ChooseColor`, `ChooseFont`, `PrintDlg`, `PrintDlgEx`, `PageSetupDlg`, `CommDlgExtendedError`) to WinFormsX-managed dialog services. First-tier safe-cancel facade is covered; richer visible dialog behavior remains under WXA-1201/WXA-1202.
 
 ## Printing And Spooler
 
-- [ ] WXA-1301: Implement printer settings service without hard OS printer dependency (`PrinterSettings`, `PageSettings`).
-- [ ] WXA-1302: Add minimal safe `winspool.drv` facade (`DocumentProperties`, `EnumPrinters`, `DeviceCapabilities`) with deterministic defaults.
+- [~] WXA-1301: Implement printer settings service without hard OS printer dependency (`PrinterSettings`, `PageSettings`). First no-printer/virtual-printer defaults are covered; richer printer profiles and full page-settings service parity remain.
+- [x] WXA-1302: Add minimal safe `winspool.drv` facade (`DocumentProperties`, `EnumPrinters`, `DeviceCapabilities`) with deterministic defaults.
 - [ ] WXA-1303: Implement fallback graphics path for `PrintDocument` and `PrintControllerWithStatusDialog` for integration tests.
 
 ## USER32 Surface (Tiered)
@@ -844,6 +854,6 @@ Ordered by observed frequency across components and blocker blast radius:
   aborting on ToolStrip/Silk window creation.
 - Active priority lane moves to `P2` dialog/print and spooler work now that the
   active UIIntegration slice and controls smoke are green. First-tier
-  `COMDLG32.dll` facade coverage is in place; next highest-impact remaining
-  blocker is no-printer `winspool.drv`/`PrinterSettings` plus visible managed
-  save/color/font/page-setup services.
+  `COMDLG32.dll` and `winspool.drv` facade coverage is in place; next
+  highest-impact remaining blockers are visible managed save/color/font/page-
+  setup services and print-controller output.

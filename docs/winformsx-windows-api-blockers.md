@@ -18,7 +18,7 @@ compatibility-facade coverage.
 - UIIntegrationTests are no longer globally skipped by OS-gated attributes. The
   suite now exposes real WinFormsX behavior gaps. The latest unfiltered broad
   run completes without a hang/abort and reports
-  `193 passed, 0 failed, 1 skipped`. Recent passes removed the cross-suite
+  `194 passed, 0 failed, 1 skipped`. Recent passes removed the cross-suite
   `VK_RETURN` stuck-key cascade by making PAL `SendInput` accept packets even
   when a synthetic/stale target cannot be dispatched, then closed focused
   `TabControlTests` by aligning backend tab-rectangle minimum width with Win32
@@ -96,14 +96,21 @@ compatibility-facade coverage.
   through a WinFormsX common-dialog interop layer and adds a native
   `COMDLG32.dll` compatibility facade for source-compatible direct DllImports;
   v1 returns deterministic cancel/default state until richer visible dialog
-  services are implemented.
+  services are implemented. The latest printing pass removes generated
+  `winspool.drv` imports from the first managed print paths, adds deterministic
+  no-printer defaults for `EnumPrinters`, `DeviceCapabilities`, and
+  `DocumentProperties`, seeds `PrintDlgEx(PD_RETURNDEFAULT)` with a WinFormsX
+  virtual printer, and adds a native `winspool.drv` compatibility facade for
+  source-compatible direct DllImports.
 - First UIIntegration blockers observed:
   - `OLE32.dll` missing through `Application.ThreadContext.OleRequired()`,
     clipboard, and drag/drop paths. `InputLanguage.CurrentInputLanguage`,
     USER32 keyboard layout calls, and the first IMM32 IME context calls now use
     PAL-backed state/facades.
-  - `winspool.drv` missing through `DocumentProperties` after the
-    `GetDesktopWindow` USER32 gap was closed.
+  - The first `winspool.drv` blocker is closed for safe no-printer settings:
+    `DocumentProperties`, `EnumPrinters`, and `DeviceCapabilities` now route
+    through deterministic WinFormsX defaults, with both managed wrappers and
+    direct source-compatible DllImports covered.
   - Focused `OpenFileDialog`, `FolderBrowserDialog`, and `PrintDialog`
     UIIntegration tests now pass. Direct `COMDLG32.dll` source-compatibility
     imports now resolve through the WinFormsX facade with safe cancel/default
@@ -187,7 +194,7 @@ compatibility-facade coverage.
     formatting/click handling reads managed selection and mapping state without
     OS checks.
   - Latest broad UIIntegration active slice is green:
-    `193 passed, 0 failed, 1 skipped`.
+    `194 passed, 0 failed, 1 skipped`.
   - DPI awareness, UIAutomationCore wrapper, snap-layout keyboard, and
     autosized layout smoke paths now run through the same WinFormsX/PAL pathway
     everywhere. `Application.OpenForms` also stays stable after PropertyGrid
@@ -242,6 +249,9 @@ implementations.
   - Cursor drawing, hot spot, hide/show, and real cursor-image data are minimal.
 - Printing:
   - `DefaultPrintController` throws because physical printing has no PAL yet.
+  - `PrinterSettings` can now query deterministic no-printer/virtual-printer
+    defaults without requiring host spooler APIs, but real printer enumeration,
+    printer-specific DEVMODE state, and actual print output remain incomplete.
 - System.Drawing edge cases:
   - Custom line caps cannot wrap native GDI+ handles.
   - Metafile/image-effects paths are partial and should remain tracked as
@@ -315,7 +325,9 @@ Plan:
 Impacted APIs and areas:
 
 - `winspool.drv`: `DocumentProperties`, `EnumPrinters`,
-  `DeviceCapabilities`, and printer settings enumeration.
+  `DeviceCapabilities`, and printer settings enumeration. The first safe tier
+  now has managed and native-facade coverage with deterministic no-printer
+  defaults.
 - `GDI32.dll` printing: `CreateDC`, `CreateICW`, `StartDoc`, `StartPage`,
   `EndPage`, `EndDoc`, `AbortDoc`, `ExtEscape`.
 - WinForms controls: `PrintDialog`, `PageSetupDialog`, `PrintPreviewDialog`,
@@ -325,8 +337,11 @@ Plan:
 
 - Add a printing PAL with a deterministic "no physical printers" profile and an
   optional file/PDF-like virtual target later.
-- Implement `PrinterSettings` and `PageSettings` without requiring `winspool`.
-- Facade only the small `winspool.drv` calls needed by source-compatible tests.
+- Keep extending `PrinterSettings` and `PageSettings` without requiring a host
+  spooler. The first deterministic default path is in place; richer physical or
+  virtual printer profiles still need a PAL service.
+- Keep the `winspool.drv` facade narrow: only expose PAL-backed calls with
+  tested deterministic behavior.
 - Keep real platform print-provider work separate from the first no-printer pass.
 
 ### 4. USER32 Remaining Surface
@@ -625,8 +640,9 @@ cases were previously blockers and should remain regression targets:
    InputLanguage tests.
 3. Implement managed dialog services and test automation hooks, covering
    open/save/folder/color/font/message/task/print/page-setup dialogs.
-4. Implement printing PAL no-printer behavior and the narrow `winspool.drv`
-   facade needed by `PrinterSettings` and `PrintDialog`.
+4. Implement the remaining printing PAL behavior above the first no-printer
+   defaults: visible print/page-setup services, print-preview integration, and
+   print-controller output.
 5. Expand USER32 facade coverage for resources, menus, geometry, message-loop,
    and input APIs that are ABI-safe and common in source-compatible apps.
 6. Centralize stock resources: cursors, icons, dialog imagery, property-grid
@@ -648,7 +664,8 @@ cases were previously blockers and should remain regression targets:
   first-tier `COMDLG32.dll` safe-cancel facade is covered; save/color/font/
   message/task/page-setup visible-service parity still needs coverage.
 - [~] Print baseline: focused `PrintDialog` tests are green; no-printer
-  `PrinterSettings`, `PageSetupDialog`, and print-controller behavior remain.
+  `PrinterSettings` and direct `winspool.drv` defaults are covered.
+  `PageSetupDialog`, print-preview, and print-controller output remain.
 - [ ] USER32 tier expansion: geometry/menu/message APIs used by UI tests.
 - [ ] KERNEL32 tier expansion: minimal module/resource and last-error semantics.
 - [ ] COMCTL32/ImageList tier: image list ops required by ListView/TreeView tests.

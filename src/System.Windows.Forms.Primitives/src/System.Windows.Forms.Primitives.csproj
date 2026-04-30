@@ -69,6 +69,9 @@
     <WinFormsXComDlg32ShimSource>$(MSBuildProjectDirectory)/Native/ComDlg32Shim/winformsx_comdlg32.c</WinFormsXComDlg32ShimSource>
     <WinFormsXComDlg32ShimOutputDirectory>$(IntermediateOutputPath)winformsx-comdlg32/</WinFormsXComDlg32ShimOutputDirectory>
     <WinFormsXComDlg32ShimBinary>$(WinFormsXComDlg32ShimOutputDirectory)COMDLG32.dll</WinFormsXComDlg32ShimBinary>
+    <WinFormsXWinSpoolShimSource>$(MSBuildProjectDirectory)/Native/WinSpoolShim/winformsx_winspool.c</WinFormsXWinSpoolShimSource>
+    <WinFormsXWinSpoolShimOutputDirectory>$(IntermediateOutputPath)winformsx-winspool/</WinFormsXWinSpoolShimOutputDirectory>
+    <WinFormsXWinSpoolShimBinary>$(WinFormsXWinSpoolShimOutputDirectory)winspool.drv</WinFormsXWinSpoolShimBinary>
   </PropertyGroup>
 
   <ItemGroup Condition="'$(OS)' != 'Windows_NT'">
@@ -99,6 +102,14 @@
     <None Include="$(WinFormsXComDlg32ShimOutputDirectory)libCOMDLG32.dll.so" TargetPath="libCOMDLG32.dll.so" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
     <None Include="$(WinFormsXComDlg32ShimOutputDirectory)COMDLG32.dll.so" TargetPath="COMDLG32.dll.so" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
     <None Include="$(WinFormsXComDlg32ShimOutputDirectory)libcomdlg32.so" TargetPath="libcomdlg32.so" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+    <None Include="$(WinFormsXWinSpoolShimOutputDirectory)winspool.drv" TargetPath="winspool.drv" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" />
+    <None Include="$(WinFormsXWinSpoolShimOutputDirectory)winspool" TargetPath="winspool" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" />
+    <None Include="$(WinFormsXWinSpoolShimOutputDirectory)winspool.drv.dylib" TargetPath="winspool.drv.dylib" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+    <None Include="$(WinFormsXWinSpoolShimOutputDirectory)libwinspool.drv.dylib" TargetPath="libwinspool.drv.dylib" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+    <None Include="$(WinFormsXWinSpoolShimOutputDirectory)libwinspool.dylib" TargetPath="libwinspool.dylib" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+    <None Include="$(WinFormsXWinSpoolShimOutputDirectory)libwinspool.drv.so" TargetPath="libwinspool.drv.so" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+    <None Include="$(WinFormsXWinSpoolShimOutputDirectory)winspool.drv.so" TargetPath="winspool.drv.so" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+    <None Include="$(WinFormsXWinSpoolShimOutputDirectory)libwinspool.so" TargetPath="libwinspool.so" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
   </ItemGroup>
 
   <Target Name="BuildWinFormsXUser32Shim"
@@ -159,6 +170,25 @@
     <Copy SourceFiles="$(WinFormsXComDlg32ShimBinary)" DestinationFiles="$(WinFormsXComDlg32ShimOutputDirectory)libCOMDLG32.dll.so" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
     <Copy SourceFiles="$(WinFormsXComDlg32ShimBinary)" DestinationFiles="$(WinFormsXComDlg32ShimOutputDirectory)COMDLG32.dll.so" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
     <Copy SourceFiles="$(WinFormsXComDlg32ShimBinary)" DestinationFiles="$(WinFormsXComDlg32ShimOutputDirectory)libcomdlg32.so" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+  </Target>
+
+  <Target Name="BuildWinFormsXWinSpoolShim"
+          BeforeTargets="PrepareForBuild;GetCopyToOutputDirectoryItems"
+          Inputs="$(WinFormsXWinSpoolShimSource)"
+          Outputs="$(WinFormsXWinSpoolShimBinary)"
+          Condition="'$(OS)' != 'Windows_NT'">
+    <MakeDir Directories="$(WinFormsXWinSpoolShimOutputDirectory)" />
+    <Exec Condition="$([MSBuild]::IsOSPlatform('OSX'))"
+          Command="cc -dynamiclib -fvisibility=hidden &quot;$(WinFormsXWinSpoolShimSource)&quot; -o &quot;$(WinFormsXWinSpoolShimBinary)&quot;" />
+    <Exec Condition="$([MSBuild]::IsOSPlatform('Linux'))"
+          Command="cc -shared -fPIC -fvisibility=hidden &quot;$(WinFormsXWinSpoolShimSource)&quot; -o &quot;$(WinFormsXWinSpoolShimBinary)&quot;" />
+    <Copy SourceFiles="$(WinFormsXWinSpoolShimBinary)" DestinationFiles="$(WinFormsXWinSpoolShimOutputDirectory)winspool" />
+    <Copy SourceFiles="$(WinFormsXWinSpoolShimBinary)" DestinationFiles="$(WinFormsXWinSpoolShimOutputDirectory)winspool.drv.dylib" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+    <Copy SourceFiles="$(WinFormsXWinSpoolShimBinary)" DestinationFiles="$(WinFormsXWinSpoolShimOutputDirectory)libwinspool.drv.dylib" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+    <Copy SourceFiles="$(WinFormsXWinSpoolShimBinary)" DestinationFiles="$(WinFormsXWinSpoolShimOutputDirectory)libwinspool.dylib" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+    <Copy SourceFiles="$(WinFormsXWinSpoolShimBinary)" DestinationFiles="$(WinFormsXWinSpoolShimOutputDirectory)libwinspool.drv.so" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+    <Copy SourceFiles="$(WinFormsXWinSpoolShimBinary)" DestinationFiles="$(WinFormsXWinSpoolShimOutputDirectory)winspool.drv.so" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+    <Copy SourceFiles="$(WinFormsXWinSpoolShimBinary)" DestinationFiles="$(WinFormsXWinSpoolShimOutputDirectory)libwinspool.so" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
   </Target>
 
 </Project>
