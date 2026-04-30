@@ -1026,6 +1026,18 @@ Ordered by observed frequency across components and blocker blast radius:
     - Build `System.Windows.Forms.UI.IntegrationTests`: succeeded.
     - UIIntegration filter
       `DirectGdi32DllImports_ResolveToWinFormsXFacade`: `Passed: 1, Failed: 0`.
+- In-progress local changes (next commit):
+  - Expanded the native `USER32.dll` resource facade for source-compatible
+    direct imports: `LoadIconW/A`, `LoadCursorW/A`, `DestroyIcon`,
+    `DestroyCursor`, `CopyIcon`, `CopyCursor`, `CopyImage`, `GetIconInfo`,
+    `DrawIcon`, `DrawIconEx`, and `CreateIconFromResourceEx`.
+  - These are deterministic handle/draw/info defaults. Real embedded stock
+    cursor/icon payloads and hot-spot fidelity remain tracked under WXA-1503
+    and WXA-1504.
+  - Verification:
+    - Build `System.Windows.Forms.UI.IntegrationTests`: succeeded.
+    - UIIntegration filter `DirectDllImports_RouteToWinFormsXPal`:
+      `Passed: 1, Failed: 0`.
 
 ## Task Legend
 
@@ -1080,8 +1092,8 @@ Ordered by observed frequency across components and blocker blast radius:
 
 - [~] WXA-1501: Keep device-context and handle methods routed to managed drawing backend; add no-op-safe wrappers for missing legacy queries. `CreateCompatibleDC`, `DeleteDC`, `GetObject`, `GetObjectType`, and `GetStockObject` now route through the WinFormsX PAL/manual compatibility layer, and the native `GDI32.dll` facade resolves those same first-tier direct imports plus safe bitmap, DIB section, font, region, draw-copy/fill, clip-region, palette, and print-DC constructors/lifecycle calls; broader legacy handle queries remain.
 - [~] WXA-1502: Implement `GetSystemColor`, `SetTextColor`, `SetBkColor`, `GetDeviceCaps` fallback paths for controls that query these frequently. First-tier `GetSysColor`, `GetSysColorBrush`, `GetDeviceCaps`, `GetTextColor`, `GetBkColor`, `SetTextColor`, `SetBkColor`, `GetBkMode`, and `SetBkMode` paths now avoid generated native imports and have focused wrapper coverage; the native `GDI32.dll` facade now covers device caps and text/background color and mode state for direct import callers. Broader GDI color/mode parity remains.
-- [~] WXA-1503: Add curated GDI+ and cursor/font fallback handling for common property surfaces. Custom file/stream cursor serialization now round-trips `CursorData`; stock and handle-only cursor payloads, real hot spots, and richer drawing behavior remain.
-- [~] WXA-1504: Add resource and image compatibility shims for icon/cursor extraction and `Bitmap` conversion (`LoadImage`, `CreateIconFromResourceEx`, `ImageList` interoperability). ImageList synthetic bitmap metadata now round-trips through `GetObject(BITMAP)`; icon/cursor extraction and real image payload conversion remain.
+- [~] WXA-1503: Add curated GDI+ and cursor/font fallback handling for common property surfaces. Custom file/stream cursor serialization now round-trips `CursorData`; the native `USER32.dll` facade now resolves stock cursor load/copy/destroy calls with deterministic handles. Real hot spots, stock cursor image payloads, and richer drawing behavior remain.
+- [~] WXA-1504: Add resource and image compatibility shims for icon/cursor extraction and `Bitmap` conversion (`LoadImage`, `CreateIconFromResourceEx`, `ImageList` interoperability). ImageList synthetic bitmap metadata now round-trips through `GetObject(BITMAP)`, and the native `USER32.dll` facade now resolves first-tier icon load/copy/destroy/draw/info and `CreateIconFromResourceEx` calls. Real icon/cursor payload conversion remains.
 
 ## COMCTL32 and Common Control Helpers
 

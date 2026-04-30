@@ -261,7 +261,11 @@ compatibility-facade coverage.
   pass adds safe direct-import coverage for drawing copy/fill calls, palette
   selection/query calls, clipping calls, indirect/pattern brushes, and print
   DC/document lifecycle entry points; these remain deterministic compatibility
-  defaults rather than real device or printer output.
+  defaults rather than real device or printer output. The current USER32
+  resource pass adds safe direct-import coverage for icon/cursor load, copy,
+  destroy, draw, info, and resource-icon creation calls; this closes resolution
+  failures but still leaves real stock cursor/icon image payloads as a resource
+  fidelity task.
   The latest broad UIIntegration snapshot is now green at
   `Failed: 0, Passed: 259, Skipped: 1, Total: 260`.
 - First UIIntegration blockers observed:
@@ -605,7 +609,9 @@ Still blocked or incomplete:
   initiation thresholds.
 - Resources: `LoadIcon`, `LoadCursor`, `CopyImage`, `CopyCursor`,
   `DestroyIcon`, `DestroyCursor`, `DrawIcon`, `DrawIconEx`, `GetIconInfo`,
-  and `CreateIconFromResourceEx`.
+  and `CreateIconFromResourceEx`. The current direct USER32 facade resolves
+  these with deterministic handles and no-op-safe draw/info behavior; real
+  resource-image payloads and hot spots remain incomplete.
 - DPI/system parameters: `SystemParametersInfo`, `SystemParametersInfoForDpi`,
   `GetDpiForWindow`, `GetDpiForSystem`, thread/window DPI awareness context,
   monitor enumeration, high contrast, work area, non-client metrics, caret blink

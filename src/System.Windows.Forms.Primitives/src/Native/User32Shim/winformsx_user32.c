@@ -18,6 +18,11 @@ typedef uint8_t UINT8;
 typedef intptr_t HWND;
 typedef intptr_t HHOOK;
 typedef intptr_t HMENU;
+typedef intptr_t HICON;
+typedef intptr_t HCURSOR;
+typedef intptr_t HANDLE;
+typedef intptr_t HDC;
+typedef intptr_t HBRUSH;
 typedef intptr_t WPARAM;
 typedef intptr_t LPARAM;
 typedef uintptr_t HKL;
@@ -46,6 +51,15 @@ typedef struct WinFormsXWindowPlacement
     WinFormsXPoint ptMaxPosition;
     WinFormsXRect rcNormalPosition;
 } WinFormsXWindowPlacement;
+
+typedef struct WinFormsXIconInfo
+{
+    BOOL fIcon;
+    UINT xHotspot;
+    UINT yHotspot;
+    HANDLE hbmMask;
+    HANDLE hbmColor;
+} WinFormsXIconInfo;
 
 typedef struct WinFormsXUser32Dispatch
 {
@@ -113,10 +127,19 @@ typedef struct WinFormsXUser32Dispatch
     BOOL (*is_clipboard_format_available)(UINT format);
     UINT (*register_clipboard_format)(const WCHAR* format);
     INT (*get_clipboard_format_name)(UINT format, WCHAR* buffer, INT max_count);
+    HICON (*load_icon)(intptr_t instance, const WCHAR* icon_name);
+    BOOL (*destroy_icon)(HICON icon);
+    HCURSOR (*load_cursor)(intptr_t instance, const WCHAR* cursor_name);
+    HCURSOR (*destroy_cursor)(HCURSOR cursor);
+    BOOL (*get_icon_info)(HICON icon, WinFormsXIconInfo* icon_info);
+    INT (*draw_icon_ex)(HDC hdc, INT x, INT y, HICON icon, INT width, INT height, UINT step, HBRUSH brush, UINT flags);
 } WinFormsXUser32Dispatch;
 
 static WinFormsXUser32Dispatch g_dispatch;
 static intptr_t g_next_hook_handle = 1;
+static intptr_t g_next_resource_handle = 0x550000;
+
+WF_EXPORT BOOL DrawIconEx(HDC hdc, INT x, INT y, HICON icon, INT width, INT height, UINT step, HBRUSH brush, UINT flags);
 
 WF_EXPORT BOOL WinFormsXUser32RegisterDispatch(const WinFormsXUser32Dispatch* dispatch)
 {
@@ -540,6 +563,154 @@ WF_EXPORT INT GetClipboardFormatNameA(UINT format, char* buffer, INT max_count)
 WF_EXPORT INT GetClipboardFormatName(UINT format, WCHAR* buffer, INT max_count)
 {
     return GetClipboardFormatNameW(format, buffer, max_count);
+}
+
+WF_EXPORT HICON LoadIconW(intptr_t instance, const WCHAR* icon_name)
+{
+    if (g_dispatch.load_icon != 0)
+    {
+        HICON result = g_dispatch.load_icon(instance, icon_name);
+        if (result != 0)
+        {
+            return result;
+        }
+    }
+
+    (void)instance;
+    (void)icon_name;
+    return (HICON)(g_next_resource_handle++);
+}
+
+WF_EXPORT HICON LoadIconA(intptr_t instance, const char* icon_name)
+{
+    (void)icon_name;
+    return LoadIconW(instance, 0);
+}
+
+WF_EXPORT HICON LoadIcon(intptr_t instance, const WCHAR* icon_name)
+{
+    return LoadIconW(instance, icon_name);
+}
+
+WF_EXPORT HCURSOR LoadCursorW(intptr_t instance, const WCHAR* cursor_name)
+{
+    if (g_dispatch.load_cursor != 0)
+    {
+        HCURSOR result = g_dispatch.load_cursor(instance, cursor_name);
+        if (result != 0)
+        {
+            return result;
+        }
+    }
+
+    (void)instance;
+    (void)cursor_name;
+    return (HCURSOR)(g_next_resource_handle++);
+}
+
+WF_EXPORT HCURSOR LoadCursorA(intptr_t instance, const char* cursor_name)
+{
+    (void)cursor_name;
+    return LoadCursorW(instance, 0);
+}
+
+WF_EXPORT HCURSOR LoadCursor(intptr_t instance, const WCHAR* cursor_name)
+{
+    return LoadCursorW(instance, cursor_name);
+}
+
+WF_EXPORT BOOL DestroyIcon(HICON icon)
+{
+    if (g_dispatch.destroy_icon != 0)
+    {
+        return g_dispatch.destroy_icon(icon);
+    }
+
+    return icon != 0 ? 1 : 0;
+}
+
+WF_EXPORT BOOL DestroyCursor(HCURSOR cursor)
+{
+    if (g_dispatch.destroy_cursor != 0)
+    {
+        return g_dispatch.destroy_cursor(cursor) != 0 ? 1 : 0;
+    }
+
+    return cursor != 0 ? 1 : 0;
+}
+
+WF_EXPORT HICON CopyIcon(HICON icon)
+{
+    return icon != 0 ? (HICON)(g_next_resource_handle++) : 0;
+}
+
+WF_EXPORT HCURSOR CopyCursor(HCURSOR cursor)
+{
+    return cursor != 0 ? (HCURSOR)(g_next_resource_handle++) : 0;
+}
+
+WF_EXPORT HANDLE CopyImage(HANDLE image, UINT image_type, INT width, INT height, UINT flags)
+{
+    (void)image_type;
+    (void)width;
+    (void)height;
+    (void)flags;
+    return image != 0 ? (HANDLE)(g_next_resource_handle++) : 0;
+}
+
+WF_EXPORT BOOL GetIconInfo(HICON icon, WinFormsXIconInfo* icon_info)
+{
+    if (icon_info == 0)
+    {
+        return 0;
+    }
+
+    if (g_dispatch.get_icon_info != 0 && g_dispatch.get_icon_info(icon, icon_info))
+    {
+        return 1;
+    }
+
+    icon_info->fIcon = icon != 0 ? 1 : 0;
+    icon_info->xHotspot = 0;
+    icon_info->yHotspot = 0;
+    icon_info->hbmMask = 0;
+    icon_info->hbmColor = 0;
+    return icon != 0 ? 1 : 0;
+}
+
+WF_EXPORT BOOL DrawIcon(HDC hdc, INT x, INT y, HICON icon)
+{
+    return DrawIconEx(hdc, x, y, icon, 0, 0, 0, 0, 3) != 0 ? 1 : 0;
+}
+
+WF_EXPORT BOOL DrawIconEx(HDC hdc, INT x, INT y, HICON icon, INT width, INT height, UINT step, HBRUSH brush, UINT flags)
+{
+    if (g_dispatch.draw_icon_ex != 0)
+    {
+        return g_dispatch.draw_icon_ex(hdc, x, y, icon, width, height, step, brush, flags) != 0 ? 1 : 0;
+    }
+
+    (void)hdc;
+    (void)x;
+    (void)y;
+    (void)width;
+    (void)height;
+    (void)step;
+    (void)brush;
+    (void)flags;
+    return icon != 0 ? 1 : 0;
+}
+
+WF_EXPORT HICON CreateIconFromResourceEx(UINT8* bits, UINT size, BOOL icon, UINT version, INT width, INT height, UINT flags)
+{
+    (void)bits;
+    (void)size;
+    (void)icon;
+    (void)version;
+    (void)width;
+    (void)height;
+    (void)flags;
+    return bits != 0 || size == 0 ? (HICON)(g_next_resource_handle++) : 0;
 }
 
 WF_EXPORT HHOOK SetWindowsHookEx(INT id_hook, intptr_t hook_proc, intptr_t hmod, UINT thread_id)

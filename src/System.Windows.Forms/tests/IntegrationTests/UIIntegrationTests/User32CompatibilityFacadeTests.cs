@@ -294,6 +294,34 @@ public class User32CompatibilityFacadeTests
             Assert.True(NativeUser32.ValidateRect(formHandle, nint.Zero));
             Assert.True(NativeUser32.ValidateRect(formHandle, ref clientRect));
 
+            nint icon = NativeUser32.LoadIcon(nint.Zero, (nint)32512);
+            Assert.NotEqual(nint.Zero, icon);
+            Assert.True(NativeUser32.GetIconInfo(icon, out NativeUser32.ICONINFO iconInfo));
+            Assert.True(NativeUser32.DrawIcon(nint.Zero, 0, 0, icon));
+            Assert.True(NativeUser32.DrawIconEx(nint.Zero, 0, 0, icon, 16, 16, 0, nint.Zero, 3));
+            nint iconCopy = NativeUser32.CopyIcon(icon);
+            Assert.NotEqual(nint.Zero, iconCopy);
+            nint imageCopy = NativeUser32.CopyImage(icon, 1, 16, 16, 0);
+            Assert.NotEqual(nint.Zero, imageCopy);
+            Assert.True(NativeUser32.DestroyIcon(imageCopy));
+            Assert.True(NativeUser32.DestroyIcon(iconCopy));
+            Assert.True(NativeUser32.DestroyIcon(icon));
+
+            nint cursorHandle = NativeUser32.LoadCursor(nint.Zero, (nint)32512);
+            Assert.NotEqual(nint.Zero, cursorHandle);
+            nint cursorCopy = NativeUser32.CopyCursor(cursorHandle);
+            Assert.NotEqual(nint.Zero, cursorCopy);
+            Assert.True(NativeUser32.DestroyCursor(cursorCopy));
+            Assert.True(NativeUser32.DestroyCursor(cursorHandle));
+
+            unsafe
+            {
+                byte marker = 0;
+                nint resourceIcon = NativeUser32.CreateIconFromResourceEx(&marker, 1, true, 0x00030000, 16, 16, 0);
+                Assert.NotEqual(nint.Zero, resourceIcon);
+                Assert.True(NativeUser32.DestroyIcon(resourceIcon));
+            }
+
             unsafe
             {
                 bool managedClientAreaAnimation = true;
@@ -1186,6 +1214,53 @@ public class User32CompatibilityFacadeTests
 
         [DllImport(User32, ExactSpelling = true)]
         internal static extern uint GetDpiForSystem();
+
+        [DllImport(User32, EntryPoint = "LoadIconW", ExactSpelling = true)]
+        internal static extern nint LoadIcon(nint instance, nint iconName);
+
+        [DllImport(User32, EntryPoint = "LoadCursorW", ExactSpelling = true)]
+        internal static extern nint LoadCursor(nint instance, nint cursorName);
+
+        [DllImport(User32, ExactSpelling = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool DestroyIcon(nint icon);
+
+        [DllImport(User32, ExactSpelling = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool DestroyCursor(nint cursor);
+
+        [DllImport(User32, ExactSpelling = true)]
+        internal static extern nint CopyIcon(nint icon);
+
+        [DllImport(User32, ExactSpelling = true)]
+        internal static extern nint CopyCursor(nint cursor);
+
+        [DllImport(User32, ExactSpelling = true)]
+        internal static extern nint CopyImage(nint image, uint imageType, int width, int height, uint flags);
+
+        [DllImport(User32, ExactSpelling = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool GetIconInfo(nint icon, out ICONINFO iconInfo);
+
+        [DllImport(User32, ExactSpelling = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool DrawIcon(nint hdc, int x, int y, nint icon);
+
+        [DllImport(User32, ExactSpelling = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool DrawIconEx(nint hdc, int x, int y, nint icon, int width, int height, uint step, nint brush, uint flags);
+
+        [DllImport(User32, ExactSpelling = true)]
+        internal static extern unsafe nint CreateIconFromResourceEx(byte* bits, uint size, [MarshalAs(UnmanagedType.Bool)] bool icon, uint version, int width, int height, uint flags);
+
+        internal struct ICONINFO
+        {
+            public int fIcon;
+            public uint xHotspot;
+            public uint yHotspot;
+            public nint hbmMask;
+            public nint hbmColor;
+        }
     }
 
     private static unsafe partial class NativeImm32

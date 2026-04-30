@@ -100,6 +100,12 @@ internal static unsafe class WinFormsXUser32Shim
             IsClipboardFormatAvailable = &IsClipboardFormatAvailable,
             RegisterClipboardFormat = &RegisterClipboardFormat,
             GetClipboardFormatName = &GetClipboardFormatName,
+            LoadIcon = &LoadIcon,
+            DestroyIcon = &DestroyIcon,
+            LoadCursor = &LoadCursor,
+            DestroyCursor = &DestroyCursor,
+            GetIconInfo = &GetIconInfo,
+            DrawIconEx = &DrawIconEx,
         };
 
         delegate* unmanaged<DispatchTable*, int> register = (delegate* unmanaged<DispatchTable*, int>)registerExport;
@@ -1090,6 +1096,106 @@ internal static unsafe class WinFormsXUser32Shim
         }
     }
 
+    [UnmanagedCallersOnly]
+    private static nint LoadIcon(nint instance, char* iconName)
+    {
+        try
+        {
+            return (nint)PlatformApi.Control.LoadIcon((HINSTANCE)instance, (PCWSTR)iconName);
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    [UnmanagedCallersOnly]
+    private static int DestroyIcon(nint icon)
+    {
+        try
+        {
+            return PlatformApi.Control.DestroyIcon((HICON)icon) ? 1 : 0;
+        }
+        catch
+        {
+            return icon == 0 ? 0 : 1;
+        }
+    }
+
+    [UnmanagedCallersOnly]
+    private static nint LoadCursor(nint instance, char* cursorName)
+    {
+        try
+        {
+            return (nint)PlatformApi.Input.LoadCursor((HINSTANCE)instance, (PCWSTR)cursorName);
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    [UnmanagedCallersOnly]
+    private static nint DestroyCursor(nint cursor)
+    {
+        try
+        {
+            return (nint)PlatformApi.Input.DestroyCursor((HCURSOR)cursor);
+        }
+        catch
+        {
+            return cursor;
+        }
+    }
+
+    [UnmanagedCallersOnly]
+    private static int GetIconInfo(nint icon, WinFormsXIconInfo* iconInfo)
+    {
+        if (iconInfo is null)
+        {
+            return 0;
+        }
+
+        try
+        {
+            bool result = PlatformApi.Control.GetIconInfo((HICON)icon, out ICONINFO managedInfo);
+            iconInfo->fIcon = managedInfo.fIcon;
+            iconInfo->xHotspot = managedInfo.xHotspot;
+            iconInfo->yHotspot = managedInfo.yHotspot;
+            iconInfo->hbmMask = (nint)managedInfo.hbmMask;
+            iconInfo->hbmColor = (nint)managedInfo.hbmColor;
+            return result ? 1 : 0;
+        }
+        catch
+        {
+            *iconInfo = default;
+            iconInfo->fIcon = icon != 0 ? 1 : 0;
+            return icon != 0 ? 1 : 0;
+        }
+    }
+
+    [UnmanagedCallersOnly]
+    private static int DrawIconEx(nint hdc, int x, int y, nint icon, int width, int height, uint step, nint brush, uint flags)
+    {
+        try
+        {
+            return PlatformApi.Control.DrawIconEx(
+                (HDC)hdc,
+                x,
+                y,
+                (HICON)icon,
+                width,
+                height,
+                step,
+                (HBRUSH)brush,
+                (DI_FLAGS)flags);
+        }
+        catch
+        {
+            return icon == 0 ? 0 : 1;
+        }
+    }
+
     private struct DispatchTable
     {
         public uint Version;
@@ -1156,6 +1262,12 @@ internal static unsafe class WinFormsXUser32Shim
         public delegate* unmanaged<uint, int> IsClipboardFormatAvailable;
         public delegate* unmanaged<char*, uint> RegisterClipboardFormat;
         public delegate* unmanaged<uint, char*, int, int> GetClipboardFormatName;
+        public delegate* unmanaged<nint, char*, nint> LoadIcon;
+        public delegate* unmanaged<nint, int> DestroyIcon;
+        public delegate* unmanaged<nint, char*, nint> LoadCursor;
+        public delegate* unmanaged<nint, nint> DestroyCursor;
+        public delegate* unmanaged<nint, WinFormsXIconInfo*, int> GetIconInfo;
+        public delegate* unmanaged<nint, int, int, nint, int, int, uint, nint, uint, int> DrawIconEx;
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -1182,6 +1294,16 @@ internal static unsafe class WinFormsXUser32Shim
         public WinFormsXPoint ptMinPosition;
         public WinFormsXPoint ptMaxPosition;
         public WinFormsXRect rcNormalPosition;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct WinFormsXIconInfo
+    {
+        public int fIcon;
+        public uint xHotspot;
+        public uint yHotspot;
+        public nint hbmMask;
+        public nint hbmColor;
     }
 
     private static bool CopyRect(in RECT source, WinFormsXRect* destination)
