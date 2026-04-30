@@ -10,3 +10,5 @@
 [assembly: System.Reflection.AssemblyProductAttribute("Microsoft .NET")]
 [assembly: System.Reflection.AssemblyTitleAttribute("Microsoft.Win32.SystemEvents")]
 [assembly: System.Reflection.AssemblyVersionAttribute("9.0.0.0")]
+[assembly: System.Runtime.CompilerServices.InternalsVisibleToAttribute("System.Windows.Forms, PublicKey=00000000000000000400000000000000")]
+[assembly: System.Runtime.CompilerServices.InternalsVisibleToAttribute("System.Windows.Forms.UI.IntegrationTests, PublicKey=00000000000000000400000000000000")]

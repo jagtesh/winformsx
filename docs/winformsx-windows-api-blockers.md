@@ -853,7 +853,10 @@ Plan:
   hidden Windows broadcast window.
 - Add compatibility behavior for the SystemEvents subset production WinForms
   apps commonly rely on: display changes, user-preference changes, color/theme
-  changes, and power/session notifications.
+  changes, and power/session notifications. The latest pass bridges
+  `PowerModeChanged`, `SessionEnding`, `SessionEnded`, and `SessionSwitch`
+  through both public `SystemEvents` and internal `PalEvents`, with deterministic
+  managed raisers and message mapping for power/session broadcasts.
 - Avoid creating a broad registry emulator. Provide deterministic defaults for
   WinForms-adjacent settings and only facade native registry APIs when tests or
   real apps require them.

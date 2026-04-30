@@ -3,6 +3,8 @@
 
 using System.Drawing;
 using System.Runtime.InteropServices;
+using Microsoft.Win32;
+using System.Windows.Forms.Platform;
 using System.Windows.Forms.UITests.Input;
 using Windows.Win32.Graphics.Dwm;
 using Windows.Win32.UI.Input.Ime;
@@ -739,6 +741,43 @@ public class User32CompatibilityFacadeTests
         Assert.Equal(0, NativeUxTheme.SetWindowTheme(0x1234, "Explorer", null));
         Assert.False(NativeUxTheme.IsThemePartDefined(theme, 1, 1));
         Assert.Equal(0, NativeUxTheme.CloseThemeData(theme));
+    }
+
+    [Fact]
+    public void SystemEventsPowerAndSessionBridge_RaisesPublicAndPalEvents()
+    {
+        List<PowerModes> publicPowerModes = [];
+        List<PowerModes> palPowerModes = [];
+        List<SessionSwitchReason> publicSessionReasons = [];
+        List<SessionSwitchReason> palSessionReasons = [];
+
+        PowerModeChangedEventHandler publicPowerHandler = (_, e) => publicPowerModes.Add(e.Mode);
+        PowerModeChangedEventHandler palPowerHandler = (_, e) => palPowerModes.Add(e.Mode);
+        SessionSwitchEventHandler publicSessionHandler = (_, e) => publicSessionReasons.Add(e.Reason);
+        SessionSwitchEventHandler palSessionHandler = (_, e) => palSessionReasons.Add(e.Reason);
+
+        SystemEvents.PowerModeChanged += publicPowerHandler;
+        PalEvents.PowerModeChanged += palPowerHandler;
+        SystemEvents.SessionSwitch += publicSessionHandler;
+        PalEvents.SessionSwitch += palSessionHandler;
+
+        try
+        {
+            WinFormsXSystemEventsCompatibility.RaisePowerModeChanged(PowerModes.Suspend);
+            WinFormsXSystemEventsCompatibility.RaiseSessionSwitch(SessionSwitchReason.SessionUnlock);
+        }
+        finally
+        {
+            SystemEvents.PowerModeChanged -= publicPowerHandler;
+            PalEvents.PowerModeChanged -= palPowerHandler;
+            SystemEvents.SessionSwitch -= publicSessionHandler;
+            PalEvents.SessionSwitch -= palSessionHandler;
+        }
+
+        Assert.Equal([PowerModes.Suspend], publicPowerModes);
+        Assert.Equal([PowerModes.Suspend], palPowerModes);
+        Assert.Equal([SessionSwitchReason.SessionUnlock], publicSessionReasons);
+        Assert.Equal([SessionSwitchReason.SessionUnlock], palSessionReasons);
     }
 
     private sealed class EnvironmentOverride : IDisposable
