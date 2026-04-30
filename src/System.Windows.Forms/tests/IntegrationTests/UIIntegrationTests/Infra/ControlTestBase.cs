@@ -20,7 +20,6 @@ public abstract class ControlTestBase : IAsyncLifetime, IDisposable
     private static readonly TimeSpan s_nonWindowsTestTimeout = TimeSpan.FromSeconds(30);
 
     private bool _clientAreaAnimation;
-    private DenyExecutionSynchronizationContext? _denyExecutionSynchronizationContext;
     private JoinableTaskCollection _joinableTaskCollection = null!;
     private static string s_previousRunTestName = "This is the first test to run.";
 
@@ -69,15 +68,7 @@ public abstract class ControlTestBase : IAsyncLifetime, IDisposable
         // Record the mouse position so it can be restored at the end of the test
         _mousePosition = Cursor.Position;
 
-        if (!OperatingSystem.IsWindows() || Thread.CurrentThread.GetApartmentState() == ApartmentState.STA)
-        {
-            JoinableTaskContext = new JoinableTaskContext();
-        }
-        else
-        {
-            _denyExecutionSynchronizationContext = new DenyExecutionSynchronizationContext(SynchronizationContext.Current!);
-            JoinableTaskContext = new JoinableTaskContext(_denyExecutionSynchronizationContext.MainThread, _denyExecutionSynchronizationContext);
-        }
+        JoinableTaskContext = new JoinableTaskContext();
 
         _joinableTaskCollection = JoinableTaskContext.CreateCollection();
         JoinableTaskFactory = JoinableTaskContext.CreateFactory(_joinableTaskCollection);
@@ -99,11 +90,6 @@ public abstract class ControlTestBase : IAsyncLifetime, IDisposable
 
         JoinableTaskContext = null!;
         JoinableTaskFactory = null!;
-        if (_denyExecutionSynchronizationContext is not null)
-        {
-            SynchronizationContext.SetSynchronizationContext(_denyExecutionSynchronizationContext.UnderlyingContext);
-            _denyExecutionSynchronizationContext.ThrowIfSwitchOccurred();
-        }
     }
 
     public virtual void Dispose()
@@ -144,38 +130,8 @@ public abstract class ControlTestBase : IAsyncLifetime, IDisposable
 
     protected async Task WaitForIdleAsync()
     {
-        if (!OperatingSystem.IsWindows())
-        {
-            await Task.Yield();
-            Application.DoEvents();
-            return;
-        }
-
-        TaskCompletionSource<VoidResult> idleCompletionSource = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        Application.Idle += HandleApplicationIdle;
-        Application.LeaveThreadModal += HandleApplicationIdle;
-
-        try
-        {
-            // Queue an event to make sure we don't stall if the application was already idle
-            await JoinableTaskFactory.SwitchToMainThreadAsync();
-            await Task.Yield();
-
-            if (Application.OpenForms.Count > 0)
-            {
-                await idleCompletionSource.Task;
-            }
-        }
-        finally
-        {
-            Application.Idle -= HandleApplicationIdle;
-            Application.LeaveThreadModal -= HandleApplicationIdle;
-        }
-
-        void HandleApplicationIdle(object? sender, EventArgs e)
-        {
-            idleCompletionSource.TrySetResult(default);
-        }
+        await Task.Yield();
+        Application.DoEvents();
     }
 
     protected async Task MoveMouseToControlAsync(Control control)
@@ -308,175 +264,53 @@ public abstract class ControlTestBase : IAsyncLifetime, IDisposable
     protected async Task RunFormAsync<T>(Func<(Form dialog, T control)> createDialog, Func<Form, T, Task> testDriverAsync)
     {
         using var screenRecordService = new ScreenRecordService();
-
-        if (!OperatingSystem.IsWindows())
-        {
-            var (winFormsXDialog, winFormsXControl) = createDialog();
-            screenRecordService.RegisterEvents(winFormsXDialog);
-
-            Assert.NotNull(winFormsXDialog);
-            Assert.NotNull(winFormsXControl);
-
-            CreateControlWithoutHiddenBackend(winFormsXDialog);
-            winFormsXDialog.Show();
-            ActivateWinFormsXDialog(winFormsXDialog);
-            await WaitForIdleAsync();
-            try
-            {
-                await RunWithNonWindowsTimeoutAsync(
-                    () => testDriverAsync(winFormsXDialog, winFormsXControl),
-                    winFormsXDialog);
-            }
-            finally
-            {
-                winFormsXDialog.Close();
-                winFormsXDialog.Dispose();
-            }
-
-            return;
-        }
-
-        Form? dialog = null;
-        T? control = default;
-
-        TaskCompletionSource<VoidResult> gate = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        JoinableTask test = JoinableTaskFactory.RunAsync(async () =>
-        {
-            await gate.Task;
-            if (OperatingSystem.IsWindows())
-            {
-                await JoinableTaskFactory.SwitchToMainThreadAsync();
-            }
-
-            await WaitForIdleAsync();
-            try
-            {
-                await testDriverAsync(dialog!, control!);
-            }
-            catch (Exception ex) when (DataCollectionService.LogAndPropagate(ex))
-            {
-                throw new InvalidOperationException("Not reachable");
-            }
-            finally
-            {
-                dialog!.Close();
-                dialog.Dispose();
-                dialog = null;
-            }
-        });
-
-        if (OperatingSystem.IsWindows())
-        {
-            await JoinableTaskFactory.SwitchToMainThreadAsync();
-        }
-
-        (dialog, control) = createDialog();
+        var (dialog, control) = createDialog();
         screenRecordService.RegisterEvents(dialog);
 
         Assert.NotNull(dialog);
         Assert.NotNull(control);
 
-        dialog.Activated += (sender, e) => gate.TrySetResult(default);
-        dialog.Shown += (sender, e) => gate.TrySetResult(default);
-        if (!OperatingSystem.IsWindows())
+        CreateControlWithoutHiddenBackend(dialog);
+        dialog.Show();
+        ActivateWinFormsXDialog(dialog);
+        await WaitForIdleAsync();
+        try
         {
-            gate.TrySetResult(default);
-            dialog.Show();
-            await test.JoinAsync();
-            return;
+            await RunWithNonWindowsTimeoutAsync(
+                () => testDriverAsync(dialog, control),
+                dialog);
         }
-
-#pragma warning disable VSTHRD103 // Call async methods when in an async method
-        dialog.ShowDialog();
-#pragma warning restore VSTHRD103 // Call async methods when in an async method
-
-        await test.JoinAsync();
+        finally
+        {
+            dialog.Close();
+            dialog.Dispose();
+        }
     }
 
     protected async Task RunFormWithoutControlAsync<TForm>(Func<TForm> createForm, Func<TForm, Task> testDriverAsync)
         where TForm : Form
     {
         using var screenRecordService = new ScreenRecordService();
-
-        if (!OperatingSystem.IsWindows())
-        {
-            TForm winFormsXDialog = createForm();
-            screenRecordService.RegisterEvents(winFormsXDialog);
-
-            Assert.NotNull(winFormsXDialog);
-
-            CreateControlWithoutHiddenBackend(winFormsXDialog);
-            winFormsXDialog.Show();
-            ActivateWinFormsXDialog(winFormsXDialog);
-            await WaitForIdleAsync();
-            try
-            {
-                await RunWithNonWindowsTimeoutAsync(
-                    () => testDriverAsync(winFormsXDialog),
-                    winFormsXDialog);
-            }
-            finally
-            {
-                winFormsXDialog.Close();
-                winFormsXDialog.Dispose();
-            }
-
-            return;
-        }
-
-        TForm? dialog = null;
-
-        TaskCompletionSource<VoidResult> gate = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        JoinableTask test = JoinableTaskFactory.RunAsync(async () =>
-        {
-            await gate.Task;
-            if (OperatingSystem.IsWindows())
-            {
-                await JoinableTaskFactory.SwitchToMainThreadAsync();
-            }
-
-            await WaitForIdleAsync();
-            try
-            {
-                await testDriverAsync(dialog!);
-            }
-            catch (Exception ex) when (DataCollectionService.LogAndPropagate(ex))
-            {
-                throw new InvalidOperationException("Not reachable");
-            }
-            finally
-            {
-                dialog!.Close();
-                dialog.Dispose();
-                dialog = null;
-            }
-        });
-
-        if (OperatingSystem.IsWindows())
-        {
-            await JoinableTaskFactory.SwitchToMainThreadAsync();
-        }
-
-        dialog = createForm();
+        TForm dialog = createForm();
         screenRecordService.RegisterEvents(dialog);
 
         Assert.NotNull(dialog);
 
-        dialog.Activated += (sender, e) => gate.TrySetResult(default);
-        dialog.Shown += (sender, e) => gate.TrySetResult(default);
-        if (!OperatingSystem.IsWindows())
+        CreateControlWithoutHiddenBackend(dialog);
+        dialog.Show();
+        ActivateWinFormsXDialog(dialog);
+        await WaitForIdleAsync();
+        try
         {
-            gate.TrySetResult(default);
-            dialog.Show();
-            await test.JoinAsync();
-            return;
+            await RunWithNonWindowsTimeoutAsync(
+                () => testDriverAsync(dialog),
+                dialog);
         }
-
-#pragma warning disable VSTHRD103 // Call async methods when in an async method
-        dialog.ShowDialog();
-#pragma warning restore VSTHRD103 // Call async methods when in an async method
-
-        await test.JoinAsync();
+        finally
+        {
+            dialog.Close();
+            dialog.Dispose();
+        }
     }
 
     internal struct VoidResult

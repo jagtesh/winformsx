@@ -19,6 +19,15 @@ Ordered by observed frequency across components and blocker blast radius:
 ## Latest Progress (2026-04-29)
 
 - Landed:
+  - Unified `UIIntegrationTests` control harness execution onto a single WinFormsX pathway in `ControlTestBase`:
+    - removed split Windows/non-Windows branches in `InitializeAsync`, `WaitForIdleAsync`, `RunFormAsync`, and `RunFormWithoutControlAsync`.
+    - all targeted form-driver runs now use `CreateControlWithoutHiddenBackend` + `Show` + `ActivateWinFormsXDialog` + bounded timeout flow.
+  - Verification:
+    - `dotnet build src/System.Windows.Forms/tests/IntegrationTests/UIIntegrationTests/System.Windows.Forms.UI.IntegrationTests.csproj -c Debug -v q` -> `Build succeeded`.
+    - `dotnet test ... --filter "FullyQualifiedName~ButtonTests" --no-build` -> `Passed: 22, Failed: 0`.
+  - Current blocker:
+    - `Application_OpenForms_RecreateHandle` remains a deterministic host crash/hang path with blame-hang dump artifacts, now isolated as the next P1 lifecycle fix target.
+- Landed:
   - Added native USER32 compatibility export `GetGuiResources` in `winformsx_user32.c` so direct USER32 DllImports can resolve this entrypoint on WinFormsX.
   - Added managed `PInvokeCore.GetGuiResources` compatibility facade and local `GET_GUI_RESOURCES_FLAGS` enum in `System.Private.Windows.Core` for deterministic fallback (`0`).
   - Added `PInvoke.GetProcAddress(HMODULE, string)` compatibility overload and updated COM test utility invocation to use `nint` function pointers instead of `FARPROC` typedef assumptions.
