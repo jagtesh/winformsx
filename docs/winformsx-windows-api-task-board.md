@@ -19,6 +19,16 @@ Ordered by observed frequency across components and blocker blast radius:
 ## Latest Progress (2026-04-29)
 
 - In-progress local changes (next commit):
+  - Removed another Windows-only branch in core message-loop plumbing:
+    - `Application.ThreadContext` constructor now uses a single PAL thread-id pathway and no longer conditionally duplicates thread handles on Windows.
+    - This keeps thread-context initialization on one runtime pathway and avoids additional Windows-only KERNEL32 handle setup in WinFormsX.
+  - Verification:
+    - `dotnet build src/System.Windows.Forms/src/System.Windows.Forms.csproj -c Debug` -> `Build succeeded`.
+    - `UIIntegrationTests` filter `FullyQualifiedName~ButtonTests`: `Failed: 0, Passed: 22, Skipped: 0`.
+    - `WinformsControlsTest --control-smoke-test`: `total=42 passed=41 failed=0 skipped=1`.
+    - `ToolStrip_Hiding_ToolStripMenuItem_OnDropDownClosed_ShouldNotThrow` remains a deterministic hang/crash blocker.
+    - Latest artifacts: `src/System.Windows.Forms/tests/IntegrationTests/UIIntegrationTests/TestResults/82d8ac31-ba13-4c03-8dc1-d60ef7b4e7f6/`
+- In-progress local changes (next commit):
   - Continued single-pathway cleanup by removing newly introduced Windows-only branches in high-impact flows:
     - `Button.OnClick` dialog-result close behavior now uses one path (no OS guard).
     - `Button.OnMouseUp` capture-based click eligibility now uses one path (no OS guard).

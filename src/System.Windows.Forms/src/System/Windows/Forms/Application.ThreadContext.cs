@@ -72,27 +72,8 @@ public sealed partial class Application
         /// </summary>
         protected ThreadContext()
         {
-            if (OperatingSystem.IsWindows())
-            {
-                HANDLE target;
-
-                PInvoke.DuplicateHandle(
-                    PInvoke.GetCurrentProcess(),
-                    PInvoke.GetCurrentThread(),
-                    PInvoke.GetCurrentProcess(),
-                    &target,
-                    0,
-                    false,
-                    DUPLICATE_HANDLE_OPTIONS.DUPLICATE_SAME_ACCESS);
-
-                _handle = target;
-                _id = PInvoke.GetCurrentThreadId();
-            }
-            else
-            {
-                _handle = HANDLE.Null;
-                _id = Platform.PlatformApi.System.GetCurrentThreadId();
-            }
+            _handle = HANDLE.Null;
+            _id = Platform.PlatformApi.System.GetCurrentThreadId();
 
             _messageLoopCount = 0;
             t_currentThreadContext = this;
