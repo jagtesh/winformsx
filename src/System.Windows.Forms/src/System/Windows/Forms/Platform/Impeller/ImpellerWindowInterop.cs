@@ -3847,6 +3847,11 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
             state.NativeHwnd = HWND.Null;
             state.SilkWindow?.Dispose();
             _windows.Remove(hWnd);
+            if (_activeWindow == hWnd)
+            {
+                _activeWindow = HWND.Null;
+            }
+
             return true;
         }
 
@@ -4539,7 +4544,10 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
 
     private HWND FindTopLevelWindowAtPoint(System.Drawing.Point pt)
     {
-        if (_activeWindow != HWND.Null && TryGetScreenRect(_activeWindow, out System.Drawing.Rectangle activeBounds) && activeBounds.Contains(pt))
+        if (_activeWindow != HWND.Null
+            && IsHitTestableTopLevelWindow(_activeWindow)
+            && TryGetScreenRect(_activeWindow, out System.Drawing.Rectangle activeBounds)
+            && activeBounds.Contains(pt))
         {
             return _activeWindow;
         }
@@ -4554,7 +4562,9 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
             }
 
             HWND handle = (HWND)handleKey;
-            if (!TryGetScreenRect(handle, out System.Drawing.Rectangle bounds) || !bounds.Contains(pt))
+            if (!IsHitTestableTopLevelWindow(handle)
+                || !TryGetScreenRect(handle, out System.Drawing.Rectangle bounds)
+                || !bounds.Contains(pt))
             {
                 continue;
             }
@@ -4581,6 +4591,24 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
         }
 
         return best;
+    }
+
+    private bool IsHitTestableTopLevelWindow(HWND handle)
+    {
+        if (!_windows.TryGetValue(handle, out ImpellerWindowState? state)
+            || state.Parent != HWND.Null
+            || !state.Visible)
+        {
+            return false;
+        }
+
+        Control? control = Control.FromHandle(handle);
+        if (control is null)
+        {
+            return true;
+        }
+
+        return control is { IsDisposed: false, Disposing: false, Visible: true };
     }
 
     private bool TryMapWindowPoint(HWND from, HWND to, ref System.Drawing.Point point)

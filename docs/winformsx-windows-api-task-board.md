@@ -71,10 +71,10 @@ Ordered by observed frequency across components and blocker blast radius:
       navigation in broad-suite state.
   - Priority order moves to highest-volume remaining failure clusters:
     ListView tile accessibility, PropertyGrid broad-suite provider state,
-    drag/drop polish, RichTextBox link-range behavior, DataGridView tooltip
-    state, TabControl hover/input state, NumericUpDown accessibility focus,
-    application handle recreation, dialog/print fallbacks, and remaining
-    lower-volume provider gaps.
+    RichTextBox link-range behavior, DataGridView tooltip state, TabControl
+    hover/input state, NumericUpDown accessibility focus, application handle
+    recreation, dialog/print fallbacks, and remaining lower-volume provider
+    gaps.
   - Active lane update: focused PropertyGrid UIIntegration coverage is now
     green: `Passed: 38, Failed: 0, Skipped: 0, Total: 38`.
   - Active lane update: focused anchor/MDI resize coverage is now green:
@@ -112,15 +112,20 @@ Ordered by observed frequency across components and blocker blast radius:
       `DragEnter_Set_DropImageType_Message_MessageReplacementToken_ReturnsExpected_Async` ->
       `Passed: 2`.
     - Remaining drag/drop blocker:
-      `FullyQualifiedName~DragDropTests` now reports
-      `Passed: 4, Failed: 2, Skipped: 5`; the remaining failures are
-      order-dependent state cleanup in the PictureBox and DropImageType cases
-      when the entire class runs together.
+      closed. `FullyQualifiedName~DragDropTests` now reports
+      `Passed: 6, Failed: 0, Skipped: 1`; the remaining skip is the existing
+      explorer-driven `DragDrop_RTF_FromExplorer_ToRichTextBox_ReturnsExpected`
+      case.
+    - The latest closure keeps hidden/disposed virtual top-level windows out of
+      `WindowFromPoint` hit testing and clears stale active-window state when a
+      virtual window is destroyed, so full-class drag/drop runs no longer route
+      PictureBox or DropImageType input into stale form handles from previous
+      tests.
   - Priority order now moves to ListView tile accessibility, PropertyGrid
-    broad-suite provider state, drag/drop polish, RichTextBox link-range
-    behavior, DataGridView tooltip state, TabControl hover/input state,
-    NumericUpDown accessibility focus, application handle recreation,
-    dialog/print fallbacks, and remaining lower-volume provider gaps.
+    broad-suite provider state, RichTextBox link-range behavior, DataGridView
+    tooltip state, TabControl hover/input state, NumericUpDown accessibility
+    focus, application handle recreation, dialog/print fallbacks, and remaining
+    lower-volume provider gaps.
 
 - Landed:
   - Closed the focused MonthCalendar input lane:
