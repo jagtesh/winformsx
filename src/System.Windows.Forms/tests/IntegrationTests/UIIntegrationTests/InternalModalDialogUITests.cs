@@ -71,6 +71,45 @@ public class InternalModalDialogUITests : ControlTestBase
         Assert.Equal(DialogResult.Cancel, dialog.ShowDialog());
     }
 
+    [UIFact]
+    public void MdiWindowDialog_ShowDialog_CancelButton_ReturnsCancel()
+    {
+        using MdiWindowDialogHost host = new();
+        using MdiWindowDialog dialog = CreateMdiWindowDialog(host.First, host.Second);
+        dialog.Shown += (sender, e) =>
+        {
+            Button cancelButton = (Button)dialog.Controls.Find("cancelButton", searchAllChildren: true).Single();
+            cancelButton.PerformClick();
+        };
+
+        Assert.Equal(DialogResult.Cancel, dialog.ShowDialog());
+    }
+
+    [UIFact]
+    public void MdiWindowDialog_ShowDialog_OkButton_ReturnsSelectedChild()
+    {
+        using MdiWindowDialogHost host = new();
+        using MdiWindowDialog dialog = CreateMdiWindowDialog(host.First, host.Second);
+        dialog.Shown += (sender, e) =>
+        {
+            ListBox itemList = (ListBox)dialog.Controls.Find("itemList", searchAllChildren: true).Single();
+            Button okButton = (Button)dialog.Controls.Find("okButton", searchAllChildren: true).Single();
+
+            itemList.SelectedIndex = 1;
+            okButton.PerformClick();
+        };
+
+        Assert.Equal(DialogResult.OK, dialog.ShowDialog());
+        Assert.Same(host.Second, dialog.ActiveChildForm);
+    }
+
+    private static MdiWindowDialog CreateMdiWindowDialog(Form first, Form second)
+    {
+        MdiWindowDialog dialog = new();
+        dialog.SetItems(first, [first, second]);
+        return dialog;
+    }
+
     private static GridErrorDialog CreateGridErrorDialog(PropertyGrid ownerGrid)
     {
         GridErrorDialog dialog = new(ownerGrid)
@@ -88,5 +127,47 @@ public class InternalModalDialogUITests : ControlTestBase
             ?? throw new MissingFieldException(instance.GetType().FullName, fieldName);
 
         return (T)field.GetValue(instance)!;
+    }
+
+    private sealed class MdiWindowDialogHost : IDisposable
+    {
+        public MdiWindowDialogHost()
+        {
+            Parent = new()
+            {
+                IsMdiContainer = true,
+                Text = "MDI parent"
+            };
+
+            First = new()
+            {
+                MdiParent = Parent,
+                Text = "First child"
+            };
+
+            Second = new()
+            {
+                MdiParent = Parent,
+                Text = "Second child"
+            };
+
+            Parent.Show();
+            First.Show();
+            Second.Show();
+            First.Activate();
+        }
+
+        public Form Parent { get; }
+
+        public Form First { get; }
+
+        public Form Second { get; }
+
+        public void Dispose()
+        {
+            Second.Dispose();
+            First.Dispose();
+            Parent.Dispose();
+        }
     }
 }

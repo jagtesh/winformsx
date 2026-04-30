@@ -201,7 +201,9 @@ Ordered by observed frequency across components and blocker blast radius:
       pathway as the managed common-dialog baselines. Focused
       `InternalModalDialogUITests` reports `Passed: 4, Failed: 0`, covering
       `ThreadExceptionDialog` and `GridErrorDialog` owner-close plus details
-      expansion.
+      expansion. Follow-up coverage now brings the same class to
+      `Passed: 6, Failed: 0` by adding `MdiWindowDialog` cancel and selected
+      child OK behavior.
   - Priority order moves to remaining high-impact infrastructure gaps:
     broader internal editor/status modal parity, real print provider/PDF output
     design, OS-native picker integration, then lower-volume

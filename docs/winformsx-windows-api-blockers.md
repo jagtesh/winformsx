@@ -121,7 +121,8 @@ compatibility-facade coverage.
   post a Win32-compatible owner idle notification on `Shown`, so ordinary
   WinForms modal forms can be closed through the same owner-driven automation
   path used by the managed common dialogs. Focused `ThreadExceptionDialog` and
-  `GridErrorDialog` owner-close/details-expansion coverage is now green.
+  `GridErrorDialog` owner-close/details-expansion coverage is now green, with
+  `MdiWindowDialog` cancel/OK selected-child coverage added as well.
 - First UIIntegration blockers observed:
   - `OLE32.dll` missing through `Application.ThreadContext.OleRequired()`,
     clipboard, and drag/drop paths. `InputLanguage.CurrentInputLanguage`,
@@ -146,9 +147,10 @@ compatibility-facade coverage.
     a focused visible-dialog baseline backed by managed bitmap preview pages
     instead of unsupported EMF/metafile recording. Ordinary managed modal forms
     now synthesize `WM_ENTERIDLE` for their owner on `Shown`; focused
-    `ThreadExceptionDialog` and `GridErrorDialog` coverage passes. Remaining
-    dialog work is broader managed service parity for internal editor/status
-    dialogs, OS-native picker integration, and richer print automation.
+    `ThreadExceptionDialog`, `GridErrorDialog`, and `MdiWindowDialog` coverage
+    passes. Remaining dialog work is broader managed service parity for
+    internal editor/status dialogs, OS-native picker integration, and richer
+    print automation.
   - `ToolStrip_Hiding_ToolStripMenuItem_OnDropDownClosed_ShouldNotThrow` and
     `ToolStrip_shared_imagelist_should_not_get_disposed_when_toolstrip_does`
     now pass in focused runs.
@@ -345,7 +347,8 @@ Impacted APIs and controls:
   and honor owner accept/cancel or public-API automation. Native common-dialog
   facade coverage exists for the first safe-cancel tier. Ordinary managed
   modal forms now synthesize `WM_ENTERIDLE` for their owner on `Shown`, and
-  focused `ThreadExceptionDialog` / `GridErrorDialog` coverage passes.
+  focused `ThreadExceptionDialog` / `GridErrorDialog` / `MdiWindowDialog`
+  coverage passes.
   OS-native picker integration and broader internal editor/status modal breadth
   remain incomplete.
 
@@ -718,8 +721,9 @@ cases were previously blockers and should remain regression targets:
   safe-cancel facade is covered; `PageSetupDialog` now has a visible managed
   baseline; `TaskDialog` now has a visible managed baseline; ordinary managed
   modal forms now notify their owner on idle and focused `ThreadExceptionDialog`
-  / `GridErrorDialog` coverage is green. OS-native picker integration and
-  broader internal editor/status modal breadth still need coverage.
+  / `GridErrorDialog` / `MdiWindowDialog` coverage is green. OS-native picker
+  integration and broader internal editor/status modal breadth still need
+  coverage.
 - [~] Print baseline: focused `PrintDialog` tests are green; no-printer
   `PrinterSettings`, direct `winspool.drv` defaults, private-core print
   `Global*` memory, invalid-printer validation, and basic
