@@ -342,4 +342,24 @@ internal static unsafe partial class ComHelpers
         typelib.Value->GetTypeInfoOfGuid(interfaceId, typeInfo).ThrowOnFailure();
         return typeInfo;
     }
+
+    /// <summary>
+    ///  Best-effort version of <see cref="GetRegisteredTypeInfo(Guid, ushort, ushort, Guid)"/> for compatibility
+    ///  layers where a registered system type library may not exist.
+    /// </summary>
+    public static ITypeInfo* TryGetRegisteredTypeInfo(
+        Guid typeLibrary,
+        ushort majorVersion,
+        ushort minorVersion,
+        Guid interfaceId)
+    {
+        try
+        {
+            return GetRegisteredTypeInfo(typeLibrary, majorVersion, minorVersion, interfaceId);
+        }
+        catch (COMException)
+        {
+            return null;
+        }
+    }
 }

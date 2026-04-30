@@ -12,7 +12,7 @@ internal abstract unsafe class UnknownDispatch : StandardDispatch<IUnknown>
     private static readonly Guid s_stdole = new("00020430-0000-0000-C000-000000000046");
 
     // We don't release the ITypeInfo to avoid unloading and reloading the standard OLE ITypeLib.
-    private static ITypeInfo* TypeInfo { get; } = ComHelpers.GetRegisteredTypeInfo(s_stdole, 2, 0, IUnknown.IID_Guid);
+    private static ITypeInfo* TypeInfo { get; } = ComHelpers.TryGetRegisteredTypeInfo(s_stdole, 2, 0, IUnknown.IID_Guid);
 
     public UnknownDispatch() : base(TypeInfo) { }
 }

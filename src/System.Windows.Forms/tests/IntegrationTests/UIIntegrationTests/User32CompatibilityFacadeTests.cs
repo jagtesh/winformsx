@@ -820,6 +820,30 @@ public class User32CompatibilityFacadeTests
         NativeOle32.OleUninitialize();
     }
 
+    [Fact]
+    public unsafe void DirectOleAut32DllImports_ResolveToWinFormsXFacade()
+    {
+        const int S_OK = 0;
+        const int TYPE_E_CANTLOADLIBRARY = unchecked((int)0x80029C4A);
+
+        nint bstr = NativeOleAut32.SysAllocString("WinFormsX");
+        Assert.NotEqual(0, bstr);
+        Assert.Equal(9u, NativeOleAut32.SysStringLen(bstr));
+        Assert.Equal(18u, NativeOleAut32.SysStringByteLen(bstr));
+        NativeOleAut32.SysFreeString(bstr);
+
+        nint typeLib;
+        Assert.Equal(TYPE_E_CANTLOADLIBRARY, NativeOleAut32.LoadRegTypeLib(null, 1, 0, 0, &typeLib));
+        Assert.Equal(0, typeLib);
+
+        NativeOleAut32.NativeVariant variant = default;
+        Assert.Equal(S_OK, NativeOleAut32.VariantClear(&variant));
+        Assert.Equal(0, variant.vt);
+
+        Assert.Equal(0, (nint)NativeOleAut32.SafeArrayCreate(0, 1, null));
+        Assert.Equal(S_OK, NativeOleAut32.SafeArrayDestroy(null));
+    }
+
     private sealed class EnvironmentOverride : IDisposable
     {
         private readonly string _name;
@@ -1481,5 +1505,44 @@ public class User32CompatibilityFacadeTests
 
         [DllImport(Ole32, ExactSpelling = true)]
         internal static extern int DoDragDrop(nint dataObject, nint dropSource, uint allowedEffects, uint* effect);
+    }
+
+    private static unsafe partial class NativeOleAut32
+    {
+        private const string OleAut32 = "OLEAUT32.dll";
+
+        [DllImport(OleAut32, ExactSpelling = true, CharSet = CharSet.Unicode)]
+        internal static extern nint SysAllocString(string value);
+
+        [DllImport(OleAut32, ExactSpelling = true)]
+        internal static extern void SysFreeString(nint value);
+
+        [DllImport(OleAut32, ExactSpelling = true)]
+        internal static extern uint SysStringLen(nint value);
+
+        [DllImport(OleAut32, ExactSpelling = true)]
+        internal static extern uint SysStringByteLen(nint value);
+
+        [DllImport(OleAut32, ExactSpelling = true)]
+        internal static extern int VariantClear(NativeVariant* variant);
+
+        [DllImport(OleAut32, ExactSpelling = true)]
+        internal static extern int LoadRegTypeLib(void* libId, ushort majorVersion, ushort minorVersion, uint lcid, nint* typeLib);
+
+        [DllImport(OleAut32, ExactSpelling = true)]
+        internal static extern void* SafeArrayCreate(ushort vt, uint dimensions, void* bounds);
+
+        [DllImport(OleAut32, ExactSpelling = true)]
+        internal static extern int SafeArrayDestroy(void* array);
+
+        internal struct NativeVariant
+        {
+            public ushort vt;
+            public ushort reserved1;
+            public ushort reserved2;
+            public ushort reserved3;
+            public nint data1;
+            public nint data2;
+        }
     }
 }

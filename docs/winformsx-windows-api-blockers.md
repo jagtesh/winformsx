@@ -241,9 +241,15 @@ compatibility-facade coverage.
   callers. Dark-mode and form-corner probes no longer depend on host DWMAPI
   resolution. The latest UXTHEME pass adds a native `UXTHEME.dll` facade for
   first-tier no-theme defaults covering theme open/close, theme metrics,
-  margins, simple text/background queries, and no-op draw acknowledgements.
+  margins, simple text/background queries, and no-op draw acknowledgements. The
+  latest OLEAUT32 pass adds first-tier direct-import coverage for BSTR
+  allocation/free/length, `VariantClear`, `PropVariantClear`, conservative
+  `LoadRegTypeLib` failure, and safe-array default behavior; dispatch
+  accessibility wrappers now tolerate absent registered type libraries and
+  return dispatch failure/default results instead of failing type
+  initialization.
   The latest broad UIIntegration snapshot is now green at
-  `Failed: 0, Passed: 253, Skipped: 1, Total: 254`.
+  `Failed: 0, Passed: 256, Skipped: 1, Total: 257`.
 - First UIIntegration blockers observed:
   - `OLE32.dll` missing through `Application.ThreadContext.OleRequired()`,
     clipboard, and drag/drop paths. `InputLanguage.CurrentInputLanguage`,
@@ -450,6 +456,11 @@ Plan:
   `CoInitializeEx`, `CoUninitialize`, `CoCreateInstance`, `CoGetClassObject`,
   `OleSetClipboard`, `OleGetClipboard`, `OleFlushClipboard`,
   `RegisterDragDrop`, `RevokeDragDrop`, and `DoDragDrop`.
+- Add an `OLEAUT32.dll` WinFormsX facade only for ABI-safe
+  source-compatibility APIs. The latest pass adds BSTR allocation/free/length,
+  `VariantClear`, `PropVariantClear`, deterministic missing-type-library
+  behavior for `LoadRegTypeLib`, and safe-array no-data defaults. Registered
+  type-library backed dispatch remains a richer COM/type-info gap.
 - Move core clipboard/data-object/drag-drop behavior into managed PAL services.
 - Keep IME v1 as a managed input-language/context state layer. Expand only
   toward actual composition/candidate behavior when tests require it.

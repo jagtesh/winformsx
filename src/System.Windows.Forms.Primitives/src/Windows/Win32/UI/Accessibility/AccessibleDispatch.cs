@@ -14,7 +14,7 @@ internal abstract unsafe class AccessibleDispatch : StandardDispatch<IAccessible
     private static readonly Guid s_accessibilityTypeLib = new("1ea4dbf0-3c3b-11cf-810c-00aa00389b71");
 
     // We don't release the ITypeInfo to avoid unloading and reloading the IAccessible ITypeLib.
-    private static ITypeInfo* TypeInfo { get; } = ComHelpers.GetRegisteredTypeInfo(s_accessibilityTypeLib, 1, 1, IAccessible.IID_Guid);
+    private static ITypeInfo* TypeInfo { get; } = ComHelpers.TryGetRegisteredTypeInfo(s_accessibilityTypeLib, 1, 1, IAccessible.IID_Guid);
 
     public AccessibleDispatch() : base(TypeInfo) { }
 

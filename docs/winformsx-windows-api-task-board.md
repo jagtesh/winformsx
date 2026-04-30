@@ -135,6 +135,12 @@ Ordered by observed frequency across components and blocker blast radius:
       packaged native facade for first-tier initialization, class-activation
       failure, OLE clipboard pointer storage, drag/drop registration state,
       and cancelled `DoDragDrop` defaults.
+    - Direct source-compatible `OLEAUT32.dll` imports now resolve through a
+      packaged native facade for first-tier BSTR allocation/free/length,
+      variant clearing, conservative missing-type-library results, and
+      safe-array default behavior. `StandardDispatch` now tolerates missing
+      registered type libraries so accessibility dispatch objects can construct
+      without host OLEAUT type-library registration.
     - `ImageList.GetBitmap` now tolerates WinFormsX synthetic bitmap handles
       returned by managed/common-control image-list state and falls back to the
       existing draw path instead of failing through `Image.FromHbitmap`.
@@ -144,7 +150,7 @@ Ordered by observed frequency across components and blocker blast radius:
     - Verification:
       `WinformsControlsTest --control-smoke-test` ->
       `total=42 passed=41 failed=0 skipped=1`; full UIIntegration ->
-      `Failed: 0, Passed: 255, Skipped: 1, Total: 256`.
+      `Failed: 0, Passed: 256, Skipped: 1, Total: 257`.
   - Added WinFormsX virtual-window handling for ToolStrip dropdown overlays and
     hidden dropdown owner windows so they no longer create nested Silk/GLFW
     windows during UIIntegration runs.
@@ -999,6 +1005,7 @@ Ordered by observed frequency across components and blocker blast radius:
 - [~] WXA-1103: Implement `RevokeDragDrop`/`RegisterDragDrop`/`DoDragDrop` event flow and default drop effects. Managed WinForms drag/drop event flow is covered, and the native `OLE32.dll` facade now tracks direct registration/revocation state and returns cancelled default drag effects; richer native drop-target callback flow remains.
 - [x] WXA-1104: Implement `OleInitialize` + `InputLanguage.CurrentInputLanguage` to unblock data-grid and IME-dependent paths.
 - [x] WXA-1105: Implement first-tier IME context state and `IMM32.dll` source-compatibility facade (`ImmGetContext`, `ImmReleaseContext`, open/conversion status, notify, create, associate).
+- [~] WXA-1106: Implement first-tier `OLEAUT32.dll` source-compatibility facade and type-library fallback. BSTR allocation/free/length, `VariantClear`, `PropVariantClear`, deterministic `LoadRegTypeLib` failure, safe-array no-data defaults, and null-type-info dispatch construction are covered; real `ITypeLib`/`ITypeInfo` and full SAFEARRAY behavior remain.
 
 ## Dialog and Common Controls
 

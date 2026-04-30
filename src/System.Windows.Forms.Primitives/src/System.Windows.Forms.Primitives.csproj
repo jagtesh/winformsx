@@ -87,6 +87,9 @@
     <WinFormsXOle32ShimSource>$(MSBuildProjectDirectory)/Native/Ole32Shim/winformsx_ole32.c</WinFormsXOle32ShimSource>
     <WinFormsXOle32ShimOutputDirectory>$(IntermediateOutputPath)winformsx-ole32/</WinFormsXOle32ShimOutputDirectory>
     <WinFormsXOle32ShimBinary>$(WinFormsXOle32ShimOutputDirectory)OLE32.dll</WinFormsXOle32ShimBinary>
+    <WinFormsXOleAut32ShimSource>$(MSBuildProjectDirectory)/Native/OleAut32Shim/winformsx_oleaut32.c</WinFormsXOleAut32ShimSource>
+    <WinFormsXOleAut32ShimOutputDirectory>$(IntermediateOutputPath)winformsx-oleaut32/</WinFormsXOleAut32ShimOutputDirectory>
+    <WinFormsXOleAut32ShimBinary>$(WinFormsXOleAut32ShimOutputDirectory)OLEAUT32.dll</WinFormsXOleAut32ShimBinary>
   </PropertyGroup>
 
   <ItemGroup Condition="'$(OS)' != 'Windows_NT'">
@@ -170,6 +173,15 @@
     <None Include="$(WinFormsXOle32ShimOutputDirectory)libOLE32.dll.so" TargetPath="libOLE32.dll.so" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
     <None Include="$(WinFormsXOle32ShimOutputDirectory)OLE32.dll.so" TargetPath="OLE32.dll.so" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
     <None Include="$(WinFormsXOle32ShimOutputDirectory)libole32.so" TargetPath="libole32.so" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+    <None Include="$(WinFormsXOleAut32ShimOutputDirectory)OLEAUT32.dll" TargetPath="OLEAUT32.dll" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" />
+    <None Include="$(WinFormsXOleAut32ShimOutputDirectory)oleaut32.dll" TargetPath="oleaut32.dll" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" />
+    <None Include="$(WinFormsXOleAut32ShimOutputDirectory)oleaut32" TargetPath="oleaut32" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" />
+    <None Include="$(WinFormsXOleAut32ShimOutputDirectory)OLEAUT32.dll.dylib" TargetPath="OLEAUT32.dll.dylib" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+    <None Include="$(WinFormsXOleAut32ShimOutputDirectory)libOLEAUT32.dll.dylib" TargetPath="libOLEAUT32.dll.dylib" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+    <None Include="$(WinFormsXOleAut32ShimOutputDirectory)liboleaut32.dylib" TargetPath="liboleaut32.dylib" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+    <None Include="$(WinFormsXOleAut32ShimOutputDirectory)libOLEAUT32.dll.so" TargetPath="libOLEAUT32.dll.so" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+    <None Include="$(WinFormsXOleAut32ShimOutputDirectory)OLEAUT32.dll.so" TargetPath="OLEAUT32.dll.so" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+    <None Include="$(WinFormsXOleAut32ShimOutputDirectory)liboleaut32.so" TargetPath="liboleaut32.so" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
   </ItemGroup>
 
   <Target Name="BuildWinFormsXKernel32Shim"
@@ -349,6 +361,26 @@
     <Copy SourceFiles="$(WinFormsXOle32ShimBinary)" DestinationFiles="$(WinFormsXOle32ShimOutputDirectory)libOLE32.dll.so" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
     <Copy SourceFiles="$(WinFormsXOle32ShimBinary)" DestinationFiles="$(WinFormsXOle32ShimOutputDirectory)OLE32.dll.so" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
     <Copy SourceFiles="$(WinFormsXOle32ShimBinary)" DestinationFiles="$(WinFormsXOle32ShimOutputDirectory)libole32.so" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+  </Target>
+
+  <Target Name="BuildWinFormsXOleAut32Shim"
+          BeforeTargets="PrepareForBuild;GetCopyToOutputDirectoryItems"
+          Inputs="$(WinFormsXOleAut32ShimSource)"
+          Outputs="$(WinFormsXOleAut32ShimBinary)"
+          Condition="'$(OS)' != 'Windows_NT'">
+    <MakeDir Directories="$(WinFormsXOleAut32ShimOutputDirectory)" />
+    <Exec Condition="$([MSBuild]::IsOSPlatform('OSX'))"
+          Command="cc -dynamiclib -fvisibility=hidden &quot;$(WinFormsXOleAut32ShimSource)&quot; -o &quot;$(WinFormsXOleAut32ShimBinary)&quot;" />
+    <Exec Condition="$([MSBuild]::IsOSPlatform('Linux'))"
+          Command="cc -shared -fPIC -fvisibility=hidden &quot;$(WinFormsXOleAut32ShimSource)&quot; -o &quot;$(WinFormsXOleAut32ShimBinary)&quot;" />
+    <Copy SourceFiles="$(WinFormsXOleAut32ShimBinary)" DestinationFiles="$(WinFormsXOleAut32ShimOutputDirectory)oleaut32.dll" />
+    <Copy SourceFiles="$(WinFormsXOleAut32ShimBinary)" DestinationFiles="$(WinFormsXOleAut32ShimOutputDirectory)oleaut32" />
+    <Copy SourceFiles="$(WinFormsXOleAut32ShimBinary)" DestinationFiles="$(WinFormsXOleAut32ShimOutputDirectory)OLEAUT32.dll.dylib" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+    <Copy SourceFiles="$(WinFormsXOleAut32ShimBinary)" DestinationFiles="$(WinFormsXOleAut32ShimOutputDirectory)libOLEAUT32.dll.dylib" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+    <Copy SourceFiles="$(WinFormsXOleAut32ShimBinary)" DestinationFiles="$(WinFormsXOleAut32ShimOutputDirectory)liboleaut32.dylib" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+    <Copy SourceFiles="$(WinFormsXOleAut32ShimBinary)" DestinationFiles="$(WinFormsXOleAut32ShimOutputDirectory)libOLEAUT32.dll.so" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+    <Copy SourceFiles="$(WinFormsXOleAut32ShimBinary)" DestinationFiles="$(WinFormsXOleAut32ShimOutputDirectory)OLEAUT32.dll.so" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+    <Copy SourceFiles="$(WinFormsXOleAut32ShimBinary)" DestinationFiles="$(WinFormsXOleAut32ShimOutputDirectory)liboleaut32.so" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
   </Target>
 
 </Project>

@@ -31,30 +31,31 @@ internal abstract unsafe class StandardDispatch<T> : IDispatch.Interface, IDispa
     /// </param>
     public StandardDispatch(ITypeInfo* typeInfo, object? instance = default)
     {
-        if (typeInfo is null)
-        {
-            throw new ArgumentNullException(nameof(typeInfo));
-        }
-
         _instance = instance ?? this;
 
 #if DEBUG
-        typeInfo->GetTypeAttr(out TYPEATTR* typeAttributes).ThrowOnFailure();
-        try
+        if (typeInfo is not null)
         {
-            if (typeAttributes->guid != T.Guid)
+            typeInfo->GetTypeAttr(out TYPEATTR* typeAttributes).ThrowOnFailure();
+            try
             {
-                throw new ArgumentException("Interface guid doesn't match type info", nameof(typeInfo));
+                if (typeAttributes->guid != T.Guid)
+                {
+                    throw new ArgumentException("Interface guid doesn't match type info", nameof(typeInfo));
+                }
             }
-        }
-        finally
-        {
-            typeInfo->ReleaseTypeAttr(typeAttributes);
+            finally
+            {
+                typeInfo->ReleaseTypeAttr(typeAttributes);
+            }
         }
 #endif
 
         _typeInfo = typeInfo;
-        _typeInfo->AddRef();
+        if (_typeInfo is not null)
+        {
+            _typeInfo->AddRef();
+        }
     }
 
     HRESULT IDispatch.Interface.GetTypeInfoCount(uint* pctinfo)
@@ -64,7 +65,7 @@ internal abstract unsafe class StandardDispatch<T> : IDispatch.Interface, IDispa
             return HRESULT.E_POINTER;
         }
 
-        *pctinfo = 1;
+        *pctinfo = _typeInfo is null ? 0u : 1u;
         return HRESULT.S_OK;
     }
 
@@ -75,7 +76,7 @@ internal abstract unsafe class StandardDispatch<T> : IDispatch.Interface, IDispa
             return HRESULT.E_POINTER;
         }
 
-        if (iTInfo != 0)
+        if (_typeInfo is null || iTInfo != 0)
         {
             *ppTInfo = null;
             return HRESULT.DISP_E_BADINDEX;
@@ -94,7 +95,7 @@ internal abstract unsafe class StandardDispatch<T> : IDispatch.Interface, IDispa
             return HRESULT.DISP_E_UNKNOWNINTERFACE;
         }
 
-        return _typeInfo->GetIDsOfNames(rgszNames, cNames, rgDispId);
+        return _typeInfo is null ? HRESULT.DISP_E_UNKNOWNNAME : _typeInfo->GetIDsOfNames(rgszNames, cNames, rgDispId);
     }
 
     HRESULT IDispatch.Interface.Invoke(
@@ -127,6 +128,11 @@ internal abstract unsafe class StandardDispatch<T> : IDispatch.Interface, IDispa
         }
 
         // The override couldn't find it, pass it along via the ITypeInfo.
+        if (_typeInfo is null)
+        {
+            return HRESULT.DISP_E_MEMBERNOTFOUND;
+        }
+
         using ComScope<T> @interface = new(ComHelpers.GetComPointer<T>(_instance));
         return _typeInfo->Invoke(@interface, dispIdMember, wFlags, pDispParams, pVarResult, pExcepInfo, pArgErr);
     }
@@ -184,6 +190,11 @@ internal abstract unsafe class StandardDispatch<T> : IDispatch.Interface, IDispa
         }
 
         // The override couldn't find it, pass it along via the ITypeInfo.
+        if (_typeInfo is null)
+        {
+            return HRESULT.DISP_E_MEMBERNOTFOUND;
+        }
+
         using ComScope<T> @interface = new(ComHelpers.GetComPointer<T>(_instance));
         return _typeInfo->Invoke(@interface, id, (DISPATCH_FLAGS)wFlags, pdp, pvarRes, pei, puArgErr: null);
     }
