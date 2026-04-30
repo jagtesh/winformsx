@@ -76,9 +76,13 @@ compatibility-facade coverage.
   surface. The latest private-core system-parameter pass removes the remaining
   host-API split from `PInvokeCore.SystemParametersInfo` and
   `TrySystemParametersInfoForDpi`, so private core metric callers now use the
-  deterministic managed compatibility implementation on the same path. Full
-  UIIntegration and controls smoke remain stable after this pass. Larger
-  provider and dialog/print gaps remain tracked below.
+  deterministic managed compatibility implementation on the same path. The
+  latest drawing-resource pass also removes OS guards from Impeller native
+  library selection and font-file discovery: native Impeller candidates now
+  derive from the runtime identifier, stale wrong-format libraries still fail
+  loudly, and font lookup probes known packaged/system locations with missing
+  directories ignored. Full UIIntegration and controls smoke remain stable after
+  this pass. Larger provider and dialog/print gaps remain tracked below.
 - First UIIntegration blockers observed:
   - `OLE32.dll` missing through `Application.ThreadContext.OleRequired()`,
     `InputLanguage.CurrentInputLanguage`, IME, clipboard, and drag/drop paths.
@@ -618,7 +622,7 @@ cases were previously blockers and should remain regression targets:
 - [ ] USER32 tier expansion: geometry/menu/message APIs used by UI tests.
 - [ ] KERNEL32 tier expansion: minimal module/resource and last-error semantics.
 - [ ] COMCTL32/ImageList tier: image list ops required by ListView/TreeView tests.
-- [ ] Shell/resources tier: stock icons/cursors/resource resolver centralization.
+- [~] Shell/resources tier: stock icons/cursors/resource resolver centralization.
 - [ ] RichText tier: drag/drop + link/range compatibility follow-ups.
 - [ ] Accessibility tier: PropertyGrid/ListView/ToolStrip UIA parity gaps.
 - [ ] Theme/DPI tier: deterministic WinFormsX UXTHEME/DWM/SHCore behavior.

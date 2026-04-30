@@ -50,10 +50,18 @@ Ordered by observed frequency across components and blocker blast radius:
       `TrySystemParametersInfoForDpi` now use the managed compatibility
       implementation directly, removing the remaining host-API branch for high
       contrast and non-client metric callers.
+    - Impeller native library resolution now derives the expected asset name and
+      RID fallback from `RuntimeInformation.RuntimeIdentifier`, while still
+      throwing on stale wrong-format native assets in the output directory.
+    - Font discovery no longer branches by OS; it probes the known packaged,
+      user, and system font directories on the single WinFormsX path and simply
+      skips absent locations.
     - Verification:
       `WinformsControlsTest --control-smoke-test` ->
       `total=42 passed=41 failed=0 skipped=1`; full UIIntegration ->
-      `Failed: 0, Passed: 191, Skipped: 1, Total: 192`.
+      `Failed: 0, Passed: 191, Skipped: 1, Total: 192`. One quiet broad
+      UIIntegration retry surfaced `Application_OpenForms_RecreateHandle` once,
+      but the focused case and a normal-console broad rerun passed.
   - Added WinFormsX virtual-window handling for ToolStrip dropdown overlays and
     hidden dropdown owner windows so they no longer create nested Silk/GLFW
     windows during UIIntegration runs.

@@ -61,56 +61,28 @@ public static partial class NativeMethods
     private static string[] GetPlatformImpellerCandidates(string baseDirectory)
     {
         string rid = global::System.Runtime.InteropServices.RuntimeInformation.RuntimeIdentifier;
-        if (global::System.OperatingSystem.IsMacOS())
-        {
-            string archRid = global::System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture == Architecture.Arm64
-                ? "osx-arm64"
-                : "osx-x64";
-            return
-            [
-                global::System.IO.Path.Combine(baseDirectory, "libimpeller.dylib"),
-                global::System.IO.Path.Combine(baseDirectory, "runtimes", rid, "native", "libimpeller.dylib"),
-                global::System.IO.Path.Combine(baseDirectory, "runtimes", archRid, "native", "libimpeller.dylib"),
-            ];
-        }
-
-        if (global::System.OperatingSystem.IsLinux())
-        {
-            string archRid = global::System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture == Architecture.Arm64
-                ? "linux-arm64"
-                : "linux-x64";
-            return
-            [
-                global::System.IO.Path.Combine(baseDirectory, "libimpeller.so"),
-                global::System.IO.Path.Combine(baseDirectory, "runtimes", rid, "native", "libimpeller.so"),
-                global::System.IO.Path.Combine(baseDirectory, "runtimes", archRid, "native", "libimpeller.so"),
-            ];
-        }
-
-        if (global::System.OperatingSystem.IsWindows())
-        {
-            string archRid = global::System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture == Architecture.Arm64
-                ? "win-arm64"
-                : "win-x64";
-            return
-            [
-                global::System.IO.Path.Combine(baseDirectory, "impeller.dll"),
-                global::System.IO.Path.Combine(baseDirectory, "runtimes", rid, "native", "impeller.dll"),
-                global::System.IO.Path.Combine(baseDirectory, "runtimes", archRid, "native", "impeller.dll"),
-            ];
-        }
-
-        return [];
+        string fileName = GetExpectedImpellerFileName(rid);
+        string archRid = GetPortableRuntimeId(rid);
+        return
+        [
+            global::System.IO.Path.Combine(baseDirectory, fileName),
+            global::System.IO.Path.Combine(baseDirectory, "runtimes", rid, "native", fileName),
+            global::System.IO.Path.Combine(baseDirectory, "runtimes", archRid, "native", fileName),
+        ];
     }
 
     private static string? FindIncompatibleImpellerBinary(string baseDirectory)
     {
-        string[] incompatibleNames = global::System.OperatingSystem.IsWindows()
-            ? ["libimpeller.dylib", "libimpeller.so"]
-            : ["impeller.dll"];
+        string expectedName = GetExpectedImpellerFileName();
+        string[] incompatibleNames = ["impeller.dll", "libimpeller.dylib", "libimpeller.so"];
 
         foreach (string name in incompatibleNames)
         {
+            if (string.Equals(name, expectedName, global::System.StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
             string candidate = global::System.IO.Path.Combine(baseDirectory, name);
             if (global::System.IO.File.Exists(candidate))
             {
@@ -122,18 +94,42 @@ public static partial class NativeMethods
     }
 
     private static string GetExpectedImpellerFileName()
+        => GetExpectedImpellerFileName(global::System.Runtime.InteropServices.RuntimeInformation.RuntimeIdentifier);
+
+    private static string GetExpectedImpellerFileName(string runtimeIdentifier)
     {
-        if (global::System.OperatingSystem.IsMacOS())
+        if (runtimeIdentifier.StartsWith("osx-", global::System.StringComparison.OrdinalIgnoreCase)
+            || runtimeIdentifier.StartsWith("maccatalyst-", global::System.StringComparison.OrdinalIgnoreCase))
         {
             return "libimpeller.dylib";
         }
 
-        if (global::System.OperatingSystem.IsLinux())
+        if (runtimeIdentifier.StartsWith("linux-", global::System.StringComparison.OrdinalIgnoreCase))
         {
             return "libimpeller.so";
         }
 
         return "impeller.dll";
+    }
+
+    private static string GetPortableRuntimeId(string runtimeIdentifier)
+    {
+        string arch = global::System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture == Architecture.Arm64
+            ? "arm64"
+            : "x64";
+
+        if (runtimeIdentifier.StartsWith("osx-", global::System.StringComparison.OrdinalIgnoreCase)
+            || runtimeIdentifier.StartsWith("maccatalyst-", global::System.StringComparison.OrdinalIgnoreCase))
+        {
+            return $"osx-{arch}";
+        }
+
+        if (runtimeIdentifier.StartsWith("linux-", global::System.StringComparison.OrdinalIgnoreCase))
+        {
+            return $"linux-{arch}";
+        }
+
+        return $"win-{arch}";
     }
 
     // ─── Version ──────────────────────────────────────────────────────────

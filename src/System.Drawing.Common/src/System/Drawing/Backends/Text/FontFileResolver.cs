@@ -113,33 +113,20 @@ internal static class FontFileResolver
 
     private static string[] GetSearchDirectories()
     {
-        if (OperatingSystem.IsMacOS())
-        {
-            return
-            [
-                "/System/Library/Fonts",
-                "/System/Library/Fonts/Supplemental",
-                "/Library/Fonts",
-                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Library", "Fonts"),
-            ];
-        }
-
-        if (OperatingSystem.IsWindows())
-        {
-            string fonts = Environment.GetFolderPath(Environment.SpecialFolder.Fonts);
-            return
-            [
-                fonts,
-                @"C:\Windows\Fonts",
-            ];
-        }
-
+        string profile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        string fonts = Environment.GetFolderPath(Environment.SpecialFolder.Fonts);
         return
         [
+            fonts,
+            @"C:\Windows\Fonts",
+            "/System/Library/Fonts",
+            "/System/Library/Fonts/Supplemental",
+            "/Library/Fonts",
+            Path.Combine(profile, "Library", "Fonts"),
             "/usr/share/fonts",
             "/usr/local/share/fonts",
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".fonts"),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".local", "share", "fonts"),
+            Path.Combine(profile, ".fonts"),
+            Path.Combine(profile, ".local", "share", "fonts"),
         ];
     }
 
