@@ -407,7 +407,7 @@ public sealed partial class ListViewGroup : ISerializable
 
         if (!state.HasFlag(LIST_VIEW_GROUP_STATE_FLAGS.LVGS_COLLAPSIBLE))
         {
-            return ListViewGroupCollapsedState.Default;
+            return _collapsedState;
         }
 
         return state.HasFlag(LIST_VIEW_GROUP_STATE_FLAGS.LVGS_COLLAPSED) ? ListViewGroupCollapsedState.Collapsed : ListViewGroupCollapsedState.Expanded;

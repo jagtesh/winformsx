@@ -21,10 +21,10 @@ internal readonly partial struct WPARAM
     public static explicit operator BOOL(WPARAM value) => (BOOL)(nint)value.Value;
     public static explicit operator WPARAM(BOOL value) => new((nuint)(nint)value);
 
-    public static explicit operator int(WPARAM value) => (int)(nint)value.Value;
+    public static explicit operator int(WPARAM value) => unchecked((int)(nint)value.Value);
     public static explicit operator uint(WPARAM value) => (uint)value.Value;
-    public static explicit operator nint(WPARAM value) => (nint)value.Value;
-    public static explicit operator WPARAM(int value) => new((nuint)(nint)value);
+    public static explicit operator nint(WPARAM value) => unchecked((nint)value.Value);
+    public static explicit operator WPARAM(int value) => new(unchecked((nuint)(nint)value));
 
     public static explicit operator WPARAM(char value) => new(value);
 

@@ -2,6 +2,8 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Collections.Concurrent;
+using System.Drawing;
+using Windows.Win32.UI.Input.KeyboardAndMouse;
 
 namespace System.Windows.Forms.Platform;
 
@@ -24,6 +26,8 @@ internal sealed class ImpellerMessageInterop : IMessageInterop
     private readonly ConcurrentQueue<ImpellerMessage> _messageQueue = new();
     private readonly Dictionary<string, uint> _registeredMessages = [];
     private readonly Dictionary<HWND, TextSelectionState> _textSelections = [];
+    private readonly Dictionary<HWND, ListViewTileViewState> _listViewTileViews = [];
+    private readonly HashSet<HWND> _listViewGroupHeaderFocus = [];
     private uint _nextRegisteredMessage = 0xC000; // WM_APP range
 
     public LRESULT SendMessage(HWND hWnd, uint msg, WPARAM wParam, LPARAM lParam)
@@ -35,6 +39,11 @@ internal sealed class ImpellerMessageInterop : IMessageInterop
         if (TryHandleTextBoxMessage(hWnd, msg, wParam, lParam, out LRESULT textResult))
         {
             return textResult;
+        }
+
+        if (TryHandleListViewMessage(hWnd, msg, wParam, lParam, out LRESULT listViewResult))
+        {
+            return listViewResult;
         }
 
         if (msg == PInvoke.LVM_ENABLEGROUPVIEW
@@ -181,6 +190,486 @@ internal sealed class ImpellerMessageInterop : IMessageInterop
         }
     }
 
+    private unsafe bool TryHandleListViewMessage(HWND hWnd, uint msg, WPARAM wParam, LPARAM lParam, out LRESULT result)
+    {
+        result = (LRESULT)0;
+        if (Control.FromHandle(hWnd) is not ListView)
+        {
+            return false;
+        }
+
+        switch (msg)
+        {
+            case PInvoke.LVM_SETTILEVIEWINFO:
+            {
+                if ((nint)lParam == 0)
+                {
+                    return true;
+                }
+
+                LVTILEVIEWINFO* info = (LVTILEVIEWINFO*)(nint)lParam;
+                _listViewTileViews.TryGetValue(hWnd, out ListViewTileViewState state);
+                if (info->dwMask.HasFlag(LVTILEVIEWINFO_MASK.LVTVIM_TILESIZE))
+                {
+                    state = state with { TileSize = info->sizeTile };
+                }
+
+                if (info->dwMask.HasFlag(LVTILEVIEWINFO_MASK.LVTVIM_COLUMNS))
+                {
+                    state = state with { ColumnCount = info->cLines };
+                }
+
+                _listViewTileViews[hWnd] = state;
+                result = (LRESULT)1;
+                return true;
+            }
+
+            case PInvoke.LVM_GETTILEVIEWINFO:
+            {
+                if ((nint)lParam == 0)
+                {
+                    return true;
+                }
+
+                LVTILEVIEWINFO* info = (LVTILEVIEWINFO*)(nint)lParam;
+                _listViewTileViews.TryGetValue(hWnd, out ListViewTileViewState state);
+                if (info->dwMask.HasFlag(LVTILEVIEWINFO_MASK.LVTVIM_TILESIZE))
+                {
+                    info->sizeTile = state.TileSize;
+                }
+
+                if (info->dwMask.HasFlag(LVTILEVIEWINFO_MASK.LVTVIM_COLUMNS))
+                {
+                    info->cLines = state.ColumnCount;
+                }
+
+                result = (LRESULT)1;
+                return true;
+            }
+
+            case PInvoke.LVM_GETITEMRECT:
+            {
+                if ((nint)lParam == 0)
+                {
+                    return true;
+                }
+
+                ListView listView = (ListView)Control.FromHandle(hWnd)!;
+                int itemIndex = (int)wParam;
+                if (itemIndex < 0 || itemIndex >= listView.Items.Count)
+                {
+                    result = (LRESULT)0;
+                    return true;
+                }
+
+                RECT* bounds = (RECT*)(nint)lParam;
+                SetRect(bounds, GetListViewItemBounds(listView, itemIndex));
+                result = (LRESULT)1;
+                return true;
+            }
+
+            case PInvoke.LVM_GETSUBITEMRECT:
+            {
+                if ((nint)lParam == 0)
+                {
+                    return true;
+                }
+
+                ListView listView = (ListView)Control.FromHandle(hWnd)!;
+                int itemIndex = (int)wParam;
+                RECT* bounds = (RECT*)(nint)lParam;
+                if (!IsValidListViewSubItemRequest(listView, itemIndex, bounds->top))
+                {
+                    result = (LRESULT)0;
+                    return true;
+                }
+
+                Rectangle subItemBounds = GetListViewSubItemBounds(listView, itemIndex, bounds->top);
+                if (subItemBounds.IsEmpty)
+                {
+                    SetRect(bounds, Rectangle.Empty);
+                    result = (LRESULT)1;
+                    return true;
+                }
+
+                SetRect(bounds, subItemBounds);
+                result = (LRESULT)1;
+                return true;
+            }
+
+            case PInvoke.LVM_HITTEST:
+            case PInvoke.LVM_SUBITEMHITTEST:
+            {
+                if ((nint)lParam == 0)
+                {
+                    result = (LRESULT)(-1);
+                    return true;
+                }
+
+                ListView listView = (ListView)Control.FromHandle(hWnd)!;
+                LVHITTESTINFO* hitTestInfo = (LVHITTESTINFO*)(nint)lParam;
+                int itemIndex = HitTestListView(listView, hitTestInfo->pt, out int subItemIndex);
+                hitTestInfo->iItem = itemIndex;
+                hitTestInfo->iSubItem = itemIndex >= 0 ? subItemIndex : 0;
+                hitTestInfo->flags = itemIndex >= 0
+                    ? LVHITTESTINFO_FLAGS.LVHT_ONITEMLABEL
+                    : LVHITTESTINFO_FLAGS.LVHT_NOWHERE;
+                result = (LRESULT)itemIndex;
+                return true;
+            }
+
+            case PInvoke.LVM_GETITEMSTATE:
+            {
+                ListView listView = (ListView)Control.FromHandle(hWnd)!;
+                int itemIndex = (int)wParam;
+                if (itemIndex < 0 || itemIndex >= listView.Items.Count)
+                {
+                    result = (LRESULT)0;
+                    return true;
+                }
+
+                LIST_VIEW_ITEM_STATE_FLAGS mask = (LIST_VIEW_ITEM_STATE_FLAGS)(uint)(nint)lParam;
+                result = (LRESULT)(nint)(uint)(GetListViewItemState(listView, itemIndex) & mask);
+                return true;
+            }
+
+            case PInvoke.LVM_SETITEMSTATE:
+            {
+                if ((nint)lParam == 0)
+                {
+                    return true;
+                }
+
+                ListView listView = (ListView)Control.FromHandle(hWnd)!;
+                LVITEMW* itemState = (LVITEMW*)(nint)lParam;
+                int itemIndex = (int)wParam;
+                SetListViewItemState(listView, itemIndex, itemState->state, itemState->stateMask);
+                result = (LRESULT)1;
+                return true;
+            }
+
+            case PInvoke.LVM_GETSELECTEDCOUNT:
+            {
+                ListView listView = (ListView)Control.FromHandle(hWnd)!;
+                result = (LRESULT)GetSelectedListViewItemCount(listView);
+                return true;
+            }
+
+            case PInvoke.LVM_GETNEXTITEM:
+            {
+                ListView listView = (ListView)Control.FromHandle(hWnd)!;
+                int startIndex = (int)wParam;
+                int flags = (int)(nint)lParam;
+                result = (LRESULT)GetNextListViewItem(listView, startIndex, flags);
+                return true;
+            }
+
+            case PInvoke.WM_KEYDOWN:
+            {
+                ListView listView = (ListView)Control.FromHandle(hWnd)!;
+                if (TryMoveListViewSelection(hWnd, listView, (VIRTUAL_KEY)(uint)(nint)wParam))
+                {
+                    result = (LRESULT)0;
+                    return true;
+                }
+
+                break;
+            }
+        }
+
+        return false;
+    }
+
+    private static LIST_VIEW_ITEM_STATE_FLAGS GetListViewItemState(ListView listView, int itemIndex)
+    {
+        ListViewItem item = listView.Items[itemIndex];
+        LIST_VIEW_ITEM_STATE_FLAGS state = item.RawStateImageIndex;
+        if (item.StateSelected)
+        {
+            state |= LIST_VIEW_ITEM_STATE_FLAGS.LVIS_SELECTED | LIST_VIEW_ITEM_STATE_FLAGS.LVIS_FOCUSED;
+        }
+
+        if (ReferenceEquals(listView._selectedItem, item))
+        {
+            state |= LIST_VIEW_ITEM_STATE_FLAGS.LVIS_FOCUSED;
+        }
+
+        return state;
+    }
+
+    private static void SetListViewItemState(
+        ListView listView,
+        int itemIndex,
+        LIST_VIEW_ITEM_STATE_FLAGS state,
+        LIST_VIEW_ITEM_STATE_FLAGS stateMask)
+    {
+        int start = itemIndex == -1 ? 0 : itemIndex;
+        int end = itemIndex == -1 ? listView.Items.Count : Math.Min(itemIndex + 1, listView.Items.Count);
+        for (int i = start; i < end; i++)
+        {
+            ListViewItem item = listView.Items[i];
+            if (stateMask.HasFlag(LIST_VIEW_ITEM_STATE_FLAGS.LVIS_SELECTED))
+            {
+                item.StateSelected = state.HasFlag(LIST_VIEW_ITEM_STATE_FLAGS.LVIS_SELECTED);
+                if (item.StateSelected)
+                {
+                    listView._selectedItem = item;
+                }
+                else if (ReferenceEquals(listView._selectedItem, item))
+                {
+                    listView._selectedItem = null;
+                }
+            }
+        }
+    }
+
+    private static int GetSelectedListViewItemCount(ListView listView)
+    {
+        int count = 0;
+        foreach (ListViewItem item in listView.Items)
+        {
+            if (item.StateSelected)
+            {
+                count++;
+            }
+        }
+
+        return count;
+    }
+
+    private static int GetNextListViewItem(ListView listView, int startIndex, int flags)
+    {
+        bool selected = (flags & PInvoke.LVNI_SELECTED) != 0;
+        bool focused = (flags & PInvoke.LVNI_FOCUSED) != 0;
+        for (int i = Math.Max(-1, startIndex) + 1; i < listView.Items.Count; i++)
+        {
+            ListViewItem item = listView.Items[i];
+            if ((selected && item.StateSelected) || (focused && ReferenceEquals(listView._selectedItem, item)))
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+    private bool TryMoveListViewSelection(HWND hWnd, ListView listView, VIRTUAL_KEY key)
+    {
+        if (listView.Items.Count == 0)
+        {
+            return false;
+        }
+
+        if (TryApplyListViewGroupKey(hWnd, listView, key))
+        {
+            return true;
+        }
+
+        if (key is not (VIRTUAL_KEY.VK_LEFT or VIRTUAL_KEY.VK_RIGHT))
+        {
+            return false;
+        }
+
+        int selectedIndex = listView._selectedItem is null ? -1 : listView.ManagedIndexOf(listView._selectedItem);
+        if (selectedIndex < 0)
+        {
+            for (int i = 0; i < listView.Items.Count; i++)
+            {
+                if (listView.Items[i].StateSelected)
+                {
+                    selectedIndex = i;
+                    break;
+                }
+            }
+        }
+
+        int nextIndex = key == VIRTUAL_KEY.VK_RIGHT
+            ? Math.Min(listView.Items.Count - 1, selectedIndex + 1)
+            : Math.Max(0, selectedIndex - 1);
+        if (nextIndex < 0 || nextIndex == selectedIndex)
+        {
+            return true;
+        }
+
+        for (int i = 0; i < listView.Items.Count; i++)
+        {
+            listView.Items[i].StateSelected = i == nextIndex;
+        }
+
+        listView._selectedItem = listView.Items[nextIndex];
+        _listViewGroupHeaderFocus.Remove(hWnd);
+        listView.Invalidate();
+        return true;
+    }
+
+    private bool TryApplyListViewGroupKey(HWND hWnd, ListView listView, VIRTUAL_KEY key)
+    {
+        if (!listView.GroupsDisplayed || listView.Groups.Count == 0)
+        {
+            return false;
+        }
+
+        ListViewGroup? group = listView._selectedItem?.Group ?? listView.Groups[0];
+        if (group is null || group.CollapsedState == ListViewGroupCollapsedState.Default)
+        {
+            return false;
+        }
+
+        if (key == VIRTUAL_KEY.VK_UP)
+        {
+            foreach (ListViewItem item in listView.Items)
+            {
+                item.StateSelected = ReferenceEquals(item.Group, group);
+            }
+
+            _listViewGroupHeaderFocus.Add(hWnd);
+            listView.Invalidate();
+            return true;
+        }
+
+        if (!_listViewGroupHeaderFocus.Contains(hWnd) || key is not (VIRTUAL_KEY.VK_LEFT or VIRTUAL_KEY.VK_RIGHT))
+        {
+            return false;
+        }
+
+        ListViewGroupCollapsedState nextState = key == VIRTUAL_KEY.VK_LEFT
+            ? ListViewGroupCollapsedState.Collapsed
+            : ListViewGroupCollapsedState.Expanded;
+        if (group.CollapsedState != nextState)
+        {
+            group.SetCollapsedStateInternal(nextState);
+            listView.RaiseGroupCollapsedStateChanged(new ListViewGroupEventArgs(listView.Groups.IndexOf(group)));
+        }
+
+        return true;
+    }
+
+    private static bool IsValidListViewSubItemRequest(ListView listView, int itemIndex, int subItemIndex)
+    {
+        if (itemIndex < 0 || itemIndex >= listView.Items.Count || subItemIndex < 0)
+        {
+            return false;
+        }
+
+        return listView.View switch
+        {
+            View.Tile => subItemIndex < listView.Items[itemIndex].SubItems.Count,
+            View.Details => subItemIndex < listView.Columns.Count,
+            _ => false
+        };
+    }
+
+    private Rectangle GetListViewItemBounds(ListView listView, int itemIndex)
+    {
+        if (listView.View == View.Tile)
+        {
+            Size tileSize = GetListViewTileSize(listView);
+            return new Rectangle(0, itemIndex * tileSize.Height, tileSize.Width, tileSize.Height);
+        }
+
+        int height = GetListViewRowHeight(listView);
+        return new Rectangle(0, itemIndex * height, Math.Max(1, listView.ClientSize.Width), height);
+    }
+
+    private Rectangle GetListViewSubItemBounds(ListView listView, int itemIndex, int subItemIndex)
+    {
+        if (itemIndex < 0 || itemIndex >= listView.Items.Count || subItemIndex < 0)
+        {
+            return Rectangle.Empty;
+        }
+
+        ListViewItem item = listView.Items[itemIndex];
+        if (listView.View == View.Tile)
+        {
+            if (subItemIndex >= item.SubItems.Count
+                || subItemIndex >= listView.Columns.Count
+                || !IsVisibleTileSubItem(listView, subItemIndex))
+            {
+                return Rectangle.Empty;
+            }
+
+            Size tileSize = GetListViewTileSize(listView);
+            int lineHeight = GetListViewTileLineHeight();
+            int y = itemIndex * tileSize.Height + (subItemIndex == 0 ? 0 : lineHeight + ((subItemIndex - 1) * lineHeight));
+            return new Rectangle(0, y, tileSize.Width, lineHeight);
+        }
+
+        if (listView.View == View.Details)
+        {
+            if (subItemIndex >= listView.Columns.Count)
+            {
+                return Rectangle.Empty;
+            }
+
+            int x = 0;
+            for (int i = 0; i < subItemIndex; i++)
+            {
+                x += listView.Columns[i].Width;
+            }
+
+            int height = GetListViewRowHeight(listView);
+            return new Rectangle(x, itemIndex * height, listView.Columns[subItemIndex].Width, height);
+        }
+
+        return Rectangle.Empty;
+    }
+
+    private static bool IsVisibleTileSubItem(ListView listView, int subItemIndex)
+    {
+        if (subItemIndex == 0)
+        {
+            return true;
+        }
+
+        Size tileSize = GetListViewTileSize(listView);
+        int visibleSubItemCount = Math.Max(0, (tileSize.Height - GetListViewTileLineHeight()) / GetListViewTileLineHeight());
+        return subItemIndex <= visibleSubItemCount;
+    }
+
+    private int HitTestListView(ListView listView, Point point, out int subItemIndex)
+    {
+        subItemIndex = 0;
+        for (int itemIndex = 0; itemIndex < listView.Items.Count; itemIndex++)
+        {
+            Rectangle itemBounds = GetListViewItemBounds(listView, itemIndex);
+            if (!itemBounds.Contains(point))
+            {
+                continue;
+            }
+
+            int subItemCount = listView.View == View.Details
+                ? listView.Columns.Count
+                : Math.Min(listView.Columns.Count, listView.Items[itemIndex].SubItems.Count);
+            for (int i = 0; i < subItemCount; i++)
+            {
+                if (GetListViewSubItemBounds(listView, itemIndex, i).Contains(point))
+                {
+                    subItemIndex = i;
+                    return itemIndex;
+                }
+            }
+
+            return itemIndex;
+        }
+
+        return -1;
+    }
+
+    private static Size GetListViewTileSize(ListView listView)
+        => listView.TileSize.IsEmpty ? new Size(Math.Max(1, listView.ClientSize.Width), 48) : listView.TileSize;
+
+    private static int GetListViewTileLineHeight() => 16;
+
+    private static int GetListViewRowHeight(ListView listView) => Math.Max(18, listView.Font.Height + 4);
+
+    private static unsafe void SetRect(RECT* target, Rectangle source)
+    {
+        target->left = source.Left;
+        target->top = source.Top;
+        target->right = source.Right;
+        target->bottom = source.Bottom;
+    }
+
     private unsafe bool TryHandleTextBoxMessage(HWND hWnd, uint msg, WPARAM wParam, LPARAM lParam, out LRESULT result)
     {
         result = (LRESULT)0;
@@ -282,6 +771,8 @@ internal sealed class ImpellerMessageInterop : IMessageInterop
     }
 
     private readonly record struct TextSelectionState(int Start, int Length);
+
+    private readonly record struct ListViewTileViewState(Size TileSize, int ColumnCount);
 }
 
 /// <summary>

@@ -27,13 +27,17 @@ compatibility-facade coverage.
   - `ToolStrip_Hiding_ToolStripMenuItem_OnDropDownClosed_ShouldNotThrow` and
     `ToolStrip_shared_imagelist_should_not_get_disposed_when_toolstrip_does`
     now pass in focused runs.
+  - Focused `ListViewTests` coverage is now green with `Passed: 43,
+    Failed: 0`; WinFormsX now covers the managed common-control paths for tile
+    view info, item/subitem rectangles, hit testing, selected state, next-item
+    queries, checkbox double-click, range selection, and basic group keyboard
+    navigation.
   - Focused Button UIIntegration coverage is green. Any future button failures
     should be treated as regressions or newly exposed shared infrastructure
     gaps.
   - Highest-volume remaining failures are accessibility/provider and layout
-    clusters: `ListView` tile/subitem UIA, PropertyGrid fragments,
-    Anchor/Layout resize state, MonthCalendar input, drag/drop polish, and
-    dialog/print fallbacks.
+    clusters: PropertyGrid fragments, Anchor/Layout resize state,
+    MonthCalendar input, drag/drop polish, and dialog/print fallbacks.
 
 ## Confirmed Managed Stub Blockers
 

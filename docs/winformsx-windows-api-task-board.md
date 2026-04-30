@@ -19,7 +19,8 @@ Ordered by observed frequency across components and blocker blast radius:
 ## Latest Progress (2026-04-30)
 
 - Current snapshot:
-  - Pushed `codex/winformsx-stability` through `899a998a3`.
+  - Pushed `codex/winformsx-stability` through `a3906a694`; this update adds
+    the ListView/common-control reduction.
   - Added WinFormsX virtual-window handling for ToolStrip dropdown overlays and
     hidden dropdown owner windows so they no longer create nested Silk/GLFW
     windows during UIIntegration runs.
@@ -36,14 +37,27 @@ Ordered by observed frequency across components and blocker blast radius:
     - `ToolStrip_Hiding_ToolStripMenuItem_OnDropDownClosed_ShouldNotThrow`.
     - `ToolStrip_shared_imagelist_should_not_get_disposed_when_toolstrip_does`.
     - `User32CompatibilityFacadeTests`.
+  - Focused ListView UIIntegration coverage is now green:
+    - `ListViewTests`: `Passed: 43, Failed: 0`.
+    - Added managed common-control behavior for `LVM_SETTILEVIEWINFO`,
+      `LVM_GETTILEVIEWINFO`, item/subitem rectangles, tile/details hit testing,
+      item selected/state-image queries, selected-count/next-item queries,
+      checkbox double-click, range selection, and group keyboard navigation.
+    - Fixed wrapped `WPARAM` sentinel conversion so `(WPARAM)(-1)` source
+      patterns behave like Win32 unsigned pointer sentinels instead of throwing.
+    - Synthetic keyboard routing now prefers the active child control before
+      falling back to the form, which keeps focused ListView arrow navigation on
+      the ListView pathway.
   - Controls smoke remains stable:
     - `CONTROL_SMOKE_SUMMARY total=42 passed=41 failed=0 skipped=1`.
+  - Focused regression verification:
+    - `ButtonTests`, focused ToolStrip cases, and `User32CompatibilityFacadeTests`:
+      `Passed: 26, Failed: 0`.
   - Full UIIntegration now completes without a hang/abort:
     - `Failed: 166, Passed: 25, Skipped: 331, Total: 522`.
   - Priority order moves to highest-volume remaining failure clusters:
-    `ListView` tile/subitem accessibility, PropertyGrid accessibility fragments,
-    Anchor/Layout resize state, MonthCalendar input, drag/drop polish, and
-    dialog/print fallbacks.
+    PropertyGrid accessibility fragments, Anchor/Layout resize state,
+    MonthCalendar input, drag/drop polish, and dialog/print fallbacks.
 
 - Landed:
   - Restored visible Impeller rendering for `WinFormsX.Samples` and the controls smoke harness by initializing GLFW's Vulkan loader with the Homebrew `vulkan-loader` entrypoint before creating the Silk/GLFW Vulkan window.

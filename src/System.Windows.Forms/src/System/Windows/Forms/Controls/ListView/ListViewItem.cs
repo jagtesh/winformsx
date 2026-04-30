@@ -594,18 +594,19 @@ public partial class ListViewItem : ICloneable, ISerializable
         {
             if (_listView is not null)
             {
+                // Virtual items are not hosted in the managed item collection, but
+                // SetItemIndex gives them the display index returned by the owner.
+                if (_listView.VirtualMode)
+                {
+                    return _lastIndex;
+                }
+
                 if (System.Drawing.Graphics.IsBackendActive)
                 {
                     return _listView.ManagedIndexOf(this);
                 }
 
-                // if the list is virtual, the ComCtrl control does not keep any information
-                // about any list view items, so we use our cache instead.
-                if (!_listView.VirtualMode)
-                {
-                    _lastIndex = _listView.GetDisplayIndex(this, _lastIndex);
-                }
-
+                _lastIndex = _listView.GetDisplayIndex(this, _lastIndex);
                 return _lastIndex;
             }
             else

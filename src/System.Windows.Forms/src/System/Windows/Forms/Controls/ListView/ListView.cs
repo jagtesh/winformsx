@@ -115,6 +115,9 @@ public partial class ListView : Control
     private ImageList? _imageListGroup;
 
     private MouseButtons _downButton;
+    private long _lastManagedClickTicks;
+    private int _lastManagedClickIndex = -1;
+    private bool _managedGroupHeaderFocused;
     private int _itemCount;
     private int _columnIndex;
     internal ListViewItem? _selectedItem;
@@ -4521,6 +4524,8 @@ public partial class ListView : Control
         ((EventHandler<ListViewGroupEventArgs>?)Events[s_groupCollapsedStateChangedEvent])?.Invoke(this, e);
     }
 
+    internal void RaiseGroupCollapsedStateChanged(ListViewGroupEventArgs e) => OnGroupCollapsedStateChanged(e);
+
     /// <summary>
     ///  Fires the columnClick event.
     /// </summary>
@@ -6038,12 +6043,71 @@ public partial class ListView : Control
             }
         }
 
+        ApplyManagedMouseSelection(point, clicks, ((nint)m.WParamInternal & 0x0004) != 0);
+
         if (IsAccessibilityObjectCreated)
         {
             Point screenPoint = PointToScreen(point);
             AccessibleObject? accessibilityObject = AccessibilityObject.HitTest(screenPoint.X, screenPoint.Y);
             accessibilityObject?.RaiseAutomationEvent(UIA_EVENT_ID.UIA_AutomationFocusChangedEventId);
         }
+    }
+
+    private void ApplyManagedMouseSelection(Point point, int clicks, bool extendSelectionModifier)
+    {
+        if (!ClientRectangle.Contains(point))
+        {
+            point = PointToClient(Cursor.Position);
+        }
+
+        ListViewHitTestInfo hitTest = HitTest(point);
+        ListViewItem? clickedItem = hitTest.Item;
+        if (clickedItem is null)
+        {
+            return;
+        }
+
+        long now = Environment.TickCount64;
+        bool isDoubleClick = clicks == 2
+            || (_lastManagedClickIndex == clickedItem.Index && now - _lastManagedClickTicks <= SystemInformation.DoubleClickTime);
+        _lastManagedClickTicks = now;
+        _lastManagedClickIndex = clickedItem.Index;
+
+        if (isDoubleClick && CheckBoxes && !VirtualMode)
+        {
+            clickedItem.Checked = !clickedItem.Checked;
+        }
+
+        if (VirtualMode)
+        {
+            return;
+        }
+
+        bool extendSelection = MultiSelect
+            && extendSelectionModifier
+            && _selectedItem is not null;
+
+        if (extendSelection)
+        {
+            int start = Math.Min(_selectedItem!.Index, clickedItem.Index);
+            int end = Math.Max(_selectedItem.Index, clickedItem.Index);
+            for (int i = 0; i < Items.Count; i++)
+            {
+                Items[i].StateSelected = i >= start && i <= end;
+            }
+        }
+        else
+        {
+            for (int i = 0; i < Items.Count; i++)
+            {
+                Items[i].StateSelected = ReferenceEquals(Items[i], clickedItem);
+            }
+        }
+
+        _selectedItem = clickedItem;
+        _managedGroupHeaderFocused = false;
+        clickedItem.SetManagedFocused(true);
+        Invalidate();
     }
 
     private unsafe bool WmNotify(ref Message m)
@@ -7034,6 +7098,14 @@ public partial class ListView : Control
                 WmReflectNotify(ref m);
                 break;
 
+            case PInvoke.WM_KEYDOWN:
+                if (!TryMoveManagedSelection((VIRTUAL_KEY)(uint)m.WParamInternal))
+                {
+                    base.WndProc(ref m);
+                }
+
+                break;
+
             case PInvoke.WM_KEYUP:
                 var key = (VIRTUAL_KEY)(uint)m.WParamInternal;
 
@@ -7209,6 +7281,99 @@ public partial class ListView : Control
                 base.WndProc(ref m);
                 break;
         }
+    }
+
+    private bool TryMoveManagedSelection(VIRTUAL_KEY key)
+    {
+        if (Items.Count == 0)
+        {
+            return false;
+        }
+
+        if (TryApplyManagedGroupKey(key))
+        {
+            return true;
+        }
+
+        if (key is not (VIRTUAL_KEY.VK_LEFT or VIRTUAL_KEY.VK_RIGHT))
+        {
+            return false;
+        }
+
+        int selectedIndex = _selectedItem is null ? -1 : _selectedItem.Index;
+        if (selectedIndex < 0)
+        {
+            for (int i = 0; i < Items.Count; i++)
+            {
+                if (Items[i].StateSelected)
+                {
+                    selectedIndex = i;
+                    break;
+                }
+            }
+        }
+
+        int nextIndex = key == VIRTUAL_KEY.VK_RIGHT
+            ? Math.Min(Items.Count - 1, selectedIndex + 1)
+            : Math.Max(0, selectedIndex - 1);
+
+        if (nextIndex < 0)
+        {
+            return true;
+        }
+
+        for (int i = 0; i < Items.Count; i++)
+        {
+            Items[i].StateSelected = i == nextIndex;
+        }
+
+        _selectedItem = Items[nextIndex];
+        _managedGroupHeaderFocused = false;
+        _selectedItem.SetManagedFocused(true);
+        Invalidate();
+        return true;
+    }
+
+    private bool TryApplyManagedGroupKey(VIRTUAL_KEY key)
+    {
+        if (!GroupsDisplayed || Groups.Count == 0)
+        {
+            return false;
+        }
+
+        ListViewGroup? group = _selectedItem?.Group ?? Groups[0];
+        if (group is null || group.CollapsedState == ListViewGroupCollapsedState.Default)
+        {
+            return false;
+        }
+
+        if (key == VIRTUAL_KEY.VK_UP)
+        {
+            foreach (ListViewItem item in Items)
+            {
+                item.StateSelected = ReferenceEquals(item.Group, group);
+            }
+
+            _managedGroupHeaderFocused = true;
+            Invalidate();
+            return true;
+        }
+
+        if (!_managedGroupHeaderFocused || key is not (VIRTUAL_KEY.VK_LEFT or VIRTUAL_KEY.VK_RIGHT))
+        {
+            return false;
+        }
+
+        ListViewGroupCollapsedState nextState = key == VIRTUAL_KEY.VK_LEFT
+            ? ListViewGroupCollapsedState.Collapsed
+            : ListViewGroupCollapsedState.Expanded;
+        if (group.CollapsedState != nextState)
+        {
+            group.SetCollapsedStateInternal(nextState);
+            OnGroupCollapsedStateChanged(new ListViewGroupEventArgs(Groups.IndexOf(group)));
+        }
+
+        return true;
     }
 
     /// <summary>

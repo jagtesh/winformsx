@@ -397,9 +397,23 @@ internal sealed unsafe class ImpellerInputInterop : IInputInterop
     private void PostToKeyboardTarget(uint message, WPARAM wParam, LPARAM lParam)
     {
         HWND target = _focusWindow != HWND.Null ? _focusWindow : _activeWindow;
+        if (Control.FromHandle(target) is Form { ActiveControl: { IsHandleCreated: true } activeControl })
+        {
+            target = (HWND)(nint)activeControl.Handle;
+        }
+
         if (target == HWND.Null)
         {
             TraceInput($"[InputKeyboardDrop] msg=0x{message:X} reason=no-target");
+            return;
+        }
+
+        if (message == WM_KEYDOWN
+            && Control.FromHandle(target) is ListView
+            && (VIRTUAL_KEY)(uint)(nint)wParam is VIRTUAL_KEY.VK_LEFT or VIRTUAL_KEY.VK_RIGHT or VIRTUAL_KEY.VK_UP)
+        {
+            PlatformApi.Message.SendMessage(target, message, wParam, lParam);
+            TraceInput($"[InputKeyboardSend] msg=0x{message:X} target=0x{(nint)target:X} route=listview-pal");
             return;
         }
 

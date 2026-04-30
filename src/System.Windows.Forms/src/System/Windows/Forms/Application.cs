@@ -110,7 +110,9 @@ public sealed partial class Application
 
     private static unsafe bool InitializeComCtlSupportsVisualStyles()
     {
-        return false;
+        // WinFormsX provides managed common-control behavior through PAL
+        // message handling instead of loading native comctl32 v6.
+        return true;
     }
 
     /// <summary>
