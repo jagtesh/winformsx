@@ -74,12 +74,16 @@ Ordered by observed frequency across components and blocker blast radius:
       `VK_RETURN` stuck-key cascade that previously made later tests fail at
       startup after a direct USER32 `SendInput` dispatch encountered stale or
       synthetic targets.
+    - Latest unfiltered broad snapshot after TabControl geometry work:
+      `Failed: 18, Passed: 173, Skipped: 37, Total: 228`. The count varies
+      with retry/skip activation, but focused `TabControlTests` is now green:
+      `Passed: 5, Failed: 0`.
   - Priority order moves to highest-volume remaining failure clusters:
-    TabControl hover/input state, resize/button layout behavior, ListView tile
+    DataGridView tooltip state, resize/button layout behavior, ListView tile
     accessibility, PropertyGrid broad-suite provider state, RichTextBox
-    link-range behavior, DataGridView tooltip state, NumericUpDown
-    accessibility focus, application handle recreation, dialog/print fallbacks,
-    and remaining lower-volume provider gaps.
+    link-range behavior, NumericUpDown accessibility focus, application handle
+    recreation, dialog/print fallbacks, and remaining lower-volume provider
+    gaps.
   - Active lane update: focused PropertyGrid UIIntegration coverage is now
     green: `Passed: 38, Failed: 0, Skipped: 0, Total: 38`.
   - Active lane update: focused anchor/MDI resize coverage is now green:
@@ -130,11 +134,13 @@ Ordered by observed frequency across components and blocker blast radius:
       input packets return as accepted even if the current managed dispatch
       target is stale, and later key-up packets still cleanly release PAL key
       state. This removes the broad-suite `VK_RETURN` stuck-key cascade.
-  - Priority order now moves to TabControl hover/input state, resize/button
-    layout behavior, ListView tile accessibility, PropertyGrid broad-suite
-    provider state, RichTextBox link-range behavior, DataGridView tooltip
-    state, NumericUpDown accessibility focus, application handle recreation,
-    dialog/print fallbacks, and remaining lower-volume provider gaps.
+    - Backend `TabControl.GetTabRect` now uses a Win32-like minimum tab width,
+      closing the focused second-tab hover failure.
+  - Priority order now moves to DataGridView tooltip state, resize/button layout
+    behavior, ListView tile accessibility, PropertyGrid broad-suite provider
+    state, RichTextBox link-range behavior, NumericUpDown accessibility focus,
+    application handle recreation, dialog/print fallbacks, and remaining
+    lower-volume provider gaps.
 
 - Landed:
   - Closed the focused MonthCalendar input lane:

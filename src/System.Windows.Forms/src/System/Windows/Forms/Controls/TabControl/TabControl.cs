@@ -1272,7 +1272,7 @@ public partial class TabControl : Control
                     break;
                 string text = TabPages[i].Text;
                 // Estimate width: measure text + horizontal padding
-                int width = TextRenderer.MeasureText(text, Font).Width + 16;
+                int width = Math.Max(54, TextRenderer.MeasureText(text, Font).Width + 16);
                 if (_itemSize.Width > 0 && SizeMode == TabSizeMode.Fixed)
                 {
                     width = _itemSize.Width;
