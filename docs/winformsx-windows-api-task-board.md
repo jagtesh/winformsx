@@ -19,6 +19,14 @@ Ordered by observed frequency across components and blocker blast radius:
 ## Latest Progress (2026-04-29)
 
 - In-progress local changes (next commit):
+  - Moved `System.Windows.Forms.Clipboard` to a single managed WinFormsX path:
+    - Removed Windows-only/OLE branching in `SetDataObject`, `GetDataObject`, and `Clear`.
+    - Clipboard now consistently uses in-process managed storage under STA checks.
+  - Verification:
+    - `dotnet build src/System.Windows.Forms/src/System.Windows.Forms.csproj -c Debug -p:BuildProjectReferences=false` -> `Build succeeded`.
+    - `UIIntegrationTests` filter `FullyQualifiedName~Button_Hotkey_Fires_OnClickAsync` -> `Passed: 1, Failed: 0`.
+    - Full graph build / controls smoke remain blocked in this workspace by unrelated dirty-tree renderer and `System.Drawing.Common` changes.
+- In-progress local changes (next commit):
   - Added managed `PInvoke` OLE clipboard compatibility wrappers:
     - `OleSetClipboard(IDataObject*)` -> deterministic `S_OK`.
     - `OleFlushClipboard()` -> deterministic `S_OK`.
