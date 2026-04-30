@@ -82,11 +82,8 @@ GetDCEx
 GetDesktopWindow
 GetIconInfo
 GetMonitorInfo
-GetObject
-GetObjectType
 GetPaletteEntries
 GetRegionData
-GetStockObject
 GetSystemDefaultLCID
 GetThreadLocale
 GetViewportExtEx

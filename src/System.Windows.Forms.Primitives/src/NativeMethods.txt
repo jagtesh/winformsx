@@ -160,7 +160,6 @@ GET_CLASS_LONG_INDEX
 GET_MODULE_HANDLE_EX_FLAG*
 GET_WINDOW_CMD
 GetBitmapBits
-GetBkMode
 GetBrushOrgEx
 GetCaretBlinkTime
 GetCaretPos
@@ -193,8 +192,6 @@ GetMessageTime
 GetModuleFileName
 GetMonitorInfo
 GetNearestColor
-GetObject
-GetObjectType
 GetOpenFileName
 GetPaletteEntries
 GetProcessWindowStation
@@ -205,7 +202,6 @@ GetSaveFileName
 GetScrollInfo
 GetShortPathName
 GetStartupInfo
-GetStockObject
 GetSystemPaletteEntries
 GetSystemPowerStatus
 GetTextAlign
@@ -579,7 +575,6 @@ SelectPalette
 SendDlgItemMessage
 SendMessageCallback
 SendMessageTimeout
-SetBkMode
 SetCursor
 SetKeyboardState
 SetLayeredWindowAttributes

@@ -27,6 +27,8 @@ internal unsafe interface IGdiInterop
     HGDIOBJ SelectObject(HDC hdc, HGDIOBJ h);
     bool DeleteObject(HGDIOBJ ho);
     int GetObject(HGDIOBJ h, int c, void* pv);
+    uint GetObjectType(HGDIOBJ h);
+    HGDIOBJ GetStockObject(GET_STOCK_OBJECT_FLAGS i);
 
     // ─── Brushes / Pens ─────────────────────────────────────────────────
 
@@ -64,6 +66,7 @@ internal unsafe interface IGdiInterop
     COLORREF SetTextColor(HDC hdc, COLORREF color);
     COLORREF GetBkColor(HDC hdc);
     COLORREF GetTextColor(HDC hdc);
+    int GetBkMode(HDC hdc);
     int SetBkMode(HDC hdc, BACKGROUND_MODE mode);
     int SetROP2(HDC hdc, R2_MODE mode);
 

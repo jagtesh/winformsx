@@ -180,7 +180,11 @@ compatibility-facade coverage.
   `GetSysColorBrush`, `GetTextColor`, and `GetBkColor` from the first managed
   wrapper paths, routes them through WinFormsX PAL/manual compatibility state,
   and makes synthetic text/background DC colors return Win32-style
-  previous/current values deterministically.
+  previous/current values deterministically. The follow-up lightweight GDI
+  state pass also removes generated imports for `GetBkMode`, `SetBkMode`,
+  `GetObject`, `GetObjectType`, and `GetStockObject`, adds explicit private-core
+  stock object metadata, and routes background-mode and stock-object queries
+  through deterministic managed state.
 - First UIIntegration blockers observed:
   - `OLE32.dll` missing through `Application.ThreadContext.OleRequired()`,
     clipboard, and drag/drop paths. `InputLanguage.CurrentInputLanguage`,
@@ -576,6 +580,9 @@ Plan:
   `GetDeviceCaps` returns deterministic display defaults for DPI and color
   depth, `GetSysColor`/`GetSysColorBrush` use the managed system palette, and
   synthetic DC text/background colors preserve per-DC state.
+- First-tier stock-object and background-mode probes now avoid generated GDI32
+  imports as well: stock brush/object type metadata is deterministic and
+  `GetBkMode`/`SetBkMode` preserve per-DC state.
 - Add native GDI facade coverage only for lightweight handles, metrics, icon
   conversion, and compatibility probes.
 - Treat full GDI drawing emulation as out of scope unless a WinForms control or

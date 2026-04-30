@@ -45,7 +45,9 @@ internal sealed unsafe class ImpellerGdiInterop : IGdiInterop
 
     public HGDIOBJ SelectObject(HDC hdc, HGDIOBJ h) => h;
     public bool DeleteObject(HGDIOBJ ho) => true;
-    public int GetObject(HGDIOBJ h, int c, void* pv) => 0;
+    public int GetObject(HGDIOBJ h, int c, void* pv) => PInvokeCore.GetObject(h, c, pv);
+    public uint GetObjectType(HGDIOBJ h) => PInvokeCore.GetObjectType(h);
+    public HGDIOBJ GetStockObject(GET_STOCK_OBJECT_FLAGS i) => PInvokeCore.GetStockObject(i);
 
     // --- Brushes / Pens -------------------------------------------------
 
@@ -102,7 +104,17 @@ internal sealed unsafe class ImpellerGdiInterop : IGdiInterop
 
     public COLORREF GetBkColor(HDC hdc) => GetOrCreateDCState(hdc).BackColor;
     public COLORREF GetTextColor(HDC hdc) => GetOrCreateDCState(hdc).TextColor;
-    public int SetBkMode(HDC hdc, BACKGROUND_MODE m) => (int)m;
+
+    public int GetBkMode(HDC hdc) => (int)GetOrCreateDCState(hdc).BackgroundMode;
+
+    public int SetBkMode(HDC hdc, BACKGROUND_MODE m)
+    {
+        ImpellerDCState state = GetOrCreateDCState(hdc);
+        BACKGROUND_MODE previous = state.BackgroundMode;
+        state.BackgroundMode = m;
+        return (int)previous;
+    }
+
     public int SetROP2(HDC hdc, R2_MODE m) => (int)m;
 
     // --- Clipping / Region ----------------------------------------------
@@ -166,4 +178,5 @@ internal sealed class ImpellerDCState
     public HWND Window;
     public COLORREF BackColor = new(0x00FFFFFF);
     public COLORREF TextColor = new(0x00000000);
+    public BACKGROUND_MODE BackgroundMode = BACKGROUND_MODE.OPAQUE;
 }

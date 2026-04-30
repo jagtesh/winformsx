@@ -30,7 +30,7 @@ internal unsafe class DeviceContextState
         TextColor = PInvoke.GetTextColor(hdc);
         Rop2Mode = PInvoke.GetROP2(hdc);
         TextAlign = PInvoke.GetTextAlign(hdc);
-        BackgroundMode = PInvoke.GetBkMode(hdc);
+        BackgroundMode = (BACKGROUND_MODE)PInvoke.GetBkMode(hdc);
 
         Matrix3x2 transform = default;
         PInvoke.GetWorldTransform(hdc, (XFORM*)(void*)&transform);
