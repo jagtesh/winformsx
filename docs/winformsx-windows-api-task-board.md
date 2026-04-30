@@ -115,6 +115,10 @@ Ordered by observed frequency across components and blocker blast radius:
       `FindResourceExW/A`, `LoadResource`, `LockResource`, `SizeofResource`,
       and `FreeResource` share deterministic missing-resource behavior instead
       of falling through to host KERNEL32 lookup.
+    - Managed DWM attribute probes now stay inside WinFormsX: generated
+      `DwmSetWindowAttribute` / `DwmGetWindowAttribute` imports were removed
+      from internal Form/Control paths, and the wrappers store dark-mode,
+      corner-preference, and caption-color state deterministically.
     - `ImageList.GetBitmap` now tolerates WinFormsX synthetic bitmap handles
       returned by managed/common-control image-list state and falls back to the
       existing draw path instead of failing through `Image.FromHbitmap`.
@@ -1040,7 +1044,7 @@ Ordered by observed frequency across components and blocker blast radius:
 ## SystemInformation / Theme / Power / Misc
 
 - [~] WXA-2001: Implement `SystemParametersInfo` and `SystemParametersInfoForDpi` compatibility with deterministic defaults where side effects are not available.
-- [ ] WXA-2002: Implement `UXTHEME` and `DWMAPI` no-op-safe stubs used by theme rendering.
+- [~] WXA-2002: Implement `UXTHEME` and `DWMAPI` no-op-safe stubs used by theme rendering. Managed internal `DwmSetWindowAttribute` / `DwmGetWindowAttribute` wrappers now avoid generated `DWMAPI.dll` imports and preserve deterministic per-window attribute state; native direct-DllImport `DWMAPI.dll` facade and broader UXTHEME draw/query stubs remain.
 - [ ] WXA-2003: Add Power status and session change notifications where feasible (`PowerModeChanged`, `SessionSwitch`) from managed sources.
 - [x] WXA-2004: Remove remaining direct public-surface throw paths for lightweight WinForms compatibility objects. `WindowsFormsSection` now constructs and exposes `JitDebugging`, and `BindingContext.CollectionChanged` now subscribes/raises instead of throwing.
 

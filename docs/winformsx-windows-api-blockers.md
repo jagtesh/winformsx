@@ -233,9 +233,12 @@ compatibility-facade coverage.
   instead of falling through to host KERNEL32 lookup. The
   latest ImageList follow-up keeps `ImageList.GetBitmap` stable when WinFormsX
   synthetic bitmap handles cannot be materialized by GDI+, preserving shared
-  `ToolStrip.ImageList` enumeration after form disposal. The latest broad
-  UIIntegration snapshot is now green at
-  `Failed: 0, Passed: 250, Skipped: 1, Total: 251`.
+  `ToolStrip.ImageList` enumeration after form disposal. The latest DWM pass
+  removes generated `DwmGetWindowAttribute` / `DwmSetWindowAttribute` imports
+  from internal WinForms calls and stores window attributes in managed state, so
+  dark-mode and form-corner probes do not load `DWMAPI.dll` directly. The
+  latest broad UIIntegration snapshot is now green at
+  `Failed: 0, Passed: 251, Skipped: 1, Total: 252`.
 - First UIIntegration blockers observed:
   - `OLE32.dll` missing through `Application.ThreadContext.OleRequired()`,
     clipboard, and drag/drop paths. `InputLanguage.CurrentInputLanguage`,
@@ -949,6 +952,9 @@ cases were previously blockers and should remain regression targets:
   `FindResourceExW/A`, `LoadResource`, `LockResource`, `SizeofResource`, and
   `FreeResource` through PAL-owned deterministic failure/default behavior.
 - [ ] Next KERNEL32 breadth: richer export-table compatibility.
+- [x] Managed DWM attribute wrappers now route `DwmSetWindowAttribute` /
+  `DwmGetWindowAttribute` through deterministic WinFormsX state for internal
+  Form/Control dark-mode, corner, and caption-color probes.
 
 ## Acceptance Bar
 

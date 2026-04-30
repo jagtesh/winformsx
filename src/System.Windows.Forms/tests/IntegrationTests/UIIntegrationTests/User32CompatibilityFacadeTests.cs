@@ -4,6 +4,7 @@
 using System.Drawing;
 using System.Runtime.InteropServices;
 using System.Windows.Forms.UITests.Input;
+using Windows.Win32.Graphics.Dwm;
 using Windows.Win32.UI.Input.Ime;
 using Windows.Win32.UI.Input.KeyboardAndMouse;
 using Windows.Win32.UI.WindowsAndMessaging;
@@ -649,6 +650,50 @@ public class User32CompatibilityFacadeTests
 
             Assert.True(NativeKernel32.DeactivateActCtx(0, activationCookie));
         }
+    }
+
+    [Fact]
+    public unsafe void ManagedDwmWindowAttributeWrappers_RouteToWinFormsXState()
+    {
+        HWND hwnd = (HWND)(nint)0x123456;
+
+        BOOL darkMode = true;
+        Assert.Equal(
+            HRESULT.S_OK,
+            PInvoke.DwmSetWindowAttribute(
+                hwnd,
+                DWMWINDOWATTRIBUTE.DWMWA_USE_IMMERSIVE_DARK_MODE,
+                &darkMode,
+                (uint)sizeof(BOOL)));
+
+        BOOL actualDarkMode;
+        Assert.Equal(
+            HRESULT.S_OK,
+            PInvoke.DwmGetWindowAttribute(
+                hwnd,
+                DWMWINDOWATTRIBUTE.DWMWA_USE_IMMERSIVE_DARK_MODE,
+                &actualDarkMode,
+                (uint)sizeof(BOOL)));
+        Assert.True(actualDarkMode);
+
+        DWM_WINDOW_CORNER_PREFERENCE cornerPreference = DWM_WINDOW_CORNER_PREFERENCE.DWMWCP_ROUND;
+        Assert.Equal(
+            HRESULT.S_OK,
+            PInvoke.DwmSetWindowAttribute(
+                hwnd,
+                DWMWINDOWATTRIBUTE.DWMWA_WINDOW_CORNER_PREFERENCE,
+                &cornerPreference,
+                (uint)sizeof(DWM_WINDOW_CORNER_PREFERENCE)));
+
+        DWM_WINDOW_CORNER_PREFERENCE actualCornerPreference;
+        Assert.Equal(
+            HRESULT.S_OK,
+            PInvoke.DwmGetWindowAttribute(
+                hwnd,
+                DWMWINDOWATTRIBUTE.DWMWA_WINDOW_CORNER_PREFERENCE,
+                &actualCornerPreference,
+                (uint)sizeof(DWM_WINDOW_CORNER_PREFERENCE)));
+        Assert.Equal(cornerPreference, actualCornerPreference);
     }
 
     private sealed class EnvironmentOverride : IDisposable

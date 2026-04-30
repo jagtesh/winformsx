@@ -113,8 +113,6 @@ DTM_*
 DTN_*
 DTS_*
 DWM_WINDOW_CORNER_PREFERENCE
-DwmGetWindowAttribute
-DwmSetWindowAttribute
 EC_*
 ECO_*
 ECOOP_*
