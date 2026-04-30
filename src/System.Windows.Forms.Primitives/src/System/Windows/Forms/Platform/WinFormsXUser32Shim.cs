@@ -17,7 +17,7 @@ internal static unsafe class WinFormsXUser32Shim
 
     public static void Register()
     {
-        if (OperatingSystem.IsWindows() || s_registered)
+        if (s_registered)
         {
             return;
         }
@@ -117,17 +117,18 @@ internal static unsafe class WinFormsXUser32Shim
 
     private static string[] GetLibraryNames()
     {
-        if (OperatingSystem.IsMacOS())
-        {
-            return ["USER32.dll.dylib", "libUSER32.dll.dylib", "USER32.dll", "user32.dll", "user32", "libuser32.dylib"];
-        }
-
-        if (OperatingSystem.IsLinux())
-        {
-            return ["libUSER32.dll.so", "USER32.dll.so", "USER32.dll", "user32.dll", "user32", "libuser32.so"];
-        }
-
-        return ["USER32.dll"];
+        return
+        [
+            "USER32.dll.dylib",
+            "libUSER32.dll.dylib",
+            "libUSER32.dll.so",
+            "USER32.dll.so",
+            "USER32.dll",
+            "user32.dll",
+            "user32",
+            "libuser32.dylib",
+            "libuser32.so"
+        ];
     }
 
     [UnmanagedCallersOnly]

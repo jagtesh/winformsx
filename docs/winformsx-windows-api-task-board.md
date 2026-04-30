@@ -19,6 +19,14 @@ Ordered by observed frequency across components and blocker blast radius:
 ## Latest Progress (2026-04-29)
 
 - In-progress local changes (next commit):
+  - Removed Windows-only gating in USER32 compatibility registration:
+    - `WinFormsXUser32Shim.Register()` now runs through a single pathway (only guarded by `s_registered`).
+    - Shim probing now uses one cross-platform library-name list instead of OS-conditional branches.
+  - Verification:
+    - `dotnet build src/System.Windows.Forms.Primitives/src/System.Windows.Forms.Primitives.csproj -c Debug` -> `Build succeeded`.
+    - `UIIntegrationTests` filter `FullyQualifiedName~User32CompatibilityFacadeTests`: `Failed: 0, Passed: 2, Skipped: 0`.
+    - `WinformsControlsTest --control-smoke-test`: `total=42 passed=41 failed=0 skipped=1`.
+- In-progress local changes (next commit):
   - Removed another Windows-only branch in core message-loop plumbing:
     - `Application.ThreadContext` constructor now uses a single PAL thread-id pathway and no longer conditionally duplicates thread handles on Windows.
     - This keeps thread-context initialization on one runtime pathway and avoids additional Windows-only KERNEL32 handle setup in WinFormsX.
