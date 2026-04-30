@@ -1,6 +1,7 @@
 ﻿// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using System.ComponentModel;
 using System.Reflection;
 using System.Windows.Forms.Design;
 using System.Windows.Forms.PropertyGridInternal;
@@ -261,6 +262,63 @@ public class InternalModalDialogUITests : ControlTestBase
         Assert.Equal("Added Column", liveDataGridView.Columns[1].HeaderText);
     }
 
+    [UIFact]
+    public void TreeNodeCollectionEditor_EditValue_AddRoot_CommitsNode()
+    {
+        using TreeView treeView = new();
+        TreeNodeCollectionEditor editor = new(treeView.Nodes.GetType());
+        TestTypeDescriptorContext context = new(treeView);
+        ModalEditorService editorService = new(dialog =>
+        {
+            Button addRootButton = GetPrivateField<Button>(dialog, "_btnAddRoot");
+            Button okButton = GetPrivateField<Button>(dialog, "_okButton");
+
+            addRootButton.PerformClick();
+            okButton.PerformClick();
+        });
+
+        Assert.Same(treeView.Nodes, editor.EditValue(context, editorService, treeView.Nodes));
+        Assert.Single(treeView.Nodes);
+        Assert.Equal("Node0", treeView.Nodes[0].Name);
+    }
+
+    [UIFact]
+    public void ListViewItemCollectionEditor_EditValue_AddButton_CommitsItem()
+    {
+        using ListView listView = new();
+        ListViewItemCollectionEditor editor = new(listView.Items.GetType());
+        TestTypeDescriptorContext context = new(listView);
+        ModalEditorService editorService = CreateAddAndOkCollectionEditorService();
+
+        Assert.Same(listView.Items, editor.EditValue(context, editorService, listView.Items));
+        Assert.Single(listView.Items);
+    }
+
+    [UIFact]
+    public void ListViewGroupCollectionEditor_EditValue_AddButton_CommitsGroup()
+    {
+        using ListView listView = new();
+        ListViewGroupCollectionEditor editor = new(listView.Groups.GetType());
+        TestTypeDescriptorContext context = new(listView);
+        ModalEditorService editorService = CreateAddAndOkCollectionEditorService();
+
+        Assert.Same(listView.Groups, editor.EditValue(context, editorService, listView.Groups));
+        Assert.Single(listView.Groups);
+        Assert.Equal("ListViewGroup1", listView.Groups[0].Name);
+    }
+
+    [UIFact]
+    public void ColumnHeaderCollectionEditor_EditValue_AddButton_CommitsColumn()
+    {
+        using ListView listView = new();
+        ColumnHeaderCollectionEditor editor = new(listView.Columns.GetType());
+        TestTypeDescriptorContext context = new(listView);
+        ModalEditorService editorService = CreateAddAndOkCollectionEditorService();
+
+        Assert.Same(listView.Columns, editor.EditValue(context, editorService, listView.Columns));
+        Assert.Single(listView.Columns);
+    }
+
     private static MdiWindowDialog CreateMdiWindowDialog(Form first, Form second)
     {
         MdiWindowDialog dialog = new();
@@ -320,6 +378,16 @@ public class InternalModalDialogUITests : ControlTestBase
         return (T)field.GetValue(instance)!;
     }
 
+    private static ModalEditorService CreateAddAndOkCollectionEditorService()
+        => new(dialog =>
+        {
+            Button addButton = GetPrivateField<Button>(dialog, "_addButton");
+            Button okButton = GetPrivateField<Button>(dialog, "_okButton");
+
+            addButton.PerformClick();
+            okButton.PerformClick();
+        });
+
     private sealed class TestStringCollectionEditor : StringCollectionEditor
     {
         public TestStringCollectionEditor()
@@ -333,6 +401,43 @@ public class InternalModalDialogUITests : ControlTestBase
             form.EditValue = values;
             return form;
         }
+    }
+
+    private sealed class ModalEditorService(Action<Form> onShown) : IServiceProvider, IWindowsFormsEditorService
+    {
+        public void CloseDropDown()
+        {
+        }
+
+        public void DropDownControl(Control control)
+        {
+        }
+
+        public object? GetService(Type serviceType)
+            => serviceType == typeof(IWindowsFormsEditorService) ? this : null;
+
+        public DialogResult ShowDialog(Form dialog)
+        {
+            dialog.Shown += (sender, e) => onShown(dialog);
+            return dialog.ShowDialog();
+        }
+    }
+
+    private sealed class TestTypeDescriptorContext(object instance) : ITypeDescriptorContext
+    {
+        public IContainer? Container => null;
+
+        public object Instance { get; } = instance;
+
+        public PropertyDescriptor? PropertyDescriptor => null;
+
+        public void OnComponentChanged()
+        {
+        }
+
+        public bool OnComponentChanging() => true;
+
+        public object? GetService(Type serviceType) => null;
     }
 
     private sealed class MdiWindowDialogHost : IDisposable

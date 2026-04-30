@@ -225,11 +225,19 @@ Ordered by observed frequency across components and blocker blast radius:
       DataGridView column types when no design-time type-discovery service is
       available. Focused close/add coverage is green, bringing
       `InternalModalDialogUITests` to `Passed: 16, Failed: 0`.
+    - Latest collection-editor family pass:
+      `TreeNodeCollectionEditor`, `ListViewItemCollectionEditor`,
+      `ListViewGroupCollectionEditor`, and `ColumnHeaderCollectionEditor` now
+      have green `CollectionEditor.EditValue` add/commit coverage. PAL virtual
+      windows now store the DPI awareness context captured at handle creation,
+      so modal editor handles created inside system-aware scopes report the
+      same context during later validation. Focused
+      `InternalModalDialogUITests` now reports `Passed: 20, Failed: 0`.
   - Priority order moves to remaining high-impact infrastructure gaps:
-    remaining component-specific editor modals such as tree-node/style and
-    ToolStrip collection editors, real print provider/PDF output design,
-    OS-native picker integration, then lower-volume accessibility/provider
-    breadth and resource polish.
+    remaining component-specific editor modals such as style and ToolStrip
+    collection editors, real print provider/PDF output design, OS-native
+    picker integration, then lower-volume accessibility/provider breadth and
+    resource polish.
   - Active lane update: focused PropertyGrid UIIntegration coverage is now
     green: `Passed: 38, Failed: 0, Skipped: 0, Total: 38`.
   - Active lane update: focused anchor/MDI resize coverage is now green:

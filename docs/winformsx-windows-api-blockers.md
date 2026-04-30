@@ -133,7 +133,13 @@ compatibility-facade coverage.
   paths. The latest add-column pass gives `DataGridViewAddColumnDialog` a
   built-in DataGridView column type fallback when no design-time discovery
   service is available, adds close/add coverage, and brings
-  `InternalModalDialogUITests` to `16 passed, 0 failed`.
+  `InternalModalDialogUITests` to `16 passed, 0 failed`. The latest
+  collection-editor family pass exercises `CollectionEditor.EditValue` for
+  `TreeNodeCollectionEditor`, `ListViewItemCollectionEditor`,
+  `ListViewGroupCollectionEditor`, and `ColumnHeaderCollectionEditor`, and
+  fixes virtual window DPI awareness so handles return the DPI context captured
+  at creation instead of the later ambient thread context. Focused
+  `InternalModalDialogUITests` now reports `20 passed, 0 failed`.
 - First UIIntegration blockers observed:
   - `OLE32.dll` missing through `Application.ThreadContext.OleRequired()`,
     clipboard, and drag/drop paths. `InputLanguage.CurrentInputLanguage`,
@@ -364,8 +370,9 @@ Impacted APIs and controls:
   modal forms now synthesize `WM_ENTERIDLE` for their owner on `Shown`, and
   focused `ThreadExceptionDialog` / `GridErrorDialog` / `MdiWindowDialog` /
   `MaskDesignerDialog` / `FormatStringDialog` / `StringCollectionEditor` /
-  `DataGridViewColumnCollectionDialog` / `DataGridViewAddColumnDialog`
-  coverage passes. Managed ListView column updates now acknowledge
+  `DataGridViewColumnCollectionDialog` / `DataGridViewAddColumnDialog`, plus
+  collection editor commit flows for tree nodes, list-view items, list-view
+  groups, and column headers. Managed ListView column updates now acknowledge
   `LVM_SETCOLUMNW`, which keeps ListView-backed design editors from failing
   during resource initialization. `DataGridViewAddColumnDialog` now has a
   built-in column-type fallback for runtime contexts without design-time type

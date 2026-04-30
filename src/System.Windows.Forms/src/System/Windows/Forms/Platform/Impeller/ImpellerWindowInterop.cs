@@ -211,6 +211,7 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
             Height = effectiveHeight,
             Parent = hWndParent,
             Visible = false,
+            DpiAwarenessContext = PlatformApi.System.GetThreadDpiAwarenessContext(),
             ShowCmd = initialShowCmd,
             // Sentinel default WndProc — the framework expects a non-null prior
             // WndProc when subclassing via AssignHandle/SetWindowLong.
@@ -5088,6 +5089,7 @@ internal sealed class ImpellerWindowState
     public WINDOW_EX_STYLE ExStyle;
     public int X, Y, Width, Height;
     public HWND Parent;
+    public DPI_AWARENESS_CONTEXT DpiAwarenessContext;
     public bool Visible;
     public bool Enabled = true;
     public nint WndProc;

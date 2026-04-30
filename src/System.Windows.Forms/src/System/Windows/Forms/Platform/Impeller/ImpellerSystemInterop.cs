@@ -536,7 +536,16 @@ internal sealed unsafe class ImpellerSystemInterop : ISystemInterop
     }
 
     public bool AdjustWindowRectExForDpi(ref RECT rect, WINDOW_STYLE style, bool menu, WINDOW_EX_STYLE exStyle, uint dpi) => true;
-    public DPI_AWARENESS_CONTEXT GetWindowDpiAwarenessContext(HWND hwnd) => _threadDpiAwarenessContext;
+    public DPI_AWARENESS_CONTEXT GetWindowDpiAwarenessContext(HWND hwnd)
+    {
+        if (PlatformApi.Window is ImpellerWindowInterop windowInterop
+            && windowInterop.GetWindowState(hwnd) is { } state)
+        {
+            return state.DpiAwarenessContext;
+        }
+
+        return _threadDpiAwarenessContext;
+    }
 
     // --- Module / Process -----------------------------------------------
 
