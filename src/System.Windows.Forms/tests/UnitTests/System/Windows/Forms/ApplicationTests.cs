@@ -13,6 +13,29 @@ namespace System.Windows.Forms.Tests;
 public class ApplicationTests
 {
     [WinFormsFact]
+    public void WindowsFormsSection_Ctor_GetSetJitDebuggingReturnsExpected()
+    {
+        WindowsFormsSection section = new();
+
+        Assert.False(section.JitDebugging);
+
+        section.JitDebugging = true;
+        Assert.True(section.JitDebugging);
+
+        section.JitDebugging = false;
+        Assert.False(section.JitDebugging);
+    }
+
+    [WinFormsFact]
+    public void WindowsFormsSection_GetSection_ReturnsSameDefaultSection()
+    {
+        WindowsFormsSection section = WindowsFormsSection.GetSection();
+
+        Assert.Same(section, WindowsFormsSection.GetSection());
+        Assert.False(section.JitDebugging);
+    }
+
+    [WinFormsFact]
     public void Application_CurrentCulture_Get_ReturnsExpected()
     {
         Assert.Same(Thread.CurrentThread.CurrentCulture, Application.CurrentCulture);

@@ -8,19 +8,18 @@ namespace System.Windows.Forms;
 // And to receive feedback if there are any users  of this class that we do not know
 public sealed class WindowsFormsSection
 {
+    private static readonly WindowsFormsSection s_defaultSection = new();
+
     internal static WindowsFormsSection GetSection()
-    {
-        throw new NotImplementedException();
-    }
+        => s_defaultSection;
 
     public WindowsFormsSection()
     {
-        throw new NotImplementedException();
     }
 
     public bool JitDebugging
     {
-        get => throw new NotImplementedException();
-        set => throw new NotImplementedException();
+        get;
+        set;
     }
 }

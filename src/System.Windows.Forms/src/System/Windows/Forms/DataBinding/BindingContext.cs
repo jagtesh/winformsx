@@ -14,6 +14,7 @@ namespace System.Windows.Forms;
 public partial class BindingContext : ICollection
 {
     private readonly Dictionary<HashKey, WeakReference> _listManagers;
+    private CollectionChangeEventHandler? _onCollectionChanged;
 
     /// <summary>
     ///  Initializes a new instance of the System.Windows.Forms.BindingContext class.
@@ -123,13 +124,8 @@ public partial class BindingContext : ICollection
     [Browsable(false)]
     public event CollectionChangeEventHandler? CollectionChanged
     {
-        add
-        {
-            throw new NotImplementedException();
-        }
-        remove
-        {
-        }
+        add => _onCollectionChanged += value;
+        remove => _onCollectionChanged -= value;
     }
 
     /// <summary>
@@ -178,8 +174,7 @@ public partial class BindingContext : ICollection
     ///  should call the base implementation of this method.
     /// </summary>
     protected virtual void OnCollectionChanged(CollectionChangeEventArgs ccevent)
-    {
-    }
+        => _onCollectionChanged?.Invoke(this, ccevent);
 
     /// <summary>
     ///  Removes the given listManager from the collection.

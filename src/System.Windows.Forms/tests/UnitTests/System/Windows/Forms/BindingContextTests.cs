@@ -734,27 +734,35 @@ public class BindingContextTests
     }
 
     [Fact]
-    public void BindingContext_CollectionChanged_Add_ThrowsNotImplementedException()
+    public void BindingContext_CollectionChanged_AddRemove_Success()
     {
         BindingContext context = [];
         CollectionChangeEventHandler handler = (sender, e) => { };
-        Assert.Throws<NotImplementedException>(() => context.CollectionChanged += handler);
-    }
 
-    [Fact]
-    public void BindingContext_CollectionChanged_Remove_Nop()
-    {
-        BindingContext context = [];
-        CollectionChangeEventHandler handler = (sender, e) => { };
+        context.CollectionChanged += handler;
         context.CollectionChanged -= handler;
     }
 
     [Fact]
-    public void BindingContext_OnCollectionChanged_Invoke_Nop()
+    public void BindingContext_OnCollectionChanged_Invoke_CallsHandler()
     {
         SubBindingContext context = new();
-        CollectionChangeEventHandler handler = (sender, e) => { };
-        context.OnCollectionChanged(null);
+        int callCount = 0;
+        CollectionChangeEventArgs eventArgs = new(CollectionChangeAction.Refresh, null);
+        CollectionChangeEventHandler handler = (sender, e) =>
+        {
+            Assert.Same(context, sender);
+            Assert.Same(eventArgs, e);
+            callCount++;
+        };
+
+        context.CollectionChanged += handler;
+        context.OnCollectionChanged(eventArgs);
+        Assert.Equal(1, callCount);
+
+        context.CollectionChanged -= handler;
+        context.OnCollectionChanged(eventArgs);
+        Assert.Equal(1, callCount);
     }
 
     [Fact]
