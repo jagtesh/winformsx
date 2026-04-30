@@ -987,6 +987,20 @@ Ordered by observed frequency across components and blocker blast radius:
     - `UIIntegrationTests` filter `DirectGdi32DllImports_ResolveToWinFormsXFacade`: `Passed`.
     - Full `UIIntegrationTests`: `Failed: 0, Passed: 257, Skipped: 1, Total: 258`.
     - `WinformsControlsTest --control-smoke-test`: `total=42 passed=41 failed=0 skipped=1`.
+- In-progress local changes (next commit):
+  - Added packaged native `SHELL32.dll` and `SHLWAPI.dll` facades for
+    source-compatible direct imports. First-tier `SHELL32.dll` exports now
+    cover deterministic tray acknowledgement, file-drop empty state,
+    folder/PIDL/shell-item safe failure, `FindExecutable` no-association
+    defaults, and accepted `ShellExecute` placeholders. First-tier
+    `SHLWAPI.dll` exports now cover basic path relative/existence/extension
+    helpers.
+  - Verification:
+    - UIIntegration filters
+      `DirectShell32DllImports_ResolveToWinFormsXFacade` and
+      `DirectShlwApiDllImports_ResolveToWinFormsXFacade`: `Passed: 2`.
+    - Full `UIIntegrationTests`: `Failed: 0, Passed: 259, Skipped: 1, Total: 260`.
+    - `WinformsControlsTest --control-smoke-test`: `total=42 passed=41 failed=0 skipped=1`.
 
 ## Task Legend
 
@@ -1052,7 +1066,7 @@ Ordered by observed frequency across components and blocker blast radius:
 ## Shell / Resources / Icons / Cursors
 
 - [~] WXA-1701: Add stock icon and cursor provider service with canonical fallback set (`Application`, default status/error/warning/info/question, shield, folder/file, message/task dialog, scroll/dropdown arrows). SystemIcons now supplies distinct managed application/status/help/lock/folder/printer fallback icons without native resources or font-dependent drawing; the shell stock-icon wrapper shares this fallback state. Custom cursor streams/files now preserve serializable payload bytes; stock cursor, scroll/dropdown arrow, and broader shell/task-dialog icon coverage remain.
-- [~] WXA-1702: Implement icon extraction/service equivalents for `ExtractAssociatedIcon`, `SHGetStockIconInfo`, shell execute placeholders. First-tier `SHGetStockIconInfo` now returns deterministic managed stock icon info; `ExtractAssociatedIcon`, shell execute, and real file-association metadata remain.
+- [~] WXA-1702: Implement icon extraction/service equivalents for `ExtractAssociatedIcon`, `SHGetStockIconInfo`, shell execute placeholders. First-tier `SHGetStockIconInfo` now returns deterministic managed stock icon info; direct `SHELL32.dll` imports now resolve safe tray, file-drop, folder/PIDL/shell-item, `FindExecutable`, and `ShellExecute` placeholder behavior; direct `SHLWAPI.dll` imports now resolve basic path helpers. `ExtractAssociatedIcon`, real file-association metadata, and OS-native shell integration remain.
 - [x] WXA-1703: Add and centralize required icons/cursors in WinFormsX resources; ensure `Button.ico`, `ImageInError.ico`, `PropertiesTab.ico`, `ShieldIcon.ico`, and any missing icon/cursor assets are embedded with license notices. Current inventory confirms the required icons and bundled WinForms cursor set are already present in repo resources, embedded by existing project globs, and covered by `EmbeddedResourceTests` / `SystemIconsTests`; no downloaded assets or new notices are needed for this pass.
 - [~] WXA-1704: Harden `.resx` load/save and `ResXDataNode` behavior for image/icon/cursor/stream payloads. Custom cursor `ISerializable` data is now available for stream/file cursors, and `ResXDataNode.ISerializable` snapshots stable data-node/file-ref metadata instead of throwing; full `.resx` object metadata and stock cursor/icon payload fidelity remain.
 

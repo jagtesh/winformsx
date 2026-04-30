@@ -250,9 +250,14 @@ compatibility-facade coverage.
   initialization. The latest GDI32 pass packages a native `GDI32.dll` facade
   for source-compatible direct imports and routes DC creation/deletion, device
   caps, object queries, stock/basic object handles, brush/pen creation, text
-  and background colors, and background mode through the WinFormsX GDI PAL.
+  and background colors, and background mode through the WinFormsX GDI PAL. The
+  latest shell pass packages native `SHELL32.dll` and `SHLWAPI.dll` facades for
+  safe first-tier direct imports: tray notifications are acknowledged, shell
+  execute reports an accepted launch, folder/PIDL/shell-item APIs fail
+  deterministically, file-drop queries return empty state, and SHLWAPI path
+  existence/relative/extension helpers provide basic deterministic behavior.
   The latest broad UIIntegration snapshot is now green at
-  `Failed: 0, Passed: 257, Skipped: 1, Total: 258`.
+  `Failed: 0, Passed: 259, Skipped: 1, Total: 260`.
 - First UIIntegration blockers observed:
   - `OLE32.dll` missing through `Application.ThreadContext.OleRequired()`,
     clipboard, and drag/drop paths. `InputLanguage.CurrentInputLanguage`,

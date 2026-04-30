@@ -873,6 +873,36 @@ public class User32CompatibilityFacadeTests
         Assert.True(NativeGdi32.DeleteDC(dc));
     }
 
+    [Fact]
+    public unsafe void DirectShell32DllImports_ResolveToWinFormsXFacade()
+    {
+        const int E_NOTIMPL = unchecked((int)0x80004001);
+
+        Assert.True(NativeShell32.Shell_NotifyIconW(0, 0));
+        NativeShell32.DragAcceptFiles(0x2468, true);
+        Assert.Equal(0u, NativeShell32.DragQueryFileW(0, 0xFFFFFFFF, null, 0));
+
+        char* path = stackalloc char[260];
+        Assert.False(NativeShell32.SHGetPathFromIDListEx(0, path, 260, 0));
+        Assert.Equal('\0', path[0]);
+        Assert.Equal(0, NativeShell32.SHBrowseForFolderW(0));
+
+        nint shellItem;
+        Assert.Equal(E_NOTIMPL, NativeShell32.SHCreateShellItem(0, 0, 0, &shellItem));
+        Assert.Equal(0, shellItem);
+
+        Assert.True(NativeShell32.ShellExecuteW(0, null, "https://example.invalid", null, null, 1) > 32);
+    }
+
+    [Fact]
+    public void DirectShlwApiDllImports_ResolveToWinFormsXFacade()
+    {
+        Assert.True(NativeShlwApi.PathFileExistsW(AppContext.BaseDirectory));
+        Assert.False(NativeShlwApi.PathFileExistsW(Path.Combine(AppContext.BaseDirectory, "missing-winformsx-file.tmp")));
+        Assert.False(NativeShlwApi.PathIsRelativeW(AppContext.BaseDirectory));
+        Assert.True(NativeShlwApi.PathIsRelativeW("relative.txt"));
+    }
+
     private sealed class EnvironmentOverride : IDisposable
     {
         private readonly string _name;
@@ -1616,5 +1646,46 @@ public class User32CompatibilityFacadeTests
         [DllImport(Gdi32, ExactSpelling = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
         internal static extern bool DeleteObject(nint obj);
+    }
+
+    private static unsafe partial class NativeShell32
+    {
+        private const string Shell32 = "SHELL32.dll";
+
+        [DllImport(Shell32, ExactSpelling = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool Shell_NotifyIconW(uint message, nint data);
+
+        [DllImport(Shell32, ExactSpelling = true)]
+        internal static extern void DragAcceptFiles(nint hwnd, [MarshalAs(UnmanagedType.Bool)] bool accept);
+
+        [DllImport(Shell32, ExactSpelling = true)]
+        internal static extern uint DragQueryFileW(nint drop, uint file, char* buffer, uint count);
+
+        [DllImport(Shell32, ExactSpelling = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool SHGetPathFromIDListEx(nint pidl, char* path, uint pathCount, uint flags);
+
+        [DllImport(Shell32, ExactSpelling = true)]
+        internal static extern nint SHBrowseForFolderW(nint browseInfo);
+
+        [DllImport(Shell32, ExactSpelling = true)]
+        internal static extern int SHCreateShellItem(nint parentPidl, nint parentFolder, nint pidl, nint* shellItem);
+
+        [DllImport(Shell32, ExactSpelling = true, CharSet = CharSet.Unicode)]
+        internal static extern nint ShellExecuteW(nint hwnd, string? operation, string? file, string? parameters, string? directory, int showCommand);
+    }
+
+    private static partial class NativeShlwApi
+    {
+        private const string ShlwApi = "SHLWAPI.dll";
+
+        [DllImport(ShlwApi, ExactSpelling = true, CharSet = CharSet.Unicode)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool PathFileExistsW(string path);
+
+        [DllImport(ShlwApi, ExactSpelling = true, CharSet = CharSet.Unicode)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool PathIsRelativeW(string path);
     }
 }

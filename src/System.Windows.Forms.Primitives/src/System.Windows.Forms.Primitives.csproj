@@ -93,6 +93,12 @@
     <WinFormsXGdi32ShimSource>$(MSBuildProjectDirectory)/Native/Gdi32Shim/winformsx_gdi32.c</WinFormsXGdi32ShimSource>
     <WinFormsXGdi32ShimOutputDirectory>$(IntermediateOutputPath)winformsx-gdi32/</WinFormsXGdi32ShimOutputDirectory>
     <WinFormsXGdi32ShimBinary>$(WinFormsXGdi32ShimOutputDirectory)GDI32.dll</WinFormsXGdi32ShimBinary>
+    <WinFormsXShell32ShimSource>$(MSBuildProjectDirectory)/Native/Shell32Shim/winformsx_shell32.c</WinFormsXShell32ShimSource>
+    <WinFormsXShell32ShimOutputDirectory>$(IntermediateOutputPath)winformsx-shell32/</WinFormsXShell32ShimOutputDirectory>
+    <WinFormsXShell32ShimBinary>$(WinFormsXShell32ShimOutputDirectory)SHELL32.dll</WinFormsXShell32ShimBinary>
+    <WinFormsXShlwApiShimSource>$(MSBuildProjectDirectory)/Native/ShlwApiShim/winformsx_shlwapi.c</WinFormsXShlwApiShimSource>
+    <WinFormsXShlwApiShimOutputDirectory>$(IntermediateOutputPath)winformsx-shlwapi/</WinFormsXShlwApiShimOutputDirectory>
+    <WinFormsXShlwApiShimBinary>$(WinFormsXShlwApiShimOutputDirectory)SHLWAPI.dll</WinFormsXShlwApiShimBinary>
   </PropertyGroup>
 
   <ItemGroup Condition="'$(OS)' != 'Windows_NT'">
@@ -194,6 +200,24 @@
     <None Include="$(WinFormsXGdi32ShimOutputDirectory)libGDI32.dll.so" TargetPath="libGDI32.dll.so" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
     <None Include="$(WinFormsXGdi32ShimOutputDirectory)GDI32.dll.so" TargetPath="GDI32.dll.so" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
     <None Include="$(WinFormsXGdi32ShimOutputDirectory)libgdi32.so" TargetPath="libgdi32.so" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+    <None Include="$(WinFormsXShell32ShimOutputDirectory)SHELL32.dll" TargetPath="SHELL32.dll" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" />
+    <None Include="$(WinFormsXShell32ShimOutputDirectory)shell32.dll" TargetPath="shell32.dll" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" />
+    <None Include="$(WinFormsXShell32ShimOutputDirectory)shell32" TargetPath="shell32" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" />
+    <None Include="$(WinFormsXShell32ShimOutputDirectory)SHELL32.dll.dylib" TargetPath="SHELL32.dll.dylib" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+    <None Include="$(WinFormsXShell32ShimOutputDirectory)libSHELL32.dll.dylib" TargetPath="libSHELL32.dll.dylib" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+    <None Include="$(WinFormsXShell32ShimOutputDirectory)libshell32.dylib" TargetPath="libshell32.dylib" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+    <None Include="$(WinFormsXShell32ShimOutputDirectory)libSHELL32.dll.so" TargetPath="libSHELL32.dll.so" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+    <None Include="$(WinFormsXShell32ShimOutputDirectory)SHELL32.dll.so" TargetPath="SHELL32.dll.so" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+    <None Include="$(WinFormsXShell32ShimOutputDirectory)libshell32.so" TargetPath="libshell32.so" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+    <None Include="$(WinFormsXShlwApiShimOutputDirectory)SHLWAPI.dll" TargetPath="SHLWAPI.dll" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" />
+    <None Include="$(WinFormsXShlwApiShimOutputDirectory)shlwapi.dll" TargetPath="shlwapi.dll" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" />
+    <None Include="$(WinFormsXShlwApiShimOutputDirectory)shlwapi" TargetPath="shlwapi" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" />
+    <None Include="$(WinFormsXShlwApiShimOutputDirectory)SHLWAPI.dll.dylib" TargetPath="SHLWAPI.dll.dylib" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+    <None Include="$(WinFormsXShlwApiShimOutputDirectory)libSHLWAPI.dll.dylib" TargetPath="libSHLWAPI.dll.dylib" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+    <None Include="$(WinFormsXShlwApiShimOutputDirectory)libshlwapi.dylib" TargetPath="libshlwapi.dylib" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+    <None Include="$(WinFormsXShlwApiShimOutputDirectory)libSHLWAPI.dll.so" TargetPath="libSHLWAPI.dll.so" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+    <None Include="$(WinFormsXShlwApiShimOutputDirectory)SHLWAPI.dll.so" TargetPath="SHLWAPI.dll.so" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+    <None Include="$(WinFormsXShlwApiShimOutputDirectory)libshlwapi.so" TargetPath="libshlwapi.so" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
   </ItemGroup>
 
   <Target Name="BuildWinFormsXKernel32Shim"
@@ -413,6 +437,46 @@
     <Copy SourceFiles="$(WinFormsXGdi32ShimBinary)" DestinationFiles="$(WinFormsXGdi32ShimOutputDirectory)libGDI32.dll.so" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
     <Copy SourceFiles="$(WinFormsXGdi32ShimBinary)" DestinationFiles="$(WinFormsXGdi32ShimOutputDirectory)GDI32.dll.so" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
     <Copy SourceFiles="$(WinFormsXGdi32ShimBinary)" DestinationFiles="$(WinFormsXGdi32ShimOutputDirectory)libgdi32.so" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+  </Target>
+
+  <Target Name="BuildWinFormsXShell32Shim"
+          BeforeTargets="PrepareForBuild;GetCopyToOutputDirectoryItems"
+          Inputs="$(WinFormsXShell32ShimSource)"
+          Outputs="$(WinFormsXShell32ShimBinary)"
+          Condition="'$(OS)' != 'Windows_NT'">
+    <MakeDir Directories="$(WinFormsXShell32ShimOutputDirectory)" />
+    <Exec Condition="$([MSBuild]::IsOSPlatform('OSX'))"
+          Command="cc -dynamiclib -fvisibility=hidden &quot;$(WinFormsXShell32ShimSource)&quot; -o &quot;$(WinFormsXShell32ShimBinary)&quot;" />
+    <Exec Condition="$([MSBuild]::IsOSPlatform('Linux'))"
+          Command="cc -shared -fPIC -fvisibility=hidden &quot;$(WinFormsXShell32ShimSource)&quot; -o &quot;$(WinFormsXShell32ShimBinary)&quot;" />
+    <Copy SourceFiles="$(WinFormsXShell32ShimBinary)" DestinationFiles="$(WinFormsXShell32ShimOutputDirectory)shell32.dll" />
+    <Copy SourceFiles="$(WinFormsXShell32ShimBinary)" DestinationFiles="$(WinFormsXShell32ShimOutputDirectory)shell32" />
+    <Copy SourceFiles="$(WinFormsXShell32ShimBinary)" DestinationFiles="$(WinFormsXShell32ShimOutputDirectory)SHELL32.dll.dylib" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+    <Copy SourceFiles="$(WinFormsXShell32ShimBinary)" DestinationFiles="$(WinFormsXShell32ShimOutputDirectory)libSHELL32.dll.dylib" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+    <Copy SourceFiles="$(WinFormsXShell32ShimBinary)" DestinationFiles="$(WinFormsXShell32ShimOutputDirectory)libshell32.dylib" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+    <Copy SourceFiles="$(WinFormsXShell32ShimBinary)" DestinationFiles="$(WinFormsXShell32ShimOutputDirectory)libSHELL32.dll.so" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+    <Copy SourceFiles="$(WinFormsXShell32ShimBinary)" DestinationFiles="$(WinFormsXShell32ShimOutputDirectory)SHELL32.dll.so" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+    <Copy SourceFiles="$(WinFormsXShell32ShimBinary)" DestinationFiles="$(WinFormsXShell32ShimOutputDirectory)libshell32.so" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+  </Target>
+
+  <Target Name="BuildWinFormsXShlwApiShim"
+          BeforeTargets="PrepareForBuild;GetCopyToOutputDirectoryItems"
+          Inputs="$(WinFormsXShlwApiShimSource)"
+          Outputs="$(WinFormsXShlwApiShimBinary)"
+          Condition="'$(OS)' != 'Windows_NT'">
+    <MakeDir Directories="$(WinFormsXShlwApiShimOutputDirectory)" />
+    <Exec Condition="$([MSBuild]::IsOSPlatform('OSX'))"
+          Command="cc -dynamiclib -fvisibility=hidden &quot;$(WinFormsXShlwApiShimSource)&quot; -o &quot;$(WinFormsXShlwApiShimBinary)&quot;" />
+    <Exec Condition="$([MSBuild]::IsOSPlatform('Linux'))"
+          Command="cc -shared -fPIC -fvisibility=hidden &quot;$(WinFormsXShlwApiShimSource)&quot; -o &quot;$(WinFormsXShlwApiShimBinary)&quot;" />
+    <Copy SourceFiles="$(WinFormsXShlwApiShimBinary)" DestinationFiles="$(WinFormsXShlwApiShimOutputDirectory)shlwapi.dll" />
+    <Copy SourceFiles="$(WinFormsXShlwApiShimBinary)" DestinationFiles="$(WinFormsXShlwApiShimOutputDirectory)shlwapi" />
+    <Copy SourceFiles="$(WinFormsXShlwApiShimBinary)" DestinationFiles="$(WinFormsXShlwApiShimOutputDirectory)SHLWAPI.dll.dylib" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+    <Copy SourceFiles="$(WinFormsXShlwApiShimBinary)" DestinationFiles="$(WinFormsXShlwApiShimOutputDirectory)libSHLWAPI.dll.dylib" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+    <Copy SourceFiles="$(WinFormsXShlwApiShimBinary)" DestinationFiles="$(WinFormsXShlwApiShimOutputDirectory)libshlwapi.dylib" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+    <Copy SourceFiles="$(WinFormsXShlwApiShimBinary)" DestinationFiles="$(WinFormsXShlwApiShimOutputDirectory)libSHLWAPI.dll.so" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+    <Copy SourceFiles="$(WinFormsXShlwApiShimBinary)" DestinationFiles="$(WinFormsXShlwApiShimOutputDirectory)SHLWAPI.dll.so" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+    <Copy SourceFiles="$(WinFormsXShlwApiShimBinary)" DestinationFiles="$(WinFormsXShlwApiShimOutputDirectory)libshlwapi.so" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
   </Target>
 
 </Project>
