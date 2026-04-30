@@ -19,6 +19,12 @@ Ordered by observed frequency across components and blocker blast radius:
 ## Latest Progress (2026-04-29)
 
 - In-progress local changes (next commit):
+  - Removed another OS-conditional runtime branch in `Application.ThreadContext.OnThreadException`:
+    - thread-exception fallback now keys on backend capability (`Graphics.IsBackendActive`) instead of Windows/non-Windows checks.
+  - Verification:
+    - `dotnet build src/System.Windows.Forms/src/System.Windows.Forms.csproj -c Debug` -> `Build succeeded`.
+    - `UIIntegrationTests` filter `FullyQualifiedName~ButtonTests`: `Failed: 0, Passed: 22, Skipped: 0`.
+- In-progress local changes (next commit):
   - Removed Windows-only gating in USER32 compatibility registration:
     - `WinFormsXUser32Shim.Register()` now runs through a single pathway (only guarded by `s_registered`).
     - Shim probing now uses one cross-platform library-name list instead of OS-conditional branches.

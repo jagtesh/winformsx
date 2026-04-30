@@ -609,7 +609,7 @@ public sealed partial class Application
                         ExceptionDispatchInfo.Capture(ex).Throw();
                     }
 
-                    if (!OperatingSystem.IsWindows() || System.Drawing.Graphics.IsBackendActive)
+                    if (System.Drawing.Graphics.IsBackendActive)
                     {
                         Console.Error.WriteLine($"[ThreadException] {ex}");
                         return;
