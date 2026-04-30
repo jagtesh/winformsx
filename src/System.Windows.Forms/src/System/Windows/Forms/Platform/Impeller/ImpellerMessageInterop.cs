@@ -48,6 +48,11 @@ internal sealed class ImpellerMessageInterop : IMessageInterop
             return listViewResult;
         }
 
+        if (TryHandleToolTipMessage(msg, out LRESULT toolTipResult))
+        {
+            return toolTipResult;
+        }
+
         if (msg == PInvoke.LVM_ENABLEGROUPVIEW
             || msg == PInvoke.LVM_ISGROUPVIEWENABLED
             || msg == PInvoke.LVM_HASGROUP
@@ -222,6 +227,46 @@ internal sealed class ImpellerMessageInterop : IMessageInterop
 
             // Dispatch through WinForms NativeWindow WndProc
             NativeWindow.DispatchMessageDirect(msg.hwnd, msg.message, msg.wParam, msg.lParam, out _);
+        }
+    }
+
+    private static bool TryHandleToolTipMessage(uint msg, out LRESULT result)
+    {
+        result = (LRESULT)0;
+
+        switch (msg)
+        {
+            case PInvoke.TTM_ADDTOOLW:
+            case PInvoke.TTM_SETTOOLINFOW:
+            case PInvoke.TTM_UPDATETIPTEXTW:
+            case PInvoke.TTM_ADJUSTRECT:
+                result = (LRESULT)1;
+                return true;
+
+            case PInvoke.TTM_ACTIVATE:
+            case PInvoke.TTM_DELTOOLW:
+            case PInvoke.TTM_GETBUBBLESIZE:
+            case PInvoke.TTM_GETCURRENTTOOLW:
+            case PInvoke.TTM_SETDELAYTIME:
+            case PInvoke.TTM_SETMAXTIPWIDTH:
+            case PInvoke.TTM_SETTIPBKCOLOR:
+            case PInvoke.TTM_SETTIPTEXTCOLOR:
+            case PInvoke.TTM_SETTITLEW:
+            case PInvoke.TTM_TRACKACTIVATE:
+            case PInvoke.TTM_TRACKPOSITION:
+            case PInvoke.TTM_UPDATE:
+                return true;
+
+            case PInvoke.TTM_GETDELAYTIME:
+                result = (LRESULT)ToolTip.DefaultDelay;
+                return true;
+
+            case PInvoke.TTM_GETTOOLINFOW:
+                result = (LRESULT)1;
+                return true;
+
+            default:
+                return false;
         }
     }
 

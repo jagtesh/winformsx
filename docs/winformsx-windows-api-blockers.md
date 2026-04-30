@@ -18,12 +18,15 @@ compatibility-facade coverage.
 - UIIntegrationTests are no longer globally skipped by OS-gated attributes. The
   suite now exposes real WinFormsX behavior gaps. The latest unfiltered broad
   run completes without a hang/abort and reports
-  `173 passed, 18 failed, 37 skipped`. Recent passes removed the cross-suite
+  `183 passed, 8 failed, 17 skipped`. Recent passes removed the cross-suite
   `VK_RETURN` stuck-key cascade by making PAL `SendInput` accept packets even
   when a synthetic/stale target cannot be dispatched, then closed focused
   `TabControlTests` by aligning backend tab-rectangle minimum width with Win32
-  default tab geometry. Remaining top failures now cluster around
-  DataGridView tooltip state and resize/button layout behavior, with the larger
+  default tab geometry, and then acknowledged common-control tooltip messages
+  through the message PAL so DataGridView tooltip activation no longer depends
+  on native tooltip registration. Remaining top failures now cluster around
+  resize/button layout behavior, broad-suite drag/drop state, NumericUpDown
+  accessibility focus, and application handle recreation, with the larger
   provider and dialog/print gaps still tracked below.
 - First UIIntegration blockers observed:
   - `OLE32.dll` missing through `Application.ThreadContext.OleRequired()`,
@@ -64,11 +67,15 @@ compatibility-facade coverage.
     hit testing and clears stale active-window state during virtual destroy, so
     order-dependent PictureBox and DropImageType failures no longer route input
     through stale form handles from earlier tests.
+  - Focused `DataGridViewTests` coverage is now green:
+    `3 passed, 0 failed`. The latest pass handles tooltip common-control
+    messages in PAL, so `ToolTip.Show` can maintain managed activation state
+    without native tooltip-control registration.
   - Highest-volume remaining failures are accessibility/provider and layout
-    clusters: ListView tile accessibility, PropertyGrid fragment navigation in
-    broad-suite state, RichTextBox link-range behavior, DataGridView tooltip
-    state, TabControl hover/input state, NumericUpDown accessibility focus,
-    application handle recreation, dialog/print fallbacks, and remaining
+    clusters: resize/button layout behavior, broad-suite drag/drop state,
+    NumericUpDown accessibility focus, application handle recreation, ListView
+    tile accessibility, PropertyGrid fragment navigation in broad-suite state,
+    RichTextBox link-range behavior, dialog/print fallbacks, and remaining
     lower-volume provider gaps.
 
 ## Confirmed Managed Stub Blockers
