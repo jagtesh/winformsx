@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.ComponentModel;
+using System.Drawing;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Windows.Forms.Analyzers.Diagnostics;
@@ -85,6 +86,7 @@ public partial class TaskDialog : IWin32Window
     private HWND _handle;
 
     private WindowSubclassHandler? _windowSubclassHandler;
+    private ManagedTaskDialogForm? _managedDialogForm;
 
     /// <summary>
     ///   Stores a value that indicates if the
@@ -557,6 +559,11 @@ public partial class TaskDialog : IWin32Window
 
         page.Validate();
 
+        if (Graphics.IsBackendActive)
+        {
+            return ShowManagedDialogInternal(hwndOwner, page, startupLocation);
+        }
+
         // Allocate a GCHandle which we will use for the callback data.
         var instanceHandle = GCHandle.Alloc(this);
         try
@@ -691,6 +698,63 @@ public partial class TaskDialog : IWin32Window
         {
             _instanceHandlePtr = IntPtr.Zero;
             instanceHandle.Free();
+        }
+    }
+
+    private TaskDialogButton ShowManagedDialogInternal(
+        IntPtr hwndOwner,
+        TaskDialogPage page,
+        TaskDialogStartupLocation startupLocation)
+    {
+        page.Bind(
+            this,
+            out _,
+            out _,
+            out IEnumerable<(int buttonID, string text)> customButtonElements,
+            out _,
+            out _,
+            out _,
+            out int defaultButtonID,
+            out _);
+
+        _boundPage = page;
+
+        try
+        {
+            using ManagedTaskDialogForm dialog = new((nint)hwndOwner, this, page, customButtonElements.ToArray(), defaultButtonID);
+            _managedDialogForm = dialog;
+
+            DialogResult result = hwndOwner == IntPtr.Zero
+                ? dialog.ShowDialog()
+                : dialog.ShowDialog(new WindowWrapper(hwndOwner));
+
+            int resultButtonID = dialog.ResultButtonID != 0
+                ? dialog.ResultButtonID
+                : result == DialogResult.Cancel ? (int)TaskDialogResult.Cancel : (int)TaskDialogResult.OK;
+
+            if (_resultButton?.buttonID == resultButtonID)
+            {
+                return _resultButton.Value.button;
+            }
+
+            return _boundPage.GetBoundButtonByID(resultButtonID) ??
+                CreatePlaceholderButton((TaskDialogResult)resultButtonID);
+        }
+        finally
+        {
+            if (_raisedPageCreated)
+            {
+                _raisedPageCreated = false;
+                _boundPage.OnDestroyed(EventArgs.Empty);
+            }
+
+            _handle = HWND.Null;
+            _managedDialogForm = null;
+            _resultButton = null;
+            _ignoreButtonClickedNotifications = false;
+            _receivedDestroyedNotification = false;
+            _boundPage.Unbind();
+            _boundPage = null;
         }
     }
 
@@ -854,6 +918,12 @@ public partial class TaskDialog : IWin32Window
 
     internal unsafe void UpdateTextElement(TASKDIALOG_ELEMENTS element, string? text)
     {
+        if (_managedDialogForm is not null)
+        {
+            _managedDialogForm.UpdateTextElement(element, text);
+            return;
+        }
+
         // Instead of null, we must specify the empty string; otherwise the update
         // would be ignored.
         text ??= string.Empty;
@@ -904,7 +974,76 @@ public partial class TaskDialog : IWin32Window
             caption = Path.GetFileName(PInvoke.GetModuleFileNameLongPath(HINSTANCE.Null));
         }
 
+        if (_managedDialogForm is not null)
+        {
+            _managedDialogForm.Text = caption;
+            return;
+        }
+
         PInvoke.SetWindowText(_handle, caption);
+    }
+
+    private void OnManagedTaskDialogShown(ManagedTaskDialogForm form)
+    {
+        _handle = (HWND)form.Handle;
+        _boundPage!.ApplyInitialization();
+
+        if (!_raisedPageCreated)
+        {
+            _raisedPageCreated = true;
+            _boundPage.OnCreated(EventArgs.Empty);
+        }
+    }
+
+    private void HandleManagedTaskDialogMessage(TASKDIALOG_MESSAGES message, WPARAM wParam, LPARAM lParam)
+    {
+        Debug.Assert(_managedDialogForm is not null);
+
+        switch (message)
+        {
+            case TASKDIALOG_MESSAGES.TDM_CLICK_BUTTON:
+                int buttonID = (int)wParam;
+                HRESULT buttonResult = HandleTaskDialogCallback(
+                    _handle,
+                    TASKDIALOG_NOTIFICATIONS.TDN_BUTTON_CLICKED,
+                    (WPARAM)buttonID,
+                    default);
+
+                if (buttonResult == HRESULT.S_OK)
+                {
+                    _managedDialogForm.SetResult(buttonID);
+                }
+
+                break;
+
+            case TASKDIALOG_MESSAGES.TDM_CLICK_RADIO_BUTTON:
+                int radioButtonID = (int)wParam;
+                _managedDialogForm.SelectRadioButton(radioButtonID);
+                HandleTaskDialogCallback(
+                    _handle,
+                    TASKDIALOG_NOTIFICATIONS.TDN_RADIO_BUTTON_CLICKED,
+                    (WPARAM)radioButtonID,
+                    default);
+                break;
+
+            case TASKDIALOG_MESSAGES.TDM_CLICK_VERIFICATION:
+                bool checkedState = (BOOL)wParam;
+                _managedDialogForm.SetVerificationChecked(checkedState);
+                HandleTaskDialogCallback(
+                    _handle,
+                    TASKDIALOG_NOTIFICATIONS.TDN_VERIFICATION_CLICKED,
+                    (WPARAM)(BOOL)checkedState,
+                    default);
+                break;
+
+            case TASKDIALOG_MESSAGES.TDM_ENABLE_BUTTON:
+                _managedDialogForm.SetButtonEnabled((int)wParam, (nint)lParam != 0);
+                break;
+
+            case TASKDIALOG_MESSAGES.TDM_ENABLE_RADIO_BUTTON:
+                _managedDialogForm.SetRadioButtonEnabled((int)wParam, (nint)lParam != 0);
+                break;
+        }
     }
 
     private HRESULT HandleTaskDialogCallback(
@@ -1666,6 +1805,12 @@ public partial class TaskDialog : IWin32Window
     {
         DenyIfDialogNotUpdatable(checkWaitingForNavigation);
 
+        if (_managedDialogForm is not null)
+        {
+            HandleManagedTaskDialogMessage(message, wParam, lParam);
+            return;
+        }
+
         PInvoke.SendMessage(
             _handle,
             (uint)message,
@@ -1686,5 +1831,270 @@ public partial class TaskDialog : IWin32Window
         // We use the MainInstruction because it cannot contain hyperlinks
         // (and therefore there is no risk that one of the links loses focus).
         UpdateTextElement(TASKDIALOG_ELEMENTS.TDE_MAIN_INSTRUCTION, _boundPage!.Heading);
+    }
+
+    private sealed class WindowWrapper(IntPtr handle) : IWin32Window
+    {
+        public IntPtr Handle { get; } = handle;
+    }
+
+    private sealed class ManagedTaskDialogForm : Form
+    {
+        private readonly TaskDialog _ownerDialog;
+        private readonly TaskDialogPage _page;
+        private readonly Dictionary<int, Button> _buttons = [];
+        private readonly Dictionary<int, RadioButton> _radioButtons = [];
+        private readonly Label _headingLabel = new() { AutoSize = true, Dock = DockStyle.Top };
+        private readonly Label _contentLabel = new() { AutoSize = true, Dock = DockStyle.Top, Padding = new Padding(0, 8, 0, 0) };
+        private readonly CheckBox? _verificationCheckBox;
+        private bool _updatingControls;
+
+        public ManagedTaskDialogForm(
+            nint owner,
+            TaskDialog ownerDialog,
+            TaskDialogPage page,
+            IReadOnlyList<(int buttonID, string text)> customButtonElements,
+            int defaultButtonID)
+        {
+            _ownerDialog = ownerDialog;
+            _page = page;
+
+            Text = TaskDialogPage.IsNativeStringNullOrEmpty(page.Caption)
+                ? Application.ProductName
+                : page.Caption;
+            StartPosition = owner == 0 ? FormStartPosition.CenterScreen : FormStartPosition.CenterParent;
+            MinimizeBox = false;
+            MaximizeBox = false;
+            ShowInTaskbar = owner == 0;
+            FormBorderStyle = FormBorderStyle.FixedDialog;
+            ClientSize = new Size(460, 240);
+            MinimumSize = new Size(360, 180);
+
+            if (page.Verification?.IsCreated == true)
+            {
+                _verificationCheckBox = new CheckBox
+                {
+                    AutoSize = true,
+                    Checked = page.Verification.Checked,
+                    Dock = DockStyle.Top,
+                    Padding = new Padding(0, 10, 0, 0),
+                    Text = page.Verification.Text
+                };
+            }
+
+            Controls.Add(CreateContent(customButtonElements, defaultButtonID));
+        }
+
+        public int ResultButtonID { get; private set; }
+
+        protected override void OnShown(EventArgs e)
+        {
+            base.OnShown(e);
+            _ownerDialog.OnManagedTaskDialogShown(this);
+        }
+
+        public void SetResult(int buttonID)
+        {
+            ResultButtonID = buttonID;
+            DialogResult = buttonID == (int)TaskDialogResult.Cancel ? DialogResult.Cancel : DialogResult.OK;
+            Close();
+        }
+
+        public void UpdateTextElement(TASKDIALOG_ELEMENTS element, string? text)
+        {
+            switch (element)
+            {
+                case TASKDIALOG_ELEMENTS.TDE_MAIN_INSTRUCTION:
+                    _headingLabel.Text = text;
+                    break;
+                case TASKDIALOG_ELEMENTS.TDE_CONTENT:
+                    _contentLabel.Text = text;
+                    break;
+            }
+        }
+
+        public void SetButtonEnabled(int buttonID, bool enabled)
+        {
+            if (_buttons.TryGetValue(buttonID, out Button? button))
+            {
+                button.Enabled = enabled;
+            }
+        }
+
+        public void SetRadioButtonEnabled(int radioButtonID, bool enabled)
+        {
+            if (_radioButtons.TryGetValue(radioButtonID, out RadioButton? button))
+            {
+                button.Enabled = enabled;
+            }
+        }
+
+        public void SelectRadioButton(int radioButtonID)
+        {
+            if (_radioButtons.TryGetValue(radioButtonID, out RadioButton? button))
+            {
+                _updatingControls = true;
+                try
+                {
+                    button.Checked = true;
+                }
+                finally
+                {
+                    _updatingControls = false;
+                }
+            }
+        }
+
+        public void SetVerificationChecked(bool checkedState)
+        {
+            if (_verificationCheckBox is not null)
+            {
+                _updatingControls = true;
+                try
+                {
+                    _verificationCheckBox.Checked = checkedState;
+                }
+                finally
+                {
+                    _updatingControls = false;
+                }
+            }
+        }
+
+        private TableLayoutPanel CreateContent(IReadOnlyList<(int buttonID, string text)> customButtonElements, int defaultButtonID)
+        {
+            TableLayoutPanel root = new()
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 1,
+                RowCount = 2,
+                Padding = new Padding(16)
+            };
+            root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+
+            FlowLayoutPanel body = new()
+            {
+                Dock = DockStyle.Fill,
+                FlowDirection = FlowDirection.TopDown,
+                WrapContents = false,
+                AutoScroll = true
+            };
+
+            _headingLabel.Font = new Font(Font, FontStyle.Bold);
+            UpdateTextElement(TASKDIALOG_ELEMENTS.TDE_MAIN_INSTRUCTION, _page.Heading);
+            UpdateTextElement(TASKDIALOG_ELEMENTS.TDE_CONTENT, _page.Text);
+            body.Controls.Add(_headingLabel);
+            body.Controls.Add(_contentLabel);
+
+            foreach (TaskDialogRadioButton radioButton in _page.RadioButtons)
+            {
+                if (!radioButton.IsCreated)
+                {
+                    continue;
+                }
+
+                RadioButton button = new()
+                {
+                    AutoSize = true,
+                    Checked = radioButton.Checked,
+                    Enabled = radioButton.Enabled,
+                    Text = radioButton.Text
+                };
+
+                int radioButtonID = radioButton.RadioButtonID;
+                button.CheckedChanged += (sender, e) =>
+                {
+                    if (!_updatingControls && button.Checked)
+                    {
+                        _ownerDialog.ClickRadioButton(radioButtonID);
+                    }
+                };
+
+                _radioButtons[radioButtonID] = button;
+                body.Controls.Add(button);
+            }
+
+            if (_verificationCheckBox is not null)
+            {
+                _verificationCheckBox.CheckedChanged += (sender, e) =>
+                {
+                    if (!_updatingControls)
+                    {
+                        _ownerDialog.ClickCheckBox(_verificationCheckBox.Checked);
+                    }
+                };
+                body.Controls.Add(_verificationCheckBox);
+            }
+
+            root.Controls.Add(body, 0, 0);
+
+            FlowLayoutPanel buttons = new()
+            {
+                Dock = DockStyle.Fill,
+                AutoSize = true,
+                FlowDirection = FlowDirection.RightToLeft
+            };
+
+            AddButtons(buttons, customButtonElements, defaultButtonID);
+            root.Controls.Add(buttons, 0, 1);
+            return root;
+        }
+
+        private void AddButtons(FlowLayoutPanel buttons, IReadOnlyList<(int buttonID, string text)> customButtonElements, int defaultButtonID)
+        {
+            bool hasVisibleButton = false;
+            foreach (TaskDialogButton taskDialogButton in _page.Buttons)
+            {
+                if (!taskDialogButton.IsCreated || !taskDialogButton.IsStandardButton)
+                {
+                    continue;
+                }
+
+                AddButton(buttons, taskDialogButton.ButtonID, taskDialogButton.ToString(), taskDialogButton.Enabled, defaultButtonID);
+                hasVisibleButton = true;
+            }
+
+            foreach ((int buttonID, string text) in customButtonElements)
+            {
+                TaskDialogButton? taskDialogButton = _page.GetBoundButtonByID(buttonID);
+                AddButton(buttons, buttonID, text, taskDialogButton?.Enabled != false, defaultButtonID);
+                hasVisibleButton = true;
+            }
+
+            if (!hasVisibleButton)
+            {
+                AddButton(buttons, (int)TaskDialogResult.OK, TaskDialogResult.OK.ToString(), enabled: true, defaultButtonID: 0);
+            }
+        }
+
+        private void AddButton(
+            FlowLayoutPanel buttons,
+            int buttonID,
+            string text,
+            bool enabled,
+            int defaultButtonID)
+        {
+            Button button = new()
+            {
+                AutoSize = true,
+                Enabled = enabled,
+                Text = text
+            };
+
+            button.Click += (sender, e) => _ownerDialog.ClickButton(buttonID);
+            buttons.Controls.Add(button);
+            _buttons[buttonID] = button;
+
+            if (buttonID == defaultButtonID || AcceptButton is null)
+            {
+                AcceptButton = button;
+            }
+
+            if (buttonID == (int)TaskDialogResult.Cancel)
+            {
+                CancelButton = button;
+            }
+        }
     }
 }

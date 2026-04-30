@@ -109,7 +109,11 @@ compatibility-facade coverage.
   `StandardPrintController` raise a basic one-page print event flow using an
   offscreen WinFormsX graphics surface. The latest page-setup pass adds a
   visible managed `PageSetupDialog` baseline for margins, orientation, minimum
-  margin clamping, and owner-driven modal automation.
+  margin clamping, and owner-driven modal automation. The latest task-dialog
+  pass adds a visible managed `TaskDialog` baseline for created/destroyed
+  lifetime, standard/custom button clicks, verification checkbox state, radio
+  button state, and text/caption updates routed through the existing public
+  `TaskDialogPage`/`TaskDialogButton` API.
 - First UIIntegration blockers observed:
   - `OLE32.dll` missing through `Application.ThreadContext.OleRequired()`,
     clipboard, and drag/drop paths. `InputLanguage.CurrentInputLanguage`,
@@ -129,8 +133,10 @@ compatibility-facade coverage.
     `MessageBox` now uses a visible managed modal baseline with standard
     button-result handling and owner-driven automation. `PageSetupDialog` now
     has a visible managed baseline with focused UIIntegration coverage.
-    Remaining dialog work is broader managed service parity for task dialogs,
-    OS-native picker integration, and richer print automation.
+    `TaskDialog` now has a visible managed baseline with focused coverage for
+    close, button, verification, and radio flows. Remaining dialog work is
+    broader managed service parity for internal modal dialogs, OS-native picker
+    integration, and richer print automation.
   - `ToolStrip_Hiding_ToolStripMenuItem_OnDropDownClosed_ShouldNotThrow` and
     `ToolStrip_shared_imagelist_should_not_get_disposed_when_toolstrip_does`
     now pass in focused runs.
@@ -321,18 +327,19 @@ Impacted APIs and controls:
   `ChooseColor`, `ChooseFont`, `PrintDlg`, `PrintDlgEx`, `PageSetupDlg`,
   `CommDlgExtendedError`), shell item dialogs, `GetDlgItem`, and `EndDialog`.
 - Current UIIntegration evidence: focused open-file, folder-browser, save-file,
-  color, font, message-box, print-dialog, and page-setup tests pass. Managed
-  WinFormsX file, save, folder, color, font, message-box, and page-setup dialog
-  services now have visible form baselines and honor owner accept/cancel
-  automation. Native common-dialog facade coverage exists for the first
-  safe-cancel tier; task-dialog automation and OS-native picker integration
-  remain incomplete.
+  color, font, message-box, task-dialog, print-dialog, and page-setup tests
+  pass. Managed WinFormsX file, save, folder, color, font, message-box,
+  task-dialog, and page-setup dialog services now have visible form baselines
+  and honor owner accept/cancel or public-API automation. Native common-dialog
+  facade coverage exists for the first safe-cancel tier; internal modal-dialog
+  and OS-native picker integration remain incomplete.
 
 Plan:
 
 - Expand managed WinFormsX modal dialog services for file/save/folder,
   color/font, message box, print, and page setup beyond the current visible
-  baseline, then add task-dialog parity.
+  baseline, and keep expanding task-dialog parity beyond the first visible
+  baseline.
 - Keep owner/idle automation covered so UIIntegration can accept/cancel dialogs
   without native OS dialog windows.
 - Keep native common-dialog exports as facades over those services where the ABI
@@ -664,8 +671,8 @@ cases were previously blockers and should remain regression targets:
    blocker and unblocks DataGridView, drag/drop, RichTextBox, clipboard, and
    InputLanguage tests.
 3. Implement managed dialog services and test automation hooks, covering
-   open/save/folder/color/font/message/print/page-setup first, then task
-   dialogs and internal modal surfaces.
+   open/save/folder/color/font/message/print/page-setup/task first, then
+   internal modal surfaces.
 4. Implement the remaining printing PAL behavior above the first no-printer
    defaults: visible print/page-setup services, print-preview integration, and
    print-controller output.
@@ -691,8 +698,8 @@ cases were previously blockers and should remain regression targets:
   baselines and focused owner-driven accept/cancel automation; `MessageBox`
   now has a visible managed modal baseline; first-tier `COMDLG32.dll`
   safe-cancel facade is covered; `PageSetupDialog` now has a visible managed
-  baseline; task-dialog visible-service parity and OS-native picker integration
-  still need coverage.
+  baseline; `TaskDialog` now has a visible managed baseline. Internal modal
+  dialog parity and OS-native picker integration still need coverage.
 - [~] Print baseline: focused `PrintDialog` tests are green; no-printer
   `PrinterSettings`, direct `winspool.drv` defaults, private-core print
   `Global*` memory, invalid-printer validation, and basic
