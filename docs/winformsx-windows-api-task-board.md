@@ -247,11 +247,16 @@ Ordered by observed frequency across components and blocker blast radius:
       `ToolStripDropDownItem.DropDownItems` add/commit coverage is green.
       Focused `InternalModalDialogUITests` now reports
       `Passed: 26, Failed: 0`.
+    - Latest ToolStrip designer pass:
+      dropdown item designers now register the documented `Edit Items...`
+      verb against `DropDownItems`, so nested ToolStrip/Menu item collection
+      editing uses the same managed editor path as top-level ToolStrips.
+      Focused `InternalModalDialogUITests` now reports
+      `Passed: 27, Failed: 0`.
   - Priority order moves to remaining high-impact infrastructure gaps:
-    richer design-time service parity around ToolStrip designer verbs and
-    in-situ editing, real print provider/PDF output design, OS-native picker
-    integration, then lower-volume accessibility/provider breadth and resource
-    polish.
+    richer ToolStrip in-situ editing/service parity, real print provider/PDF
+    output design, OS-native picker integration, then lower-volume
+    accessibility/provider breadth and resource polish.
   - Active lane update: focused PropertyGrid UIIntegration coverage is now
     green: `Passed: 38, Failed: 0, Skipped: 0, Total: 38`.
   - Active lane update: focused anchor/MDI resize coverage is now green:

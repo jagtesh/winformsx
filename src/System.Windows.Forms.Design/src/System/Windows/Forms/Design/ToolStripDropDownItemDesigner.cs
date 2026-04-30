@@ -16,6 +16,8 @@ internal class ToolStripDropDownItemDesigner : ToolStripItemDesigner
     public override void Initialize(IComponent component)
     {
         base.Initialize(component);
+
+        new EditorServiceContext(this, TypeDescriptor.GetProperties(Component)["DropDownItems"], SR.ToolStripItemCollectionEditorVerb);
     }
 
     /// <summary>

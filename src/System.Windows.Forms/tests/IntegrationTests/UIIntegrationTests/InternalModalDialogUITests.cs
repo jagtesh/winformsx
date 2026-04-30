@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.ComponentModel;
+using System.ComponentModel.Design;
 using System.Reflection;
 using System.Windows.Forms.Design;
 using System.Windows.Forms.PropertyGridInternal;
@@ -393,6 +394,17 @@ public class InternalModalDialogUITests : ControlTestBase
         Assert.Same(ownerItem.DropDownItems, editor.EditValue(context, editorService, ownerItem.DropDownItems));
         ToolStripItem item = Assert.IsAssignableFrom<ToolStripItem>(Assert.Single(ownerItem.DropDownItems));
         Assert.IsType<ToolStripButton>(item);
+    }
+
+    [UIFact]
+    public void ToolStripDropDownItemDesigner_Initialize_AddsEditItemsVerb()
+    {
+        using ToolStripDropDownButton ownerItem = new();
+        using ToolStripDropDownItemDesigner designer = new();
+
+        designer.Initialize(ownerItem);
+
+        Assert.Contains(designer.Verbs.Cast<DesignerVerb>(), verb => verb.Text == "&Edit Items...");
     }
 
     private static MdiWindowDialog CreateMdiWindowDialog(Form first, Form second)

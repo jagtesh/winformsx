@@ -150,6 +150,10 @@ compatibility-facade coverage.
   the missing `ToolStripCollectionEditor` implementation, forwards it through
   `System.Design`, and adds top-level/dropdown item add/commit coverage.
   Focused `InternalModalDialogUITests` now reports `26 passed, 0 failed`.
+  The latest ToolStrip designer pass wires the documented dropdown-item
+  `Edit Items...` verb to `DropDownItems`, keeping top-level and nested
+  ToolStrip collection editing on the same managed editor path. Focused
+  `InternalModalDialogUITests` now reports `27 passed, 0 failed`.
 - First UIIntegration blockers observed:
   - `OLE32.dll` missing through `Application.ThreadContext.OleRequired()`,
     clipboard, and drag/drop paths. `InputLanguage.CurrentInputLanguage`,
