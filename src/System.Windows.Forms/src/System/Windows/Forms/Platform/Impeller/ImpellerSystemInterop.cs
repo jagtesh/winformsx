@@ -16,7 +16,9 @@ internal sealed unsafe class ImpellerSystemInterop : ISystemInterop
 
     private long _nextTimerId = 1;
     private readonly Dictionary<nint, System.Threading.Timer> _timers = [];
-    private readonly Dictionary<string, uint> _clipboardFormats = [];
+    private readonly Dictionary<string, uint> _clipboardFormats = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<uint, string> _clipboardFormatNames = [];
+    private readonly Dictionary<uint, HANDLE> _clipboardData = [];
     private DPI_AWARENESS_CONTEXT _processDpiAwarenessContext = DPI_AWARENESS_CONTEXT.DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2;
     private DPI_AWARENESS_CONTEXT _threadDpiAwarenessContext = DPI_AWARENESS_CONTEXT.DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2;
     private DPI_HOSTING_BEHAVIOR _threadDpiHostingBehavior = DPI_HOSTING_BEHAVIOR.DPI_HOSTING_BEHAVIOR_MIXED;
@@ -552,22 +554,58 @@ internal sealed unsafe class ImpellerSystemInterop : ISystemInterop
 
     public bool OpenClipboard(HWND hWnd) => true;
     public bool CloseClipboard() => true;
-    public bool EmptyClipboard() => true;
-    public HANDLE SetClipboardData(uint format, HANDLE hMem) => hMem;
-    public HANDLE GetClipboardData(uint format) => HANDLE.Null;
-    public bool IsClipboardFormatAvailable(uint format) => false;
+    public bool EmptyClipboard()
+    {
+        _clipboardData.Clear();
+        return true;
+    }
+
+    public HANDLE SetClipboardData(uint format, HANDLE hMem)
+    {
+        if (format == 0 || hMem == HANDLE.Null)
+        {
+            return HANDLE.Null;
+        }
+
+        _clipboardData[format] = hMem;
+        return hMem;
+    }
+
+    public HANDLE GetClipboardData(uint format)
+        => _clipboardData.TryGetValue(format, out HANDLE handle) ? handle : HANDLE.Null;
+
+    public bool IsClipboardFormatAvailable(uint format)
+        => _clipboardData.ContainsKey(format);
+
     public uint RegisterClipboardFormat(string name)
     {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return 0;
+        }
+
         if (!_clipboardFormats.TryGetValue(name, out var id))
         {
             id = _nextClipboardFormat++;
             _clipboardFormats[name] = id;
+            _clipboardFormatNames[id] = name;
         }
 
         return id;
     }
 
-    public int GetClipboardFormatName(uint format, Span<char> buf) => 0;
+    public int GetClipboardFormatName(uint format, Span<char> buf)
+    {
+        if (buf.IsEmpty || !_clipboardFormatNames.TryGetValue(format, out string? name))
+        {
+            return 0;
+        }
+
+        int count = Math.Min(name.Length, buf.Length - 1);
+        name.AsSpan(0, count).CopyTo(buf);
+        buf[count] = '\0';
+        return count;
+    }
 
     // --- Shell ----------------------------------------------------------
 

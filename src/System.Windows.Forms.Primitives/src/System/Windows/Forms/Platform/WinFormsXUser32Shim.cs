@@ -92,6 +92,14 @@ internal static unsafe class WinFormsXUser32Shim
             InvalidateRect = &InvalidateRect,
             ValidateRect = &ValidateRect,
             MsgWaitForMultipleObjectsEx = &MsgWaitForMultipleObjectsEx,
+            OpenClipboard = &OpenClipboard,
+            CloseClipboard = &CloseClipboard,
+            EmptyClipboard = &EmptyClipboard,
+            SetClipboardData = &SetClipboardData,
+            GetClipboardData = &GetClipboardData,
+            IsClipboardFormatAvailable = &IsClipboardFormatAvailable,
+            RegisterClipboardFormat = &RegisterClipboardFormat,
+            GetClipboardFormatName = &GetClipboardFormatName,
         };
 
         delegate* unmanaged<DispatchTable*, int> register = (delegate* unmanaged<DispatchTable*, int>)registerExport;
@@ -967,6 +975,121 @@ internal static unsafe class WinFormsXUser32Shim
         }
     }
 
+    [UnmanagedCallersOnly]
+    private static int OpenClipboard(nint hWndNewOwner)
+    {
+        try
+        {
+            return PlatformApi.System.OpenClipboard((HWND)hWndNewOwner) ? 1 : 0;
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    [UnmanagedCallersOnly]
+    private static int CloseClipboard()
+    {
+        try
+        {
+            return PlatformApi.System.CloseClipboard() ? 1 : 0;
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    [UnmanagedCallersOnly]
+    private static int EmptyClipboard()
+    {
+        try
+        {
+            return PlatformApi.System.EmptyClipboard() ? 1 : 0;
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    [UnmanagedCallersOnly]
+    private static nint SetClipboardData(uint format, nint data)
+    {
+        try
+        {
+            return (nint)PlatformApi.System.SetClipboardData(format, (HANDLE)data);
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    [UnmanagedCallersOnly]
+    private static nint GetClipboardData(uint format)
+    {
+        try
+        {
+            return (nint)PlatformApi.System.GetClipboardData(format);
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    [UnmanagedCallersOnly]
+    private static int IsClipboardFormatAvailable(uint format)
+    {
+        try
+        {
+            return PlatformApi.System.IsClipboardFormatAvailable(format) ? 1 : 0;
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    [UnmanagedCallersOnly]
+    private static uint RegisterClipboardFormat(char* format)
+    {
+        if (format is null)
+        {
+            return 0;
+        }
+
+        try
+        {
+            return PlatformApi.System.RegisterClipboardFormat(new string(format));
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    [UnmanagedCallersOnly]
+    private static int GetClipboardFormatName(uint format, char* buffer, int maxCount)
+    {
+        if (buffer is null || maxCount <= 0)
+        {
+            return 0;
+        }
+
+        try
+        {
+            return PlatformApi.System.GetClipboardFormatName(format, new Span<char>(buffer, maxCount));
+        }
+        catch
+        {
+            buffer[0] = '\0';
+            return 0;
+        }
+    }
+
     private struct DispatchTable
     {
         public uint Version;
@@ -1025,6 +1148,14 @@ internal static unsafe class WinFormsXUser32Shim
         public delegate* unmanaged<nint, WinFormsXRect*, int, int> InvalidateRect;
         public delegate* unmanaged<nint, WinFormsXRect*, int> ValidateRect;
         public delegate* unmanaged<uint, nint*, uint, uint, uint, uint> MsgWaitForMultipleObjectsEx;
+        public delegate* unmanaged<nint, int> OpenClipboard;
+        public delegate* unmanaged<int> CloseClipboard;
+        public delegate* unmanaged<int> EmptyClipboard;
+        public delegate* unmanaged<uint, nint, nint> SetClipboardData;
+        public delegate* unmanaged<uint, nint> GetClipboardData;
+        public delegate* unmanaged<uint, int> IsClipboardFormatAvailable;
+        public delegate* unmanaged<char*, uint> RegisterClipboardFormat;
+        public delegate* unmanaged<uint, char*, int, int> GetClipboardFormatName;
     }
 
     [StructLayout(LayoutKind.Sequential)]

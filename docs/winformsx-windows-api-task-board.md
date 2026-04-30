@@ -56,12 +56,20 @@ Ordered by observed frequency across components and blocker blast radius:
     - Font discovery no longer branches by OS; it probes the known packaged,
       user, and system font directories on the single WinFormsX path and simply
       skips absent locations.
+    - USER32 clipboard facade now covers `OpenClipboard`, `CloseClipboard`,
+      `EmptyClipboard`, `SetClipboardData`, `GetClipboardData`,
+      `IsClipboardFormatAvailable`, `RegisterClipboardFormatW/A`, and
+      `GetClipboardFormatNameW/A`, all routed through `PlatformApi.System`.
+    - `ImpellerSystemInterop` now stores clipboard handles by format and tracks
+      registered clipboard format names case-insensitively, giving direct
+      DllImport callers and WinForms wrappers one shared compatibility state.
+    - UIIntegration test setup/teardown now closes leftover open forms before
+      each test boundary, keeping `Application.OpenForms` deterministic in the
+      shared-process suite.
     - Verification:
       `WinformsControlsTest --control-smoke-test` ->
       `total=42 passed=41 failed=0 skipped=1`; full UIIntegration ->
-      `Failed: 0, Passed: 191, Skipped: 1, Total: 192`. One quiet broad
-      UIIntegration retry surfaced `Application_OpenForms_RecreateHandle` once,
-      but the focused case and a normal-console broad rerun passed.
+      `Failed: 0, Passed: 191, Skipped: 1, Total: 192`.
   - Added WinFormsX virtual-window handling for ToolStrip dropdown overlays and
     hidden dropdown owner windows so they no longer create nested Silk/GLFW
     windows during UIIntegration runs.

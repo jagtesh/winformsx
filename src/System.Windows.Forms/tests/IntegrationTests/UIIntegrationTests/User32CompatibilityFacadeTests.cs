@@ -12,6 +12,7 @@ namespace System.Windows.Forms.UITests;
 public class User32CompatibilityFacadeTests
 {
     private const uint SPIF_SENDCHANGE = 0x0002;
+    private const uint CF_UNICODETEXT = 13;
 
     [Fact]
     public void CommonSystemMetrics_ResolveConsistentlyForManagedAndNativeUser32Facade()
@@ -103,6 +104,36 @@ public class User32CompatibilityFacadeTests
 
             Assert.Equal(PInvoke.GetAsyncKeyState((int)VIRTUAL_KEY.VK_RETURN), NativeUser32.GetAsyncKeyState((int)VIRTUAL_KEY.VK_RETURN));
             Assert.Equal(PInvoke.GetKeyState((int)VIRTUAL_KEY.VK_RETURN), NativeUser32.GetKeyState((int)VIRTUAL_KEY.VK_RETURN));
+
+            const string clipboardFormatName = "WinFormsX.User32CompatibilityFacadeTests";
+            uint registeredFormat = NativeUser32.RegisterClipboardFormat(clipboardFormatName);
+            Assert.NotEqual(0u, registeredFormat);
+            Assert.Equal(registeredFormat, NativeUser32.RegisterClipboardFormat(clipboardFormatName.ToUpperInvariant()));
+
+            char[] clipboardFormatNameBuffer = new char[128];
+            int clipboardFormatNameLength = NativeUser32.GetClipboardFormatName(
+                registeredFormat,
+                clipboardFormatNameBuffer,
+                clipboardFormatNameBuffer.Length);
+            Assert.Equal(clipboardFormatName.Length, clipboardFormatNameLength);
+            Assert.Equal(clipboardFormatName, new string(clipboardFormatNameBuffer, 0, clipboardFormatNameLength));
+
+            nint clipboardText = Marshal.StringToHGlobalUni("WinFormsX clipboard text");
+            try
+            {
+                uint unicodeTextFormat = CF_UNICODETEXT;
+                Assert.True(NativeUser32.OpenClipboard(nint.Zero));
+                Assert.True(NativeUser32.EmptyClipboard());
+                Assert.False(NativeUser32.IsClipboardFormatAvailable(unicodeTextFormat));
+                Assert.Equal(clipboardText, NativeUser32.SetClipboardData(unicodeTextFormat, clipboardText));
+                Assert.True(NativeUser32.IsClipboardFormatAvailable(unicodeTextFormat));
+                Assert.Equal(clipboardText, NativeUser32.GetClipboardData(unicodeTextFormat));
+                Assert.True(NativeUser32.CloseClipboard());
+            }
+            finally
+            {
+                Marshal.FreeHGlobal(clipboardText);
+            }
 
             byte[] managedKeyState = new byte[256];
             byte[] nativeKeyState = new byte[256];
@@ -378,6 +409,34 @@ public class User32CompatibilityFacadeTests
 
         [DllImport(User32, ExactSpelling = true)]
         internal static extern uint MapVirtualKey(uint code, uint mapType);
+
+        [DllImport(User32, ExactSpelling = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool OpenClipboard(nint hWndNewOwner);
+
+        [DllImport(User32, ExactSpelling = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool CloseClipboard();
+
+        [DllImport(User32, ExactSpelling = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool EmptyClipboard();
+
+        [DllImport(User32, ExactSpelling = true)]
+        internal static extern nint SetClipboardData(uint format, nint data);
+
+        [DllImport(User32, ExactSpelling = true)]
+        internal static extern nint GetClipboardData(uint format);
+
+        [DllImport(User32, ExactSpelling = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool IsClipboardFormatAvailable(uint format);
+
+        [DllImport(User32, EntryPoint = "RegisterClipboardFormatW", CharSet = CharSet.Unicode, ExactSpelling = true)]
+        internal static extern uint RegisterClipboardFormat(string lpszFormat);
+
+        [DllImport(User32, EntryPoint = "GetClipboardFormatNameW", CharSet = CharSet.Unicode, ExactSpelling = true)]
+        internal static extern int GetClipboardFormatName(uint format, [Out] char[] lpszFormatName, int cchMaxCount);
 
         [DllImport(User32, ExactSpelling = true)]
         internal static extern unsafe uint SendInput(uint count, INPUT* inputs, int cbSize);

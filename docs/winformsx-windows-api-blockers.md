@@ -81,8 +81,13 @@ compatibility-facade coverage.
   library selection and font-file discovery: native Impeller candidates now
   derive from the runtime identifier, stale wrong-format libraries still fail
   loudly, and font lookup probes known packaged/system locations with missing
-  directories ignored. Full UIIntegration and controls smoke remain stable after
-  this pass. Larger provider and dialog/print gaps remain tracked below.
+  directories ignored. The latest USER32 clipboard pass adds ABI-safe native
+  facade coverage for open/close/empty, set/get data handles, format
+  availability, and registered format names, all backed by the WinFormsX system
+  PAL. UIIntegration now also clears stray forms at test boundaries to keep
+  `Application.OpenForms` deterministic across the shared-process suite. Full
+  UIIntegration and controls smoke remain stable after this pass. Larger
+  provider and dialog/print gaps remain tracked below.
 - First UIIntegration blockers observed:
   - `OLE32.dll` missing through `Application.ThreadContext.OleRequired()`,
     `InputLanguage.CurrentInputLanguage`, IME, clipboard, and drag/drop paths.
@@ -613,7 +618,7 @@ cases were previously blockers and should remain regression targets:
 - [~] OLE/drag-drop baseline: focused `DragDropTests` coverage is green except
   the existing explorer-driven skip; drag-image/effect-negotiation polish
   remains.
-- [ ] OLE/clipboard baseline: managed clipboard set/get and format mapping.
+- [~] OLE/clipboard baseline: managed clipboard set/get and format mapping.
 - [ ] IME/input-language baseline: `InputLanguage`/IME no-crash managed state.
 - [~] Dialog baseline: focused open-file and folder-browser tests are green;
   save/color/font/message/task/page-setup parity still needs coverage.

@@ -65,6 +65,8 @@ public abstract class ControlTestBase : IAsyncLifetime, IDisposable
 
     public virtual Task InitializeAsync()
     {
+        CloseOpenForms();
+
         // Verify keyboard and mouse state at the start of the test
         VerifyKeyStates(isStartOfTest: true, TestOutputHelper);
 
@@ -93,6 +95,7 @@ public abstract class ControlTestBase : IAsyncLifetime, IDisposable
 
         JoinableTaskContext = null!;
         JoinableTaskFactory = null!;
+        CloseOpenForms();
     }
 
     public virtual void Dispose()
@@ -128,6 +131,19 @@ public abstract class ControlTestBase : IAsyncLifetime, IDisposable
                 {
                     Assert.Fail($"The key with virtual key code '{code}' was unexpectedly pressed at the {(isStartOfTest ? "start" : "end")} of the test.");
                 }
+            }
+        }
+    }
+
+    private static void CloseOpenForms()
+    {
+        Form[] openForms = Application.OpenForms.Cast<Form>().ToArray();
+        foreach (Form form in openForms)
+        {
+            if (!form.IsDisposed)
+            {
+                form.Close();
+                form.Dispose();
             }
         }
     }

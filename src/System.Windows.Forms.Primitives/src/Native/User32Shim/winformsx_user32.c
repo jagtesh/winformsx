@@ -21,6 +21,7 @@ typedef intptr_t HMENU;
 typedef intptr_t WPARAM;
 typedef intptr_t LPARAM;
 typedef uintptr_t HKL;
+typedef uint16_t WCHAR;
 
 typedef struct WinFormsXRect
 {
@@ -104,6 +105,14 @@ typedef struct WinFormsXUser32Dispatch
     BOOL (*invalidate_rect)(HWND hwnd, const WinFormsXRect* rect, INT erase);
     BOOL (*validate_rect)(HWND hwnd, const WinFormsXRect* rect);
     UINT (*msg_wait_for_multiple_objects_ex)(UINT n_count, const intptr_t* handles, UINT milliseconds, UINT wake_mask, UINT flags);
+    BOOL (*open_clipboard)(HWND hwnd_new_owner);
+    BOOL (*close_clipboard)(void);
+    BOOL (*empty_clipboard)(void);
+    intptr_t (*set_clipboard_data)(UINT format, intptr_t data);
+    intptr_t (*get_clipboard_data)(UINT format);
+    BOOL (*is_clipboard_format_available)(UINT format);
+    UINT (*register_clipboard_format)(const WCHAR* format);
+    INT (*get_clipboard_format_name)(UINT format, WCHAR* buffer, INT max_count);
 } WinFormsXUser32Dispatch;
 
 static WinFormsXUser32Dispatch g_dispatch;
@@ -436,6 +445,101 @@ WF_EXPORT UINT MsgWaitForMultipleObjectsEx(UINT n_count, const intptr_t* handles
     return g_dispatch.msg_wait_for_multiple_objects_ex != 0
         ? g_dispatch.msg_wait_for_multiple_objects_ex(n_count, handles, milliseconds, wake_mask, flags)
         : 0x00000102;
+}
+
+WF_EXPORT BOOL OpenClipboard(HWND hwnd_new_owner)
+{
+    return g_dispatch.open_clipboard != 0 ? g_dispatch.open_clipboard(hwnd_new_owner) : 0;
+}
+
+WF_EXPORT BOOL CloseClipboard(void)
+{
+    return g_dispatch.close_clipboard != 0 ? g_dispatch.close_clipboard() : 0;
+}
+
+WF_EXPORT BOOL EmptyClipboard(void)
+{
+    return g_dispatch.empty_clipboard != 0 ? g_dispatch.empty_clipboard() : 0;
+}
+
+WF_EXPORT intptr_t SetClipboardData(UINT format, intptr_t data)
+{
+    return g_dispatch.set_clipboard_data != 0 ? g_dispatch.set_clipboard_data(format, data) : 0;
+}
+
+WF_EXPORT intptr_t GetClipboardData(UINT format)
+{
+    return g_dispatch.get_clipboard_data != 0 ? g_dispatch.get_clipboard_data(format) : 0;
+}
+
+WF_EXPORT BOOL IsClipboardFormatAvailable(UINT format)
+{
+    return g_dispatch.is_clipboard_format_available != 0 ? g_dispatch.is_clipboard_format_available(format) : 0;
+}
+
+WF_EXPORT UINT RegisterClipboardFormatW(const WCHAR* format)
+{
+    return g_dispatch.register_clipboard_format != 0 ? g_dispatch.register_clipboard_format(format) : 0;
+}
+
+WF_EXPORT UINT RegisterClipboardFormatA(const char* format)
+{
+    if (format == 0 || g_dispatch.register_clipboard_format == 0)
+    {
+        return 0;
+    }
+
+    WCHAR buffer[512];
+    int i = 0;
+    for (; i < 511 && format[i] != 0; i++)
+    {
+        buffer[i] = (WCHAR)(unsigned char)format[i];
+    }
+
+    buffer[i] = 0;
+    return g_dispatch.register_clipboard_format(buffer);
+}
+
+WF_EXPORT UINT RegisterClipboardFormat(const WCHAR* format)
+{
+    return RegisterClipboardFormatW(format);
+}
+
+WF_EXPORT INT GetClipboardFormatNameW(UINT format, WCHAR* buffer, INT max_count)
+{
+    return g_dispatch.get_clipboard_format_name != 0
+        ? g_dispatch.get_clipboard_format_name(format, buffer, max_count)
+        : 0;
+}
+
+WF_EXPORT INT GetClipboardFormatNameA(UINT format, char* buffer, INT max_count)
+{
+    if (buffer == 0 || max_count <= 0 || g_dispatch.get_clipboard_format_name == 0)
+    {
+        return 0;
+    }
+
+    WCHAR wide[512];
+    INT wide_count = g_dispatch.get_clipboard_format_name(format, wide, 512);
+    if (wide_count <= 0)
+    {
+        buffer[0] = 0;
+        return 0;
+    }
+
+    INT count = wide_count < (max_count - 1) ? wide_count : (max_count - 1);
+    for (INT i = 0; i < count; i++)
+    {
+        buffer[i] = wide[i] <= 0x7f ? (char)wide[i] : '?';
+    }
+
+    buffer[count] = 0;
+    return count;
+}
+
+WF_EXPORT INT GetClipboardFormatName(UINT format, WCHAR* buffer, INT max_count)
+{
+    return GetClipboardFormatNameW(format, buffer, max_count);
 }
 
 WF_EXPORT HHOOK SetWindowsHookEx(INT id_hook, intptr_t hook_proc, intptr_t hmod, UINT thread_id)
