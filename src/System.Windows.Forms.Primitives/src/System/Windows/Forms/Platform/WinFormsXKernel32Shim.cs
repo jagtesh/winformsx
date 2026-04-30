@@ -3,6 +3,8 @@
 
 using System.Runtime.InteropServices;
 using Windows.Win32.System.ApplicationInstallationAndServicing;
+using Windows.Win32.System.Diagnostics.Debug;
+using Windows.Win32.System.Threading;
 
 namespace System.Windows.Forms.Platform;
 
@@ -43,6 +45,14 @@ internal static unsafe class WinFormsXKernel32Shim
             GetModuleFileName = &GetModuleFileName,
             GetLastError = &GetLastError,
             SetLastError = &SetLastError,
+            CloseHandle = &CloseHandle,
+            DuplicateHandle = &DuplicateHandle,
+            FormatMessage = &FormatMessage,
+            GetExitCodeThread = &GetExitCodeThread,
+            GetLocaleInfoEx = &GetLocaleInfoEx,
+            GetStartupInfo = &GetStartupInfo,
+            GetThreadLocale = &GetThreadLocale,
+            GetTickCount = &GetTickCount,
             GlobalAlloc = &GlobalAlloc,
             GlobalReAlloc = &GlobalReAlloc,
             GlobalLock = &GlobalLock,
@@ -185,6 +195,142 @@ internal static unsafe class WinFormsXKernel32Shim
         }
         catch
         {
+        }
+    }
+
+    [UnmanagedCallersOnly]
+    private static int CloseHandle(nint handle)
+    {
+        try
+        {
+            return PlatformApi.System.CloseHandle((HANDLE)handle) ? 1 : 0;
+        }
+        catch
+        {
+            return 1;
+        }
+    }
+
+    [UnmanagedCallersOnly]
+    private static int DuplicateHandle(
+        nint sourceProcessHandle,
+        nint sourceHandle,
+        nint targetProcessHandle,
+        nint* targetHandle,
+        uint desiredAccess,
+        int inheritHandle,
+        uint options)
+    {
+        try
+        {
+            return PlatformApi.System.DuplicateHandle(
+                (HANDLE)sourceProcessHandle,
+                (HANDLE)sourceHandle,
+                (HANDLE)targetProcessHandle,
+                (HANDLE*)targetHandle,
+                desiredAccess,
+                (BOOL)inheritHandle,
+                options) ? 1 : 0;
+        }
+        catch
+        {
+            if (targetHandle is not null)
+            {
+                *targetHandle = sourceHandle;
+                return 1;
+            }
+
+            return 0;
+        }
+    }
+
+    [UnmanagedCallersOnly]
+    private static uint FormatMessage(uint flags, void* source, uint messageId, uint languageId, char* buffer, uint size, void* arguments)
+    {
+        try
+        {
+            return PlatformApi.System.FormatMessage((FORMAT_MESSAGE_OPTIONS)flags, source, messageId, languageId, buffer, size, arguments);
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    [UnmanagedCallersOnly]
+    private static int GetExitCodeThread(nint thread, uint* exitCode)
+    {
+        try
+        {
+            return PlatformApi.System.GetExitCodeThread((HANDLE)thread, exitCode) ? 1 : 0;
+        }
+        catch
+        {
+            if (exitCode is not null)
+            {
+                *exitCode = 259;
+                return 1;
+            }
+
+            return 0;
+        }
+    }
+
+    [UnmanagedCallersOnly]
+    private static int GetLocaleInfoEx(char* localeName, uint lcType, char* data, int dataLength)
+    {
+        try
+        {
+            return PlatformApi.System.GetLocaleInfoEx(localeName is null ? string.Empty : new string(localeName), lcType, data, dataLength);
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    [UnmanagedCallersOnly]
+    private static void GetStartupInfo(STARTUPINFOW* startupInfo)
+    {
+        if (startupInfo is null)
+        {
+            return;
+        }
+
+        try
+        {
+            PlatformApi.System.GetStartupInfo(out *startupInfo);
+        }
+        catch
+        {
+            *startupInfo = default;
+            startupInfo->cb = (uint)sizeof(STARTUPINFOW);
+        }
+    }
+
+    [UnmanagedCallersOnly]
+    private static uint GetThreadLocale()
+    {
+        try
+        {
+            return PlatformApi.System.GetThreadLocale();
+        }
+        catch
+        {
+            return 0x0409;
+        }
+    }
+
+    [UnmanagedCallersOnly]
+    private static uint GetTickCount()
+    {
+        try
+        {
+            return PlatformApi.System.GetTickCount();
+        }
+        catch
+        {
+            return (uint)Environment.TickCount64;
         }
     }
 
@@ -407,6 +553,14 @@ internal static unsafe class WinFormsXKernel32Shim
         public delegate* unmanaged<nint, char*, uint, uint> GetModuleFileName;
         public delegate* unmanaged<uint> GetLastError;
         public delegate* unmanaged<uint, void> SetLastError;
+        public delegate* unmanaged<nint, int> CloseHandle;
+        public delegate* unmanaged<nint, nint, nint, nint*, uint, int, uint, int> DuplicateHandle;
+        public delegate* unmanaged<uint, void*, uint, uint, char*, uint, void*, uint> FormatMessage;
+        public delegate* unmanaged<nint, uint*, int> GetExitCodeThread;
+        public delegate* unmanaged<char*, uint, char*, int, int> GetLocaleInfoEx;
+        public delegate* unmanaged<STARTUPINFOW*, void> GetStartupInfo;
+        public delegate* unmanaged<uint> GetThreadLocale;
+        public delegate* unmanaged<uint> GetTickCount;
         public delegate* unmanaged<uint, nuint, nint> GlobalAlloc;
         public delegate* unmanaged<nint, nuint, uint, nint> GlobalReAlloc;
         public delegate* unmanaged<nint, void*> GlobalLock;

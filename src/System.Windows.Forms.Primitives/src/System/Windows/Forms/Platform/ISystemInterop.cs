@@ -2,6 +2,8 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using Windows.Win32.System.ApplicationInstallationAndServicing;
+using Windows.Win32.System.Diagnostics.Debug;
+using Windows.Win32.System.Threading;
 
 namespace System.Windows.Forms.Platform;
 
@@ -55,6 +57,21 @@ internal unsafe interface ISystemInterop
     uint GetWindowThreadProcessId(HWND hWnd, out uint lpdwProcessId);
     uint GetLastError();
     void SetLastError(uint dwErrCode);
+    bool CloseHandle(HANDLE hObject);
+    bool DuplicateHandle(
+        HANDLE hSourceProcessHandle,
+        HANDLE hSourceHandle,
+        HANDLE hTargetProcessHandle,
+        HANDLE* lpTargetHandle,
+        uint dwDesiredAccess,
+        BOOL bInheritHandle,
+        uint dwOptions);
+    uint FormatMessage(FORMAT_MESSAGE_OPTIONS dwFlags, void* lpSource, uint dwMessageId, uint dwLanguageId, char* lpBuffer, uint nSize, void* arguments);
+    bool GetExitCodeThread(HANDLE hThread, uint* lpExitCode);
+    int GetLocaleInfoEx(string lpLocaleName, uint lcType, char* lpLCData, int cchData);
+    void GetStartupInfo(out STARTUPINFOW lpStartupInfo);
+    uint GetThreadLocale();
+    uint GetTickCount();
     HANDLE CreateActCtx(ACTCTXW* pActCtx);
     bool ActivateActCtx(HANDLE hActCtx, nuint* lpCookie);
     bool DeactivateActCtx(uint dwFlags, nuint ulCookie);

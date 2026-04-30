@@ -16,6 +16,28 @@ typedef uint32_t DWORD;
 typedef uint16_t WCHAR;
 typedef uintptr_t SIZE_T;
 
+typedef struct STARTUPINFOW
+{
+    DWORD cb;
+    WCHAR* reserved;
+    WCHAR* desktop;
+    WCHAR* title;
+    DWORD x;
+    DWORD y;
+    DWORD x_size;
+    DWORD y_size;
+    DWORD x_count_chars;
+    DWORD y_count_chars;
+    DWORD fill_attribute;
+    DWORD flags;
+    uint16_t show_window;
+    uint16_t reserved2_count;
+    uint8_t* reserved2;
+    void* std_input;
+    void* std_output;
+    void* std_error;
+} STARTUPINFOW;
+
 typedef struct ACTCTXW
 {
     DWORD cb_size;
@@ -40,6 +62,14 @@ typedef struct WinFormsXKernel32Dispatch
     DWORD (*get_module_file_name)(void* module, WCHAR* filename, DWORD size);
     DWORD (*get_last_error)(void);
     void (*set_last_error)(DWORD error);
+    BOOL (*close_handle)(void* handle);
+    BOOL (*duplicate_handle)(void* source_process, void* source_handle, void* target_process, void** target_handle, DWORD desired_access, BOOL inherit_handle, DWORD options);
+    DWORD (*format_message)(DWORD flags, void* source, DWORD message_id, DWORD language_id, WCHAR* buffer, DWORD size, void* arguments);
+    BOOL (*get_exit_code_thread)(void* thread, DWORD* exit_code);
+    int32_t (*get_locale_info_ex)(const WCHAR* locale_name, DWORD locale_type, WCHAR* data, int32_t data_length);
+    void (*get_startup_info)(STARTUPINFOW* startup_info);
+    DWORD (*get_thread_locale)(void);
+    DWORD (*get_tick_count)(void);
     void* (*global_alloc)(DWORD flags, SIZE_T size);
     void* (*global_realloc)(void* handle, SIZE_T size, DWORD flags);
     void* (*global_lock)(void* handle);
@@ -60,6 +90,7 @@ typedef struct WinFormsXKernel32Dispatch
 
 static WinFormsXKernel32Dispatch g_dispatch;
 static DWORD g_last_error;
+static uint64_t g_tick_count;
 static intptr_t g_next_activation_context = 0x610000;
 static void* g_current_activation_context;
 
@@ -285,6 +316,160 @@ WF_EXPORT void SetLastError(DWORD error)
     {
         g_dispatch.set_last_error(error);
     }
+}
+
+WF_EXPORT BOOL CloseHandle(void* handle)
+{
+    if (g_dispatch.close_handle != 0)
+    {
+        return g_dispatch.close_handle(handle);
+    }
+
+    (void)handle;
+    return 1;
+}
+
+WF_EXPORT BOOL DuplicateHandle(void* source_process, void* source_handle, void* target_process, void** target_handle, DWORD desired_access, BOOL inherit_handle, DWORD options)
+{
+    if (g_dispatch.duplicate_handle != 0)
+    {
+        return g_dispatch.duplicate_handle(source_process, source_handle, target_process, target_handle, desired_access, inherit_handle, options);
+    }
+
+    (void)source_process;
+    (void)target_process;
+    (void)desired_access;
+    (void)inherit_handle;
+    (void)options;
+    if (target_handle == 0)
+    {
+        return 0;
+    }
+
+    *target_handle = source_handle;
+    return 1;
+}
+
+WF_EXPORT DWORD FormatMessageW(DWORD flags, void* source, DWORD message_id, DWORD language_id, WCHAR* buffer, DWORD size, void* arguments)
+{
+    if (g_dispatch.format_message != 0)
+    {
+        return g_dispatch.format_message(flags, source, message_id, language_id, buffer, size, arguments);
+    }
+
+    (void)flags;
+    (void)source;
+    (void)message_id;
+    (void)language_id;
+    (void)arguments;
+    if (buffer == 0 || size == 0)
+    {
+        return 0;
+    }
+
+    const WCHAR fallback[] = { 'W', 'i', 'n', 'F', 'o', 'r', 'm', 's', 'X', ' ', 's', 'y', 's', 't', 'e', 'm', ' ', 'm', 'e', 's', 's', 'a', 'g', 'e', '.', 0 };
+    DWORD length = 25;
+    DWORD copy_length = length < size ? length : size - 1;
+    for (DWORD i = 0; i < copy_length; i++)
+    {
+        buffer[i] = fallback[i];
+    }
+
+    buffer[copy_length] = 0;
+    return copy_length;
+}
+
+WF_EXPORT DWORD FormatMessage(DWORD flags, void* source, DWORD message_id, DWORD language_id, WCHAR* buffer, DWORD size, void* arguments)
+{
+    return FormatMessageW(flags, source, message_id, language_id, buffer, size, arguments);
+}
+
+WF_EXPORT BOOL GetExitCodeThread(void* thread, DWORD* exit_code)
+{
+    if (g_dispatch.get_exit_code_thread != 0)
+    {
+        return g_dispatch.get_exit_code_thread(thread, exit_code);
+    }
+
+    (void)thread;
+    if (exit_code == 0)
+    {
+        return 0;
+    }
+
+    *exit_code = 259;
+    return 1;
+}
+
+WF_EXPORT int32_t GetLocaleInfoEx(const WCHAR* locale_name, DWORD locale_type, WCHAR* data, int32_t data_length)
+{
+    if (g_dispatch.get_locale_info_ex != 0)
+    {
+        return g_dispatch.get_locale_info_ex(locale_name, locale_type, data, data_length);
+    }
+
+    (void)locale_name;
+    if (data == 0 || data_length <= 0)
+    {
+        return 0;
+    }
+
+    if (locale_type == 0x0000000D)
+    {
+        data[0] = '1';
+        if (data_length > 1)
+        {
+            data[1] = 0;
+        }
+
+        return 2;
+    }
+
+    data[0] = 0;
+    return 0;
+}
+
+WF_EXPORT void GetStartupInfoW(STARTUPINFOW* startup_info)
+{
+    if (g_dispatch.get_startup_info != 0)
+    {
+        g_dispatch.get_startup_info(startup_info);
+        return;
+    }
+
+    if (startup_info == 0)
+    {
+        return;
+    }
+
+    memset(startup_info, 0, sizeof(STARTUPINFOW));
+    startup_info->cb = sizeof(STARTUPINFOW);
+}
+
+WF_EXPORT void GetStartupInfo(STARTUPINFOW* startup_info)
+{
+    GetStartupInfoW(startup_info);
+}
+
+WF_EXPORT DWORD GetThreadLocale(void)
+{
+    if (g_dispatch.get_thread_locale != 0)
+    {
+        return g_dispatch.get_thread_locale();
+    }
+
+    return 0x0409;
+}
+
+WF_EXPORT DWORD GetTickCount(void)
+{
+    if (g_dispatch.get_tick_count != 0)
+    {
+        return g_dispatch.get_tick_count();
+    }
+
+    g_tick_count += 16;
+    return (DWORD)g_tick_count;
 }
 
 WF_EXPORT void* GlobalAlloc(DWORD flags, SIZE_T size)

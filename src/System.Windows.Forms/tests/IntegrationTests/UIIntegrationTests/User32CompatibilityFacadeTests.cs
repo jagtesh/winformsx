@@ -535,6 +535,39 @@ public class User32CompatibilityFacadeTests
             PInvoke.SetLastError(0x33u);
             Assert.Equal(0x33u, NativeKernel32.GetLastError());
 
+            Assert.True(NativeKernel32.CloseHandle((nint)0x1234));
+            nint duplicateHandle;
+            Assert.True(NativeKernel32.DuplicateHandle(
+                NativeKernel32.GetCurrentProcess(),
+                (nint)0x5678,
+                NativeKernel32.GetCurrentProcess(),
+                &duplicateHandle,
+                0,
+                false,
+                0));
+            Assert.Equal((nint)0x5678, duplicateHandle);
+
+            char* message = stackalloc char[128];
+            uint messageLength = NativeKernel32.FormatMessage(0x1200, nint.Zero, 5, NativeKernel32.GetThreadLocale(), message, 128, nint.Zero);
+            Assert.True(messageLength > 0);
+            Assert.False(string.IsNullOrWhiteSpace(new string(message, 0, (int)messageLength)));
+
+            char* localeData = stackalloc char[8];
+            int localeLength = NativeKernel32.GetLocaleInfoEx(PInvoke.LOCALE_NAME_SYSTEM_DEFAULT, PInvoke.LOCALE_IMEASURE, localeData, 8);
+            Assert.True(localeLength > 0);
+            Assert.True(localeData[0] is '0' or '1');
+
+            NativeKernel32.STARTUPINFOW startupInfo;
+            NativeKernel32.GetStartupInfo(&startupInfo);
+            Assert.Equal((uint)sizeof(NativeKernel32.STARTUPINFOW), startupInfo.cb);
+
+            uint tickCount = NativeKernel32.GetTickCount();
+            Assert.True(tickCount > 0);
+
+            uint exitCode;
+            Assert.True(NativeKernel32.GetExitCodeThread((nint)(-2), &exitCode));
+            Assert.Equal(259u, exitCode);
+
             const uint ZeroInit = 0x40;
             nint globalMemory = NativeKernel32.GlobalAlloc(ZeroInit, 8);
             Assert.NotEqual(nint.Zero, globalMemory);
@@ -1017,6 +1050,44 @@ public class User32CompatibilityFacadeTests
         internal static extern void SetLastError(uint dwErrCode);
 
         [DllImport(Kernel32, ExactSpelling = true)]
+        internal static extern bool CloseHandle(nint hObject);
+
+        [DllImport(Kernel32, ExactSpelling = true)]
+        internal static extern bool DuplicateHandle(
+            nint hSourceProcessHandle,
+            nint hSourceHandle,
+            nint hTargetProcessHandle,
+            nint* lpTargetHandle,
+            uint dwDesiredAccess,
+            bool bInheritHandle,
+            uint dwOptions);
+
+        [DllImport(Kernel32, EntryPoint = "FormatMessageW", ExactSpelling = true)]
+        internal static extern uint FormatMessage(
+            uint dwFlags,
+            nint lpSource,
+            uint dwMessageId,
+            uint dwLanguageId,
+            char* lpBuffer,
+            uint nSize,
+            nint Arguments);
+
+        [DllImport(Kernel32, ExactSpelling = true)]
+        internal static extern bool GetExitCodeThread(nint hThread, uint* lpExitCode);
+
+        [DllImport(Kernel32, CharSet = CharSet.Unicode, ExactSpelling = true)]
+        internal static extern int GetLocaleInfoEx(string lpLocaleName, uint LCType, char* lpLCData, int cchData);
+
+        [DllImport(Kernel32, EntryPoint = "GetStartupInfoW", ExactSpelling = true)]
+        internal static extern void GetStartupInfo(STARTUPINFOW* lpStartupInfo);
+
+        [DllImport(Kernel32, ExactSpelling = true)]
+        internal static extern uint GetThreadLocale();
+
+        [DllImport(Kernel32, ExactSpelling = true)]
+        internal static extern uint GetTickCount();
+
+        [DllImport(Kernel32, ExactSpelling = true)]
         internal static extern nint GlobalAlloc(uint uFlags, nuint dwBytes);
 
         [DllImport(Kernel32, ExactSpelling = true)]
@@ -1075,6 +1146,28 @@ public class User32CompatibilityFacadeTests
             public char* lpResourceName;
             public char* lpApplicationName;
             public nint hModule;
+        }
+
+        internal struct STARTUPINFOW
+        {
+            public uint cb;
+            public char* lpReserved;
+            public char* lpDesktop;
+            public char* lpTitle;
+            public uint dwX;
+            public uint dwY;
+            public uint dwXSize;
+            public uint dwYSize;
+            public uint dwXCountChars;
+            public uint dwYCountChars;
+            public uint dwFillAttribute;
+            public uint dwFlags;
+            public ushort wShowWindow;
+            public ushort cbReserved2;
+            public byte* lpReserved2;
+            public nint hStdInput;
+            public nint hStdOutput;
+            public nint hStdError;
         }
     }
 }

@@ -1,9 +1,12 @@
 ﻿// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-using Windows.Win32.UI.Accessibility;
 using System.Runtime.CompilerServices;
+using System.Globalization;
 using Windows.Win32.System.ApplicationInstallationAndServicing;
+using Windows.Win32.System.Diagnostics.Debug;
+using Windows.Win32.System.Threading;
+using Windows.Win32.UI.Accessibility;
 
 namespace System.Windows.Forms.Platform;
 
@@ -599,6 +602,113 @@ internal sealed unsafe class ImpellerSystemInterop : ISystemInterop
     public uint GetLastError() => s_lastError;
 
     public void SetLastError(uint dwErrCode) => s_lastError = dwErrCode;
+
+    public bool CloseHandle(HANDLE hObject)
+    {
+        _ = hObject;
+        return true;
+    }
+
+    public bool DuplicateHandle(
+        HANDLE hSourceProcessHandle,
+        HANDLE hSourceHandle,
+        HANDLE hTargetProcessHandle,
+        HANDLE* lpTargetHandle,
+        uint dwDesiredAccess,
+        BOOL bInheritHandle,
+        uint dwOptions)
+    {
+        _ = hSourceProcessHandle;
+        _ = hTargetProcessHandle;
+        _ = dwDesiredAccess;
+        _ = bInheritHandle;
+        _ = dwOptions;
+
+        if (lpTargetHandle is null)
+        {
+            return false;
+        }
+
+        *lpTargetHandle = hSourceHandle;
+        return true;
+    }
+
+    public uint FormatMessage(
+        FORMAT_MESSAGE_OPTIONS dwFlags,
+        void* lpSource,
+        uint dwMessageId,
+        uint dwLanguageId,
+        char* lpBuffer,
+        uint nSize,
+        void* arguments)
+    {
+        _ = dwFlags;
+        _ = lpSource;
+        _ = dwLanguageId;
+        _ = arguments;
+
+        if (lpBuffer is null || nSize == 0)
+        {
+            return 0;
+        }
+
+        string message = dwMessageId == 0
+            ? "The operation completed successfully."
+            : $"WinFormsX system message 0x{dwMessageId:X8}.";
+
+        int count = Math.Min(message.Length, (int)nSize - 1);
+        message.AsSpan(0, count).CopyTo(new Span<char>(lpBuffer, count));
+        lpBuffer[count] = '\0';
+        return (uint)count;
+    }
+
+    public bool GetExitCodeThread(HANDLE hThread, uint* lpExitCode)
+    {
+        _ = hThread;
+        if (lpExitCode is null)
+        {
+            return false;
+        }
+
+        *lpExitCode = 259;
+        return true;
+    }
+
+    public int GetLocaleInfoEx(string lpLocaleName, uint lcType, char* lpLCData, int cchData)
+    {
+        _ = lpLocaleName;
+        if (lpLCData is null || cchData <= 0)
+        {
+            return 0;
+        }
+
+        string value = lcType switch
+        {
+            PInvoke.LOCALE_IMEASURE => RegionInfo.CurrentRegion.IsMetric ? "0" : "1",
+            _ => string.Empty
+        };
+
+        if (value.Length == 0)
+        {
+            lpLCData[0] = '\0';
+            return 0;
+        }
+
+        int count = Math.Min(value.Length, cchData - 1);
+        value.AsSpan(0, count).CopyTo(new Span<char>(lpLCData, count));
+        lpLCData[count] = '\0';
+        return count + 1;
+    }
+
+    public void GetStartupInfo(out STARTUPINFOW lpStartupInfo)
+    {
+        lpStartupInfo = default;
+        lpStartupInfo.cb = (uint)sizeof(STARTUPINFOW);
+    }
+
+    public uint GetThreadLocale() => (uint)CultureInfo.CurrentCulture.LCID;
+
+    public uint GetTickCount() => (uint)Environment.TickCount64;
 
     public HANDLE CreateActCtx(ACTCTXW* pActCtx)
     {

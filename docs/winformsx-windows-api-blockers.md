@@ -214,7 +214,11 @@ compatibility-facade coverage.
   with deterministic zero-init, resize, size, lock, and free behavior. The
   activation-context pass routes `CreateActCtx`, `ActivateActCtx`,
   `DeactivateActCtx`, and `GetCurrentActCtx` through PAL-owned thread-local
-  state and direct `KERNEL32.dll` facade exports. The latest ImageList
+  state and direct `KERNEL32.dll` facade exports. The latest KERNEL32 basic
+  process pass removes generated imports for `CloseHandle`, `DuplicateHandle`,
+  `FormatMessage`, `GetExitCodeThread`, `GetLocaleInfoEx`, `GetStartupInfo`,
+  `GetThreadLocale`, and `GetTickCount`, then forwards the same direct
+  `KERNEL32.dll` exports through PAL-owned state. The latest ImageList
   follow-up keeps `ImageList.GetBitmap` stable when WinFormsX
   synthetic bitmap handles cannot be materialized by GDI+, preserving shared
   `ToolStrip.ImageList` enumeration after form disposal. The latest broad
@@ -590,6 +594,10 @@ Plan:
 - Keep activation-context support conservative: WinFormsX records synthetic
   activation context handles and thread-local activation cookies, without
   pretending to parse or apply Windows manifests yet.
+- Keep basic thread/locale/startup/format-message helpers deterministic and
+  PAL-owned; they exist to preserve source compatibility for WinForms code paths
+  such as startup visibility, COM property descriptors, locale-sensitive page
+  setup, and send-key timestamps.
 - Keep the first-tier `KERNEL32.dll` facade limited to ABI-simple process,
   thread, and module-path APIs until tests justify broader loader/resource
   semantics.
@@ -887,8 +895,8 @@ cases were previously blockers and should remain regression targets:
 - [ ] USER32 tier expansion: geometry/menu/message APIs used by UI tests.
 - [~] KERNEL32 tier expansion: process/thread/module-path facade is covered;
   direct last-error and first-tier `Global*` / `Local*` memory state are
-  covered; first-tier activation context state is covered; module resources and
-  loader edge cases remain.
+  covered; first-tier activation context state and basic thread/locale/startup
+  helpers are covered; module resources and loader edge cases remain.
 - [~] COMCTL32/ImageList tier: first-tier image-list state, synthetic bitmap
   metadata, and managed enumeration fallback are covered; richer draw/mask and
   stream payload fidelity remain.
@@ -905,6 +913,10 @@ cases were previously blockers and should remain regression targets:
 - [x] KERNEL32 activation-context basics now route through PAL and direct
   facade exports for `CreateActCtx`, `ActivateActCtx`, `DeactivateActCtx`, and
   `GetCurrentActCtx`.
+- [x] KERNEL32 basic thread/locale/startup helpers now route through PAL and
+  direct facade exports for `CloseHandle`, `DuplicateHandle`, `FormatMessage`,
+  `GetExitCodeThread`, `GetLocaleInfoEx`, `GetStartupInfo`, `GetThreadLocale`,
+  and `GetTickCount`.
 - [ ] Next KERNEL32 breadth: module resource lookup and loader edge-case
   compatibility.
 
