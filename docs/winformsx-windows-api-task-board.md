@@ -169,8 +169,15 @@ Ordered by observed frequency across components and blocker blast radius:
       `Graphics`. This intentionally stops short of real printer/file/PDF
       output, which needs a dedicated OS/provider printing PAL rather than more
       modal-dialog shimming.
+    - Latest page-setup dialog pass:
+      `PageSetupDialog` now uses a visible managed WinFormsX dialog baseline
+      when the backend is active, covering margin editing, minimum-margin
+      clamping, orientation state, and owner-driven modal automation. Focused
+      `PageSetupDialogUITests` reports `Passed: 3, Failed: 0`; the focused
+      dialog group reports `Passed: 17, Failed: 0`; controls smoke remains
+      `total=42 passed=41 failed=0 skipped=1`.
   - Priority order moves to remaining high-impact infrastructure gaps:
-    task/page-setup dialog parity, print provider/PDF output design,
+    task-dialog/internal modal parity, print provider/PDF output design,
     OS-native picker integration, then lower-volume accessibility/provider
     breadth and resource polish.
   - Active lane update: focused PropertyGrid UIIntegration coverage is now
@@ -794,7 +801,7 @@ Ordered by observed frequency across components and blocker blast radius:
 ## Dialog and Common Controls
 
 - [~] WXA-1201: Implement managed fallbacks for `OpenFileDialog`, `SaveFileDialog`, `FolderBrowserDialog`, `ColorDialog`, `FontDialog`. Visible WinFormsX form baselines and focused owner-driven accept/cancel automation are covered; richer filtering, multi-select UI, overwrite/create prompts, font effects/scripts, custom-color state, and OS-native picker integration remain.
-- [~] WXA-1202: Implement managed `PrintDialog` and `PageSetupDialog` with no-spooler fallback path. Focused `PrintDialog` coverage and `PrintDlgEx(PD_RETURNDEFAULT)` default-printer state are covered; visible `PageSetupDialog` parity remains.
+- [~] WXA-1202: Implement managed `PrintDialog` and `PageSetupDialog` with no-spooler fallback path. Focused `PrintDialog` coverage, `PrintDlgEx(PD_RETURNDEFAULT)` default-printer state, and visible `PageSetupDialog` margin/orientation automation are covered; richer printer selection and real provider-backed output remain.
 - [ ] WXA-1203: Implement WinFormsX fallback for internal modal dialogs (`PrintPreviewDialog`, `TaskDialog`, `GridErrorDialog`, `ThreadExceptionDialog`).
 - [~] WXA-1205: Implement visible managed `MessageBox` parity. Standard button-result handling and owner-driven automation are covered; icon imagery, help button, RTL/options polish, and richer native facade behavior remain.
 - [~] WXA-1204: Route native `COMDLG32.dll` symbols used by `PInvoke` (`GetOpenFileName`, `GetSaveFileName`, `ChooseColor`, `ChooseFont`, `PrintDlg`, `PrintDlgEx`, `PageSetupDlg`, `CommDlgExtendedError`) to WinFormsX-managed dialog services. First-tier safe-cancel facade is covered; richer visible dialog behavior remains under WXA-1201/WXA-1202.
@@ -879,6 +886,7 @@ Ordered by observed frequency across components and blocker blast radius:
 - Active priority lane moves to `P2` dialog/print and spooler work now that the
   active UIIntegration slice and controls smoke are green. First-tier
   `COMDLG32.dll` and `winspool.drv` facade coverage is in place, and visible
-  managed file/save/folder/color/font/message baselines are now covered; next
-  highest-impact remaining blockers are task/page-setup parity, OS-native
-  picker integration, and print-controller output.
+  managed file/save/folder/color/font/message/page-setup baselines are now
+  covered; next highest-impact remaining blockers are task-dialog/internal
+  modal parity, OS-native picker integration, and real print provider/PDF
+  output.

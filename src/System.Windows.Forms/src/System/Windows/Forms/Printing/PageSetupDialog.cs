@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.ComponentModel;
+using System.Drawing;
 using System.Drawing.Printing;
 using System.Globalization;
 using Windows.Win32.UI.Controls.Dialogs;
@@ -268,6 +269,12 @@ public sealed class PageSetupDialog : CommonDialog
             throw new ArgumentException(SR.PSDcantShowWithoutPage);
         }
 
+        if (Graphics.IsBackendActive)
+        {
+            using ManagedPageSetupDialog dialog = new((nint)hwndOwner, this, _pageSettings);
+            return dialog.ShowDialog(new WindowWrapper(hwndOwner)) == DialogResult.OK;
+        }
+
         PAGESETUPDLGW dialogSettings = new()
         {
             lStructSize = (uint)sizeof(PAGESETUPDLGW),
@@ -345,5 +352,190 @@ public sealed class PageSetupDialog : CommonDialog
             PInvoke.GlobalFree(dialogSettings.hDevMode);
             PInvoke.GlobalFree(dialogSettings.hDevNames);
         }
+    }
+
+    private static void NotifyOwnerIdle(nint owner, nint dialogHandle)
+    {
+        if (owner == 0 || dialogHandle == 0)
+        {
+            return;
+        }
+
+        PInvoke.PostMessage((HWND)owner, PInvoke.WM_ENTERIDLE, (WPARAM)0, (LPARAM)dialogHandle);
+    }
+
+    private sealed class WindowWrapper(IntPtr handle) : IWin32Window
+    {
+        public IntPtr Handle { get; } = handle;
+    }
+
+    private sealed class ManagedPageSetupDialog : Form
+    {
+        private readonly nint _owner;
+        private readonly PageSetupDialog _ownerDialog;
+        private readonly PageSettings _pageSettings;
+        private readonly NumericUpDown _leftMargin = CreateMarginInput();
+        private readonly NumericUpDown _rightMargin = CreateMarginInput();
+        private readonly NumericUpDown _topMargin = CreateMarginInput();
+        private readonly NumericUpDown _bottomMargin = CreateMarginInput();
+        private readonly CheckBox _landscape = new() { AutoSize = true, Text = "Landscape" };
+
+        public ManagedPageSetupDialog(nint owner, PageSetupDialog ownerDialog, PageSettings pageSettings)
+        {
+            _owner = owner;
+            _ownerDialog = ownerDialog;
+            _pageSettings = pageSettings;
+
+            Text = "Page Setup";
+            StartPosition = FormStartPosition.CenterParent;
+            MinimizeBox = false;
+            MaximizeBox = false;
+            ShowInTaskbar = false;
+            FormBorderStyle = FormBorderStyle.FixedDialog;
+            ClientSize = new Size(420, 250);
+            MinimumSize = new Size(360, 220);
+
+            InitializeValues();
+            Controls.Add(CreateContent());
+        }
+
+        protected override void OnShown(EventArgs e)
+        {
+            base.OnShown(e);
+            BeginInvoke(() => NotifyOwnerIdle(_owner, Handle));
+        }
+
+        protected override void WndProc(ref Message m)
+        {
+            if (m.MsgInternal == PInvoke.WM_COMMAND)
+            {
+                switch ((int)m.WParamInternal.LOWORD)
+                {
+                    case (int)MESSAGEBOX_RESULT.IDOK:
+                        AcceptDialog();
+                        return;
+                    case (int)MESSAGEBOX_RESULT.IDCANCEL:
+                        DialogResult = DialogResult.Cancel;
+                        Close();
+                        return;
+                }
+            }
+
+            base.WndProc(ref m);
+        }
+
+        private void InitializeValues()
+        {
+            Margins margins = _pageSettings.Margins;
+            _leftMargin.Value = ClampMargin(margins.Left, _ownerDialog.MinMargins?.Left ?? 0);
+            _rightMargin.Value = ClampMargin(margins.Right, _ownerDialog.MinMargins?.Right ?? 0);
+            _topMargin.Value = ClampMargin(margins.Top, _ownerDialog.MinMargins?.Top ?? 0);
+            _bottomMargin.Value = ClampMargin(margins.Bottom, _ownerDialog.MinMargins?.Bottom ?? 0);
+
+            _landscape.Checked = _pageSettings.Landscape;
+            _landscape.Enabled = _ownerDialog.AllowOrientation;
+
+            bool marginsEnabled = _ownerDialog.AllowMargins;
+            _leftMargin.Enabled = marginsEnabled;
+            _rightMargin.Enabled = marginsEnabled;
+            _topMargin.Enabled = marginsEnabled;
+            _bottomMargin.Enabled = marginsEnabled;
+        }
+
+        private TableLayoutPanel CreateContent()
+        {
+            TableLayoutPanel root = new()
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 1,
+                RowCount = 3,
+                Padding = new Padding(12)
+            };
+
+            root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+
+            Label title = new()
+            {
+                AutoSize = true,
+                Text = "Page settings",
+                Font = new Font(Font, FontStyle.Bold),
+                Padding = new Padding(0, 0, 0, 8)
+            };
+            root.Controls.Add(title, 0, 0);
+
+            TableLayoutPanel fields = new()
+            {
+                Dock = DockStyle.Top,
+                ColumnCount = 2,
+                AutoSize = true
+            };
+
+            fields.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+            fields.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            AddMarginRow(fields, "Left:", _leftMargin);
+            AddMarginRow(fields, "Right:", _rightMargin);
+            AddMarginRow(fields, "Top:", _topMargin);
+            AddMarginRow(fields, "Bottom:", _bottomMargin);
+            fields.Controls.Add(new Label { AutoSize = true, Text = "Orientation:" }, 0, fields.RowCount);
+            fields.Controls.Add(_landscape, 1, fields.RowCount++);
+            root.Controls.Add(fields, 0, 1);
+
+            FlowLayoutPanel buttons = new()
+            {
+                Dock = DockStyle.Fill,
+                FlowDirection = FlowDirection.RightToLeft,
+                AutoSize = true
+            };
+
+            Button ok = new() { Text = "OK", AutoSize = true, DialogResult = DialogResult.None };
+            ok.Click += (sender, e) => AcceptDialog();
+            Button cancel = new() { Text = "Cancel", AutoSize = true, DialogResult = DialogResult.Cancel };
+            buttons.Controls.Add(cancel);
+            buttons.Controls.Add(ok);
+            AcceptButton = ok;
+            CancelButton = cancel;
+            root.Controls.Add(buttons, 0, 2);
+
+            return root;
+        }
+
+        private void AcceptDialog()
+        {
+            _pageSettings.Margins = new Margins(
+                (int)_leftMargin.Value,
+                (int)_rightMargin.Value,
+                (int)_topMargin.Value,
+                (int)_bottomMargin.Value);
+
+            if (_ownerDialog.AllowOrientation)
+            {
+                _pageSettings.Landscape = _landscape.Checked;
+            }
+
+            DialogResult = DialogResult.OK;
+            Close();
+        }
+
+        private static void AddMarginRow(TableLayoutPanel fields, string label, NumericUpDown input)
+        {
+            int row = fields.RowCount++;
+            fields.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            fields.Controls.Add(new Label { AutoSize = true, Text = label, Padding = new Padding(0, 4, 8, 0) }, 0, row);
+            fields.Controls.Add(input, 1, row);
+        }
+
+        private static NumericUpDown CreateMarginInput()
+            => new()
+            {
+                Minimum = 0,
+                Maximum = 10000,
+                Increment = 10,
+                Width = 120
+            };
+
+        private static decimal ClampMargin(int value, int min)
+            => Math.Clamp(value, Math.Max(0, min), 10000);
     }
 }
