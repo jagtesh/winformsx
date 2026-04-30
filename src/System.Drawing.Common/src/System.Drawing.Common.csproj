@@ -121,6 +121,15 @@
           Condition="'$(WinFormsXImpellerRuntimeId)' != ''" />
   </ItemGroup>
 
+  <Target Name="RemoveWinFormsXIncompatibleImpellerOutput"
+          BeforeTargets="GetCopyToOutputDirectoryItems"
+          Condition="'$(OS)' != 'Windows_NT' and '$(OutDir)' != ''">
+    <ItemGroup>
+      <WinFormsXIncompatibleImpellerOutput Include="$(OutDir)impeller.dll" />
+    </ItemGroup>
+    <Delete Files="@(WinFormsXIncompatibleImpellerOutput)" />
+  </Target>
+
   <ItemGroup Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net7.0'))">
     <Compile Include="..\..\Common\src\DisableRuntimeMarshalling.cs" Link="Common\DisableRuntimeMarshalling.cs" />
   </ItemGroup>

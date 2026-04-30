@@ -19,6 +19,16 @@ Ordered by observed frequency across components and blocker blast radius:
 ## Latest Progress (2026-04-30)
 
 - Landed:
+  - Restored visible Impeller rendering for `WinFormsX.Samples` and the controls smoke harness by initializing GLFW's Vulkan loader with the Homebrew `vulkan-loader` entrypoint before creating the Silk/GLFW Vulkan window.
+  - Hardened Impeller native asset selection so stale Windows `impeller.dll` output is removed from macOS/Linux build output and the runtime resolver loads only the platform-correct `libimpeller.dylib` / `libimpeller.so` / `impeller.dll` asset.
+  - Runtime guard now reports a direct `BadImageFormatException` if only an incompatible Impeller native binary is present, instead of silently falling through to renderer failure.
+  - Verification:
+    - `dotnet build src/WinFormsX.Samples/WinFormsX.Samples.csproj -v:q` -> `Build succeeded`.
+    - `dotnet artifacts/bin/WinformsControlsTest/Debug/net9.0/WinformsControlsTest.dll --control-smoke-test` -> `total=42 passed=41 failed=0 skipped=1`.
+  - Current follow-up blocker:
+    - `WinFormsX.Samples` is painting again, but the selected `TabPage` can still be laid out at negative coordinates (`{X=-575,Y=-214,...}`), so catalog layout/click targeting remains the next focused renderer/control issue.
+
+- Landed:
   - Fixed `Application_OpenForms_RecreateHandle` lifecycle hang in `Form` owner/taskbar-owner flow for backend mode.
   - Root cause from managed stack sampling (`dotnet-stack`) was dispose-time owner cleanup creating a hidden taskbar owner window, which re-entered `CreateHandle` and blocked in `Glfw.Init`.
   - Backend path now avoids hidden taskbar-owner handle creation:
@@ -29,8 +39,8 @@ Ordered by observed frequency across components and blocker blast radius:
     - `dotnet build src/System.Windows.Forms/tests/IntegrationTests/UIIntegrationTests/System.Windows.Forms.UI.IntegrationTests.csproj -c Debug -v minimal` -> `Build succeeded`.
     - `dotnet test ... --filter "FullyQualifiedName~Application_OpenForms_RecreateHandle" --no-build` -> `Passed: 1, Failed: 0`.
     - `dotnet test ... --filter "FullyQualifiedName~ButtonTests" --no-build` -> `Passed: 22, Failed: 0`.
-  - Current follow-up blocker:
-    - Controls smoke currently fails in this workspace with `WinFormsX requires a Vulkan window` across cases (`passed=0 failed=41 skipped=1`), indicating renderer/runtime environment precondition work remains before smoke parity can be re-established.
+  - Previous follow-up blocker status:
+    - The local Vulkan renderer precondition has since been fixed; controls smoke is back to `total=42 passed=41 failed=0 skipped=1`.
 
 - Landed:
   - Unified `UIIntegrationTests` control harness execution onto a single WinFormsX pathway in `ControlTestBase`:

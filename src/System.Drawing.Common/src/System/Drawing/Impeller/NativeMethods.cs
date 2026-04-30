@@ -17,6 +17,125 @@ public static partial class NativeMethods
 {
     private const string ImpellerLib = "impeller";
 
+    static NativeMethods()
+    {
+        NativeLibrary.SetDllImportResolver(typeof(NativeMethods).Assembly, ResolveNativeLibrary);
+    }
+
+    private static nint ResolveNativeLibrary(string libraryName, global::System.Reflection.Assembly assembly, DllImportSearchPath? searchPath)
+    {
+        if (!string.Equals(libraryName, ImpellerLib, global::System.StringComparison.Ordinal)
+            && !string.Equals(libraryName, "impeller.dll", global::System.StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(libraryName, "libimpeller.dylib", global::System.StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(libraryName, "libimpeller.so", global::System.StringComparison.OrdinalIgnoreCase))
+        {
+            return nint.Zero;
+        }
+
+        string baseDirectory = global::System.AppContext.BaseDirectory;
+        foreach (string candidate in GetPlatformImpellerCandidates(baseDirectory))
+        {
+            if (!global::System.IO.File.Exists(candidate))
+            {
+                continue;
+            }
+
+            if (NativeLibrary.TryLoad(candidate, assembly, searchPath, out nint handle) && handle != nint.Zero)
+            {
+                return handle;
+            }
+        }
+
+        string? incompatible = FindIncompatibleImpellerBinary(baseDirectory);
+        if (!string.IsNullOrWhiteSpace(incompatible))
+        {
+            throw new global::System.BadImageFormatException(
+                $"WinFormsX found an incompatible Impeller native library for this platform: '{incompatible}'. " +
+                $"Expected '{GetExpectedImpellerFileName()}' for {RuntimeInformation.RuntimeIdentifier}. " +
+                "Remove the stale native binary or rebuild so the platform-specific Impeller asset is copied.");
+        }
+
+        return nint.Zero;
+    }
+
+    private static string[] GetPlatformImpellerCandidates(string baseDirectory)
+    {
+        string rid = global::System.Runtime.InteropServices.RuntimeInformation.RuntimeIdentifier;
+        if (global::System.OperatingSystem.IsMacOS())
+        {
+            string archRid = global::System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture == Architecture.Arm64
+                ? "osx-arm64"
+                : "osx-x64";
+            return
+            [
+                global::System.IO.Path.Combine(baseDirectory, "libimpeller.dylib"),
+                global::System.IO.Path.Combine(baseDirectory, "runtimes", rid, "native", "libimpeller.dylib"),
+                global::System.IO.Path.Combine(baseDirectory, "runtimes", archRid, "native", "libimpeller.dylib"),
+            ];
+        }
+
+        if (global::System.OperatingSystem.IsLinux())
+        {
+            string archRid = global::System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture == Architecture.Arm64
+                ? "linux-arm64"
+                : "linux-x64";
+            return
+            [
+                global::System.IO.Path.Combine(baseDirectory, "libimpeller.so"),
+                global::System.IO.Path.Combine(baseDirectory, "runtimes", rid, "native", "libimpeller.so"),
+                global::System.IO.Path.Combine(baseDirectory, "runtimes", archRid, "native", "libimpeller.so"),
+            ];
+        }
+
+        if (global::System.OperatingSystem.IsWindows())
+        {
+            string archRid = global::System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture == Architecture.Arm64
+                ? "win-arm64"
+                : "win-x64";
+            return
+            [
+                global::System.IO.Path.Combine(baseDirectory, "impeller.dll"),
+                global::System.IO.Path.Combine(baseDirectory, "runtimes", rid, "native", "impeller.dll"),
+                global::System.IO.Path.Combine(baseDirectory, "runtimes", archRid, "native", "impeller.dll"),
+            ];
+        }
+
+        return [];
+    }
+
+    private static string? FindIncompatibleImpellerBinary(string baseDirectory)
+    {
+        string[] incompatibleNames = global::System.OperatingSystem.IsWindows()
+            ? ["libimpeller.dylib", "libimpeller.so"]
+            : ["impeller.dll"];
+
+        foreach (string name in incompatibleNames)
+        {
+            string candidate = global::System.IO.Path.Combine(baseDirectory, name);
+            if (global::System.IO.File.Exists(candidate))
+            {
+                return candidate;
+            }
+        }
+
+        return null;
+    }
+
+    private static string GetExpectedImpellerFileName()
+    {
+        if (global::System.OperatingSystem.IsMacOS())
+        {
+            return "libimpeller.dylib";
+        }
+
+        if (global::System.OperatingSystem.IsLinux())
+        {
+            return "libimpeller.so";
+        }
+
+        return "impeller.dll";
+    }
+
     // ─── Version ──────────────────────────────────────────────────────────
 
     [LibraryImport(ImpellerLib, EntryPoint = "ImpellerGetVersion")]
