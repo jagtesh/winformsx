@@ -19,6 +19,13 @@ Ordered by observed frequency across components and blocker blast radius:
 ## Latest Progress (2026-04-29)
 
 - In-progress local changes (next commit):
+  - Added managed `PInvoke.OleUninitialize` compatibility wrapper and removed generated direct import for `OleUninitialize` from `NativeMethods.txt`.
+  - This keeps thread-context disposal on the same WinFormsX-managed OLE compatibility path introduced by `PInvoke.OleInitialize`.
+  - Verification:
+    - `dotnet build src/System.Windows.Forms.Primitives/src/System.Windows.Forms.Primitives.csproj -c Debug` -> `Build succeeded`.
+    - `UIIntegrationTests` filter `FullyQualifiedName~Button_Hotkey_Fires_OnClickAsync` -> `Passed: 1, Failed: 0`.
+    - `WinformsControlsTest` is currently blocked in this dirty workspace by a renderer precondition (`WinFormsX requires a Vulkan window`) after rebuilding all projects; this appears tied to unrelated local renderer changes already present in the tree.
+- In-progress local changes (next commit):
   - Removed the remaining Windows-only branch from `Application.ThreadContext.OleRequired()` so OLE apartment initialization now follows a single WinFormsX pathway on all platforms.
   - Added managed `PInvoke.OleInitialize` compatibility wrapper in `System.Windows.Forms.Primitives` and removed generated direct import for `OleInitialize` from `NativeMethods.txt`.
   - Verification:

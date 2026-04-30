@@ -15,4 +15,11 @@ internal static partial class PInvoke
 
         return HRESULT.S_OK;
     }
+
+    public static void OleUninitialize()
+    {
+        WinFormsXCompatibilityWarning.Once(
+            "PInvoke.OleUninitialize",
+            "OLE apartment uninitialization is routed through WinFormsX managed compatibility mode.");
+    }
 }

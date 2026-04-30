@@ -546,7 +546,6 @@ OleDuplicateData
 OleFlushClipboard
 OleGetClipboard
 OleSetClipboard
-OleUninitialize
 OPEN_FILENAME_FLAGS
 OPEN_FILENAME_FLAGS_EX
 OpenInputDesktop
