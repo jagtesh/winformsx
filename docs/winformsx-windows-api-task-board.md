@@ -186,10 +186,18 @@ Ordered by observed frequency across components and blocker blast radius:
       `Passed: 4, Failed: 0`; the focused dialog group reports
       `Passed: 21, Failed: 0`; controls smoke remains
       `total=42 passed=41 failed=0 skipped=1`.
+    - Latest print-preview pass:
+      `PreviewPrintController` now records preview pages into managed bitmaps
+      instead of EMF/metafile pages, avoiding the unsupported managed drawing
+      PAL metafile path for normal WinFormsX print preview. `PrintPreviewDialog`
+      now explicitly prepares preview pages before raising `Shown`, and
+      `PrintControllerWithStatusDialog` gracefully continues without its
+      background status form when apartment-thread setup is unavailable.
+      Focused `PrintPreviewDialogUITests` reports `Passed: 2, Failed: 0`.
   - Priority order moves to remaining high-impact infrastructure gaps:
-    internal modal parity, print provider/PDF output design, OS-native picker
-    integration, then lower-volume accessibility/provider breadth and resource
-    polish.
+    remaining internal modal parity, real print provider/PDF output design,
+    OS-native picker integration, then lower-volume accessibility/provider
+    breadth and resource polish.
   - Active lane update: focused PropertyGrid UIIntegration coverage is now
     green: `Passed: 38, Failed: 0, Skipped: 0, Total: 38`.
   - Active lane update: focused anchor/MDI resize coverage is now green:

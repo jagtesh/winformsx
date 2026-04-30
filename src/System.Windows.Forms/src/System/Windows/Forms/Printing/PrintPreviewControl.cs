@@ -304,6 +304,27 @@ public partial class PrintPreviewControl : Control
     protected override AccessibleObject CreateAccessibilityInstance()
         => new PrintPreviewControlAccessibleObject(this);
 
+    internal void EnsurePreviewCalculated()
+    {
+        if (!IsHandleCreated)
+        {
+            CreateControl();
+        }
+
+        if (_pageInfo is null && !_pageInfoCalcPending)
+        {
+            CalculatePageInfo();
+            InvalidateLayout();
+        }
+    }
+
+    protected override void OnHandleCreated(EventArgs e)
+    {
+        base.OnHandleCreated(e);
+
+        EnsurePreviewCalculated();
+    }
+
     protected override void OnResize(EventArgs eventargs)
     {
         if (!IsHandleCreated)

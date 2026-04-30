@@ -1005,6 +1005,12 @@ public partial class PrintPreviewDialog : Form
         base.CreateHandle();
     }
 
+    protected override void OnShown(EventArgs e)
+    {
+        _previewControl.EnsurePreviewCalculated();
+        base.OnShown(e);
+    }
+
     protected override bool ProcessDialogKey(Keys keyData)
     {
         Keys keyCode = keyData & Keys.KeyCode;

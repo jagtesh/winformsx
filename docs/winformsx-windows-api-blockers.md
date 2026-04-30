@@ -113,7 +113,10 @@ compatibility-facade coverage.
   pass adds a visible managed `TaskDialog` baseline for created/destroyed
   lifetime, standard/custom button clicks, verification checkbox state, radio
   button state, and text/caption updates routed through the existing public
-  `TaskDialogPage`/`TaskDialogButton` API.
+  `TaskDialogPage`/`TaskDialogButton` API. The latest print-preview pass
+  records preview pages into managed bitmaps instead of EMF/metafile pages,
+  prepares `PrintPreviewDialog` before `Shown`, and lets print-preview continue
+  without the optional status-dialog thread when apartment setup is unavailable.
 - First UIIntegration blockers observed:
   - `OLE32.dll` missing through `Application.ThreadContext.OleRequired()`,
     clipboard, and drag/drop paths. `InputLanguage.CurrentInputLanguage`,
@@ -134,7 +137,9 @@ compatibility-facade coverage.
     button-result handling and owner-driven automation. `PageSetupDialog` now
     has a visible managed baseline with focused UIIntegration coverage.
     `TaskDialog` now has a visible managed baseline with focused coverage for
-    close, button, verification, and radio flows. Remaining dialog work is
+    close, button, verification, and radio flows. `PrintPreviewDialog` now has
+    a focused visible-dialog baseline backed by managed bitmap preview pages
+    instead of unsupported EMF/metafile recording. Remaining dialog work is
     broader managed service parity for internal modal dialogs, OS-native picker
     integration, and richer print automation.
   - `ToolStrip_Hiding_ToolStripMenuItem_OnDropDownClosed_ShouldNotThrow` and
@@ -704,8 +709,9 @@ cases were previously blockers and should remain regression targets:
   `PrinterSettings`, direct `winspool.drv` defaults, private-core print
   `Global*` memory, invalid-printer validation, and basic
   `StandardPrintController` event flow are covered. `PageSetupDialog` has a
-  visible managed baseline. Print-preview, status dialog, and real
-  print/file/PDF output remain.
+  visible managed baseline, and `PrintPreviewDialog` now renders preview pages
+  through managed bitmap-backed `PreviewPrintController` output. Real status
+  dialog UI and real print/file/PDF output remain.
 - [ ] USER32 tier expansion: geometry/menu/message APIs used by UI tests.
 - [ ] KERNEL32 tier expansion: minimal module/resource and last-error semantics.
 - [ ] COMCTL32/ImageList tier: image list ops required by ListView/TreeView tests.

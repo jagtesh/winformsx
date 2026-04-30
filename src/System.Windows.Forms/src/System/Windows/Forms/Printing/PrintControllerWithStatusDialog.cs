@@ -39,7 +39,14 @@ public partial class PrintControllerWithStatusDialog : PrintController
 
         if (SystemInformation.UserInteractive)
         {
-            _backgroundThread = new BackgroundThread(this); // starts running & shows dialog automatically
+            try
+            {
+                _backgroundThread = new BackgroundThread(this); // starts running & shows dialog automatically
+            }
+            catch (PlatformNotSupportedException)
+            {
+                _backgroundThread = null;
+            }
         }
 
         try
