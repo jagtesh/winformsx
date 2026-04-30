@@ -19,6 +19,16 @@ Ordered by observed frequency across components and blocker blast radius:
 ## Latest Progress (2026-04-29)
 
 - In-progress local changes (next commit):
+  - Started `WXA-1101` managed COM activation compatibility routing:
+    - Added managed `CoCreateInstance` wrappers in `PInvoke` (`System.Windows.Forms.Primitives`) and `PInvokeCore` (`System.Private.Windows.Core`) that return deterministic `REGDB_E_CLASSNOTREG` and null outputs instead of binding directly to `OLE32.dll`.
+    - Removed generated direct `CoCreateInstance` imports from both `NativeMethods.txt` files.
+    - Added `CLSCTX` metadata token in `System.Private.Windows.Core` `NativeMethods.txt` to preserve enum availability after removing generated `CoCreateInstance`.
+  - Verification:
+    - `dotnet build src/System.Private.Windows.Core/src/System.Private.Windows.Core.csproj -c Debug` -> `Build succeeded`.
+    - `dotnet build src/System.Windows.Forms.Primitives/src/System.Windows.Forms.Primitives.csproj -c Debug -p:BuildProjectReferences=false` -> `Build succeeded`.
+    - `UIIntegrationTests` filter `FullyQualifiedName~Button_Hotkey_Fires_OnClickAsync` -> `Passed: 1, Failed: 0`.
+    - Full graph build is currently blocked by unrelated dirty-tree compile issues in `System.Drawing.Common` (`Graphics.cs`), and controls smoke is currently blocked by a local Vulkan renderer precondition.
+- In-progress local changes (next commit):
   - Added managed `PInvoke.OleUninitialize` compatibility wrapper and removed generated direct import for `OleUninitialize` from `NativeMethods.txt`.
   - This keeps thread-context disposal on the same WinFormsX-managed OLE compatibility path introduced by `PInvoke.OleInitialize`.
   - Verification:
@@ -269,7 +279,7 @@ Ordered by observed frequency across components and blocker blast radius:
 
 ## OLE, COM, Clipboard, IME, Drag/Drop
 
-- [ ] WXA-1101: Implement PAL-backed `OleInitialize`, `CoInitialize`, `CoCreateInstance` and core `OLE32.dll` facade contracts.
+- [~] WXA-1101: Implement PAL-backed `OleInitialize`, `CoInitialize`, `CoCreateInstance` and core `OLE32.dll` facade contracts.
 - [~] WXA-1102: Implement clipboard helpers (`OleGetClipboard`, `OleSetClipboard`, `OleFlushClipboard`) with managed storage and format metadata.
 - [~] WXA-1103: Implement `RevokeDragDrop`/`RegisterDragDrop`/`DoDragDrop` event flow and default drop effects.
 - [x] WXA-1104: Implement `OleInitialize` + `InputLanguage.CurrentInputLanguage` to unblock data-grid and IME-dependent paths.
