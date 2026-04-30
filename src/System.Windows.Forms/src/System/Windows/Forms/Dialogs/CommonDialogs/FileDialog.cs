@@ -727,16 +727,40 @@ public abstract partial class FileDialog : CommonDialog
     {
         if (System.Drawing.Graphics.IsBackendActive)
         {
-            string? selected = this is SaveFileDialog
-                ? Platform.PlatformApi.Dialog.ShowSaveFileDialog(hWndOwner, Title, Filter, FilterIndex, InitialDirectory, FileName)
-                : Platform.PlatformApi.Dialog.ShowOpenFileDialog(hWndOwner, Title, Filter, FilterIndex, InitialDirectory, FileName);
+            if (this is SaveFileDialog)
+            {
+                string? selected = Platform.PlatformApi.Dialog.ShowSaveFileDialog(
+                    hWndOwner,
+                    Title,
+                    Filter,
+                    FilterIndex,
+                    InitialDirectory,
+                    FileName);
 
-            if (string.IsNullOrEmpty(selected))
+                if (string.IsNullOrEmpty(selected))
+                {
+                    return TryAcceptPrepopulatedBackendSelection();
+                }
+
+                return TryApplySelectedFileNames([selected]);
+            }
+
+            bool multiselect = this is OpenFileDialog openFileDialog && openFileDialog.Multiselect;
+            string[]? selectedFiles = Platform.PlatformApi.Dialog.ShowOpenFileDialog(
+                hWndOwner,
+                Title,
+                Filter,
+                FilterIndex,
+                InitialDirectory,
+                FileName,
+                multiselect);
+
+            if (selectedFiles is null || selectedFiles.Length == 0)
             {
                 return TryAcceptPrepopulatedBackendSelection();
             }
 
-            return TryApplySelectedFileNames([selected]);
+            return TryApplySelectedFileNames(selectedFiles);
         }
 
         if (Control.CheckForIllegalCrossThreadCalls && Application.OleRequired() != ApartmentState.STA)

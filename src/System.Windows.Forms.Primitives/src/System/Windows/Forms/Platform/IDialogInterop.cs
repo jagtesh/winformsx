@@ -10,7 +10,14 @@ namespace System.Windows.Forms.Platform;
 internal interface IDialogInterop
 {
     /// <summary>Show a file-open dialog. Returns the selected path, or null if cancelled.</summary>
-    string? ShowOpenFileDialog(nint owner, string? title, string? filter, int filterIndex, string? initialDir, string? fileName);
+    string[]? ShowOpenFileDialog(
+        nint owner,
+        string? title,
+        string? filter,
+        int filterIndex,
+        string? initialDir,
+        string? fileName,
+        bool multiselect);
 
     /// <summary>Show a file-save dialog. Returns the selected path, or null if cancelled.</summary>
     string? ShowSaveFileDialog(nint owner, string? title, string? filter, int filterIndex, string? initialDir, string? fileName);

@@ -98,9 +98,11 @@ compatibility-facade coverage.
   the managed WinFormsX path now has visible file, save, folder, color, and
   font dialog baselines. The latest file-picker pass threads `FilterIndex`
   through the dialog PAL and applies wildcard filter patterns when populating
-  managed Open/Save file lists. Direct COMDLG32 exports still return
-  deterministic cancel/default state until ABI-safe visible services are wired
-  through. The latest printing pass removes generated
+  managed Open/Save file lists. The latest OpenFileDialog pass extends the
+  dialog PAL to return multiple selected paths and covers visible filtered
+  multi-select selection. Direct COMDLG32 exports still return deterministic
+  cancel/default state until ABI-safe visible services are wired through. The
+  latest printing pass removes generated
   `winspool.drv` imports from the first managed print paths, adds deterministic
   no-printer defaults for `EnumPrinters`, `DeviceCapabilities`, and
   `DocumentProperties`, seeds `PrintDlgEx(PD_RETURNDEFAULT)` with a WinFormsX

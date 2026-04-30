@@ -11,15 +11,22 @@ namespace System.Windows.Forms.Platform;
 /// </summary>
 internal sealed class ImpellerDialogInterop : IDialogInterop
 {
-    public string? ShowOpenFileDialog(nint owner, string? title, string? filter, int filterIndex, string? initialDir, string? fileName)
+    public string[]? ShowOpenFileDialog(
+        nint owner,
+        string? title,
+        string? filter,
+        int filterIndex,
+        string? initialDir,
+        string? fileName,
+        bool multiselect)
     {
-        using FilePickerDialog dialog = new(owner, saveMode: false, title, filter, filterIndex, initialDir, fileName);
-        return dialog.ShowDialog(new WindowWrapper(owner)) == DialogResult.OK ? dialog.SelectedPath : null;
+        using FilePickerDialog dialog = new(owner, saveMode: false, title, filter, filterIndex, initialDir, fileName, multiselect);
+        return dialog.ShowDialog(new WindowWrapper(owner)) == DialogResult.OK ? dialog.SelectedPaths : null;
     }
 
     public string? ShowSaveFileDialog(nint owner, string? title, string? filter, int filterIndex, string? initialDir, string? fileName)
     {
-        using FilePickerDialog dialog = new(owner, saveMode: true, title, filter, filterIndex, initialDir, fileName);
+        using FilePickerDialog dialog = new(owner, saveMode: true, title, filter, filterIndex, initialDir, fileName, multiselect: false);
         return dialog.ShowDialog(new WindowWrapper(owner)) == DialogResult.OK ? dialog.SelectedPath : null;
     }
 
@@ -116,15 +123,25 @@ internal sealed class ImpellerDialogInterop : IDialogInterop
     private sealed class FilePickerDialog : ManagedDialogForm
     {
         private readonly bool _saveMode;
+        private readonly bool _multiselect;
         private readonly TextBox _pathBox = new() { Anchor = AnchorStyles.Left | AnchorStyles.Right };
         private readonly ListBox _items = new() { Dock = DockStyle.Fill };
         private readonly string[] _filterPatterns;
         private string _currentDirectory;
 
-        public FilePickerDialog(nint owner, bool saveMode, string? title, string? filter, int filterIndex, string? initialDir, string? fileName)
+        public FilePickerDialog(
+            nint owner,
+            bool saveMode,
+            string? title,
+            string? filter,
+            int filterIndex,
+            string? initialDir,
+            string? fileName,
+            bool multiselect)
             : base(owner)
         {
             _saveMode = saveMode;
+            _multiselect = !saveMode && multiselect;
             _filterPatterns = GetFilterPatterns(filter, filterIndex);
             Text = string.IsNullOrWhiteSpace(title) ? (saveMode ? "Save File" : "Open File") : title;
             ClientSize = new Size(720, 460);
@@ -139,8 +156,28 @@ internal sealed class ImpellerDialogInterop : IDialogInterop
 
         public string SelectedPath { get; private set; } = string.Empty;
 
+        public string[] SelectedPaths { get; private set; } = [];
+
         internal override void AcceptDialog()
         {
+            if (_multiselect && _items.SelectedItems.Count > 0)
+            {
+                string[] selectedPaths = _items.SelectedItems
+                    .Cast<FileSystemEntry>()
+                    .Where(entry => !entry.IsDirectory)
+                    .Select(entry => entry.FullPath)
+                    .ToArray();
+
+                if (selectedPaths.Length > 0)
+                {
+                    SelectedPaths = selectedPaths;
+                    SelectedPath = selectedPaths[0];
+                    DialogResult = DialogResult.OK;
+                    Close();
+                    return;
+                }
+            }
+
             string path = ResolvePath(_pathBox.Text);
             if (string.IsNullOrWhiteSpace(path))
             {
@@ -150,6 +187,7 @@ internal sealed class ImpellerDialogInterop : IDialogInterop
             }
 
             SelectedPath = path;
+            SelectedPaths = [path];
             DialogResult = DialogResult.OK;
             Close();
         }
@@ -195,6 +233,11 @@ internal sealed class ImpellerDialogInterop : IDialogInterop
             root.Controls.Add(pathRow, 0, 1);
 
             _items.DisplayMember = nameof(FileSystemEntry.DisplayName);
+            if (_multiselect)
+            {
+                _items.SelectionMode = SelectionMode.MultiExtended;
+            }
+
             _items.DoubleClick += (sender, e) => ActivateSelection(current);
             root.Controls.Add(_items, 0, 2);
 
