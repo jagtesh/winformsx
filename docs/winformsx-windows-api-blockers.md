@@ -117,6 +117,11 @@ compatibility-facade coverage.
   records preview pages into managed bitmaps instead of EMF/metafile pages,
   prepares `PrintPreviewDialog` before `Shown`, and lets print-preview continue
   without the optional status-dialog thread when apartment setup is unavailable.
+  The latest internal-modal pass makes managed modal `Form.ShowDialog(owner)`
+  post a Win32-compatible owner idle notification on `Shown`, so ordinary
+  WinForms modal forms can be closed through the same owner-driven automation
+  path used by the managed common dialogs. Focused `ThreadExceptionDialog` and
+  `GridErrorDialog` owner-close/details-expansion coverage is now green.
 - First UIIntegration blockers observed:
   - `OLE32.dll` missing through `Application.ThreadContext.OleRequired()`,
     clipboard, and drag/drop paths. `InputLanguage.CurrentInputLanguage`,
@@ -139,9 +144,11 @@ compatibility-facade coverage.
     `TaskDialog` now has a visible managed baseline with focused coverage for
     close, button, verification, and radio flows. `PrintPreviewDialog` now has
     a focused visible-dialog baseline backed by managed bitmap preview pages
-    instead of unsupported EMF/metafile recording. Remaining dialog work is
-    broader managed service parity for internal modal dialogs, OS-native picker
-    integration, and richer print automation.
+    instead of unsupported EMF/metafile recording. Ordinary managed modal forms
+    now synthesize `WM_ENTERIDLE` for their owner on `Shown`; focused
+    `ThreadExceptionDialog` and `GridErrorDialog` coverage passes. Remaining
+    dialog work is broader managed service parity for internal editor/status
+    dialogs, OS-native picker integration, and richer print automation.
   - `ToolStrip_Hiding_ToolStripMenuItem_OnDropDownClosed_ShouldNotThrow` and
     `ToolStrip_shared_imagelist_should_not_get_disposed_when_toolstrip_does`
     now pass in focused runs.
@@ -336,8 +343,11 @@ Impacted APIs and controls:
   pass. Managed WinFormsX file, save, folder, color, font, message-box,
   task-dialog, and page-setup dialog services now have visible form baselines
   and honor owner accept/cancel or public-API automation. Native common-dialog
-  facade coverage exists for the first safe-cancel tier; internal modal-dialog
-  and OS-native picker integration remain incomplete.
+  facade coverage exists for the first safe-cancel tier. Ordinary managed
+  modal forms now synthesize `WM_ENTERIDLE` for their owner on `Shown`, and
+  focused `ThreadExceptionDialog` / `GridErrorDialog` coverage passes.
+  OS-native picker integration and broader internal editor/status modal breadth
+  remain incomplete.
 
 Plan:
 
@@ -347,6 +357,9 @@ Plan:
   baseline.
 - Keep owner/idle automation covered so UIIntegration can accept/cancel dialogs
   without native OS dialog windows.
+- Keep ordinary managed modal `Form.ShowDialog(owner)` covered, because many
+  internal WinForms dialogs are plain forms rather than `CommonDialog`
+  subclasses.
 - Keep native common-dialog exports as facades over those services where the ABI
   is simple enough.
 - For `TaskDialog`, cover command links, verification checkbox, radio buttons,
@@ -703,8 +716,10 @@ cases were previously blockers and should remain regression targets:
   baselines and focused owner-driven accept/cancel automation; `MessageBox`
   now has a visible managed modal baseline; first-tier `COMDLG32.dll`
   safe-cancel facade is covered; `PageSetupDialog` now has a visible managed
-  baseline; `TaskDialog` now has a visible managed baseline. Internal modal
-  dialog parity and OS-native picker integration still need coverage.
+  baseline; `TaskDialog` now has a visible managed baseline; ordinary managed
+  modal forms now notify their owner on idle and focused `ThreadExceptionDialog`
+  / `GridErrorDialog` coverage is green. OS-native picker integration and
+  broader internal editor/status modal breadth still need coverage.
 - [~] Print baseline: focused `PrintDialog` tests are green; no-printer
   `PrinterSettings`, direct `winspool.drv` defaults, private-core print
   `Global*` memory, invalid-printer validation, and basic

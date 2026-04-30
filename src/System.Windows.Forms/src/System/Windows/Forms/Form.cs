@@ -4830,7 +4830,34 @@ public partial class Form : ContainerControl
     [EditorBrowsable(EditorBrowsableState.Advanced)]
     protected virtual void OnShown(EventArgs e)
     {
+        NotifyDialogOwnerIdle();
         ((EventHandler?)Events[s_shownEvent])?.Invoke(this, e);
+    }
+
+    private void NotifyDialogOwnerIdle()
+    {
+        if (!Modal)
+        {
+            return;
+        }
+
+        IWin32Window? dialogOwner = (IWin32Window?)Properties.GetObject(s_propDialogOwner);
+        HandleRef<HWND> ownerHandle = dialogOwner is not null
+            ? GetSafeHandle(dialogOwner)
+            : OwnerInternal is not null
+                ? new(OwnerInternal)
+                : default;
+
+        if (!ownerHandle.Handle.IsNull && IsHandleCreated)
+        {
+            PInvoke.PostMessage(
+                ownerHandle.Handle,
+                PInvoke.WM_ENTERIDLE,
+                (WPARAM)0,
+                (LPARAM)HWND);
+        }
+
+        GC.KeepAlive(ownerHandle.Wrapper);
     }
 
     [EditorBrowsable(EditorBrowsableState.Advanced)]

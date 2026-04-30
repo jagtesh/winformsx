@@ -194,10 +194,18 @@ Ordered by observed frequency across components and blocker blast radius:
       `PrintControllerWithStatusDialog` gracefully continues without its
       background status form when apartment-thread setup is unavailable.
       Focused `PrintPreviewDialogUITests` reports `Passed: 2, Failed: 0`.
+    - Latest internal-modal pass:
+      ordinary managed `Form.ShowDialog(owner)` now posts a Win32-compatible
+      owner idle notification when the modal form is shown. This gives plain
+      internal WinForms forms the same owner-driven accept/cancel automation
+      pathway as the managed common-dialog baselines. Focused
+      `InternalModalDialogUITests` reports `Passed: 4, Failed: 0`, covering
+      `ThreadExceptionDialog` and `GridErrorDialog` owner-close plus details
+      expansion.
   - Priority order moves to remaining high-impact infrastructure gaps:
-    remaining internal modal parity, real print provider/PDF output design,
-    OS-native picker integration, then lower-volume accessibility/provider
-    breadth and resource polish.
+    broader internal editor/status modal parity, real print provider/PDF output
+    design, OS-native picker integration, then lower-volume
+    accessibility/provider breadth and resource polish.
   - Active lane update: focused PropertyGrid UIIntegration coverage is now
     green: `Passed: 38, Failed: 0, Skipped: 0, Total: 38`.
   - Active lane update: focused anchor/MDI resize coverage is now green:
