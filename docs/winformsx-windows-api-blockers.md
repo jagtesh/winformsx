@@ -15,6 +15,10 @@ compatibility-facade coverage.
   desktop window, system metrics, visibility, enabled state, and the
   `MsgWaitForMultipleObjectsEx` modal-wait path used by PropertyGrid, plus
   `GetWindowPlacement` / `SetWindowPlacement` for MDI minimized-window layout.
+  Internal WinFormsX menu item probes now also route non-generic
+  `EnableMenuItem`, `GetMenuItemCount`, and `GetMenuItemInfo` wrappers through
+  PAL, so visible catalog startup does not fall back to generated direct
+  `USER32.dll` imports while adjusting the form system menu.
 - UIIntegrationTests are no longer globally skipped by OS-gated attributes. The
   suite now exposes real WinFormsX behavior gaps. The latest unfiltered broad
   run completes without a hang/abort and reports
@@ -927,6 +931,10 @@ cases were previously blockers and should remain regression targets:
 - [x] KERNEL32 first-tier loader facade now routes `LoadLibraryW/A`,
   `LoadLibraryExW/A`, `FreeLibrary`, and `GetProcAddress` through PAL-owned
   synthetic module handles.
+- [x] USER32 menu item generated-import cleanup now routes internal
+  `EnableMenuItem`, `GetMenuItemCount`, and `GetMenuItemInfo` calls through
+  PAL-backed wrappers; the visible controls catalog starts and paints without a
+  direct `USER32.dll` load failure.
 - [ ] Next KERNEL32 breadth: module resource lookup and richer export-table
   compatibility.
 

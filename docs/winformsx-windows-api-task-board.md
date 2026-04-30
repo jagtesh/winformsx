@@ -105,6 +105,11 @@ Ordered by observed frequency across components and blocker blast radius:
       managed wrappers and direct `KERNEL32.dll` imports for `LoadLibraryW/A`,
       `LoadLibraryExW/A`, `FreeLibrary`, and `GetProcAddress` now share stable
       synthetic module handles and safe cleanup behavior.
+    - USER32 menu item cleanup now removes generated native imports from the
+      internal non-generic `EnableMenuItem`, `GetMenuItemCount`, and
+      `GetMenuItemInfo` wrappers. Visible controls catalog startup now stays on
+      the PAL path while Form system-menu adjustment runs, instead of attempting
+      to load `USER32.dll` directly.
     - `ImageList.GetBitmap` now tolerates WinFormsX synthetic bitmap handles
       returned by managed/common-control image-list state and falls back to the
       existing draw path instead of failing through `Image.FromHbitmap`.
@@ -987,7 +992,7 @@ Ordered by observed frequency across components and blocker blast radius:
 ## USER32 Surface (Tiered)
 
 - [x] WXA-1401 (tier-1): Implement window/message-safe stubs for input and focus (`GetKeyState`, `GetKeyboardState`, `ActivateKeyboardLayout`, `GetKeyboardLayout`, layout queries).
-- [x] WXA-1402 (tier-1): Implement menu APIs (`SetMenu`, `GetMenu`, `GetSystemMenu`, `EnableMenuItem`, `GetMenuItemInfo`, `GetMenuItemCount`, `DrawMenuBar`).
+- [x] WXA-1402 (tier-1): Implement menu APIs (`SetMenu`, `GetMenu`, `GetSystemMenu`, `EnableMenuItem`, `GetMenuItemInfo`, `GetMenuItemCount`, `DrawMenuBar`). Managed wrapper coverage includes internal non-generic menu item calls, so visible catalog/system-menu setup stays on PAL and does not use generated `USER32.dll` imports.
 - [x] WXA-1403 (tier-1): Implement additional window-state/geometry APIs not yet shimmed (`SetCapture`, `ReleaseCapture`, `GetWindowRect`, `GetClientRect`, `GetWindowPlacement`, `SetWindowPlacement`, `MapWindowPoints`, `WindowFromPoint`, `ChildWindowFromPointEx`, `GetParent`, `GetWindow`, `GetAncestor`, `IsChild`).
 - [x] WXA-1404 (tier-1): Implement invalidation/render queue APIs in USER32 facade (`UpdateWindow`, `InvalidateRect`, `ValidateRect`) with deterministic no-op/safe behavior.
 - [~] WXA-1405 (tier-2): Implement common system metric/accessibility queries with stable defaults (`SystemParametersInfo`, `GetDpiForWindow`, `GetDpiForSystem`, theme/system metrics).

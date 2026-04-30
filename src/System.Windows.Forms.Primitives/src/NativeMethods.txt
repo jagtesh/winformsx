@@ -123,7 +123,6 @@ Ellipse
 EM_*
 EN_*
 ENABLE_SCROLL_BAR_ARROWS
-EnableMenuItem
 EnableScrollBar
 EndPaint
 ENM_*
@@ -176,8 +175,6 @@ GetIconInfo
 GetKeyboardLayout
 GetKeyboardLayoutList
 GetMapMode
-GetMenuItemCount
-GetMenuItemInfo
 GetMessageTime
 GetMonitorInfo
 GetNearestColor
