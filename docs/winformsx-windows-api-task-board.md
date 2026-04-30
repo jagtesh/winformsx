@@ -995,6 +995,7 @@ Ordered by observed frequency across components and blocker blast radius:
 - [~] WXA-2001: Implement `SystemParametersInfo` and `SystemParametersInfoForDpi` compatibility with deterministic defaults where side effects are not available.
 - [ ] WXA-2002: Implement `UXTHEME` and `DWMAPI` no-op-safe stubs used by theme rendering.
 - [ ] WXA-2003: Add Power status and session change notifications where feasible (`PowerModeChanged`, `SessionSwitch`) from managed sources.
+- [x] WXA-2004: Remove remaining direct public-surface throw paths for lightweight WinForms compatibility objects. `WindowsFormsSection` now constructs and exposes `JitDebugging`, and `BindingContext.CollectionChanged` now subscribes/raises instead of throwing.
 
 ## Diagnostics and Integration
 
