@@ -327,6 +327,16 @@ internal sealed class ImpellerMessageInterop : IMessageInterop
                 return true;
             }
 
+            case PInvoke.LVM_SETCOLUMNW:
+            {
+                ListView listView = (ListView)Control.FromHandle(hWnd)!;
+                int columnIndex = (int)wParam;
+                result = columnIndex >= 0 && columnIndex < listView.Columns.Count
+                    ? (LRESULT)1
+                    : (LRESULT)0;
+                return true;
+            }
+
             case PInvoke.LVM_GETITEMRECT:
             {
                 if ((nint)lParam == 0)

@@ -204,9 +204,18 @@ Ordered by observed frequency across components and blocker blast radius:
       expansion. Follow-up coverage now brings the same class to
       `Passed: 6, Failed: 0` by adding `MdiWindowDialog` cancel and selected
       child OK behavior.
+    - Latest design-editor modal pass:
+      `System.Windows.Forms.UI.IntegrationTests` now directly references the
+      design assembly so internal WinFormsX editor forms can run in the same
+      modal-lifecycle harness. Focused `MaskDesignerDialog` and
+      `FormatStringDialog` owner-close/OK coverage is green, bringing
+      `InternalModalDialogUITests` to `Passed: 10, Failed: 0`. This pass also
+      adds PAL message handling for managed `LVM_SETCOLUMNW`, closing the
+      ListView-backed column-header initialization failure that blocked
+      `MaskDesignerDialog` construction.
   - Priority order moves to remaining high-impact infrastructure gaps:
-    broader internal editor/status modal parity, real print provider/PDF output
-    design, OS-native picker integration, then lower-volume
+    larger collection/data-grid editor modal parity, real print provider/PDF
+    output design, OS-native picker integration, then lower-volume
     accessibility/provider breadth and resource polish.
   - Active lane update: focused PropertyGrid UIIntegration coverage is now
     green: `Passed: 38, Failed: 0, Skipped: 0, Total: 38`.

@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Reflection;
+using System.Windows.Forms.Design;
 using System.Windows.Forms.PropertyGridInternal;
 using Xunit.Abstractions;
 
@@ -101,6 +102,77 @@ public class InternalModalDialogUITests : ControlTestBase
 
         Assert.Equal(DialogResult.OK, dialog.ShowDialog());
         Assert.Same(host.Second, dialog.ActiveChildForm);
+    }
+
+    [UIFact]
+    public void MaskDesignerDialog_ShowDialog_CloseFromOwner_ReturnsCancel()
+    {
+        using DialogHostForm dialogOwnerForm = new();
+        using MaskedTextBox maskedTextBox = new()
+        {
+            Mask = "00/00/0000"
+        };
+
+        using MaskDesignerDialog dialog = new(maskedTextBox, helpService: null);
+
+        Assert.Equal(DialogResult.Cancel, dialog.ShowDialog(dialogOwnerForm));
+    }
+
+    [UIFact]
+    public void MaskDesignerDialog_ShowDialog_OkButton_ReturnsOk()
+    {
+        using MaskedTextBox maskedTextBox = new()
+        {
+            Mask = "00/00/0000"
+        };
+
+        using MaskDesignerDialog dialog = new(maskedTextBox, helpService: null);
+        dialog.Shown += (sender, e) =>
+        {
+            Button okButton = GetPrivateField<Button>(dialog, "_btnOK");
+            okButton.PerformClick();
+        };
+
+        Assert.Equal(DialogResult.OK, dialog.ShowDialog());
+    }
+
+    [UIFact]
+    public void FormatStringDialog_ShowDialog_CloseFromOwner_ReturnsCancel()
+    {
+        using DialogHostForm dialogOwnerForm = new();
+        using ComboBox listControl = new()
+        {
+            FormatString = "N2"
+        };
+
+        using FormatStringDialog dialog = new(context: null)
+        {
+            ListControl = listControl
+        };
+
+        Assert.Equal(DialogResult.Cancel, dialog.ShowDialog(dialogOwnerForm));
+    }
+
+    [UIFact]
+    public void FormatStringDialog_ShowDialog_OkButton_ReturnsOk()
+    {
+        using ComboBox listControl = new()
+        {
+            FormatString = "N2"
+        };
+
+        using FormatStringDialog dialog = new(context: null)
+        {
+            ListControl = listControl
+        };
+
+        dialog.Shown += (sender, e) =>
+        {
+            Button okButton = GetPrivateField<Button>(dialog, "_okButton");
+            okButton.PerformClick();
+        };
+
+        Assert.Equal(DialogResult.OK, dialog.ShowDialog());
     }
 
     private static MdiWindowDialog CreateMdiWindowDialog(Form first, Form second)

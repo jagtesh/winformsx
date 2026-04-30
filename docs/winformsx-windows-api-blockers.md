@@ -122,7 +122,11 @@ compatibility-facade coverage.
   WinForms modal forms can be closed through the same owner-driven automation
   path used by the managed common dialogs. Focused `ThreadExceptionDialog` and
   `GridErrorDialog` owner-close/details-expansion coverage is now green, with
-  `MdiWindowDialog` cancel/OK selected-child coverage added as well.
+  `MdiWindowDialog` cancel/OK selected-child coverage added as well. The latest
+  design-editor pass adds focused `MaskDesignerDialog` and
+  `FormatStringDialog` owner-close/OK coverage, and closes the managed
+  `LVM_SETCOLUMNW` gap that blocked ListView-backed design-dialog
+  initialization.
 - First UIIntegration blockers observed:
   - `OLE32.dll` missing through `Application.ThreadContext.OleRequired()`,
     clipboard, and drag/drop paths. `InputLanguage.CurrentInputLanguage`,
@@ -147,9 +151,10 @@ compatibility-facade coverage.
     a focused visible-dialog baseline backed by managed bitmap preview pages
     instead of unsupported EMF/metafile recording. Ordinary managed modal forms
     now synthesize `WM_ENTERIDLE` for their owner on `Shown`; focused
-    `ThreadExceptionDialog`, `GridErrorDialog`, and `MdiWindowDialog` coverage
-    passes. Remaining dialog work is broader managed service parity for
-    internal editor/status dialogs, OS-native picker integration, and richer
+    `ThreadExceptionDialog`, `GridErrorDialog`, `MdiWindowDialog`,
+    `MaskDesignerDialog`, and `FormatStringDialog` coverage passes. Remaining
+    dialog work is broader managed service parity for larger
+    collection/data-grid editors, OS-native picker integration, and richer
     print automation.
   - `ToolStrip_Hiding_ToolStripMenuItem_OnDropDownClosed_ShouldNotThrow` and
     `ToolStrip_shared_imagelist_should_not_get_disposed_when_toolstrip_does`
@@ -335,8 +340,9 @@ Impacted APIs and controls:
   `TaskDialog`.
 - Internal WinForms dialogs and modal surfaces: `ThreadExceptionDialog`,
   `GridErrorDialog`, `MdiWindowDialog`, `PrintPreviewDialog`,
-  `PrintControllerWithStatusDialog`, PropertyGrid error/editor dialogs, and
-  file-dialog overwrite/create prompts.
+  `PrintControllerWithStatusDialog`, `MaskDesignerDialog`,
+  `FormatStringDialog`, PropertyGrid error/editor dialogs, and file-dialog
+  overwrite/create prompts.
 - Native surfaces: `COMDLG32.dll` (`GetOpenFileName`, `GetSaveFileName`,
   `ChooseColor`, `ChooseFont`, `PrintDlg`, `PrintDlgEx`, `PageSetupDlg`,
   `CommDlgExtendedError`), shell item dialogs, `GetDlgItem`, and `EndDialog`.
@@ -347,9 +353,11 @@ Impacted APIs and controls:
   and honor owner accept/cancel or public-API automation. Native common-dialog
   facade coverage exists for the first safe-cancel tier. Ordinary managed
   modal forms now synthesize `WM_ENTERIDLE` for their owner on `Shown`, and
-  focused `ThreadExceptionDialog` / `GridErrorDialog` / `MdiWindowDialog`
-  coverage passes.
-  OS-native picker integration and broader internal editor/status modal breadth
+  focused `ThreadExceptionDialog` / `GridErrorDialog` / `MdiWindowDialog` /
+  `MaskDesignerDialog` / `FormatStringDialog` coverage passes. Managed
+  ListView column updates now acknowledge `LVM_SETCOLUMNW`, which keeps
+  ListView-backed design editors from failing during resource initialization.
+  OS-native picker integration and larger internal editor/status modal breadth
   remain incomplete.
 
 Plan:
@@ -721,9 +729,9 @@ cases were previously blockers and should remain regression targets:
   safe-cancel facade is covered; `PageSetupDialog` now has a visible managed
   baseline; `TaskDialog` now has a visible managed baseline; ordinary managed
   modal forms now notify their owner on idle and focused `ThreadExceptionDialog`
-  / `GridErrorDialog` / `MdiWindowDialog` coverage is green. OS-native picker
-  integration and broader internal editor/status modal breadth still need
-  coverage.
+  / `GridErrorDialog` / `MdiWindowDialog` / `MaskDesignerDialog` /
+  `FormatStringDialog` coverage is green. OS-native picker integration and
+  larger internal editor/status modal breadth still need coverage.
 - [~] Print baseline: focused `PrintDialog` tests are green; no-printer
   `PrinterSettings`, direct `winspool.drv` defaults, private-core print
   `Global*` memory, invalid-printer validation, and basic
