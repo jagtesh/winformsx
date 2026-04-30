@@ -319,6 +319,56 @@ public class InternalModalDialogUITests : ControlTestBase
         Assert.Single(listView.Columns);
     }
 
+    [UIFact]
+    public void ListViewSubItemCollectionEditor_EditValue_AddButton_CommitsSubItem()
+    {
+        using ListView listView = new();
+        ListViewItem item = listView.Items.Add("Item");
+        ListViewSubItemCollectionEditor editor = new(item.SubItems.GetType());
+        TestTypeDescriptorContext context = new(listView);
+        ModalEditorService editorService = CreateAddAndOkCollectionEditorService();
+
+        Assert.Same(item.SubItems, editor.EditValue(context, editorService, item.SubItems));
+        Assert.Equal(2, item.SubItems.Count);
+    }
+
+    [UIFact]
+    public void TabPageCollectionEditor_EditValue_AddButton_CommitsPage()
+    {
+        using TabControl tabControl = new();
+        TabPageCollectionEditor editor = new();
+        TestTypeDescriptorContext context = new(tabControl);
+        ModalEditorService editorService = CreateAddAndOkCollectionEditorService();
+
+        Assert.Same(tabControl.TabPages, editor.EditValue(context, editorService, tabControl.TabPages));
+        Assert.Single(tabControl.TabPages);
+        Assert.True(tabControl.TabPages[0].UseVisualStyleBackColor);
+    }
+
+    [UIFact]
+    public void StyleCollectionEditor_EditValue_AddButton_CommitsRowStyle()
+    {
+        using TableLayoutPanel panel = new();
+        StyleCollectionEditor editor = new(panel.RowStyles.GetType());
+        TestTypeDescriptorContext context = new(panel);
+        ModalEditorService editorService = CreateAddAndOkCollectionEditorService();
+
+        Assert.Same(panel.RowStyles, editor.EditValue(context, editorService, panel.RowStyles));
+        Assert.Single(panel.RowStyles);
+    }
+
+    [UIFact]
+    public void StyleCollectionEditor_EditValue_AddButton_CommitsColumnStyle()
+    {
+        using TableLayoutPanel panel = new();
+        StyleCollectionEditor editor = new(panel.ColumnStyles.GetType());
+        TestTypeDescriptorContext context = new(panel);
+        ModalEditorService editorService = CreateAddAndOkCollectionEditorService();
+
+        Assert.Same(panel.ColumnStyles, editor.EditValue(context, editorService, panel.ColumnStyles));
+        Assert.Single(panel.ColumnStyles);
+    }
+
     private static MdiWindowDialog CreateMdiWindowDialog(Form first, Form second)
     {
         MdiWindowDialog dialog = new();

@@ -139,7 +139,14 @@ compatibility-facade coverage.
   `ListViewGroupCollectionEditor`, and `ColumnHeaderCollectionEditor`, and
   fixes virtual window DPI awareness so handles return the DPI context captured
   at creation instead of the later ambient thread context. Focused
-  `InternalModalDialogUITests` now reports `20 passed, 0 failed`.
+  `InternalModalDialogUITests` now reports `20 passed, 0 failed`. The latest
+  style-editor pass adds runtime/editor-host fallback coverage for
+  `ListViewSubItemCollectionEditor`, `TabPageCollectionEditor`, and
+  `StyleCollectionEditor` row/column style add/commit flows. `StyleEditorForm`
+  now preserves the designer-backed `TableLayoutPanelDesigner` path when
+  present, but can insert/delete/fix up row and column state directly when a
+  runtime context has no designer service. Focused `InternalModalDialogUITests`
+  now reports `24 passed, 0 failed`.
 - First UIIntegration blockers observed:
   - `OLE32.dll` missing through `Application.ThreadContext.OleRequired()`,
     clipboard, and drag/drop paths. `InputLanguage.CurrentInputLanguage`,
@@ -372,7 +379,8 @@ Impacted APIs and controls:
   `MaskDesignerDialog` / `FormatStringDialog` / `StringCollectionEditor` /
   `DataGridViewColumnCollectionDialog` / `DataGridViewAddColumnDialog`, plus
   collection editor commit flows for tree nodes, list-view items, list-view
-  groups, and column headers. Managed ListView column updates now acknowledge
+  groups, column headers, list-view subitems, tab pages, and table-layout row
+  and column styles. Managed ListView column updates now acknowledge
   `LVM_SETCOLUMNW`, which keeps ListView-backed design editors from failing
   during resource initialization. `DataGridViewAddColumnDialog` now has a
   built-in column-type fallback for runtime contexts without design-time type

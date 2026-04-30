@@ -233,11 +233,18 @@ Ordered by observed frequency across components and blocker blast radius:
       so modal editor handles created inside system-aware scopes report the
       same context during later validation. Focused
       `InternalModalDialogUITests` now reports `Passed: 20, Failed: 0`.
+    - Latest style-editor pass:
+      `ListViewSubItemCollectionEditor`, `TabPageCollectionEditor`, and
+      `StyleCollectionEditor` row/column add/commit coverage is green.
+      `StyleEditorForm` keeps using `TableLayoutPanelDesigner` when a designer
+      host exists, but now falls back to direct row/column insert/delete and
+      child-layout fixup in runtime contexts without designer services.
+      Focused `InternalModalDialogUITests` now reports
+      `Passed: 24, Failed: 0`.
   - Priority order moves to remaining high-impact infrastructure gaps:
-    remaining component-specific editor modals such as style and ToolStrip
-    collection editors, real print provider/PDF output design, OS-native
-    picker integration, then lower-volume accessibility/provider breadth and
-    resource polish.
+    remaining ToolStrip collection/editor surfaces, real print provider/PDF
+    output design, OS-native picker integration, then lower-volume
+    accessibility/provider breadth and resource polish.
   - Active lane update: focused PropertyGrid UIIntegration coverage is now
     green: `Passed: 38, Failed: 0, Skipped: 0, Total: 38`.
   - Active lane update: focused anchor/MDI resize coverage is now green:

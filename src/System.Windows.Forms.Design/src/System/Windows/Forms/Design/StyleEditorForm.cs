@@ -109,7 +109,7 @@ internal partial class StyleCollectionEditor
             _rowStyleProp = TypeDescriptor.GetProperties(_tableLayoutPanel)["RowStyles"];
             _colStyleProp = TypeDescriptor.GetProperties(_tableLayoutPanel)["ColumnStyles"];
 
-            _tableLayoutPanelDesigner.SuspendEnsureAvailableStyles();
+            _tableLayoutPanelDesigner?.SuspendEnsureAvailableStyles();
         }
 
         private void HookEvents()
@@ -830,7 +830,7 @@ internal partial class StyleCollectionEditor
         private void AddItem(int index)
         {
             string member = null;
-            _tableLayoutPanelDesigner.InsertRowCol(_isRowCollection, index);
+            InsertRowCol(_isRowCollection, index);
 
             member = _isRowCollection
                 ? "Row" + _tableLayoutPanel.RowStyles.Count.ToString(CultureInfo.InvariantCulture)
@@ -866,7 +866,7 @@ internal partial class StyleCollectionEditor
 
             // Insert an item before the 1st selected item
             AddItem(_columnsAndRowsListView.SelectedIndices[0]);
-            _tableLayoutPanelDesigner.FixUpControlsOnInsert(_isRowCollection, _columnsAndRowsListView.SelectedIndices[0]);
+            FixUpControlsOnInsert(_isRowCollection, _columnsAndRowsListView.SelectedIndices[0]);
         }
 
         private void OnRemoveButtonClick(object sender, EventArgs e)
@@ -889,10 +889,10 @@ internal partial class StyleCollectionEditor
                 int index = _columnsAndRowsListView.SelectedIndices[i];
 
                 // First update any controls in any row/col that's AFTER the row/col we are deleting
-                _tableLayoutPanelDesigner.FixUpControlsOnDelete(_isRowCollection, index, _deleteList);
+                FixUpControlsOnDelete(_isRowCollection, index, _deleteList);
 
                 // Then remove the row/col
-                _tableLayoutPanelDesigner.DeleteRowCol(_isRowCollection, index);
+                DeleteRowCol(_isRowCollection, index);
 
                 // Then remove the listView item
                 if (_isRowCollection)
@@ -1072,7 +1072,7 @@ internal partial class StyleCollectionEditor
                             _componentChangeService.OnComponentChanging(_tableLayoutPanel, childProperty);
                         }
 
-                        var host = _tableLayoutPanel.Site.GetService<IDesignerHost>();
+                        var host = _tableLayoutPanel.Site?.GetService<IDesignerHost>();
 
                         if (host is not null)
                         {
@@ -1129,8 +1129,149 @@ internal partial class StyleCollectionEditor
 
         private void StyleEditorClosed(object sender, FormClosedEventArgs e)
         {
-            _tableLayoutPanelDesigner.ResumeEnsureAvailableStyles(_performEnsure);
+            _tableLayoutPanelDesigner?.ResumeEnsureAvailableStyles(_performEnsure);
             _tableLayoutPanel.ResumeLayout();
+        }
+
+        private void InsertRowCol(bool isRow, int index)
+        {
+            if (_tableLayoutPanelDesigner is not null)
+            {
+                _tableLayoutPanelDesigner.InsertRowCol(isRow, index);
+                return;
+            }
+
+            if (isRow)
+            {
+                _tableLayoutPanel.RowStyles.Insert(index, new RowStyle(SizeType.Absolute, DesignerUtils.s_minimumStyleSize));
+                _tableLayoutPanel.RowCount++;
+            }
+            else
+            {
+                _tableLayoutPanel.ColumnStyles.Insert(index, new ColumnStyle(SizeType.Absolute, DesignerUtils.s_minimumStyleSize));
+                _tableLayoutPanel.ColumnCount++;
+            }
+        }
+
+        private void FixUpControlsOnInsert(bool isRow, int index)
+        {
+            if (_tableLayoutPanelDesigner is not null)
+            {
+                _tableLayoutPanelDesigner.FixUpControlsOnInsert(isRow, index);
+                return;
+            }
+
+            foreach (Control child in _tableLayoutPanel.Controls)
+            {
+                int currentIndex = isRow ? _tableLayoutPanel.GetRow(child) : _tableLayoutPanel.GetColumn(child);
+                if (currentIndex == -1)
+                {
+                    continue;
+                }
+
+                if (currentIndex >= index)
+                {
+                    if (isRow)
+                    {
+                        _tableLayoutPanel.SetRow(child, currentIndex + 1);
+                    }
+                    else
+                    {
+                        _tableLayoutPanel.SetColumn(child, currentIndex + 1);
+                    }
+                }
+                else
+                {
+                    int span = isRow ? _tableLayoutPanel.GetRowSpan(child) : _tableLayoutPanel.GetColumnSpan(child);
+                    if (currentIndex + span > index)
+                    {
+                        if (isRow)
+                        {
+                            _tableLayoutPanel.SetRowSpan(child, span + 1);
+                        }
+                        else
+                        {
+                            _tableLayoutPanel.SetColumnSpan(child, span + 1);
+                        }
+                    }
+                }
+            }
+        }
+
+        private void FixUpControlsOnDelete(bool isRow, int index, List<Control> deleteList)
+        {
+            if (_tableLayoutPanelDesigner is not null)
+            {
+                _tableLayoutPanelDesigner.FixUpControlsOnDelete(isRow, index, deleteList);
+                return;
+            }
+
+            foreach (Control child in _tableLayoutPanel.Controls)
+            {
+                int currentIndex = isRow ? _tableLayoutPanel.GetRow(child) : _tableLayoutPanel.GetColumn(child);
+
+                if (currentIndex == index)
+                {
+                    if (!deleteList.Contains(child))
+                    {
+                        deleteList.Add(child);
+                    }
+
+                    continue;
+                }
+
+                if (currentIndex == -1 || deleteList.Contains(child))
+                {
+                    continue;
+                }
+
+                if (currentIndex > index)
+                {
+                    if (isRow)
+                    {
+                        _tableLayoutPanel.SetRow(child, currentIndex - 1);
+                    }
+                    else
+                    {
+                        _tableLayoutPanel.SetColumn(child, currentIndex - 1);
+                    }
+                }
+                else
+                {
+                    int span = isRow ? _tableLayoutPanel.GetRowSpan(child) : _tableLayoutPanel.GetColumnSpan(child);
+                    if (currentIndex + span > index)
+                    {
+                        if (isRow)
+                        {
+                            _tableLayoutPanel.SetRowSpan(child, span - 1);
+                        }
+                        else
+                        {
+                            _tableLayoutPanel.SetColumnSpan(child, span - 1);
+                        }
+                    }
+                }
+            }
+        }
+
+        private void DeleteRowCol(bool isRow, int index)
+        {
+            if (_tableLayoutPanelDesigner is not null)
+            {
+                _tableLayoutPanelDesigner.DeleteRowCol(isRow, index);
+                return;
+            }
+
+            if (isRow)
+            {
+                _tableLayoutPanel.RowCount--;
+                _tableLayoutPanel.RowStyles.RemoveAt(index);
+            }
+            else
+            {
+                _tableLayoutPanel.ColumnCount--;
+                _tableLayoutPanel.ColumnStyles.RemoveAt(index);
+            }
         }
     }
 }
