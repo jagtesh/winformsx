@@ -16,6 +16,12 @@ internal static partial class PInvoke
         @object = default;
         fixed (void* pv = &@object)
         {
+            if (typeof(T) == typeof(BITMAP) && ImageList.TryGetBitmap((HBITMAP)h, out BITMAP bitmap))
+            {
+                *(BITMAP*)pv = bitmap;
+                return true;
+            }
+
             return GetObject(h, sizeof(T), pv) != 0;
         }
     }

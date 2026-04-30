@@ -63,6 +63,11 @@ Ordered by observed frequency across components and blocker blast radius:
     - `ImpellerSystemInterop` now stores clipboard handles by format and tracks
       registered clipboard format names case-insensitively, giving direct
       DllImport callers and WinForms wrappers one shared compatibility state.
+    - Managed ImageList state now covers first-tier `COMCTL32` behavior for
+      icon size changes, counts, replace/remove bounds, background-color
+      previous/current values, `GetImageInfo`, stream write/write-ex success,
+      handle cleanup, and synthetic bitmap metadata surfaced through
+      `GetObject(BITMAP)`.
     - UIIntegration test setup/teardown now closes leftover open forms before
       each test boundary, keeping `Application.OpenForms` deterministic in the
       shared-process suite.
@@ -947,11 +952,11 @@ Ordered by observed frequency across components and blocker blast radius:
 - [~] WXA-1501: Keep device-context and handle methods routed to managed drawing backend; add no-op-safe wrappers for missing legacy queries. `CreateCompatibleDC`, `DeleteDC`, `GetObject`, `GetObjectType`, and `GetStockObject` now route through the WinFormsX PAL/manual compatibility layer; broader legacy handle queries remain.
 - [~] WXA-1502: Implement `GetSystemColor`, `SetTextColor`, `SetBkColor`, `GetDeviceCaps` fallback paths for controls that query these frequently. First-tier `GetSysColor`, `GetSysColorBrush`, `GetDeviceCaps`, `GetTextColor`, `GetBkColor`, `SetTextColor`, `SetBkColor`, `GetBkMode`, and `SetBkMode` paths now avoid generated native imports and have focused wrapper coverage; broader GDI color/mode and direct native facade breadth remain.
 - [ ] WXA-1503: Add curated GDI+ and cursor/font fallback handling for common property surfaces.
-- [ ] WXA-1504: Add resource and image compatibility shims for icon/cursor extraction and `Bitmap` conversion (`LoadImage`, `CreateIconFromResourceEx`, `ImageList` interoperability).
+- [~] WXA-1504: Add resource and image compatibility shims for icon/cursor extraction and `Bitmap` conversion (`LoadImage`, `CreateIconFromResourceEx`, `ImageList` interoperability). ImageList synthetic bitmap metadata now round-trips through `GetObject(BITMAP)`; icon/cursor extraction and real image payload conversion remain.
 
 ## COMCTL32 and Common Control Helpers
 
-- [ ] WXA-1601: Expand `COMCTL32` shim for image list primitives used by `ListView`, `TreeView`, and image-backed controls (`Create/Read/Draw/Destroy` semantics).
+- [~] WXA-1601: Expand `COMCTL32` shim for image list primitives used by `ListView`, `TreeView`, and image-backed controls (`Create/Read/Draw/Destroy` semantics). First-tier managed state covers icon size, count, replace/remove bounds, background color, `GetImageInfo`, write/write-ex success, handle cleanup, and `GetObject(BITMAP)` metadata; draw composition, mask/overlay behavior, stream payload fidelity, and native facade exports remain.
 - [ ] WXA-1602: Keep `InitCommonControls` / `InitCommonControlsEx` as deterministic no-op with explicit supported-control feature flags.
 
 ## Shell / Resources / Icons / Cursors
@@ -1010,4 +1015,6 @@ Ordered by observed frequency across components and blocker blast radius:
   managed file/save/folder/color/font/message/page-setup baselines are now
   covered; `TaskDialog` now has a visible managed baseline; next
   highest-impact remaining blockers are internal modal parity, OS-native picker
-  integration, and real print provider/PDF output.
+  integration, real print provider/PDF output, and the lower-frequency
+  COMCTL32/resource compatibility breadth now being filled after the green
+  smoke/UIIntegration baselines.

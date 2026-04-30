@@ -184,7 +184,13 @@ compatibility-facade coverage.
   state pass also removes generated imports for `GetBkMode`, `SetBkMode`,
   `GetObject`, `GetObjectType`, and `GetStockObject`, adds explicit private-core
   stock object metadata, and routes background-mode and stock-object queries
-  through deterministic managed state.
+  through deterministic managed state. The latest COMCTL32/ImageList pass
+  expands managed image-list state for icon size changes, image count,
+  replace/remove bounds, background-color previous/current behavior,
+  `GetImageInfo`, stream write/write-ex success, handle cleanup, and synthetic
+  bitmap metadata returned through `GetObject(BITMAP)`. Focused primitive tests
+  pass and the controls smoke harness remains at
+  `42 total, 41 passed, 0 failed, 1 skipped`.
 - First UIIntegration blockers observed:
   - `OLE32.dll` missing through `Application.ThreadContext.OleRequired()`,
     clipboard, and drag/drop paths. `InputLanguage.CurrentInputLanguage`,
@@ -596,14 +602,17 @@ Impacted APIs and controls:
   creation/read/write/draw/replace/destroy, common-control metrics and messages.
 - Controls: `TreeView`, `ListView`, `TrackBar`, `TabControl`, `StatusStrip`,
   `ToolStrip`, headers, tooltips, and common-control accessibility.
-- Current state: managed image-list state exists and controls smoke passes, but
-  some image-list native details remain fake or incomplete.
+- Current state: managed image-list state exists and controls smoke passes.
+  First-tier `GetImageInfo`, icon-size mutation, background color, write/write-ex,
+  remove/replace bounds, handle cleanup, and synthetic bitmap metadata are now
+  covered. Some image-list native details remain fake or incomplete.
 
 Plan:
 
 - Keep ListView/TreeView/TrackBar logic managed and PAL-backed.
-- Fill in ImageList state for icon size, count, replace, stream read/write,
-  `GetImageInfo`, and handle lifetime.
+- Continue filling ImageList state beyond the first tier: image payload storage,
+  draw composition, mask/overlay semantics, stream read/write payload fidelity,
+  and native facade exports.
 - Add direct COMCTL32 facade exports only for ImageList and init APIs that are
   common in source-compatible WinForms apps.
 

@@ -21,13 +21,25 @@ internal partial class PInvoke
     public static unsafe class ImageList
     {
         private static int s_nextImageListHandle = 0x2000;
+        private static int s_nextBitmapHandle = 0x420000;
         private static readonly Dictionary<nint, ImageListState> s_imageLists = [];
+        private static readonly Dictionary<nint, ImageListBitmapInfo> s_bitmaps = [];
 
-        private sealed class ImageListState(int width, int height, int count)
+        private sealed class ImageListState(int width, int height, int count, int bitsPerPixel)
+        {
+            public int Width { get; set; } = width;
+            public int Height { get; set; } = height;
+            public int Count { get; set; } = count;
+            public int BitsPerPixel { get; } = bitsPerPixel;
+            public COLORREF BackColor { get; set; } = (COLORREF)PInvoke.CLR_NONE;
+            public HBITMAP ImageBitmap { get; set; } = CreateBitmapHandle(width, height, bitsPerPixel);
+        }
+
+        private sealed class ImageListBitmapInfo(int width, int height, int bitsPerPixel)
         {
             public int Width { get; } = width;
             public int Height { get; } = height;
-            public int Count { get; set; } = count;
+            public int BitsPerPixel { get; } = bitsPerPixel;
         }
 
         private static nint Key(HIMAGELIST himl) => (nint)himl.Value;
@@ -35,8 +47,15 @@ internal partial class PInvoke
         private static HIMAGELIST CreateImageListHandle(int width, int height, int count)
         {
             nint handle = (nint)Interlocked.Increment(ref s_nextImageListHandle);
-            s_imageLists[handle] = new ImageListState(width, height, count);
+            s_imageLists[handle] = new ImageListState(width, height, count, bitsPerPixel: 32);
             return (HIMAGELIST)handle;
+        }
+
+        private static HBITMAP CreateBitmapHandle(int width, int height, int bitsPerPixel)
+        {
+            nint handle = (nint)Interlocked.Increment(ref s_nextBitmapHandle);
+            s_bitmaps[handle] = new ImageListBitmapInfo(width, height, bitsPerPixel);
+            return (HBITMAP)handle;
         }
 
         private static ImageListState? GetState(HIMAGELIST himl) =>
@@ -58,7 +77,11 @@ internal partial class PInvoke
 
         private static BOOL ImageList_Destroy(HIMAGELIST himl)
         {
-            s_imageLists.Remove(Key(himl));
+            if (s_imageLists.Remove(Key(himl), out ImageListState? state))
+            {
+                s_bitmaps.Remove((nint)state.ImageBitmap.Value);
+            }
+
             return true;
         }
 
@@ -102,7 +125,15 @@ internal partial class PInvoke
         private static BOOL ImageList_GetImageInfo(HIMAGELIST himl, int i, out IMAGEINFO pImageInfo)
         {
             pImageInfo = default;
-            return false;
+            ImageListState? state = GetState(himl);
+            if (state is null || i < 0 || i >= state.Count)
+            {
+                return false;
+            }
+
+            pImageInfo.hbmImage = state.ImageBitmap;
+            pImageInfo.rcImage = new RECT(0, 0, state.Width, state.Height);
+            return true;
         }
 
         internal static HIMAGELIST ImageList_Read(IStream* pstm) => CreateImageListHandle(16, 16, 0);
@@ -119,9 +150,13 @@ internal partial class PInvoke
             {
                 state.Count = 0;
             }
-            else if (state.Count > 0)
+            else if (i >= 0 && i < state.Count)
             {
                 state.Count--;
+            }
+            else
+            {
+                return false;
             }
 
             return true;
@@ -149,12 +184,43 @@ internal partial class PInvoke
             return i >= 0 && i < state.Count ? i : -1;
         }
 
-        private static COLORREF ImageList_SetBkColor(HIMAGELIST himl, COLORREF clrBk) => clrBk;
+        private static COLORREF ImageList_SetBkColor(HIMAGELIST himl, COLORREF clrBk)
+        {
+            ImageListState? state = GetState(himl);
+            if (state is null)
+            {
+                return (COLORREF)PInvoke.CLR_NONE;
+            }
 
-        private static BOOL ImageList_Write(HIMAGELIST himl, IStream* pstm) => true;
+            COLORREF previous = state.BackColor;
+            state.BackColor = clrBk;
+            return previous;
+        }
+
+        private static BOOL ImageList_Write(HIMAGELIST himl, IStream* pstm) => GetState(himl) is not null;
 
         private static HRESULT ImageList_WriteEx(HIMAGELIST himl, IMAGE_LIST_WRITE_STREAM_FLAGS dwFlags, IStream* pstm) =>
-            HRESULT.S_OK;
+            GetState(himl) is not null ? HRESULT.S_OK : HRESULT.E_INVALIDARG;
+
+        internal static bool TryGetBitmap(HBITMAP hbm, out BITMAP bitmap)
+        {
+            if (!s_bitmaps.TryGetValue((nint)hbm.Value, out ImageListBitmapInfo? info))
+            {
+                bitmap = default;
+                return false;
+            }
+
+            bitmap = new BITMAP
+            {
+                bmWidth = info.Width,
+                bmHeight = info.Height,
+                bmWidthBytes = info.Width * Math.Max(1, info.BitsPerPixel / 8),
+                bmPlanes = 1,
+                bmBitsPixel = (ushort)info.BitsPerPixel,
+            };
+
+            return true;
+        }
 
         /// <inheritdoc cref="ImageList_Add(HIMAGELIST, HBITMAP, HBITMAP)"/>
         public static int Add<T>(T himl, HBITMAP hbmImage, HBITMAP hbmMask) where T : IHandle<HIMAGELIST>
@@ -216,6 +282,15 @@ internal partial class PInvoke
         {
             ImageListState? state = GetState(himl.Handle);
             bool result = state is not null;
+            if (state is not null)
+            {
+                s_bitmaps.Remove((nint)state.ImageBitmap.Value);
+                state.Width = x;
+                state.Height = y;
+                state.Count = 0;
+                state.ImageBitmap = CreateBitmapHandle(x, y, state.BitsPerPixel);
+            }
+
             GC.KeepAlive(himl.Wrapper);
             return result;
         }
@@ -243,7 +318,7 @@ internal partial class PInvoke
         public static bool GetImageInfo<T>(T himl, int i, out IMAGEINFO pImageInfo) where T : IHandle<HIMAGELIST>
         {
             pImageInfo = default;
-            bool result = false;
+            bool result = ImageList_GetImageInfo(himl.Handle, i, out pImageInfo);
             GC.KeepAlive(himl.Wrapper);
             return result;
         }
@@ -287,7 +362,7 @@ internal partial class PInvoke
         /// <inheritdoc cref="ImageList_Write(HIMAGELIST, IStream*)"/>
         public static BOOL Write<T>(T himl, Stream pstm) where T : IHandle<HIMAGELIST>
         {
-            BOOL result = false;
+            BOOL result = ImageList_Write(himl.Handle, null);
             GC.KeepAlive(himl.Wrapper);
             return result;
         }
@@ -298,7 +373,7 @@ internal partial class PInvoke
             IMAGE_LIST_WRITE_STREAM_FLAGS dwFlags,
             Stream pstm) where T : IHandle<HIMAGELIST>
         {
-            HRESULT result = HRESULT.E_NOTIMPL;
+            HRESULT result = ImageList_WriteEx(himl.Handle, dwFlags, null);
             GC.KeepAlive(himl.Wrapper);
             return result;
         }
