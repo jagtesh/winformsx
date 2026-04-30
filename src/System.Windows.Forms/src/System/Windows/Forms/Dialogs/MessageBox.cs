@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.ComponentModel;
+using System.Drawing;
 using System.Runtime.InteropServices;
 using System.Windows.Forms.Primitives;
 
@@ -455,9 +456,7 @@ public class MessageBox
         MESSAGEBOX_STYLE style = GetMessageBoxStyle(owner, buttons, icon, defaultButton, options, showHelp);
         if (System.Drawing.Graphics.IsBackendActive)
         {
-            DialogResult result = GetBackendSyntheticDialogResult(buttons, defaultButton);
-            Console.Error.WriteLine($"[WINFORMSX_WARNING] MessageBox.Show is handled by the managed Impeller dialog layer; returning {result} without native OS APIs.");
-            return result;
+            return ShowManagedMessageBox(owner, text, caption, buttons, icon, defaultButton);
         }
 
         HandleRef<HWND> handle = default;
@@ -499,7 +498,19 @@ public class MessageBox
         }
     }
 
-    private static DialogResult GetBackendSyntheticDialogResult(MessageBoxButtons buttons, MessageBoxDefaultButton defaultButton)
+    private static DialogResult ShowManagedMessageBox(
+        IWin32Window? owner,
+        string? text,
+        string? caption,
+        MessageBoxButtons buttons,
+        MessageBoxIcon icon,
+        MessageBoxDefaultButton defaultButton)
+    {
+        using ManagedMessageBoxForm form = new(owner?.Handle ?? IntPtr.Zero, text, caption, buttons, icon, defaultButton);
+        return form.ShowDialog(owner);
+    }
+
+    private static DialogResult GetBackendDefaultDialogResult(MessageBoxButtons buttons, MessageBoxDefaultButton defaultButton)
     {
         DialogResult[] results = buttons switch
         {
@@ -522,5 +533,206 @@ public class MessageBox
         };
 
         return results[Math.Clamp(index, 0, results.Length - 1)];
+    }
+
+    private sealed class ManagedMessageBoxForm : Form
+    {
+        private readonly nint _owner;
+        private readonly DialogResult _defaultResult;
+
+        public ManagedMessageBoxForm(
+            nint owner,
+            string? text,
+            string? caption,
+            MessageBoxButtons buttons,
+            MessageBoxIcon icon,
+            MessageBoxDefaultButton defaultButton)
+        {
+            _owner = owner;
+            _defaultResult = GetBackendDefaultDialogResult(buttons, defaultButton);
+
+            Text = string.IsNullOrEmpty(caption) ? "Message" : caption;
+            StartPosition = FormStartPosition.CenterParent;
+            MinimizeBox = false;
+            MaximizeBox = false;
+            ShowInTaskbar = false;
+            FormBorderStyle = FormBorderStyle.FixedDialog;
+            ClientSize = new Size(420, 160);
+            MinimumSize = new Size(320, 150);
+
+            Controls.Add(CreateContent(text, icon, buttons, defaultButton));
+        }
+
+        protected override void OnShown(EventArgs e)
+        {
+            base.OnShown(e);
+            BeginInvoke(() =>
+            {
+                if (_owner != 0 && Handle != IntPtr.Zero)
+                {
+                    PInvoke.PostMessage((HWND)_owner, PInvoke.WM_ENTERIDLE, (WPARAM)0, (LPARAM)Handle);
+                }
+            });
+        }
+
+        protected override void OnFormClosing(FormClosingEventArgs e)
+        {
+            if (DialogResult == DialogResult.None)
+            {
+                DialogResult = GetCancelDialogResult() ?? _defaultResult;
+            }
+
+            base.OnFormClosing(e);
+        }
+
+        protected override void WndProc(ref Message m)
+        {
+            if (m.MsgInternal == PInvoke.WM_COMMAND)
+            {
+                DialogResult result = (MESSAGEBOX_RESULT)(int)m.WParamInternal.LOWORD switch
+                {
+                    MESSAGEBOX_RESULT.IDOK => DialogResult.OK,
+                    MESSAGEBOX_RESULT.IDCANCEL => DialogResult.Cancel,
+                    MESSAGEBOX_RESULT.IDABORT => DialogResult.Abort,
+                    MESSAGEBOX_RESULT.IDRETRY => DialogResult.Retry,
+                    MESSAGEBOX_RESULT.IDIGNORE => DialogResult.Ignore,
+                    MESSAGEBOX_RESULT.IDYES => DialogResult.Yes,
+                    MESSAGEBOX_RESULT.IDNO => DialogResult.No,
+                    MESSAGEBOX_RESULT.IDTRYAGAIN => DialogResult.TryAgain,
+                    MESSAGEBOX_RESULT.IDCONTINUE => DialogResult.Continue,
+                    _ => DialogResult.None
+                };
+
+                if (result != DialogResult.None)
+                {
+                    DialogResult = result;
+                    Close();
+                    return;
+                }
+            }
+
+            base.WndProc(ref m);
+        }
+
+        private TableLayoutPanel CreateContent(
+            string? text,
+            MessageBoxIcon icon,
+            MessageBoxButtons buttons,
+            MessageBoxDefaultButton defaultButton)
+        {
+            TableLayoutPanel root = new()
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 2,
+                RowCount = 2,
+                Padding = new Padding(12)
+            };
+
+            root.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+            root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+
+            Label iconLabel = new()
+            {
+                AutoSize = true,
+                Font = new Font(Font.FontFamily, 22.0f, FontStyle.Bold),
+                Padding = new Padding(0, 0, 14, 0),
+                Text = GetIconText(icon)
+            };
+            root.Controls.Add(iconLabel, 0, 0);
+
+            Label message = new()
+            {
+                AutoEllipsis = true,
+                Dock = DockStyle.Fill,
+                Text = text ?? string.Empty,
+                TextAlign = ContentAlignment.MiddleLeft
+            };
+            root.Controls.Add(message, 1, 0);
+
+            FlowLayoutPanel buttonPanel = new()
+            {
+                AutoSize = true,
+                Dock = DockStyle.Fill,
+                FlowDirection = FlowDirection.RightToLeft
+            };
+            root.SetColumnSpan(buttonPanel, 2);
+            root.Controls.Add(buttonPanel, 0, 1);
+
+            Button? defaultButtonControl = null;
+            Button? cancelButtonControl = null;
+            (string Label, DialogResult Result)[] buttonDefinitions = GetButtons(buttons);
+            for (int i = buttonDefinitions.Length - 1; i >= 0; i--)
+            {
+                (string label, DialogResult result) = buttonDefinitions[i];
+                Button button = new()
+                {
+                    AutoSize = true,
+                    DialogResult = result,
+                    MinimumSize = new Size(82, 28),
+                    Text = label
+                };
+
+                button.Click += (sender, e) =>
+                {
+                    DialogResult = ((Button)sender!).DialogResult;
+                    Close();
+                };
+
+                buttonPanel.Controls.Add(button);
+                if (result == _defaultResult)
+                {
+                    defaultButtonControl = button;
+                }
+
+                if (result == DialogResult.Cancel)
+                {
+                    cancelButtonControl = button;
+                }
+            }
+
+            AcceptButton = defaultButtonControl ?? buttonPanel.Controls.OfType<Button>().FirstOrDefault();
+            CancelButton = cancelButtonControl;
+            return root;
+        }
+
+        private DialogResult? GetCancelDialogResult()
+        {
+            return GetButtonsFromControls().Any(static result => result == DialogResult.Cancel)
+                ? DialogResult.Cancel
+                : null;
+        }
+
+        private IEnumerable<DialogResult> GetButtonsFromControls()
+        {
+            foreach (Button button in Controls.Find(string.Empty, searchAllChildren: true).OfType<Button>())
+            {
+                yield return button.DialogResult;
+            }
+        }
+
+        private static string GetIconText(MessageBoxIcon icon)
+            => icon switch
+            {
+                MessageBoxIcon.Error => "X",
+                MessageBoxIcon.Question => "?",
+                MessageBoxIcon.Warning => "!",
+                MessageBoxIcon.Information => "i",
+                _ => string.Empty
+            };
+
+        private static (string Label, DialogResult Result)[] GetButtons(MessageBoxButtons buttons)
+            => buttons switch
+            {
+                MessageBoxButtons.OK => [("OK", DialogResult.OK)],
+                MessageBoxButtons.OKCancel => [("OK", DialogResult.OK), ("Cancel", DialogResult.Cancel)],
+                MessageBoxButtons.AbortRetryIgnore => [("Abort", DialogResult.Abort), ("Retry", DialogResult.Retry), ("Ignore", DialogResult.Ignore)],
+                MessageBoxButtons.YesNoCancel => [("Yes", DialogResult.Yes), ("No", DialogResult.No), ("Cancel", DialogResult.Cancel)],
+                MessageBoxButtons.YesNo => [("Yes", DialogResult.Yes), ("No", DialogResult.No)],
+                MessageBoxButtons.RetryCancel => [("Retry", DialogResult.Retry), ("Cancel", DialogResult.Cancel)],
+                MessageBoxButtons.CancelTryContinue => [("Cancel", DialogResult.Cancel), ("Try Again", DialogResult.TryAgain), ("Continue", DialogResult.Continue)],
+                _ => [("OK", DialogResult.OK)]
+            };
     }
 }
