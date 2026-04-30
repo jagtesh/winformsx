@@ -48,9 +48,13 @@ internal static class ManagedDragDrop
         bool raisedDragEvent = false;
 
         Stopwatch timeout = Stopwatch.StartNew();
+        bool pumpBeforeQuery = false;
         while (timeout.Elapsed < TimeSpan.FromSeconds(5))
         {
-            Application.DoEvents();
+            if (pumpBeforeQuery)
+            {
+                Application.DoEvents();
+            }
 
             int keyState = GetCurrentKeyState();
             DragAction action = (keyState & MouseButtonMask) == 0 ? DragAction.Drop : DragAction.Continue;
@@ -64,7 +68,8 @@ internal static class ManagedDragDrop
 
             if (verbose)
             {
-                Console.WriteLine($"[ManagedDragDrop] keyState=0x{keyState:X} action={queryContinue.Action} target={(currentTarget as Control)?.Name ?? currentTarget?.GetType().Name ?? "<null>"}");
+                Form? sourceForm = sourceControl?.FindForm();
+                Console.WriteLine($"[ManagedDragDrop] keyState=0x{keyState:X} action={queryContinue.Action} mouse={Control.MousePosition} formBounds={sourceForm?.DesktopBounds} target={(currentTarget as Control)?.Name ?? currentTarget?.GetType().Name ?? "<null>"}");
             }
 
             if (!raisedDragEvent)
@@ -158,6 +163,7 @@ internal static class ManagedDragDrop
             }
 
             source.OnGiveFeedback(new GiveFeedbackEventArgs(currentEffect, useDefaultCursors: true, dragImage, cursorOffset, useDefaultDragImage));
+            pumpBeforeQuery = true;
             Thread.Sleep(10);
         }
 

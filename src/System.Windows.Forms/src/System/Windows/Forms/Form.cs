@@ -955,6 +955,11 @@ public partial class Form : ContainerControl
         {
             Rectangle screen = SystemInformation.WorkingArea;
             Rectangle bounds = Bounds;
+            if (IsHandleCreated && PInvoke.GetWindowRect(this, out RECT windowRect))
+            {
+                bounds = new Rectangle(windowRect.left, windowRect.top, windowRect.Width, windowRect.Height);
+            }
+
             bounds.X -= screen.X;
             bounds.Y -= screen.Y;
             return bounds;

@@ -81,6 +81,30 @@ Ordered by observed frequency across components and blocker blast radius:
     `Passed: 31, Failed: 0`.
   - Active lane update: focused MonthCalendar coverage is now green:
     `Passed: 11, Failed: 0`.
+  - Active lane update: focused drag/drop input coverage has moved forward:
+    - `Control.DoDragDrop` and `ToolStripItem.DoDragDrop` now use the managed
+      WinFormsX drag loop on the single runtime path instead of native OLE
+      `DoDragDrop`.
+    - Synthetic `SendInput` now carries the dispatched mouse-button snapshot
+      into `GetKeyState`, so the drag loop observes the button state for the
+      message being processed rather than the final state of a fast input
+      batch.
+    - Mouse targeting now normalizes focused child handles back to the
+      top-level root and performs managed child-control hit testing before
+      falling back to PAL child-window lookup.
+    - `Form.DesktopBounds` now reads PAL screen origin when a handle exists,
+      and `GetWindowRect` reconciles PAL origin with managed control size. This
+      closes the false `QueryContinueDrag` cancellation caused by a 39-pixel
+      top-level height during list drag tests.
+    - Focused verification:
+      `PictureBox_SetData_DoDragDrop_RichTextBox_ReturnsExpected_Async` ->
+      `Passed: 1`; `DragEnter_Set_DropImageType_Message_MessageReplacementToken_ReturnsExpected_Async` ->
+      `Passed: 1`.
+    - Remaining drag/drop blocker:
+      `FullyQualifiedName~DragDropTests` still reports
+      `Passed: 3, Failed: 3, Skipped: 7`; the remaining failures are
+      order-dependent after the ToolStrip source path and need cleanup of
+      ToolStrip/menu capture and managed drag state.
   - Priority order now moves to ListView tile accessibility, PropertyGrid
     broad-suite provider state, drag/drop polish, RichTextBox link-range
     behavior, DataGridView tooltip state, TabControl hover/input state,

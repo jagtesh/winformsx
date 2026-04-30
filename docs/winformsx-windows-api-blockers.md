@@ -55,6 +55,16 @@ compatibility-facade coverage.
     clicks through the same WinFormsX fallback path as navigation clicks, so
     click, double-click, keyboard, and mouse SetDate flows no longer depend on
     native common-control hit testing.
+  - Focused drag/drop input has partial green coverage:
+    `PictureBox_SetData_DoDragDrop_RichTextBox_ReturnsExpected_Async` and
+    `DragEnter_Set_DropImageType_Message_MessageReplacementToken_ReturnsExpected_Async`
+    pass individually. The latest pass routes `Control.DoDragDrop` and
+    `ToolStripItem.DoDragDrop` through the managed WinFormsX drag loop, carries
+    synthetic mouse-button state into dispatched input messages, resolves child
+    mouse targets through the managed control tree, and fixes top-level
+    `DesktopBounds` height by reconciling PAL window origin with managed
+    control size. The full `DragDropTests` class still has order-dependent
+    failures after the ToolStrip source path runs.
   - Highest-volume remaining failures are accessibility/provider and layout
     clusters: ListView tile accessibility, PropertyGrid fragment navigation in
     broad-suite state, drag/drop polish, RichTextBox link-range behavior,
@@ -75,7 +85,9 @@ implementations.
   - `PrintDlg` and `PageSetupDlg` return false.
 - OLE drag/drop:
   - `RegisterDragDrop` returns success without OS registration.
-  - `DoDragDrop` still needs a managed event-flow implementation.
+  - `DoDragDrop` now has a managed WinFormsX event-flow implementation, but
+    ToolStrip source flow, order-dependent drag state cleanup, drag images, and
+    richer effect negotiation still need parity work.
   - `RevokeDragDrop` is only useful once registration has real state.
 - Win32 dialog lifetime and child lookup:
   - `EndDialog` is acknowledged without closing a native dialog.

@@ -40,6 +40,7 @@ internal sealed unsafe class ImpellerInputInterop : IInputInterop
     private bool _resizeBottomEdge;
     private nint _keyboardLayout = unchecked((nint)0x04090409);
     private System.Drawing.Point _cursorPos;
+    private int? _dispatchedMouseKeyState;
     private readonly HashSet<int> _pressedKeys = [];
     private readonly object _inputStateLock = new();
     private static readonly string? s_traceFile = Environment.GetEnvironmentVariable("WINFORMSX_TRACE_FILE");
@@ -103,6 +104,11 @@ internal sealed unsafe class ImpellerInputInterop : IInputInterop
     {
         lock (_inputStateLock)
         {
+            if (TryGetDispatchedMouseButtonState(vKey, out bool pressed))
+            {
+                return pressed ? unchecked((short)0x8000) : (short)0;
+            }
+
             return _pressedKeys.Contains(vKey) ? unchecked((short)0x8000) : (short)0;
         }
     }
@@ -185,6 +191,14 @@ internal sealed unsafe class ImpellerInputInterop : IInputInterop
     public bool SwapMouseButton(bool fSwap) => false;
     public bool DragDetect(HWND hwnd, System.Drawing.Point pt) => false;
     public bool TrackMouseEvent(HWND hwnd, uint dwFlags, uint dwHoverTime) => true;
+
+    internal void SetDispatchedMouseKeyState(WPARAM wParam)
+    {
+        lock (_inputStateLock)
+        {
+            _dispatchedMouseKeyState = (int)((nint)wParam & (MK_LBUTTON | MK_RBUTTON | MK_MBUTTON));
+        }
+    }
 
     private void DispatchInput(in INPUT input)
     {
@@ -525,6 +539,31 @@ internal sealed unsafe class ImpellerInputInterop : IInputInterop
         return keyState;
     }
 
+    private bool TryGetDispatchedMouseButtonState(int vKey, out bool pressed)
+    {
+        pressed = false;
+        if (!_dispatchedMouseKeyState.HasValue)
+        {
+            return false;
+        }
+
+        nint mask = vKey switch
+        {
+            (int)VIRTUAL_KEY.VK_LBUTTON => MK_LBUTTON,
+            (int)VIRTUAL_KEY.VK_RBUTTON => MK_RBUTTON,
+            (int)VIRTUAL_KEY.VK_MBUTTON => MK_MBUTTON,
+            _ => 0
+        };
+
+        if (mask == 0)
+        {
+            return false;
+        }
+
+        pressed = (_dispatchedMouseKeyState.Value & mask) != 0;
+        return true;
+    }
+
     private HWND GetMouseTarget()
     {
         if (_captureWindow != HWND.Null)
@@ -561,7 +600,7 @@ internal sealed unsafe class ImpellerInputInterop : IInputInterop
             return hitTarget;
         }
 
-        HWND root = _focusWindow != HWND.Null ? _focusWindow : _activeWindow;
+        HWND root = NormalizeMouseRoot(_focusWindow != HWND.Null ? _focusWindow : _activeWindow);
         if (root == HWND.Null)
         {
             foreach (Form form in Application.OpenForms)
@@ -577,6 +616,12 @@ internal sealed unsafe class ImpellerInputInterop : IInputInterop
 
         if (root != HWND.Null)
         {
+            if (TryFindDeepestMouseControl(root, cursorPos, out HWND managedChild))
+            {
+                TraceInput($"[InputMouseTarget] managed-child=0x{(nint)managedChild:X} root=0x{(nint)root:X} at={cursorPos}");
+                return managedChild;
+            }
+
             System.Drawing.Point clientPoint = cursorPos;
             if (PlatformApi.Window.ScreenToClient(root, ref clientPoint))
             {
@@ -591,6 +636,77 @@ internal sealed unsafe class ImpellerInputInterop : IInputInterop
 
         TraceInput($"[InputMouseTarget] fallback=0x{(nint)root:X} at={cursorPos}");
         return root;
+    }
+
+    private static HWND NormalizeMouseRoot(HWND hwnd)
+    {
+        if (hwnd == HWND.Null)
+        {
+            return HWND.Null;
+        }
+
+        Control? control = Control.FromHandle(hwnd);
+        if (control is null || control.ParentInternal is null)
+        {
+            return hwnd;
+        }
+
+        Control? topLevel = control.TopLevelControl;
+        if (topLevel is not null && topLevel.IsHandleCreated)
+        {
+            return (HWND)(nint)topLevel.Handle;
+        }
+
+        Form? form = control.FindForm();
+        return form is not null && form.IsHandleCreated
+            ? (HWND)(nint)form.Handle
+            : hwnd;
+    }
+
+    private bool TryFindDeepestMouseControl(HWND root, System.Drawing.Point screenPoint, out HWND hwnd)
+    {
+        hwnd = HWND.Null;
+        Control? rootControl = Control.FromHandle(root);
+        Control? hit = null;
+        if (rootControl is not null)
+        {
+            System.Drawing.Point rootClientPoint = rootControl.PointToClient(screenPoint);
+            hit = FindDeepestMouseControl(rootControl, rootClientPoint);
+        }
+
+        if (hit is null)
+        {
+            return false;
+        }
+
+        hwnd = (HWND)(nint)hit.Handle;
+        return true;
+    }
+
+    private static Control? FindDeepestMouseControl(Control control, System.Drawing.Point clientPoint)
+    {
+        if (!control.Visible)
+        {
+            return null;
+        }
+
+        for (int i = 0; i < control.Controls.Count; i++)
+        {
+            Control childControl = control.Controls[i];
+            if (!childControl.Bounds.Contains(clientPoint))
+            {
+                continue;
+            }
+
+            System.Drawing.Point childPoint = new(clientPoint.X - childControl.Left, clientPoint.Y - childControl.Top);
+            Control? child = FindDeepestMouseControl(childControl, childPoint);
+            if (child is not null)
+            {
+                return child;
+            }
+        }
+
+        return control;
     }
 
     private static LPARAM MakePointLParam(System.Drawing.Point point)

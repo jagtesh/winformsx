@@ -8,7 +8,6 @@ using System.Drawing.Design;
 using System.Drawing.Imaging;
 using System.Windows.Forms.Layout;
 using Windows.Win32.System.Ole;
-using Com = Windows.Win32.System.Com;
 using IComDataObject = System.Runtime.InteropServices.ComTypes.IDataObject;
 
 namespace System.Windows.Forms;
@@ -2241,32 +2240,8 @@ public abstract partial class ToolStripItem :
             dataObject = iwdata;
         }
 
-        if (Graphics.IsBackendActive)
-        {
-            managedDataObject = dataObject as IDataObject ?? new DataObject(dataObject);
-            return ManagedDragDrop.DoDragDrop(this, ParentInternal, managedDataObject, allowedEffects, dragImage, cursorOffset, useDefaultDragImage);
-        }
-
-        DROPEFFECT finalEffect;
-
-        try
-        {
-            using var dropSource = ComHelpers.GetComScope<IDropSource>(CreateDropSource(dataObject, dragImage, cursorOffset, useDefaultDragImage));
-            using var dataObjectScope = ComHelpers.GetComScope<Com.IDataObject>(dataObject);
-            if (PInvoke.DoDragDrop(dataObjectScope, dropSource, (DROPEFFECT)(uint)allowedEffects, out finalEffect).Failed)
-            {
-                return DragDropEffects.None;
-            }
-        }
-        finally
-        {
-            if (DragDropHelper.IsInDragLoop(dataObject))
-            {
-                DragDropHelper.SetInDragLoop(dataObject, inDragLoop: false);
-            }
-        }
-
-        return (DragDropEffects)finalEffect;
+        managedDataObject = dataObject as IDataObject ?? new DataObject(dataObject);
+        return ManagedDragDrop.DoDragDrop(this, ParentInternal, managedDataObject, allowedEffects, dragImage, cursorOffset, useDefaultDragImage);
     }
 
     /// <summary>

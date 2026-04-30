@@ -4012,7 +4012,15 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
         {
             if (TryGetScreenOrigin(hWnd, out System.Drawing.Point origin))
             {
-                rect = new RECT(origin.X, origin.Y, origin.X + s.Width, origin.Y + s.Height);
+                int width = s.Width;
+                int height = s.Height;
+                if ((Control.FromHandle(hWnd) ?? Control.FromChildHandle(hWnd)) is { } windowControl)
+                {
+                    width = Math.Max(width, windowControl.Width);
+                    height = Math.Max(height, windowControl.Height);
+                }
+
+                rect = new RECT(origin.X, origin.Y, origin.X + width, origin.Y + height);
                 return true;
             }
         }
@@ -4712,7 +4720,7 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
         return false;
     }
 
-    private void PostMessageToControl(HWND targetWindow, HWND fallbackTopLevel, uint msg, WPARAM wParam, LPARAM lParam)
+    private void PostMessageToControl(HWND targetWindow, HWND fallbackTopLevel, uint msg, WPARAM wParam, LPARAM lParam, bool updateInputMouseKeyState = false)
     {
         var ctrl = Control.FromHandle(targetWindow) ?? Control.FromHandle(fallbackTopLevel) ?? ResolveTopLevelControl(fallbackTopLevel);
 
@@ -4740,6 +4748,13 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
 
                     WPARAM dispatchWParam = wParam;
                     LPARAM dispatchLParam = lParam;
+
+                    if (updateInputMouseKeyState
+                        && IsMouseInputMessage(msg)
+                        && PlatformApi.Input is ImpellerInputInterop inputInterop)
+                    {
+                        inputInterop.SetDispatchedMouseKeyState(dispatchWParam);
+                    }
 
                     if (msg is PInvoke.WM_KEYDOWN or PInvoke.WM_SYSKEYDOWN or PInvoke.WM_KEYUP or PInvoke.WM_SYSKEYUP or PInvoke.WM_CHAR or PInvoke.WM_SYSCHAR)
                     {
@@ -4785,9 +4800,18 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
             return false;
         }
 
-        PostMessageToControl(targetWindow, fallback, msg, wParam, lParam);
+        PostMessageToControl(targetWindow, fallback, msg, wParam, lParam, updateInputMouseKeyState: true);
         return true;
     }
+
+    private static bool IsMouseInputMessage(uint msg)
+        => msg is WM_MOUSEMOVE
+            or WM_LBUTTONDOWN
+            or WM_LBUTTONUP
+            or WM_RBUTTONDOWN
+            or WM_RBUTTONUP
+            or WM_MBUTTONDOWN
+            or WM_MBUTTONUP;
 
     private static Control? ResolveTopLevelControl(HWND preferredHandle)
     {

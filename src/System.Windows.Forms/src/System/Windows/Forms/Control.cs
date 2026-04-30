@@ -13,12 +13,9 @@ using System.Windows.Forms.Layout;
 using System.Windows.Forms.Platform;
 using System.Windows.Forms.Primitives;
 using Windows.Win32.Graphics.Dwm;
-using Windows.Win32.System.Ole;
 using Windows.Win32.UI.Accessibility;
 using Windows.Win32.UI.Input.KeyboardAndMouse;
-using Com = Windows.Win32.System.Com;
 using Encoding = System.Text.Encoding;
-using IComDataObject = System.Runtime.InteropServices.ComTypes.IDataObject;
 
 namespace System.Windows.Forms;
 
@@ -5002,32 +4999,7 @@ public unsafe partial class Control :
     {
         DataObject dataObject = CreateRuntimeDataObjectForDrag(data);
 
-        if (Graphics.IsBackendActive)
-        {
-            return ManagedDragDrop.DoDragDrop((ISupportOleDropSource)this, this, dataObject, allowedEffects, dragImage, cursorOffset, useDefaultDragImage);
-        }
-
-        DROPEFFECT finalEffect;
-
-        try
-        {
-            using var dropSource = ComHelpers.GetComScope<IDropSource>(
-                new DropSource(this, dataObject, dragImage, cursorOffset, useDefaultDragImage));
-            using var dataScope = ComHelpers.GetComScope<Com.IDataObject>(dataObject);
-            if (PInvoke.DoDragDrop(dataScope, dropSource, (DROPEFFECT)(uint)allowedEffects, out finalEffect).Failed)
-            {
-                return DragDropEffects.None;
-            }
-        }
-        finally
-        {
-            if (DragDropHelper.IsInDragLoop((IComDataObject)dataObject))
-            {
-                DragDropHelper.SetInDragLoop((IComDataObject)dataObject, inDragLoop: false);
-            }
-        }
-
-        return (DragDropEffects)finalEffect;
+        return ManagedDragDrop.DoDragDrop((ISupportOleDropSource)this, this, dataObject, allowedEffects, dragImage, cursorOffset, useDefaultDragImage);
     }
 
     /// <summary>
