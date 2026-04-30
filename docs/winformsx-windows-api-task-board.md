@@ -96,7 +96,7 @@ Ordered by observed frequency across components and blocker blast radius:
     - Verification:
       `WinformsControlsTest --control-smoke-test` ->
       `total=42 passed=41 failed=0 skipped=1`; full UIIntegration ->
-      `Failed: 0, Passed: 194, Skipped: 1, Total: 195`.
+      `Failed: 0, Passed: 250, Skipped: 1, Total: 251`.
   - Added WinFormsX virtual-window handling for ToolStrip dropdown overlays and
     hidden dropdown owner windows so they no longer create nested Silk/GLFW
     windows during UIIntegration runs.
@@ -183,6 +183,9 @@ Ordered by observed frequency across components and blocker blast radius:
     - Latest unfiltered broad snapshot after synthetic client-resize work:
       `Failed: 6, Passed: 185, Skipped: 13, Total: 204`. Focused
       `ButtonTests` is now green again: `Passed: 22, Failed: 0`.
+    - Latest unfiltered broad snapshot after KERNEL32 last-error and ImageList
+      synthetic-bitmap fallback work:
+      `Failed: 0, Passed: 250, Skipped: 1, Total: 251`.
     - Latest unfiltered broad snapshot after OpenForms lifecycle cleanup:
       `Failed: 1, Passed: 190, Skipped: 3, Total: 194`. The remaining active
       failure is `NumericUpDownAccessibleObject_Focused_ReturnsCorrectValueAsync`.

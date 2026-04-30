@@ -210,7 +210,9 @@ compatibility-facade coverage.
   KERNEL32 imports through the same thread-local WinFormsX state. The latest
   ImageList follow-up keeps `ImageList.GetBitmap` stable when WinFormsX
   synthetic bitmap handles cannot be materialized by GDI+, preserving shared
-  `ToolStrip.ImageList` enumeration after form disposal.
+  `ToolStrip.ImageList` enumeration after form disposal. The latest broad
+  UIIntegration snapshot is now green at
+  `Failed: 0, Passed: 250, Skipped: 1, Total: 251`.
 - First UIIntegration blockers observed:
   - `OLE32.dll` missing through `Application.ThreadContext.OleRequired()`,
     clipboard, and drag/drop paths. `InputLanguage.CurrentInputLanguage`,
