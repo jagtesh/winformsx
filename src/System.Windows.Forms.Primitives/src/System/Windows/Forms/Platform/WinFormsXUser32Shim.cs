@@ -61,6 +61,8 @@ internal static unsafe class WinFormsXUser32Shim
             EnableWindow = &EnableWindow,
             GetWindowRect = &GetWindowRect,
             GetClientRect = &GetClientRect,
+            GetWindowPlacement = &GetWindowPlacement,
+            SetWindowPlacement = &SetWindowPlacement,
             MapWindowPoints = &MapWindowPoints,
             ClientToScreen = &ClientToScreen,
             ScreenToClient = &ScreenToClient,
@@ -568,6 +570,43 @@ internal static unsafe class WinFormsXUser32Shim
     }
 
     [UnmanagedCallersOnly]
+    private static int GetWindowPlacement(nint hwnd, WinFormsXWindowPlacement* placement)
+    {
+        if (placement is null)
+        {
+            return 0;
+        }
+
+        try
+        {
+            return PlatformApi.Window.GetWindowPlacement((HWND)hwnd, (WINDOWPLACEMENT*)placement) ? 1 : 0;
+        }
+        catch
+        {
+            *placement = default;
+            return 0;
+        }
+    }
+
+    [UnmanagedCallersOnly]
+    private static int SetWindowPlacement(nint hwnd, WinFormsXWindowPlacement* placement)
+    {
+        if (placement is null)
+        {
+            return 0;
+        }
+
+        try
+        {
+            return PlatformApi.Window.SetWindowPlacement((HWND)hwnd, (WINDOWPLACEMENT*)placement) ? 1 : 0;
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    [UnmanagedCallersOnly]
     private static int MapWindowPoints(nint hWndFrom, nint hWndTo, WinFormsXPoint* points, uint count)
     {
         if (points is null || count == 0)
@@ -937,6 +976,8 @@ internal static unsafe class WinFormsXUser32Shim
         public delegate* unmanaged<nint, int, int> EnableWindow;
         public delegate* unmanaged<nint, WinFormsXRect*, int> GetWindowRect;
         public delegate* unmanaged<nint, WinFormsXRect*, int> GetClientRect;
+        public delegate* unmanaged<nint, WinFormsXWindowPlacement*, int> GetWindowPlacement;
+        public delegate* unmanaged<nint, WinFormsXWindowPlacement*, int> SetWindowPlacement;
         public delegate* unmanaged<nint, nint, WinFormsXPoint*, uint, int> MapWindowPoints;
         public delegate* unmanaged<nint, WinFormsXPoint*, int> ClientToScreen;
         public delegate* unmanaged<nint, WinFormsXPoint*, int> ScreenToClient;
@@ -984,6 +1025,17 @@ internal static unsafe class WinFormsXUser32Shim
     {
         public int x;
         public int y;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct WinFormsXWindowPlacement
+    {
+        public uint length;
+        public uint flags;
+        public uint showCmd;
+        public WinFormsXPoint ptMinPosition;
+        public WinFormsXPoint ptMaxPosition;
+        public WinFormsXRect rcNormalPosition;
     }
 
     private static bool CopyRect(in RECT source, WinFormsXRect* destination)

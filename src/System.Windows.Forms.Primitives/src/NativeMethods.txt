@@ -250,7 +250,8 @@ GetUpdateRgn
 GetUserObjectInformation
 GetViewportExtEx
 GetViewportOrgEx
-GetWindowPlacement
+WINDOWPLACEMENT
+WINDOWPLACEMENT_FLAGS
 GetWorldTransform
 GlobalAlloc
 GlobalFree
@@ -613,7 +614,6 @@ SetViewportExtEx
 SetViewportOrgEx
 SetWindowExtEx
 SetWindowOrgEx
-SetWindowPlacement
 SetWindowRgn
 SetWinEventHook
 SF_*

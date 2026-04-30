@@ -157,6 +157,37 @@ public class User32CompatibilityFacadeTests
             Assert.Equal(managedClientRect.top, clientRect.top);
             Assert.Equal((bool)PInvoke.GetWindowRect((HWND)formHandle, out managedWindowRect), (bool)NativeUser32.GetWindowRect(formHandle, out rect));
             Assert.Equal((bool)PInvoke.GetClientRect((HWND)formHandle, out managedClientRect), (bool)NativeUser32.GetClientRect(formHandle, out clientRect));
+            unsafe
+            {
+                WINDOWPLACEMENT managedPlacement = new()
+                {
+                    length = (uint)sizeof(WINDOWPLACEMENT),
+                };
+                WINDOWPLACEMENT nativePlacement = new()
+                {
+                    length = (uint)sizeof(WINDOWPLACEMENT),
+                };
+
+                Assert.True(PInvoke.GetWindowPlacement((HWND)formHandle, &managedPlacement));
+                Assert.True(NativeUser32.GetWindowPlacement(formHandle, &nativePlacement));
+                Assert.Equal(managedPlacement.showCmd, nativePlacement.showCmd);
+                Assert.Equal(managedPlacement.rcNormalPosition.left, nativePlacement.rcNormalPosition.left);
+                Assert.Equal(managedPlacement.rcNormalPosition.top, nativePlacement.rcNormalPosition.top);
+
+                nativePlacement.flags = WINDOWPLACEMENT_FLAGS.WPF_SETMINPOSITION;
+                nativePlacement.ptMinPosition.X = 17;
+                nativePlacement.ptMinPosition.Y = 19;
+                Assert.True(NativeUser32.SetWindowPlacement(childHandle, &nativePlacement));
+
+                WINDOWPLACEMENT afterNativeSet = new()
+                {
+                    length = (uint)sizeof(WINDOWPLACEMENT),
+                };
+                Assert.True(PInvoke.GetWindowPlacement((HWND)childHandle, &afterNativeSet));
+                Assert.Equal(17, afterNativeSet.ptMinPosition.X);
+                Assert.Equal(19, afterNativeSet.ptMinPosition.Y);
+            }
+
             Point point = new(10, 10);
             Point managedPoint = point;
             Assert.Equal((bool)PInvoke.ClientToScreen(form, ref managedPoint), NativeUser32.ClientToScreen(formHandle, ref point));
@@ -351,6 +382,14 @@ public class User32CompatibilityFacadeTests
         [DllImport(User32, ExactSpelling = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
         internal static extern bool GetClientRect(nint hwnd, out RECT lpRect);
+
+        [DllImport(User32, ExactSpelling = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern unsafe bool GetWindowPlacement(nint hwnd, WINDOWPLACEMENT* placement);
+
+        [DllImport(User32, ExactSpelling = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern unsafe bool SetWindowPlacement(nint hwnd, WINDOWPLACEMENT* placement);
 
         [DllImport(User32, ExactSpelling = true)]
         internal static extern int MapWindowPoints(nint hWndFrom, nint hWndTo, ref Point point, uint cPoints);

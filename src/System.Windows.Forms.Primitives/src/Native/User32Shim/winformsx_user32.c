@@ -36,6 +36,16 @@ typedef struct WinFormsXPoint
     int32_t y;
 } WinFormsXPoint;
 
+typedef struct WinFormsXWindowPlacement
+{
+    UINT length;
+    UINT flags;
+    UINT showCmd;
+    WinFormsXPoint ptMinPosition;
+    WinFormsXPoint ptMaxPosition;
+    WinFormsXRect rcNormalPosition;
+} WinFormsXWindowPlacement;
+
 typedef struct WinFormsXUser32Dispatch
 {
     uint32_t version;
@@ -59,6 +69,8 @@ typedef struct WinFormsXUser32Dispatch
     BOOL (*enable_window)(HWND hwnd, BOOL enable);
     BOOL (*get_window_rect)(HWND hwnd, WinFormsXRect* lpRect);
     BOOL (*get_client_rect)(HWND hwnd, WinFormsXRect* lpRect);
+    BOOL (*get_window_placement)(HWND hwnd, WinFormsXWindowPlacement* placement);
+    BOOL (*set_window_placement)(HWND hwnd, const WinFormsXWindowPlacement* placement);
     INT (*map_window_points)(HWND hwnd_from, HWND hwnd_to, const WinFormsXPoint* points, UINT c_points);
     INT (*client_to_screen)(HWND hwnd, WinFormsXPoint* point);
     INT (*screen_to_client)(HWND hwnd, WinFormsXPoint* point);
@@ -289,6 +301,16 @@ WF_EXPORT BOOL GetWindowRect(HWND hwnd, WinFormsXRect* lp_rect)
 WF_EXPORT BOOL GetClientRect(HWND hwnd, WinFormsXRect* lp_rect)
 {
     return g_dispatch.get_client_rect != 0 ? g_dispatch.get_client_rect(hwnd, lp_rect) : 0;
+}
+
+WF_EXPORT BOOL GetWindowPlacement(HWND hwnd, WinFormsXWindowPlacement* placement)
+{
+    return g_dispatch.get_window_placement != 0 ? g_dispatch.get_window_placement(hwnd, placement) : 0;
+}
+
+WF_EXPORT BOOL SetWindowPlacement(HWND hwnd, const WinFormsXWindowPlacement* placement)
+{
+    return g_dispatch.set_window_placement != 0 ? g_dispatch.set_window_placement(hwnd, placement) : 0;
 }
 
 WF_EXPORT INT MapWindowPoints(HWND hwnd_from, HWND hwnd_to, WinFormsXPoint* points, UINT c_points)

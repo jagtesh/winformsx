@@ -3860,6 +3860,7 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
         {
             bool show = nCmdShow != SHOW_WINDOW_CMD.SW_HIDE;
             state.Visible = show;
+            state.ShowCmd = nCmdShow;
 
             if (state.SilkWindow is object)
             {
@@ -4043,6 +4044,96 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
         }
 
         rect = default;
+        return false;
+    }
+
+    public unsafe bool GetWindowPlacement(HWND hWnd, WINDOWPLACEMENT* placement)
+    {
+        if (placement is null)
+        {
+            return false;
+        }
+
+        RECT windowRect;
+        bool hasRect = GetWindowRect(hWnd, out windowRect);
+
+        if (_windows.TryGetValue(hWnd, out var state))
+        {
+            placement->length = (uint)sizeof(WINDOWPLACEMENT);
+            placement->flags = state.PlacementFlags;
+            placement->showCmd = state.ShowCmd;
+            placement->ptMinPosition = state.MinPosition;
+            placement->ptMaxPosition = state.MaxPosition;
+            placement->rcNormalPosition = hasRect
+                ? windowRect
+                : new RECT(state.X, state.Y, state.X + state.Width, state.Y + state.Height);
+            return true;
+        }
+
+        Control? control = Control.FromHandle(hWnd);
+        if (control is not null)
+        {
+            placement->length = (uint)sizeof(WINDOWPLACEMENT);
+            placement->flags = default;
+            placement->showCmd = control.Visible ? SHOW_WINDOW_CMD.SW_SHOW : SHOW_WINDOW_CMD.SW_HIDE;
+            placement->ptMinPosition = new System.Drawing.Point(control.Left, control.Top);
+            placement->ptMaxPosition = System.Drawing.Point.Empty;
+            placement->rcNormalPosition = hasRect
+                ? windowRect
+                : new RECT(control.Left, control.Top, control.Right, control.Bottom);
+            return true;
+        }
+
+        *placement = default;
+        return false;
+    }
+
+    public unsafe bool SetWindowPlacement(HWND hWnd, WINDOWPLACEMENT* placement)
+    {
+        if (placement is null)
+        {
+            return false;
+        }
+
+        if (_windows.TryGetValue(hWnd, out var state))
+        {
+            state.PlacementFlags = placement->flags;
+            state.ShowCmd = placement->showCmd;
+            state.MinPosition = placement->ptMinPosition;
+            state.MaxPosition = placement->ptMaxPosition;
+
+            if (placement->flags.HasFlag(WINDOWPLACEMENT_FLAGS.WPF_SETMINPOSITION))
+            {
+                return SetWindowPos(
+                    hWnd,
+                    HWND.Null,
+                    placement->ptMinPosition.X,
+                    placement->ptMinPosition.Y,
+                    0,
+                    0,
+                    SET_WINDOW_POS_FLAGS.SWP_NOSIZE
+                        | SET_WINDOW_POS_FLAGS.SWP_NOZORDER
+                        | SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE);
+            }
+
+            RECT normal = placement->rcNormalPosition;
+            int width = normal.right - normal.left;
+            int height = normal.bottom - normal.top;
+            if (width > 0 && height > 0)
+            {
+                return SetWindowPos(
+                    hWnd,
+                    HWND.Null,
+                    normal.left,
+                    normal.top,
+                    width,
+                    height,
+                    SET_WINDOW_POS_FLAGS.SWP_NOZORDER | SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE);
+            }
+
+            return true;
+        }
+
         return false;
     }
 
@@ -4770,4 +4861,8 @@ internal sealed class ImpellerWindowState
     public Control? PressedControl;
     public TextBoxBase? ActiveTextSelectionBox;
     public int TextSelectionAnchor;
+    public WINDOWPLACEMENT_FLAGS PlacementFlags;
+    public SHOW_WINDOW_CMD ShowCmd = SHOW_WINDOW_CMD.SW_SHOW;
+    public System.Drawing.Point MinPosition;
+    public System.Drawing.Point MaxPosition;
 }

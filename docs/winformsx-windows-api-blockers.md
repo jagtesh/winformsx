@@ -13,11 +13,12 @@ compatibility-facade coverage.
 - USER32 direct-DllImport facade exists for the first source-compatibility tier:
   cursor/message position, keyboard state, focus/active/foreground window,
   desktop window, system metrics, visibility, enabled state, and the
-  `MsgWaitForMultipleObjectsEx` modal-wait path used by PropertyGrid.
+  `MsgWaitForMultipleObjectsEx` modal-wait path used by PropertyGrid, plus
+  `GetWindowPlacement` / `SetWindowPlacement` for MDI minimized-window layout.
 - UIIntegrationTests are no longer globally skipped by OS-gated attributes. The
   suite now exposes real WinFormsX behavior gaps. The current broad run
   completes without a hang/abort and reports
-  `79 passed, 112 failed, 223 skipped`.
+  `170 passed, 21 failed, 43 skipped`.
 - First UIIntegration blockers observed:
   - `OLE32.dll` missing through `Application.ThreadContext.OleRequired()`,
     `InputLanguage.CurrentInputLanguage`, IME, clipboard, and drag/drop paths.
@@ -42,10 +43,14 @@ compatibility-facade coverage.
     `MsgWaitForMultipleObjectsEx` modal-loop blocker, selected-entry
     dropdown/dialog button fragment navigation, and PropertyGridView bounds
     reporting.
+  - Focused anchor/MDI resize coverage is now green:
+    `31 passed, 0 failed`. The latest pass closes the direct
+    `GetWindowPlacement` import and MDI minimized-child anchor-bottom failure.
   - Highest-volume remaining failures are accessibility/provider and layout
-    clusters: Anchor/Layout resize state, MonthCalendar input, drag/drop
-    polish, dialog/print fallbacks, and the remaining lower-volume provider
-    gaps.
+    clusters: MonthCalendar input, drag/drop polish, RichTextBox link-range
+    behavior, TabControl hover/input state, NumericUpDown accessibility focus,
+    application handle recreation, dialog/print fallbacks, and remaining
+    lower-volume provider gaps.
 
 ## Confirmed Managed Stub Blockers
 

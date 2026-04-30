@@ -20,8 +20,9 @@ Ordered by observed frequency across components and blocker blast radius:
 
 - Current snapshot:
   - `codex/winformsx-stability` was pushed and verified up to date before this
-    pass; this update layers the PropertyGrid/USER32 wait closure on top of the
-    ListView/common-control reduction and wrapped-style fixes.
+    pass; this update layers the PropertyGrid/USER32 wait and MDI
+    window-placement closures on top of the ListView/common-control reduction
+    and wrapped-style fixes.
   - The latest committed work adds the ListView/common-control reduction, the
     wrapped Win32 style fix that removed PropertyGrid dropdown-holder
     construction overflows, and the PropertyGrid/USER32 wait closure below.
@@ -61,14 +62,41 @@ Ordered by observed frequency across components and blocker blast radius:
     - Previous broad snapshot: `Failed: 166, Passed: 25, Skipped: 331, Total: 522`.
     - Latest broad snapshot after PropertyGrid/USER32 wait work:
       `Failed: 112, Passed: 79, Skipped: 223, Total: 414`.
+    - Latest broad snapshot after MDI/placement work:
+      `Failed: 21, Passed: 170, Skipped: 43, Total: 234`.
   - Priority order moves to highest-volume remaining failure clusters:
-    Anchor/Layout resize state, MonthCalendar input, drag/drop polish,
-    dialog/print fallbacks, and remaining lower-volume provider gaps.
+    MonthCalendar input, drag/drop polish, RichTextBox link-range behavior,
+    TabControl hover/input state, NumericUpDown accessibility focus,
+    application handle recreation, dialog/print fallbacks, and remaining
+    lower-volume provider gaps.
   - Active lane update: focused PropertyGrid UIIntegration coverage is now
     green: `Passed: 38, Failed: 0, Skipped: 0, Total: 38`.
-  - Priority order now moves to Anchor/Layout resize state, MonthCalendar
-    input, drag/drop polish, dialog/print fallbacks, and remaining
-    lower-volume provider gaps.
+  - Active lane update: focused anchor/MDI resize coverage is now green:
+    `Passed: 31, Failed: 0`.
+  - Priority order now moves to MonthCalendar input, drag/drop polish,
+    RichTextBox link-range behavior, TabControl hover/input state,
+    NumericUpDown accessibility focus, application handle recreation,
+    dialog/print fallbacks, and remaining lower-volume provider gaps.
+
+- Landed:
+  - Added PAL-backed `GetWindowPlacement` / `SetWindowPlacement` paths:
+    - managed `Windows.Win32.PInvoke` wrappers now route to
+      `PlatformApi.Window`;
+    - native `USER32.dll` shim exports forward through the registered dispatch
+      table;
+    - `ImpellerWindowInterop` stores placement flags/show command and applies
+      minimized-position updates through the virtual window path.
+  - Closed the MDI minimized-child anchor-bottom failure that surfaced during
+    the resize/layout lane.
+  - Verification:
+    - `dotnet test ... --filter "FullyQualifiedName~MDITests|FullyQualifiedName~AnchorLayoutTests|FullyQualifiedName~Button_Achor|FullyQualifiedName~Button_Anchor" -v:n` ->
+      `Passed: 31, Failed: 0`.
+    - `dotnet test ... --filter "FullyQualifiedName~User32CompatibilityFacadeTests" -v:q` ->
+      `Passed: 2, Failed: 0`.
+    - `dotnet test ... -v:q` ->
+      `Passed: 170, Failed: 21, Skipped: 43`.
+    - `WinformsControlsTest --control-smoke-test` ->
+      `total=42 passed=41 failed=0 skipped=1`.
 
 - Landed:
   - Added a PAL-backed `MsgWaitForMultipleObjectsEx` path:
@@ -470,7 +498,7 @@ Ordered by observed frequency across components and blocker blast radius:
 
 - [x] WXA-1401 (tier-1): Implement window/message-safe stubs for input and focus (`GetKeyState`, `GetKeyboardState`, `ActivateKeyboardLayout`, `GetKeyboardLayout`, layout queries).
 - [x] WXA-1402 (tier-1): Implement menu APIs (`SetMenu`, `GetMenu`, `GetSystemMenu`, `EnableMenuItem`, `GetMenuItemInfo`, `GetMenuItemCount`, `DrawMenuBar`).
-- [x] WXA-1403 (tier-1): Implement additional window-state/geometry APIs not yet shimmed (`SetCapture`, `ReleaseCapture`, `GetWindowRect`, `GetClientRect`, `MapWindowPoints`, `WindowFromPoint`, `ChildWindowFromPointEx`, `GetParent`, `GetWindow`, `GetAncestor`, `IsChild`).
+- [x] WXA-1403 (tier-1): Implement additional window-state/geometry APIs not yet shimmed (`SetCapture`, `ReleaseCapture`, `GetWindowRect`, `GetClientRect`, `GetWindowPlacement`, `SetWindowPlacement`, `MapWindowPoints`, `WindowFromPoint`, `ChildWindowFromPointEx`, `GetParent`, `GetWindow`, `GetAncestor`, `IsChild`).
 - [x] WXA-1404 (tier-1): Implement invalidation/render queue APIs in USER32 facade (`UpdateWindow`, `InvalidateRect`, `ValidateRect`) with deterministic no-op/safe behavior.
 - [~] WXA-1405 (tier-2): Implement common system metric/accessibility queries with stable defaults (`SystemParametersInfo`, `GetDpiForWindow`, `GetDpiForSystem`, theme/system metrics).
 - [~] WXA-1406 (tier-3, cautious): Implement message-loop callbacks (`SendMessage`, `PostMessage`, `PeekMessage`, `GetMessage`, `DispatchMessage`, `TranslateMessage`, `MsgWaitForMultipleObjectsEx`) once PAL message pump can guarantee contract fidelity. `MsgWaitForMultipleObjectsEx` is now covered for PropertyGrid modal waits and direct USER32 source compatibility.

@@ -39,6 +39,8 @@ internal unsafe interface IWindowInterop : IUser32Interop
     bool SetWindowPos(HWND hWnd, HWND hWndInsertAfter, int x, int y, int cx, int cy, SET_WINDOW_POS_FLAGS uFlags);
     bool GetWindowRect(HWND hWnd, out RECT lpRect);
     bool GetClientRect(HWND hWnd, out RECT lpRect);
+    bool GetWindowPlacement(HWND hWnd, WINDOWPLACEMENT* lpwndpl);
+    bool SetWindowPlacement(HWND hWnd, WINDOWPLACEMENT* lpwndpl);
     bool AdjustWindowRectEx(ref RECT lpRect, WINDOW_STYLE dwStyle, bool bMenu, WINDOW_EX_STYLE dwExStyle);
 
     // ─── Coordinate Mapping ─────────────────────────────────────────────
