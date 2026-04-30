@@ -16,7 +16,21 @@ Ordered by observed frequency across components and blocker blast radius:
 6. `P3` Printing/spooler and accessibility/provider gaps.
 7. `P4` Lower-frequency compatibility breadth and non-blocker polish.
 
-## Latest Progress (2026-04-29)
+## Latest Progress (2026-04-30)
+
+- Landed:
+  - Fixed `Application_OpenForms_RecreateHandle` lifecycle hang in `Form` owner/taskbar-owner flow for backend mode.
+  - Root cause from managed stack sampling (`dotnet-stack`) was dispose-time owner cleanup creating a hidden taskbar owner window, which re-entered `CreateHandle` and blocked in `Glfw.Init`.
+  - Backend path now avoids hidden taskbar-owner handle creation:
+    - `TaskbarOwner` returns `NullHandle` when `Graphics.IsBackendActive`.
+    - `UpdateHandleWithOwner` no longer assigns `TaskbarOwner` on backend mode.
+    - `CreateHandle` no longer forces taskbar-owner parenting on backend mode.
+  - Verification:
+    - `dotnet build src/System.Windows.Forms/tests/IntegrationTests/UIIntegrationTests/System.Windows.Forms.UI.IntegrationTests.csproj -c Debug -v minimal` -> `Build succeeded`.
+    - `dotnet test ... --filter "FullyQualifiedName~Application_OpenForms_RecreateHandle" --no-build` -> `Passed: 1, Failed: 0`.
+    - `dotnet test ... --filter "FullyQualifiedName~ButtonTests" --no-build` -> `Passed: 22, Failed: 0`.
+  - Current follow-up blocker:
+    - Controls smoke currently fails in this workspace with `WinFormsX requires a Vulkan window` across cases (`passed=0 failed=41 skipped=1`), indicating renderer/runtime environment precondition work remains before smoke parity can be re-established.
 
 - Landed:
   - Unified `UIIntegrationTests` control harness execution onto a single WinFormsX pathway in `ControlTestBase`:
@@ -25,8 +39,8 @@ Ordered by observed frequency across components and blocker blast radius:
   - Verification:
     - `dotnet build src/System.Windows.Forms/tests/IntegrationTests/UIIntegrationTests/System.Windows.Forms.UI.IntegrationTests.csproj -c Debug -v q` -> `Build succeeded`.
     - `dotnet test ... --filter "FullyQualifiedName~ButtonTests" --no-build` -> `Passed: 22, Failed: 0`.
-  - Current blocker:
-    - `Application_OpenForms_RecreateHandle` remains a deterministic host crash/hang path with blame-hang dump artifacts, now isolated as the next P1 lifecycle fix target.
+  - Previous blocker status:
+    - `Application_OpenForms_RecreateHandle` crash/hang path is now addressed by the backend owner/taskbar-owner fix above.
 - Landed:
   - Added native USER32 compatibility export `GetGuiResources` in `winformsx_user32.c` so direct USER32 DllImports can resolve this entrypoint on WinFormsX.
   - Added managed `PInvokeCore.GetGuiResources` compatibility facade and local `GET_GUI_RESOURCES_FLAGS` enum in `System.Private.Windows.Core` for deterministic fallback (`0`).

@@ -2108,6 +2108,11 @@ public partial class Form : ContainerControl
     {
         get
         {
+            if (Graphics.IsBackendActive)
+            {
+                return NullHandle<HWND>.Instance;
+            }
+
             _ownerWindow ??= new NativeWindow();
 
             if (_ownerWindow.Handle == IntPtr.Zero)
@@ -3559,7 +3564,7 @@ public partial class Form : ContainerControl
             }
 
             // In order for a window not to have a taskbar entry, it must be owned.
-            if (!ShowInTaskbar && OwnerInternal is null && TopLevel)
+            if (!ShowInTaskbar && OwnerInternal is null && TopLevel && !Graphics.IsBackendActive)
             {
                 PInvoke.SetWindowLong(this, WINDOW_LONG_PTR_INDEX.GWL_HWNDPARENT, TaskbarOwner);
 
@@ -5060,6 +5065,14 @@ public partial class Form : ContainerControl
 
     internal override unsafe void RecreateHandleCore()
     {
+        if (Graphics.IsBackendActive)
+        {
+            // WinFormsX backend keeps top-level/native state managed-first.
+            // Avoid full destroy/recreate cycles that can destabilize backend windows
+            // while preserving API-call compatibility for callers that expect this method.
+            return;
+        }
+
         WINDOWPLACEMENT wp = default;
 
         FormStartPosition oldStartPosition = FormStartPosition.Manual;
@@ -5081,7 +5094,7 @@ public partial class Form : ContainerControl
         }
 
         EnumThreadWindowsCallback? callback = null;
-        if (IsHandleCreated)
+        if (IsHandleCreated && !Graphics.IsBackendActive)
         {
             // First put all the owned windows into a list
             callback = new EnumThreadWindowsCallback(HWND);
@@ -6240,7 +6253,7 @@ public partial class Form : ContainerControl
             }
             else
             {
-                if (!ShowInTaskbar)
+                if (!ShowInTaskbar && !Graphics.IsBackendActive)
                 {
                     ownerHwnd = TaskbarOwner;
                 }
