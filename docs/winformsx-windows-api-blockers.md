@@ -18,7 +18,7 @@ compatibility-facade coverage.
 - UIIntegrationTests are no longer globally skipped by OS-gated attributes. The
   suite now exposes real WinFormsX behavior gaps. The latest unfiltered broad
   run completes without a hang/abort and reports
-  `185 passed, 6 failed, 13 skipped`. Recent passes removed the cross-suite
+  `190 passed, 1 failed, 3 skipped`. Recent passes removed the cross-suite
   `VK_RETURN` stuck-key cascade by making PAL `SendInput` accept packets even
   when a synthetic/stale target cannot be dispatched, then closed focused
   `TabControlTests` by aligning backend tab-rectangle minimum width with Win32
@@ -26,9 +26,10 @@ compatibility-facade coverage.
   through the message PAL so DataGridView tooltip activation no longer depends
   on native tooltip registration. The latest pass also keeps synthetic form
   resize anchored to managed client size, closing focused Button resize
-  coverage. Remaining top failures now cluster around broad-suite drag/drop
-  state, NumericUpDown accessibility focus, and application handle recreation,
-  with the larger provider and dialog/print gaps still tracked below.
+  coverage, and keeps `Application.OpenForms` idempotent across recreate/dispose
+  paths so stale forms no longer poison later drag/drop runs. The remaining
+  active failure is NumericUpDown accessibility focus, with the larger provider
+  and dialog/print gaps still tracked below.
 - First UIIntegration blockers observed:
   - `OLE32.dll` missing through `Application.ThreadContext.OleRequired()`,
     `InputLanguage.CurrentInputLanguage`, IME, clipboard, and drag/drop paths.
@@ -76,11 +77,15 @@ compatibility-facade coverage.
     `22 passed, 0 failed`. Synthetic form resize now tracks `ClientSize`
     instead of outer `Form.Size`, so horizontal drags preserve the managed
     display height observed by anchor/layout assertions.
+  - Broad-suite `Application.OpenForms` and drag/drop state is now green. The
+    latest pass makes `Application.OpenForms` membership idempotent and removes
+    disposed forms during `Form.Dispose`, closing the recreate-handle over-count
+    and the downstream order-dependent drag/drop failures in the full run.
   - Highest-volume remaining failures are accessibility/provider and layout
-    clusters: broad-suite drag/drop state, NumericUpDown accessibility focus,
-    application handle recreation, ListView tile accessibility, PropertyGrid
-    fragment navigation in broad-suite state, RichTextBox link-range behavior,
-    dialog/print fallbacks, and remaining lower-volume provider gaps.
+    clusters: NumericUpDown accessibility focus, ListView tile accessibility,
+    PropertyGrid fragment navigation in broad-suite state, RichTextBox
+    link-range behavior, dialog/print fallbacks, and remaining lower-volume
+    provider gaps.
 
 ## Confirmed Managed Stub Blockers
 

@@ -84,11 +84,13 @@ Ordered by observed frequency across components and blocker blast radius:
     - Latest unfiltered broad snapshot after synthetic client-resize work:
       `Failed: 6, Passed: 185, Skipped: 13, Total: 204`. Focused
       `ButtonTests` is now green again: `Passed: 22, Failed: 0`.
+    - Latest unfiltered broad snapshot after OpenForms lifecycle cleanup:
+      `Failed: 1, Passed: 190, Skipped: 3, Total: 194`. The remaining active
+      failure is `NumericUpDownAccessibleObject_Focused_ReturnsCorrectValueAsync`.
   - Priority order moves to highest-volume remaining failure clusters:
-    broad-suite drag/drop state, NumericUpDown accessibility focus, application
-    handle recreation, ListView tile accessibility, PropertyGrid broad-suite
-    provider state, RichTextBox link-range behavior, dialog/print fallbacks, and
-    remaining lower-volume provider gaps.
+    NumericUpDown accessibility focus, ListView tile accessibility,
+    PropertyGrid broad-suite provider state, RichTextBox link-range behavior,
+    dialog/print fallbacks, and remaining lower-volume provider gaps.
   - Active lane update: focused PropertyGrid UIIntegration coverage is now
     green: `Passed: 38, Failed: 0, Skipped: 0, Total: 38`.
   - Active lane update: focused anchor/MDI resize coverage is now green:
@@ -147,8 +149,11 @@ Ordered by observed frequency across components and blocker blast radius:
     - Synthetic form resize now tracks and sets managed `ClientSize` instead of
       outer `Form.Size`, closing the focused Button anchor/resize failures that
       were re-inflating height during width-only drags.
-  - Priority order now moves to broad-suite drag/drop state, NumericUpDown
-    accessibility focus, application handle recreation, ListView tile
+    - `Application.OpenForms` membership is now idempotent and disposed forms
+      are removed during `Form.Dispose`, closing the broad-suite
+      `Application_OpenForms_RecreateHandle` over-count and the downstream
+      order-dependent drag/drop failures.
+  - Priority order now moves to NumericUpDown accessibility focus, ListView tile
     accessibility, PropertyGrid broad-suite provider state, RichTextBox
     link-range behavior, dialog/print fallbacks, and remaining lower-volume
     provider gaps.

@@ -69,6 +69,11 @@ public class FormCollection : ReadOnlyCollectionBase
     {
         lock (CollectionSyncRoot)
         {
+            if (InnerList.Contains(form))
+            {
+                return;
+            }
+
             InnerList.Add(form);
             AddVersion++;
         }
@@ -95,7 +100,10 @@ public class FormCollection : ReadOnlyCollectionBase
     {
         lock (CollectionSyncRoot)
         {
-            InnerList.Remove(form);
+            while (InnerList.Contains(form))
+            {
+                InnerList.Remove(form);
+            }
         }
     }
 

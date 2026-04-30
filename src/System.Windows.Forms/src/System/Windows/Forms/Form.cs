@@ -3746,6 +3746,7 @@ public partial class Form : ContainerControl
                 _smallIcon = null;
             }
 
+            Application.OpenForms.Remove(this);
             base.Dispose(disposing);
             _ctlClient = null;
 
