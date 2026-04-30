@@ -522,10 +522,16 @@ public class User32CompatibilityFacadeTests
                 uint nativeLength = NativeKernel32.GetModuleFileName(nint.Zero, nativePathPointer, (uint)nativePath.Length);
                 Assert.Equal(managedLength, nativeLength);
                 Assert.True(nativeLength > 0);
-                Assert.Equal(
-                    new string(managedPathPointer, 0, (int)managedLength),
-                    new string(nativePathPointer, 0, (int)nativeLength));
+            Assert.Equal(
+                new string(managedPathPointer, 0, (int)managedLength),
+                new string(nativePathPointer, 0, (int)nativeLength));
             }
+
+            nint loadedModule = NativeKernel32.LoadLibraryEx("WinFormsX.LoaderSmoke.dll", nint.Zero, 0);
+            Assert.NotEqual(nint.Zero, loadedModule);
+            Assert.Equal((nint)PInvoke.LoadLibraryEx("WinFormsX.LoaderSmoke.dll", 0), loadedModule);
+            Assert.True(NativeKernel32.FreeLibrary(loadedModule));
+            Assert.Equal(nint.Zero, NativeKernel32.GetProcAddress(loadedModule, "MissingExport"));
 
             PInvoke.SetLastError(0);
             NativeKernel32.SetLastError(0x2Au);
@@ -1042,6 +1048,15 @@ public class User32CompatibilityFacadeTests
 
         [DllImport(Kernel32, EntryPoint = "GetModuleFileNameW", ExactSpelling = true)]
         internal static extern uint GetModuleFileName(nint hModule, char* lpFilename, uint nSize);
+
+        [DllImport(Kernel32, EntryPoint = "LoadLibraryExW", CharSet = CharSet.Unicode, ExactSpelling = true)]
+        internal static extern nint LoadLibraryEx(string lpLibFileName, nint hFile, uint dwFlags);
+
+        [DllImport(Kernel32, ExactSpelling = true)]
+        internal static extern bool FreeLibrary(nint hLibModule);
+
+        [DllImport(Kernel32, ExactSpelling = true)]
+        internal static extern nint GetProcAddress(nint hModule, string lpProcName);
 
         [DllImport(Kernel32, ExactSpelling = true)]
         internal static extern uint GetLastError();

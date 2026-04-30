@@ -60,6 +60,9 @@ typedef struct WinFormsXKernel32Dispatch
     DWORD (*get_current_thread_id)(void);
     void* (*get_module_handle)(const WCHAR* module_name);
     DWORD (*get_module_file_name)(void* module, WCHAR* filename, DWORD size);
+    void* (*load_library_ex)(const WCHAR* file_name, void* file, DWORD flags);
+    BOOL (*free_library)(void* module);
+    void* (*get_proc_address)(void* module, const char* proc_name);
     DWORD (*get_last_error)(void);
     void (*set_last_error)(DWORD error);
     BOOL (*close_handle)(void* handle);
@@ -91,6 +94,7 @@ typedef struct WinFormsXKernel32Dispatch
 static WinFormsXKernel32Dispatch g_dispatch;
 static DWORD g_last_error;
 static uint64_t g_tick_count;
+static intptr_t g_next_module_handle = 0x710000;
 static intptr_t g_next_activation_context = 0x610000;
 static void* g_current_activation_context;
 
@@ -297,6 +301,74 @@ WF_EXPORT DWORD GetModuleFileNameA(void* module, char* filename, DWORD size)
 WF_EXPORT DWORD GetModuleFileName(void* module, WCHAR* filename, DWORD size)
 {
     return GetModuleFileNameW(module, filename, size);
+}
+
+WF_EXPORT void* LoadLibraryExW(const WCHAR* file_name, void* file, DWORD flags)
+{
+    if (g_dispatch.load_library_ex != 0)
+    {
+        return g_dispatch.load_library_ex(file_name, file, flags);
+    }
+
+    (void)file;
+    (void)flags;
+    if (file_name == 0)
+    {
+        return 0;
+    }
+
+    g_next_module_handle++;
+    return (void*)g_next_module_handle;
+}
+
+WF_EXPORT void* LoadLibraryW(const WCHAR* file_name)
+{
+    return LoadLibraryExW(file_name, 0, 0);
+}
+
+WF_EXPORT void* LoadLibraryExA(const char* file_name, void* file, DWORD flags)
+{
+    if (file_name == 0)
+    {
+        return 0;
+    }
+
+    (void)file;
+    (void)flags;
+    g_next_module_handle++;
+    return (void*)g_next_module_handle;
+}
+
+WF_EXPORT void* LoadLibraryA(const char* file_name)
+{
+    return LoadLibraryExA(file_name, 0, 0);
+}
+
+WF_EXPORT void* LoadLibrary(const WCHAR* file_name)
+{
+    return LoadLibraryW(file_name);
+}
+
+WF_EXPORT BOOL FreeLibrary(void* module)
+{
+    if (g_dispatch.free_library != 0)
+    {
+        return g_dispatch.free_library(module);
+    }
+
+    return module != 0;
+}
+
+WF_EXPORT void* GetProcAddress(void* module, const char* proc_name)
+{
+    if (g_dispatch.get_proc_address != 0)
+    {
+        return g_dispatch.get_proc_address(module, proc_name);
+    }
+
+    (void)module;
+    (void)proc_name;
+    return 0;
 }
 
 WF_EXPORT DWORD GetLastError(void)

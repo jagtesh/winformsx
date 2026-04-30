@@ -218,8 +218,11 @@ compatibility-facade coverage.
   process pass removes generated imports for `CloseHandle`, `DuplicateHandle`,
   `FormatMessage`, `GetExitCodeThread`, `GetLocaleInfoEx`, `GetStartupInfo`,
   `GetThreadLocale`, and `GetTickCount`, then forwards the same direct
-  `KERNEL32.dll` exports through PAL-owned state. The latest ImageList
-  follow-up keeps `ImageList.GetBitmap` stable when WinFormsX
+  `KERNEL32.dll` exports through PAL-owned state. The latest loader pass routes
+  managed and direct `LoadLibraryW/A`, `LoadLibraryExW/A`, `FreeLibrary`, and
+  `GetProcAddress` through PAL-owned synthetic module handles, preserving safe
+  source-compatible loader behavior without native OS loader dependence. The
+  latest ImageList follow-up keeps `ImageList.GetBitmap` stable when WinFormsX
   synthetic bitmap handles cannot be materialized by GDI+, preserving shared
   `ToolStrip.ImageList` enumeration after form disposal. The latest broad
   UIIntegration snapshot is now green at
@@ -598,6 +601,9 @@ Plan:
   PAL-owned; they exist to preserve source compatibility for WinForms code paths
   such as startup visibility, COM property descriptors, locale-sensitive page
   setup, and send-key timestamps.
+- Keep loader support first-tier and source-compatible: WinFormsX can return
+  stable module handles and safe frees for managed/direct callers, but
+  `GetProcAddress` remains conservative until PAL can expose real export tables.
 - Keep the first-tier `KERNEL32.dll` facade limited to ABI-simple process,
   thread, and module-path APIs until tests justify broader loader/resource
   semantics.
@@ -896,7 +902,8 @@ cases were previously blockers and should remain regression targets:
 - [~] KERNEL32 tier expansion: process/thread/module-path facade is covered;
   direct last-error and first-tier `Global*` / `Local*` memory state are
   covered; first-tier activation context state and basic thread/locale/startup
-  helpers are covered; module resources and loader edge cases remain.
+  helpers are covered; first-tier loader handles are covered; module resources
+  and richer export/resource lookup remain.
 - [~] COMCTL32/ImageList tier: first-tier image-list state, synthetic bitmap
   metadata, and managed enumeration fallback are covered; richer draw/mask and
   stream payload fidelity remain.
@@ -917,7 +924,10 @@ cases were previously blockers and should remain regression targets:
   direct facade exports for `CloseHandle`, `DuplicateHandle`, `FormatMessage`,
   `GetExitCodeThread`, `GetLocaleInfoEx`, `GetStartupInfo`, `GetThreadLocale`,
   and `GetTickCount`.
-- [ ] Next KERNEL32 breadth: module resource lookup and loader edge-case
+- [x] KERNEL32 first-tier loader facade now routes `LoadLibraryW/A`,
+  `LoadLibraryExW/A`, `FreeLibrary`, and `GetProcAddress` through PAL-owned
+  synthetic module handles.
+- [ ] Next KERNEL32 breadth: module resource lookup and richer export-table
   compatibility.
 
 ## Acceptance Bar

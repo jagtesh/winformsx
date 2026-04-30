@@ -30,8 +30,10 @@ internal sealed unsafe class ImpellerSystemInterop : ISystemInterop
     private long _nextTimerId = 1;
     private long _nextActivationContextHandle = 0x600000;
     private long _nextActivationCookie;
+    private long _nextModuleHandle = 0x700000;
     private readonly Dictionary<nint, System.Threading.Timer> _timers = [];
     private readonly HashSet<nint> _activationContexts = [];
+    private readonly Dictionary<string, nint> _moduleHandles = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, uint> _clipboardFormats = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<uint, string> _clipboardFormatNames = [];
     private readonly Dictionary<uint, HANDLE> _clipboardData = [];
@@ -566,7 +568,22 @@ internal sealed unsafe class ImpellerSystemInterop : ISystemInterop
 
     // --- Module / Process -----------------------------------------------
 
-    public HMODULE GetModuleHandle(string? name) => (HMODULE)(nint)0x400000;
+    public HMODULE GetModuleHandle(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return (HMODULE)(nint)0x400000;
+        }
+
+        if (!_moduleHandles.TryGetValue(name, out nint handle))
+        {
+            handle = (nint)Interlocked.Increment(ref _nextModuleHandle);
+            _moduleHandles[name] = handle;
+        }
+
+        return (HMODULE)handle;
+    }
+
     public uint GetModuleFileName(HMODULE hModule, Span<char> lpFilename)
     {
         if (lpFilename.IsEmpty)
@@ -589,6 +606,16 @@ internal sealed unsafe class ImpellerSystemInterop : ISystemInterop
 
         return (uint)length;
     }
+
+    public HINSTANCE LoadLibraryEx(string? lpLibFileName, uint dwFlags)
+    {
+        _ = dwFlags;
+        return string.IsNullOrWhiteSpace(lpLibFileName)
+            ? HINSTANCE.Null
+            : (HINSTANCE)(nint)GetModuleHandle(lpLibFileName);
+    }
+
+    public bool FreeLibrary(HINSTANCE hLibModule) => !hLibModule.IsNull;
 
     public nint GetProcAddress(HMODULE hModule, PCSTR name) => 0;
     public uint GetCurrentThreadId() => (uint)Environment.CurrentManagedThreadId;

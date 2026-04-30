@@ -51,6 +51,8 @@ internal unsafe interface ISystemInterop
 
     HMODULE GetModuleHandle(string? lpModuleName);
     uint GetModuleFileName(HMODULE hModule, Span<char> lpFilename);
+    HINSTANCE LoadLibraryEx(string? lpLibFileName, uint dwFlags);
+    bool FreeLibrary(HINSTANCE hLibModule);
     nint GetProcAddress(HMODULE hModule, PCSTR lpProcName);
     uint GetCurrentThreadId();
     uint GetCurrentProcessId();

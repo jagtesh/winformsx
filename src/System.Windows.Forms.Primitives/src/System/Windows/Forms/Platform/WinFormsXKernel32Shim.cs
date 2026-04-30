@@ -43,6 +43,9 @@ internal static unsafe class WinFormsXKernel32Shim
             GetCurrentThreadId = &GetCurrentThreadId,
             GetModuleHandle = &GetModuleHandle,
             GetModuleFileName = &GetModuleFileName,
+            LoadLibraryEx = &LoadLibraryEx,
+            FreeLibrary = &FreeLibrary,
+            GetProcAddress = &GetProcAddress,
             GetLastError = &GetLastError,
             SetLastError = &SetLastError,
             CloseHandle = &CloseHandle,
@@ -166,6 +169,46 @@ internal static unsafe class WinFormsXKernel32Shim
 
             int length = size > int.MaxValue ? int.MaxValue : (int)size;
             return PlatformApi.System.GetModuleFileName((HMODULE)module, new Span<char>(filename, length));
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    [UnmanagedCallersOnly]
+    private static nint LoadLibraryEx(char* fileName, nint file, uint flags)
+    {
+        try
+        {
+            _ = file;
+            return (nint)PlatformApi.System.LoadLibraryEx(fileName is null ? null : new string(fileName), flags);
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    [UnmanagedCallersOnly]
+    private static int FreeLibrary(nint module)
+    {
+        try
+        {
+            return PlatformApi.System.FreeLibrary((HINSTANCE)module) ? 1 : 0;
+        }
+        catch
+        {
+            return module == 0 ? 0 : 1;
+        }
+    }
+
+    [UnmanagedCallersOnly]
+    private static nint GetProcAddress(nint module, byte* procName)
+    {
+        try
+        {
+            return PlatformApi.System.GetProcAddress((HMODULE)module, (PCSTR)procName);
         }
         catch
         {
@@ -551,6 +594,9 @@ internal static unsafe class WinFormsXKernel32Shim
         public delegate* unmanaged<uint> GetCurrentThreadId;
         public delegate* unmanaged<char*, nint> GetModuleHandle;
         public delegate* unmanaged<nint, char*, uint, uint> GetModuleFileName;
+        public delegate* unmanaged<char*, nint, uint, nint> LoadLibraryEx;
+        public delegate* unmanaged<nint, int> FreeLibrary;
+        public delegate* unmanaged<nint, byte*, nint> GetProcAddress;
         public delegate* unmanaged<uint> GetLastError;
         public delegate* unmanaged<uint, void> SetLastError;
         public delegate* unmanaged<nint, int> CloseHandle;
