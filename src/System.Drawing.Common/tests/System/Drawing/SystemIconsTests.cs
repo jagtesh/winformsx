@@ -76,6 +76,14 @@ public class SystemIconsTests
         Assert.NotNull(icon);
     }
 
+    [Fact]
+    public void SystemIcons_GetStockIcon_SmallIconOption_ReturnsSmallIcon()
+    {
+        using Icon icon = SystemIcons.GetStockIcon(StockIconId.Warning, StockIconOptions.SmallIcon);
+        Assert.Equal(16, icon.Width);
+        Assert.Equal(16, icon.Height);
+    }
+
     private static int GetBitmapHash(Icon icon)
     {
         using Bitmap bitmap = icon.ToBitmap();

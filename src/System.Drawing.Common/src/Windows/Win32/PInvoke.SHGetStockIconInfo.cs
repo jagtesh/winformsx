@@ -29,14 +29,48 @@ internal partial class PInvoke
     /// <remarks><para>If this function returns an icon handle in the <b>hIcon</b> member of the <a href="https://learn.microsoft.com/windows/desktop/api/shellapi/ns-shellapi-shstockiconinfo">SHSTOCKICONINFO</a>  structure pointed to by <i>psii</i>, you are responsible for freeing the icon with <a href="https://learn.microsoft.com/windows/desktop/api/winuser/nf-winuser-destroyicon">DestroyIcon</a> when you no longer need it.</para></remarks>
     public static unsafe HRESULT SHGetStockIconInfo(SHSTOCKICONID siid, SHGSI_FLAGS uFlags, SHSTOCKICONINFO* psii)
     {
-        if (psii is not null)
+        if (psii is null)
         {
-            psii->hIcon = default;
-            psii->iSysImageIndex = 0;
-            psii->iIcon = 0;
-            psii->szPath[0] = '\0';
+            return HRESULT.E_POINTER;
         }
 
-        return HRESULT.E_NOTIMPL;
+        psii->hIcon = default;
+        psii->iSysImageIndex = 0;
+        psii->iIcon = 0;
+        psii->szPath[0] = '\0';
+
+        if (!Enum.IsDefined(typeof(global::System.Drawing.StockIconId), (int)siid))
+        {
+            return HRESULT.E_INVALIDARG;
+        }
+
+        int flags = (int)uFlags;
+        int iconIndex = Math.Max(0, (int)siid);
+        psii->iSysImageIndex = iconIndex;
+        psii->iIcon = iconIndex;
+        CopyPath(psii, $"WinFormsX\\StockIcon\\{(global::System.Drawing.StockIconId)(int)siid}.ico");
+
+        if ((flags & SHGSI_ICON) != 0)
+        {
+            int size = (flags & SHGSI_SMALLICON) != 0 ? 16 : 32;
+            using global::System.Drawing.Icon icon = global::System.Drawing.SystemIcons.CreateStockIcon((global::System.Drawing.StockIconId)(int)siid, size);
+            psii->hIcon = (HICON)icon.Handle;
+        }
+
+        return HRESULT.S_OK;
+    }
+
+    private const int SHGSI_ICON = 0x000000100;
+    private const int SHGSI_SMALLICON = 0x000000001;
+
+    private static unsafe void CopyPath(SHSTOCKICONINFO* psii, string path)
+    {
+        int length = Math.Min(path.Length, 259);
+        for (int i = 0; i < length; i++)
+        {
+            psii->szPath[i] = path[i];
+        }
+
+        psii->szPath[length] = '\0';
     }
 }

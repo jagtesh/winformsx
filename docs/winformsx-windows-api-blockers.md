@@ -171,7 +171,10 @@ compatibility-facade coverage.
   `SystemIcons` fallback set, raises owner `HelpRequested` from the managed
   Help button, applies first-tier right-alignment/RTL options, and makes
   SystemIcons stock/status fallbacks visually distinct without depending on
-  native icon resources or font-based drawing during form startup.
+  native icon resources or font-based drawing during form startup. The latest
+  stock-icon pass also routes `SHGetStockIconInfo` through the managed
+  `SystemIcons` fallback set, returning deterministic icon indices, synthetic
+  resource paths, and small/large icon handles without shell DLL dependence.
 - First UIIntegration blockers observed:
   - `OLE32.dll` missing through `Application.ThreadContext.OleRequired()`,
     clipboard, and drag/drop paths. `InputLanguage.CurrentInputLanguage`,
@@ -591,9 +594,10 @@ Plan:
 
 Impacted APIs and areas:
 
-- Stock/system icons: `SHGetStockIconInfo`, `ExtractAssociatedIcon`, application
-  icon, shield, warning/error/info/question, desktop/computer, and file-type
-  icons.
+- Stock/system icons: first-tier `SHGetStockIconInfo` managed fallback is in
+  place; remaining work covers `ExtractAssociatedIcon`, application icon,
+  shield, warning/error/info/question, desktop/computer, and file-type icons
+  through a centralized resource provider.
 - Shell dialogs/items: `SHCreateShellItem`, `SHCreateItemFromParsingName`,
   folder browser shell items, known folders, pinned places, hidden files, and
   recent-files behavior.

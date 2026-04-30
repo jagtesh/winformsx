@@ -154,7 +154,7 @@ public static class SystemIcons
     public static Icon GetStockIcon(StockIconId stockIcon, StockIconOptions options = StockIconOptions.Default)
     {
         ValidateStockIcon(stockIcon);
-        return CreateManagedIcon(GetStockIconColor(stockIcon), GetStockIconGlyph(stockIcon));
+        return CreateStockIcon(stockIcon, ((options & StockIconOptions.SmallIcon) != 0) ? 16 : 32);
     }
 
     /// <inheritdoc cref="GetStockIcon(StockIconId, StockIconOptions)"/>
@@ -165,8 +165,11 @@ public static class SystemIcons
     public static Icon GetStockIcon(StockIconId stockIcon, int size)
     {
         ValidateStockIcon(stockIcon);
-        return CreateManagedIcon(GetStockIconColor(stockIcon), GetStockIconGlyph(stockIcon), size);
+        return CreateStockIcon(stockIcon, size);
     }
+
+    internal static Icon CreateStockIcon(StockIconId stockIcon, int size = 32)
+        => CreateManagedIcon(GetStockIconColor(stockIcon), GetStockIconGlyph(stockIcon), size);
 
     private static void ValidateStockIcon(StockIconId stockIcon)
     {

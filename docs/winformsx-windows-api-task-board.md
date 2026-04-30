@@ -956,8 +956,8 @@ Ordered by observed frequency across components and blocker blast radius:
 
 ## Shell / Resources / Icons / Cursors
 
-- [~] WXA-1701: Add stock icon and cursor provider service with canonical fallback set (`Application`, default status/error/warning/info/question, shield, folder/file, message/task dialog, scroll/dropdown arrows). SystemIcons now supplies distinct managed application/status/help/lock/folder/printer fallback icons without native resources or font-dependent drawing; cursor, scroll/dropdown arrow, and broader shell/task-dialog icon coverage remain.
-- [ ] WXA-1702: Implement icon extraction/service equivalents for `ExtractAssociatedIcon`, `SHGetStockIconInfo`, shell execute placeholders.
+- [~] WXA-1701: Add stock icon and cursor provider service with canonical fallback set (`Application`, default status/error/warning/info/question, shield, folder/file, message/task dialog, scroll/dropdown arrows). SystemIcons now supplies distinct managed application/status/help/lock/folder/printer fallback icons without native resources or font-dependent drawing; the shell stock-icon wrapper shares this fallback state. Cursor, scroll/dropdown arrow, and broader shell/task-dialog icon coverage remain.
+- [~] WXA-1702: Implement icon extraction/service equivalents for `ExtractAssociatedIcon`, `SHGetStockIconInfo`, shell execute placeholders. First-tier `SHGetStockIconInfo` now returns deterministic managed stock icon info; `ExtractAssociatedIcon`, shell execute, and real file-association metadata remain.
 - [ ] WXA-1703: Add and centralize required icons/cursors in WinFormsX resources; ensure `Button.ico`, `ImageInError.ico`, `PropertiesTab.ico`, `ShieldIcon.ico`, and any missing icon/cursor assets are embedded with license notices.
 - [ ] WXA-1704: Harden `.resx` load/save and `ResXDataNode` behavior for image/icon/cursor/stream payloads.
 
