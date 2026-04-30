@@ -444,7 +444,11 @@ Impacted APIs and areas:
 Plan:
 
 - Add an `OLE32.dll` WinFormsX facade only for ABI-safe
-  source-compatibility APIs, backed by PAL state.
+  source-compatibility APIs, backed by PAL state. The latest pass adds a native
+  first-tier facade for `OleInitialize`, `OleUninitialize`, `CoInitialize`,
+  `CoInitializeEx`, `CoUninitialize`, `CoCreateInstance`, `CoGetClassObject`,
+  `OleSetClipboard`, `OleGetClipboard`, `OleFlushClipboard`,
+  `RegisterDragDrop`, `RevokeDragDrop`, and `DoDragDrop`.
 - Move core clipboard/data-object/drag-drop behavior into managed PAL services.
 - Keep IME v1 as a managed input-language/context state layer. Expand only
   toward actual composition/candidate behavior when tests require it.

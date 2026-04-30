@@ -84,6 +84,9 @@
     <WinFormsXUxThemeShimSource>$(MSBuildProjectDirectory)/Native/UxThemeShim/winformsx_uxtheme.c</WinFormsXUxThemeShimSource>
     <WinFormsXUxThemeShimOutputDirectory>$(IntermediateOutputPath)winformsx-uxtheme/</WinFormsXUxThemeShimOutputDirectory>
     <WinFormsXUxThemeShimBinary>$(WinFormsXUxThemeShimOutputDirectory)UXTHEME.dll</WinFormsXUxThemeShimBinary>
+    <WinFormsXOle32ShimSource>$(MSBuildProjectDirectory)/Native/Ole32Shim/winformsx_ole32.c</WinFormsXOle32ShimSource>
+    <WinFormsXOle32ShimOutputDirectory>$(IntermediateOutputPath)winformsx-ole32/</WinFormsXOle32ShimOutputDirectory>
+    <WinFormsXOle32ShimBinary>$(WinFormsXOle32ShimOutputDirectory)OLE32.dll</WinFormsXOle32ShimBinary>
   </PropertyGroup>
 
   <ItemGroup Condition="'$(OS)' != 'Windows_NT'">
@@ -158,6 +161,15 @@
     <None Include="$(WinFormsXUxThemeShimOutputDirectory)libUXTHEME.dll.so" TargetPath="libUXTHEME.dll.so" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
     <None Include="$(WinFormsXUxThemeShimOutputDirectory)UXTHEME.dll.so" TargetPath="UXTHEME.dll.so" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
     <None Include="$(WinFormsXUxThemeShimOutputDirectory)libuxtheme.so" TargetPath="libuxtheme.so" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+    <None Include="$(WinFormsXOle32ShimOutputDirectory)OLE32.dll" TargetPath="OLE32.dll" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" />
+    <None Include="$(WinFormsXOle32ShimOutputDirectory)ole32.dll" TargetPath="ole32.dll" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" />
+    <None Include="$(WinFormsXOle32ShimOutputDirectory)ole32" TargetPath="ole32" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" />
+    <None Include="$(WinFormsXOle32ShimOutputDirectory)OLE32.dll.dylib" TargetPath="OLE32.dll.dylib" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+    <None Include="$(WinFormsXOle32ShimOutputDirectory)libOLE32.dll.dylib" TargetPath="libOLE32.dll.dylib" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+    <None Include="$(WinFormsXOle32ShimOutputDirectory)libole32.dylib" TargetPath="libole32.dylib" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+    <None Include="$(WinFormsXOle32ShimOutputDirectory)libOLE32.dll.so" TargetPath="libOLE32.dll.so" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+    <None Include="$(WinFormsXOle32ShimOutputDirectory)OLE32.dll.so" TargetPath="OLE32.dll.so" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+    <None Include="$(WinFormsXOle32ShimOutputDirectory)libole32.so" TargetPath="libole32.so" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
   </ItemGroup>
 
   <Target Name="BuildWinFormsXKernel32Shim"
@@ -317,6 +329,26 @@
     <Copy SourceFiles="$(WinFormsXUxThemeShimBinary)" DestinationFiles="$(WinFormsXUxThemeShimOutputDirectory)libUXTHEME.dll.so" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
     <Copy SourceFiles="$(WinFormsXUxThemeShimBinary)" DestinationFiles="$(WinFormsXUxThemeShimOutputDirectory)UXTHEME.dll.so" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
     <Copy SourceFiles="$(WinFormsXUxThemeShimBinary)" DestinationFiles="$(WinFormsXUxThemeShimOutputDirectory)libuxtheme.so" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+  </Target>
+
+  <Target Name="BuildWinFormsXOle32Shim"
+          BeforeTargets="PrepareForBuild;GetCopyToOutputDirectoryItems"
+          Inputs="$(WinFormsXOle32ShimSource)"
+          Outputs="$(WinFormsXOle32ShimBinary)"
+          Condition="'$(OS)' != 'Windows_NT'">
+    <MakeDir Directories="$(WinFormsXOle32ShimOutputDirectory)" />
+    <Exec Condition="$([MSBuild]::IsOSPlatform('OSX'))"
+          Command="cc -dynamiclib -fvisibility=hidden &quot;$(WinFormsXOle32ShimSource)&quot; -o &quot;$(WinFormsXOle32ShimBinary)&quot;" />
+    <Exec Condition="$([MSBuild]::IsOSPlatform('Linux'))"
+          Command="cc -shared -fPIC -fvisibility=hidden &quot;$(WinFormsXOle32ShimSource)&quot; -o &quot;$(WinFormsXOle32ShimBinary)&quot;" />
+    <Copy SourceFiles="$(WinFormsXOle32ShimBinary)" DestinationFiles="$(WinFormsXOle32ShimOutputDirectory)ole32.dll" />
+    <Copy SourceFiles="$(WinFormsXOle32ShimBinary)" DestinationFiles="$(WinFormsXOle32ShimOutputDirectory)ole32" />
+    <Copy SourceFiles="$(WinFormsXOle32ShimBinary)" DestinationFiles="$(WinFormsXOle32ShimOutputDirectory)OLE32.dll.dylib" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+    <Copy SourceFiles="$(WinFormsXOle32ShimBinary)" DestinationFiles="$(WinFormsXOle32ShimOutputDirectory)libOLE32.dll.dylib" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+    <Copy SourceFiles="$(WinFormsXOle32ShimBinary)" DestinationFiles="$(WinFormsXOle32ShimOutputDirectory)libole32.dylib" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+    <Copy SourceFiles="$(WinFormsXOle32ShimBinary)" DestinationFiles="$(WinFormsXOle32ShimOutputDirectory)libOLE32.dll.so" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+    <Copy SourceFiles="$(WinFormsXOle32ShimBinary)" DestinationFiles="$(WinFormsXOle32ShimOutputDirectory)OLE32.dll.so" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+    <Copy SourceFiles="$(WinFormsXOle32ShimBinary)" DestinationFiles="$(WinFormsXOle32ShimOutputDirectory)libole32.so" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
   </Target>
 
 </Project>

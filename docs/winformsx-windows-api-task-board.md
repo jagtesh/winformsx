@@ -131,6 +131,10 @@ Ordered by observed frequency across components and blocker blast radius:
       WinFormsX managed raisers and internal `PalEvents`, covering
       `PowerModeChanged`, `SessionEnding`, `SessionEnded`, and `SessionSwitch`
       without relying on OS-only SystemEvents plumbing.
+    - Direct source-compatible `OLE32.dll` imports now resolve through a
+      packaged native facade for first-tier initialization, class-activation
+      failure, OLE clipboard pointer storage, drag/drop registration state,
+      and cancelled `DoDragDrop` defaults.
     - `ImageList.GetBitmap` now tolerates WinFormsX synthetic bitmap handles
       returned by managed/common-control image-list state and falls back to the
       existing draw path instead of failing through `Image.FromHbitmap`.
@@ -140,7 +144,7 @@ Ordered by observed frequency across components and blocker blast radius:
     - Verification:
       `WinformsControlsTest --control-smoke-test` ->
       `total=42 passed=41 failed=0 skipped=1`; full UIIntegration ->
-      `Failed: 0, Passed: 254, Skipped: 1, Total: 255`.
+      `Failed: 0, Passed: 255, Skipped: 1, Total: 256`.
   - Added WinFormsX virtual-window handling for ToolStrip dropdown overlays and
     hidden dropdown owner windows so they no longer create nested Silk/GLFW
     windows during UIIntegration runs.
@@ -990,9 +994,9 @@ Ordered by observed frequency across components and blocker blast radius:
 
 ## OLE, COM, Clipboard, IME, Drag/Drop
 
-- [~] WXA-1101: Implement PAL-backed `OleInitialize`, `CoInitialize`, `CoCreateInstance` and core `OLE32.dll` facade contracts.
-- [~] WXA-1102: Implement clipboard helpers (`OleGetClipboard`, `OleSetClipboard`, `OleFlushClipboard`) with managed storage and format metadata.
-- [~] WXA-1103: Implement `RevokeDragDrop`/`RegisterDragDrop`/`DoDragDrop` event flow and default drop effects.
+- [~] WXA-1101: Implement PAL-backed `OleInitialize`, `CoInitialize`, `CoCreateInstance` and core `OLE32.dll` facade contracts. Managed wrappers cover current WinForms paths, and the native `OLE32.dll` facade now resolves first-tier direct imports for initialization, uninitialization, and deterministic class-activation failure; richer COM activation remains.
+- [~] WXA-1102: Implement clipboard helpers (`OleGetClipboard`, `OleSetClipboard`, `OleFlushClipboard`) with managed storage and format metadata. Managed wrappers cover safe defaults, and the native `OLE32.dll` facade now stores/retrieves the current OLE clipboard pointer for direct import callers; richer data-object ownership/format metadata remains.
+- [~] WXA-1103: Implement `RevokeDragDrop`/`RegisterDragDrop`/`DoDragDrop` event flow and default drop effects. Managed WinForms drag/drop event flow is covered, and the native `OLE32.dll` facade now tracks direct registration/revocation state and returns cancelled default drag effects; richer native drop-target callback flow remains.
 - [x] WXA-1104: Implement `OleInitialize` + `InputLanguage.CurrentInputLanguage` to unblock data-grid and IME-dependent paths.
 - [x] WXA-1105: Implement first-tier IME context state and `IMM32.dll` source-compatibility facade (`ImmGetContext`, `ImmReleaseContext`, open/conversion status, notify, create, associate).
 

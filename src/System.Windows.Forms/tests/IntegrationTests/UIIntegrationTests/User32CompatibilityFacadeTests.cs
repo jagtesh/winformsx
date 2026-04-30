@@ -780,6 +780,45 @@ public class User32CompatibilityFacadeTests
         Assert.Equal([SessionSwitchReason.SessionUnlock], palSessionReasons);
     }
 
+    [Fact]
+    public unsafe void DirectOle32DllImports_ResolveToWinFormsXFacade()
+    {
+        const int S_OK = 0;
+        const int S_FALSE = 1;
+        const int REGDB_E_CLASSNOTREG = unchecked((int)0x80040154);
+        const int DRAGDROP_S_CANCEL = 0x00040101;
+        const int DRAGDROP_E_ALREADYREGISTERED = unchecked((int)0x80040101);
+
+        int initializeResult = NativeOle32.OleInitialize(null);
+        Assert.True(initializeResult is S_OK or S_FALSE);
+
+        nint createdObject;
+        Assert.Equal(
+            REGDB_E_CLASSNOTREG,
+            NativeOle32.CoCreateInstance(null, 0, 0, null, &createdObject));
+        Assert.Equal(0, createdObject);
+
+        nint dataObject = 0x12345678;
+        Assert.Equal(S_OK, NativeOle32.OleSetClipboard(dataObject));
+
+        nint actualDataObject;
+        Assert.Equal(S_OK, NativeOle32.OleGetClipboard(&actualDataObject));
+        Assert.Equal(dataObject, actualDataObject);
+        Assert.Equal(S_OK, NativeOle32.OleFlushClipboard());
+
+        nint hwnd = 0x2468;
+        nint dropTarget = 0x1357;
+        Assert.Equal(S_OK, NativeOle32.RegisterDragDrop(hwnd, dropTarget));
+        Assert.Equal(DRAGDROP_E_ALREADYREGISTERED, NativeOle32.RegisterDragDrop(hwnd, dropTarget));
+
+        uint effect = 1;
+        Assert.Equal(DRAGDROP_S_CANCEL, NativeOle32.DoDragDrop(dataObject, 0, 1, &effect));
+        Assert.Equal(0u, effect);
+
+        Assert.Equal(S_OK, NativeOle32.RevokeDragDrop(hwnd));
+        NativeOle32.OleUninitialize();
+    }
+
     private sealed class EnvironmentOverride : IDisposable
     {
         private readonly string _name;
@@ -1406,5 +1445,37 @@ public class User32CompatibilityFacadeTests
             public int cyTopHeight;
             public int cyBottomHeight;
         }
+    }
+
+    private static unsafe partial class NativeOle32
+    {
+        private const string Ole32 = "OLE32.dll";
+
+        [DllImport(Ole32, ExactSpelling = true)]
+        internal static extern int OleInitialize(void* reserved);
+
+        [DllImport(Ole32, ExactSpelling = true)]
+        internal static extern void OleUninitialize();
+
+        [DllImport(Ole32, ExactSpelling = true)]
+        internal static extern int CoCreateInstance(void* clsid, nint outer, uint clsContext, void* iid, nint* createdObject);
+
+        [DllImport(Ole32, ExactSpelling = true)]
+        internal static extern int OleSetClipboard(nint dataObject);
+
+        [DllImport(Ole32, ExactSpelling = true)]
+        internal static extern int OleGetClipboard(nint* dataObject);
+
+        [DllImport(Ole32, ExactSpelling = true)]
+        internal static extern int OleFlushClipboard();
+
+        [DllImport(Ole32, ExactSpelling = true)]
+        internal static extern int RegisterDragDrop(nint hwnd, nint dropTarget);
+
+        [DllImport(Ole32, ExactSpelling = true)]
+        internal static extern int RevokeDragDrop(nint hwnd);
+
+        [DllImport(Ole32, ExactSpelling = true)]
+        internal static extern int DoDragDrop(nint dataObject, nint dropSource, uint allowedEffects, uint* effect);
     }
 }
