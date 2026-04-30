@@ -209,7 +209,9 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
             WndProc = 0x1,
         };
 
-        if (isTopLevel && ShouldCreateBackendForHiddenTopLevelWindow())
+        if (isTopLevel
+            && ShouldCreateBackendForHiddenTopLevelWindow()
+            && ShouldCreateBackendSurface(dwStyle, dwExStyle))
         {
             var options = WindowOptions.DefaultVulkan;
             options.Title = lpWindowName ?? string.Empty;
@@ -731,6 +733,25 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
 
     private static bool ShouldCreateBackendForHiddenTopLevelWindow()
         => Environment.GetEnvironmentVariable("WINFORMSX_SUPPRESS_HIDDEN_BACKEND") != "1";
+
+    private static bool ShouldCreateBackendSurface(WINDOW_STYLE style, WINDOW_EX_STYLE exStyle)
+    {
+        bool isPopup = style.HasFlag(WINDOW_STYLE.WS_POPUP);
+        bool isToolWindow = exStyle.HasFlag(WINDOW_EX_STYLE.WS_EX_TOOLWINDOW);
+        bool isAppWindow = exStyle.HasFlag(WINDOW_EX_STYLE.WS_EX_APPWINDOW);
+        bool isWinFormsOverlay = isPopup
+            && !isAppWindow
+            && exStyle.HasFlag(WINDOW_EX_STYLE.WS_EX_CONTROLPARENT);
+        bool isHiddenToolStripOwner = style == 0
+            && isToolWindow
+            && !isAppWindow;
+
+        // ToolStripDropDown, ContextMenuStrip, menu-like popup windows, and
+        // their hidden owner windows are WinForms-owned overlays. They should
+        // be virtual HWNDs painted through the owning backend surface, not
+        // additional GLFW/Silk windows.
+        return !isWinFormsOverlay && !isHiddenToolStripOwner;
+    }
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     private delegate void GlfwInitVulkanLoaderDelegate(nint loader);

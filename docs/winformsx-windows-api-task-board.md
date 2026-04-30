@@ -18,6 +18,33 @@ Ordered by observed frequency across components and blocker blast radius:
 
 ## Latest Progress (2026-04-30)
 
+- Current snapshot:
+  - Pushed `codex/winformsx-stability` through `899a998a3`.
+  - Added WinFormsX virtual-window handling for ToolStrip dropdown overlays and
+    hidden dropdown owner windows so they no longer create nested Silk/GLFW
+    windows during UIIntegration runs.
+  - Added `GetMessagePos` to both managed `PInvoke` and the native `USER32.dll`
+    compatibility facade, backed by PAL cursor state.
+  - Updated `ControlTestBase` so direct legacy-style `UIFact` form tests use
+    the WinFormsX virtual handle path by default and share the same bounded
+    timeout diagnostics.
+  - Focused dialog UIIntegration coverage is now green:
+    - `OpenFileDialogTests`: `Passed: 3, Failed: 0`.
+    - `FolderBrowserDialogTests`: `Passed: 2, Failed: 0`.
+    - `PrintDialogTests`: `Passed: 2, Failed: 0`.
+  - Focused ToolStrip/User32 coverage is now green:
+    - `ToolStrip_Hiding_ToolStripMenuItem_OnDropDownClosed_ShouldNotThrow`.
+    - `ToolStrip_shared_imagelist_should_not_get_disposed_when_toolstrip_does`.
+    - `User32CompatibilityFacadeTests`.
+  - Controls smoke remains stable:
+    - `CONTROL_SMOKE_SUMMARY total=42 passed=41 failed=0 skipped=1`.
+  - Full UIIntegration now completes without a hang/abort:
+    - `Failed: 166, Passed: 25, Skipped: 331, Total: 522`.
+  - Priority order moves to highest-volume remaining failure clusters:
+    `ListView` tile/subitem accessibility, PropertyGrid accessibility fragments,
+    Anchor/Layout resize state, MonthCalendar input, drag/drop polish, and
+    dialog/print fallbacks.
+
 - Landed:
   - Restored visible Impeller rendering for `WinFormsX.Samples` and the controls smoke harness by initializing GLFW's Vulkan loader with the Homebrew `vulkan-loader` entrypoint before creating the Silk/GLFW Vulkan window.
   - Hardened Impeller native asset selection so stale Windows `impeller.dll` output is removed from macOS/Linux build output and the runtime resolver loads only the platform-correct `libimpeller.dylib` / `libimpeller.so` / `impeller.dll` asset.
@@ -51,7 +78,7 @@ Ordered by observed frequency across components and blocker blast radius:
 
 - Landed:
   - Unified `UIIntegrationTests` control harness execution onto a single WinFormsX pathway in `ControlTestBase`:
-    - removed split Windows/non-Windows branches in `InitializeAsync`, `WaitForIdleAsync`, `RunFormAsync`, and `RunFormWithoutControlAsync`.
+    - removed split OS branches in `InitializeAsync`, `WaitForIdleAsync`, `RunFormAsync`, and `RunFormWithoutControlAsync`.
     - all targeted form-driver runs now use `CreateControlWithoutHiddenBackend` + `Show` + `ActivateWinFormsXDialog` + bounded timeout flow.
   - Verification:
     - `dotnet build src/System.Windows.Forms/tests/IntegrationTests/UIIntegrationTests/System.Windows.Forms.UI.IntegrationTests.csproj -c Debug -v q` -> `Build succeeded`.
@@ -76,7 +103,7 @@ Ordered by observed frequency across components and blocker blast radius:
     - `dotnet build src/System.Windows.Forms/src/System.Windows.Forms.csproj -c Debug -p:BuildProjectReferences=false` -> `Build succeeded`.
 - In-progress local changes (next commit):
   - Moved `System.Windows.Forms.Clipboard` to a single managed WinFormsX path:
-    - Removed Windows-only/OLE branching in `SetDataObject`, `GetDataObject`, and `Clear`.
+    - Removed OLE/native branching in `SetDataObject`, `GetDataObject`, and `Clear`.
     - Clipboard now consistently uses in-process managed storage under STA checks.
   - Verification:
     - `dotnet build src/System.Windows.Forms/src/System.Windows.Forms.csproj -c Debug -p:BuildProjectReferences=false` -> `Build succeeded`.
@@ -110,7 +137,7 @@ Ordered by observed frequency across components and blocker blast radius:
     - `UIIntegrationTests` filter `FullyQualifiedName~Button_Hotkey_Fires_OnClickAsync` -> `Passed: 1, Failed: 0`.
     - `WinformsControlsTest` is currently blocked in this dirty workspace by a renderer precondition (`WinFormsX requires a Vulkan window`) after rebuilding all projects; this appears tied to unrelated local renderer changes already present in the tree.
 - In-progress local changes (next commit):
-  - Removed the remaining Windows-only branch from `Application.ThreadContext.OleRequired()` so OLE apartment initialization now follows a single WinFormsX pathway on all platforms.
+  - Removed the remaining OS branch from `Application.ThreadContext.OleRequired()` so OLE apartment initialization now follows a single WinFormsX pathway.
   - Added managed `PInvoke.OleInitialize` compatibility wrapper in `System.Windows.Forms.Primitives` and removed generated direct import for `OleInitialize` from `NativeMethods.txt`.
   - Verification:
     - `dotnet build src/System.Windows.Forms/src/System.Windows.Forms.csproj -c Debug` -> `Build succeeded`.
@@ -118,12 +145,12 @@ Ordered by observed frequency across components and blocker blast radius:
     - `WinformsControlsTest --control-smoke-test` -> `total=42 passed=41 failed=0 skipped=1`.
 - In-progress local changes (next commit):
   - Removed another OS-conditional runtime branch in `Application.ThreadContext.OnThreadException`:
-    - thread-exception fallback now keys on backend capability (`Graphics.IsBackendActive`) instead of Windows/non-Windows checks.
+    - thread-exception fallback now keys on backend capability (`Graphics.IsBackendActive`) instead of OS checks.
   - Verification:
     - `dotnet build src/System.Windows.Forms/src/System.Windows.Forms.csproj -c Debug` -> `Build succeeded`.
     - `UIIntegrationTests` filter `FullyQualifiedName~ButtonTests`: `Failed: 0, Passed: 22, Skipped: 0`.
 - In-progress local changes (next commit):
-  - Removed Windows-only gating in USER32 compatibility registration:
+  - Removed OS gating in USER32 compatibility registration:
     - `WinFormsXUser32Shim.Register()` now runs through a single pathway (only guarded by `s_registered`).
     - Shim probing now uses one cross-platform library-name list instead of OS-conditional branches.
   - Verification:
@@ -131,9 +158,9 @@ Ordered by observed frequency across components and blocker blast radius:
     - `UIIntegrationTests` filter `FullyQualifiedName~User32CompatibilityFacadeTests`: `Failed: 0, Passed: 2, Skipped: 0`.
     - `WinformsControlsTest --control-smoke-test`: `total=42 passed=41 failed=0 skipped=1`.
 - In-progress local changes (next commit):
-  - Removed another Windows-only branch in core message-loop plumbing:
+  - Removed another OS branch in core message-loop plumbing:
     - `Application.ThreadContext` constructor now uses a single PAL thread-id pathway and no longer conditionally duplicates thread handles on Windows.
-    - This keeps thread-context initialization on one runtime pathway and avoids additional Windows-only KERNEL32 handle setup in WinFormsX.
+    - This keeps thread-context initialization on one runtime pathway and avoids additional KERNEL32 handle setup in WinFormsX.
   - Verification:
     - `dotnet build src/System.Windows.Forms/src/System.Windows.Forms.csproj -c Debug` -> `Build succeeded`.
     - `UIIntegrationTests` filter `FullyQualifiedName~ButtonTests`: `Failed: 0, Passed: 22, Skipped: 0`.
@@ -141,7 +168,7 @@ Ordered by observed frequency across components and blocker blast radius:
     - `ToolStrip_Hiding_ToolStripMenuItem_OnDropDownClosed_ShouldNotThrow` remains a deterministic hang/crash blocker.
     - Latest artifacts: `src/System.Windows.Forms/tests/IntegrationTests/UIIntegrationTests/TestResults/82d8ac31-ba13-4c03-8dc1-d60ef7b4e7f6/`
 - In-progress local changes (next commit):
-  - Continued single-pathway cleanup by removing newly introduced Windows-only branches in high-impact flows:
+  - Continued single-pathway cleanup by removing newly introduced OS branches in high-impact flows:
     - `Button.OnClick` dialog-result close behavior now uses one path (no OS guard).
     - `Button.OnMouseUp` capture-based click eligibility now uses one path (no OS guard).
     - `Control.DoDragDrop` and `ToolStripItem.DoDragDrop` now gate on backend capability instead of OS checks.
@@ -155,7 +182,7 @@ Ordered by observed frequency across components and blocker blast radius:
     - `ToolStrip_Hiding_ToolStripMenuItem_OnDropDownClosed_ShouldNotThrow` remains a deterministic hang/crash blocker.
     - Latest artifacts: `src/System.Windows.Forms/tests/IntegrationTests/UIIntegrationTests/TestResults/5a4b93af-cc59-49f5-b119-310412a2da2f/`
 - In-progress local changes (next commit):
-  - Removed Windows-only guard branches introduced in recent ToolStrip/OLE paths to keep one WinFormsX pathway:
+  - Removed OS guard branches introduced in recent ToolStrip/OLE paths to keep one WinFormsX pathway:
     - `ToolStripManager.ModalMenuFilter` now always activates message-hook flow when no owned message loop is present.
     - `PInvoke.RevokeDragDrop<T>` now follows the same managed compatibility path as `RegisterDragDrop<T>` across all platforms.
   - Expanded native USER32 compatibility shim exports for hook APIs so direct entrypoints are present in the same pathway:
@@ -167,14 +194,14 @@ Ordered by observed frequency across components and blocker blast radius:
 - In-progress local changes (next commit):
   - Started KERNEL32 compatibility surface routing in `System.Windows.Forms.Primitives`:
     - Added managed/PAL wrappers for `GetCurrentProcess`, `GetCurrentThread`, `GetCurrentProcessId`, `GetProcAddress`, `LoadLibraryEx`, `FreeLibrary`, `GetLastError`, and `SetLastError`.
-    - Removed generated direct native imports for those symbols from `NativeMethods.txt` so non-Windows runs do not bind to unavailable Windows entrypoints.
+    - Removed generated direct native imports for those symbols from `NativeMethods.txt` so WinFormsX runs do not bind to unavailable Windows entrypoints.
     - Kept `LoadLibrary` behavior source-compatible by preserving WinForms callsites, moving flag usage to numeric constants in managed code, and tracking managed-loaded handles for safe `FreeLibrary` no-op/cleanup behavior.
   - Verification:
     - `dotnet build src/System.Windows.Forms.Primitives/src/System.Windows.Forms.Primitives.csproj -c Release` -> `Build succeeded`.
     - `WinformsControlsTest --control-smoke-test` -> `total=42 passed=41 failed=0 skipped=1`.
 - In-progress local changes (next commit):
-  - Added managed non-Windows USER32 caret facades (`PInvoke.HideCaret` / `PInvoke.ShowCaret`) in `System.Windows.Forms.Primitives` and removed generated native imports for both symbols.
-  - Guarded ToolStrip modal message-hook activation so non-Windows non-message-loop paths do not attempt Windows hook setup.
+  - Added managed WinFormsX USER32 caret facades (`PInvoke.HideCaret` / `PInvoke.ShowCaret`) in `System.Windows.Forms.Primitives` and removed generated native imports for both symbols.
+  - Guarded ToolStrip modal message-hook activation so backend message-loop paths do not attempt native hook setup.
   - Re-ran focused ToolStrip regression with blame-hang:
     - `ToolStrip_Hiding_ToolStripMenuItem_OnDropDownClosed_ShouldNotThrow`
     - Current state: deterministic hang/crash capture (no `EntryPointNotFoundException` for caret APIs).
@@ -182,31 +209,31 @@ Ordered by observed frequency across components and blocker blast radius:
   - Control smoke verification remains stable:
     - `CONTROL_SMOKE_SUMMARY total=42 passed=41 failed=0 skipped=1`.
 - In-progress local changes (next commit):
-  - Added non-Windows timeout diagnostics in UI integration harness (`ControlTestBase`):
-    - Non-Windows `RunFormAsync` / `RunFormWithoutControlAsync` test drivers now run with a bounded timeout (`30s`) and emit focus/active/foreground/capture/open-form diagnostics before failing.
+  - Added WinFormsX timeout diagnostics in UI integration harness (`ControlTestBase`):
+    - `RunFormAsync` / `RunFormWithoutControlAsync` test drivers now run with a bounded timeout (`30s`) and emit focus/active/foreground/capture/open-form diagnostics before failing.
     - This converts silent hangs into actionable failures while preserving existing test behavior on Windows.
   - Verified one remaining ToolStrip blocker now yields deterministic crash/hang artifacts under blame-hang:
     - `ToolStrip_Hiding_ToolStripMenuItem_OnDropDownClosed_ShouldNotThrow`
     - Artifacts: `src/System.Windows.Forms/tests/IntegrationTests/UIIntegrationTests/TestResults/b8171b17-1b36-4a20-9c02-6e51db04e5ed/`
 - In-progress local changes (next commit):
-  - Added non-Windows managed clipboard fallback in `System.Windows.Forms.Clipboard`:
+  - Added WinFormsX managed clipboard fallback in `System.Windows.Forms.Clipboard`:
     - `SetDataObject` stores data in a managed in-process clipboard store instead of calling OLE APIs.
-    - `GetDataObject` and `Clear` use the same managed store on non-Windows, preserving STA checks and `IDataObject` unwrap behavior.
+    - `GetDataObject` and `Clear` use the same managed store, preserving STA checks and `IDataObject` unwrap behavior.
   - Verification:
     - `dotnet build src/System.Windows.Forms/src/System.Windows.Forms.csproj` -> `Build succeeded`.
     - `WinformsControlsTest --control-smoke-test` -> `total=42 passed=41 failed=0 skipped=1`.
 - In-progress local changes (next commit):
-  - Fixed managed drag/drop re-entry on non-Windows (`ManagedDragDrop.DoDragDrop`) by rejecting nested drag-loop invocations while a drag is already active.
+  - Fixed managed drag/drop re-entry in WinFormsX (`ManagedDragDrop.DoDragDrop`) by rejecting nested drag-loop invocations while a drag is already active.
   - This prevents a single gesture from triggering multiple `DoDragDrop` operations when `Application.DoEvents()` pumps source `MouseMove` messages during an active drag.
   - Verification:
     - `UIIntegrationTests` filter `FullyQualifiedName~DragDrop_QueryDefaultCursors_Async`: `Failed: 0, Passed: 1, Skipped: 0`.
     - `WinformsControlsTest --control-smoke-test`: `total=42 passed=41 failed=0 skipped=1`.
 - Landed in `b888d27ff`:
-  - Managed non-Windows drag/drop fallback path added and wired for `Control.DoDragDrop` and `ToolStripItem.DoDragDrop`.
+  - Managed WinFormsX drag/drop fallback path added and wired for `Control.DoDragDrop` and `ToolStripItem.DoDragDrop`.
   - WinFormsX input backend now propagates mouse key-state flags in message `wParam` for move/down/up paths.
   - `WM_MOUSEMOVE` now uses message key-state on backend-active path so drag logic sees held mouse buttons correctly.
 - In-progress local changes (next commit):
-  - Non-Windows `DataObject` construction no longer routes through `GlobalInterfaceTable`/`OLE32.dll`; added managed adapter path to avoid `DllNotFoundException`.
+  - WinFormsX `DataObject` construction no longer routes through `GlobalInterfaceTable`/`OLE32.dll`; added managed adapter path to avoid `DllNotFoundException`.
   - `BackCompatibleStringComparer` hash code now uses `unchecked` arithmetic to avoid overflow exceptions during drag/drop data storage.
   - Drag/drop enter/over sequencing and input-state synchronization were tightened for backend-driven mouse/key events.
 - In-progress local changes (next commit):
@@ -245,19 +272,19 @@ Ordered by observed frequency across components and blocker blast radius:
   - `Failed: 18, Passed: 4, Skipped: 36, Total: 58`
   - Dominant failures are button click/default/cancel interaction flow and anchor-resize expectations.
 - In-progress local changes (next commit):
-  - Updated non-Windows `UIIntegrationTests` harness startup to explicitly `Show()` forms before activation and test execution (`ControlTestBase` non-Windows branches).
+  - Updated `UIIntegrationTests` harness startup to explicitly `Show()` forms before activation and test execution (`ControlTestBase` WinFormsX path).
   - Reran targeted `ButtonTests` after harness update:
     - `Failed: 15, Passed: 7, Skipped: 30, Total: 52`
   - Net result: 3 failures converted to passes and 6 prior skip/error paths converted into active assertions; remaining failures are now mostly dialog-result close behavior and anchor/resize interaction semantics.
 - Input-language remediation:
-  - Fixed non-Windows `InputLanguage.LayoutName` crash path (`Registry.LocalMachine` / `GetMUIString` fallback guards).
+  - Fixed WinFormsX `InputLanguage.LayoutName` crash path (`Registry.LocalMachine` / `GetMUIString` fallback guards).
   - `Button_Hotkey_Fires_OnClickAsync` no longer throws `NullReferenceException`; it now fails with expected environment precondition (`Please, switch to the US input language`).
 - Fresh controls verification (current workspace build):
   - Targeted `--control-smoke-test-case Buttons`: `PASS Buttons controls=1 handles=19`.
   - Full `--control-smoke-test`: `total=42 passed=41 failed=0 skipped=1` (only `MediaPlayer` skipped).
 - In-progress local changes (next commit):
-  - Expanded non-Windows `ImpellerSystemInterop.GetSystemMetrics` coverage with deterministic defaults for virtual-screen, fixed frame/size, icon spacing, mouse, monitor, drag/focus border, minimized/maximized window, and legacy compatibility metrics used by `SystemInformation`.
-  - Updated non-Windows DPI resolution to derive from real WinFormsX handles/forms when available (`GetDpiForWindow`/`GetDpiForSystem`) with safe `96` fallback.
+  - Expanded `ImpellerSystemInterop.GetSystemMetrics` coverage with deterministic defaults for virtual-screen, fixed frame/size, icon spacing, mouse, monitor, drag/focus border, minimized/maximized window, and legacy compatibility metrics used by `SystemInformation`.
+  - Updated WinFormsX DPI resolution to derive from real handles/forms when available (`GetDpiForWindow`/`GetDpiForSystem`) with safe `96` fallback.
   - Added deterministic PAL handling for additional consumed `SystemParametersInfo` actions:
     - `SPI_GETDEFAULTINPUTLANG`
     - `SPI_SETHIGHCONTRAST`
@@ -270,11 +297,11 @@ Ordered by observed frequency across components and blocker blast radius:
     - `User32CompatibilityFacadeTests.CommonSystemMetrics_ResolveConsistentlyForManagedAndNativeUser32Facade` -> `Passed`.
     - `User32CompatibilityFacadeTests` filtered suite -> `Passed: 2, Failed: 0`.
 - In-progress local changes (next commit):
-  - Hardened UIIntegration screenshot capture on non-Windows/Impeller-only runs:
+  - Hardened UIIntegration screenshot capture on WinFormsX/Impeller runs:
     - `ScreenshotService.TryCaptureFullScreen()` now catches `NotSupportedException`/`PlatformNotSupportedException` from `Graphics.CopyFromScreen` and returns `null` instead of failing the test harness.
-  - Added deterministic non-Windows input-language baseline for keyboard layout state:
+  - Added deterministic WinFormsX input-language baseline for keyboard layout state:
     - `ImpellerInputInterop.GetKeyboardLayout`/`ActivateKeyboardLayout` now keep managed HKL state (default `0x04090409`, en-US).
-    - `InputLanguage.LayoutName` now has a non-Windows fallback (`"US"` for `0x0409`, otherwise `Culture.EnglishName`) when Windows registry layout metadata is unavailable.
+    - `InputLanguage.LayoutName` now has a WinFormsX fallback (`"US"` for `0x0409`, otherwise `Culture.EnglishName`) when Windows registry layout metadata is unavailable.
   - Verified targeted `Button_Hotkey_Fires_OnClickAsync` moved from environment precondition failure (`Please, switch to the US input language`) to a real behavior assertion (`wasClicked == false`).
   - Re-ran targeted `ButtonTests` after the screenshot hardening:
     - `Failed: 15, Passed: 7, Skipped: 30, Total: 52`
@@ -286,17 +313,17 @@ Ordered by observed frequency across components and blocker blast radius:
     - Added deterministic VK->char mapping for `A-Z` and `0-9` in this path.
     - Routed `WM_SYSCHAR` delivery to the active top-level window to better match mnemonic processing expectations.
   - Target intent:
-    - Move `Button_Hotkey_Fires_OnClickAsync` from “no mnemonic route” into real button click behavior on non-Windows harness runs.
+    - Move `Button_Hotkey_Fires_OnClickAsync` from “no mnemonic route” into real button click behavior on WinFormsX harness runs.
   - Focused rerun status:
     - `Button_Hotkey_Fires_OnClickAsync` remains failing on click assertion (`wasClicked == false`); no regression to environment/setup failures.
 - In-progress local changes (next commit):
-  - Non-Windows synthetic input foreground prep now preserves an already-focused child control instead of always forcing focus back to the form:
+  - WinFormsX synthetic input foreground prep now preserves an already-focused child control instead of always forcing focus back to the form:
     - `UIIntegrationTests/Infra/SendInput.SetForegroundWindow`
   - This removes one source of focus churn in keyboard-driven button tests and keeps behavior closer to modal dialog expectations.
   - Verification:
     - `User32CompatibilityFacadeTests` filtered suite remains green (`Passed: 2, Failed: 0`).
     - `Button_Hotkey_Fires_OnClickAsync` and dialog-result button cases are still failing on behavior assertions; remaining gap is mnemonic/modal close semantics, not input-language preconditions.
-  - Attempted non-Windows `ShowDialog()` harness alignment was reverted after introducing a test hang; modal-lifecycle parity will continue via runtime behavior fixes instead of harness-level modal-loop emulation.
+  - Attempted WinFormsX `ShowDialog()` harness alignment was reverted after introducing a test hang; modal-lifecycle parity will continue via runtime behavior fixes instead of harness-level modal-loop emulation.
 - In-progress local changes (next commit):
   - Impeller synthetic keyboard dispatch now runs WinForms key pre-processing before direct window dispatch:
     - `ImpellerWindowInterop.PostMessageToControl` now calls `Control.PreProcessControlMessageInternal` for key/syskey/char/syschar messages and only dispatches if not already processed.
@@ -304,7 +331,7 @@ Ordered by observed frequency across components and blocker blast radius:
   - Verification:
     - `Button_Hotkey_Fires_OnClickAsync` is now passing (`Failed: 0, Passed: 1, Skipped: 0` for targeted filter).
     - Focused dialog-result/cancel-space group improved to one functional pass path with remaining failures concentrated on modal close visibility semantics:
-      - `Button_DialogResult_ClickDefaultButtonToCloseFormAsync`: `DialogResult` updates but form remains visible on non-Windows harness path.
+      - `Button_DialogResult_ClickDefaultButtonToCloseFormAsync`: `DialogResult` updates but form remains visible on the WinFormsX harness path.
       - `Button_DialogResult_SpaceToClickFocusedButtonAsync` and `Button_CancelButton_EscapeClicksCancelButtonAsync`: click/result behavior now routes, but visibility-close expectation remains unmet.
 - In-progress local changes (next commit):
   - Added managed form-edge resize simulation in `ImpellerInputInterop` for synthetic left-drag on top-level form right/bottom edges.
@@ -320,15 +347,15 @@ Ordered by observed frequency across components and blocker blast radius:
       - `Failed: 10, Passed: 12, Skipped: 20, Total: 42` (improved from `15/7/30`).
       - Remaining failures are concentrated in modal close visibility semantics (`DialogResult` paths) and drag-off/drag-back click completion.
 - In-progress local changes (next commit):
-  - Closed remaining `ButtonTests` behavior gaps in non-Windows input/dialog paths:
-    - `Button.OnClick`: when `DialogResult != None` on non-Windows modeless forms, mirror dialog semantics by hiding the form after committing the result.
+  - Closed remaining `ButtonTests` behavior gaps in WinFormsX input/dialog paths:
+    - `Button.OnClick`: when `DialogResult != None` on modeless forms, mirror dialog semantics by hiding the form after committing the result.
     - `ImpellerWindowInterop.PostMessageToControl`: mouse-move coalescing now only applies when no mouse button is pressed, preserving drag-out/drag-back state transitions.
-    - `Button.OnMouseUp`: added non-Windows capture-aware click eligibility for in-bounds release.
+    - `Button.OnMouseUp`: added capture-aware click eligibility for in-bounds release.
   - Verification:
     - `UIIntegrationTests` filter `FullyQualifiedName~ButtonTests`: `Failed: 0, Passed: 22, Skipped: 0, Total: 22`.
     - `WinformsControlsTest --control-smoke-test`: `total=42 passed=41 failed=0 skipped=1`.
 - In-progress local changes (next commit):
-  - Added PAL-backed GDI wrappers for `PInvoke.CreateSolidBrush` and `PInvoke.CreatePen` in `System.Windows.Forms.Primitives`, and removed those symbols from `NativeMethods.txt` generation so non-Windows runs do not fall through to missing native `GDI32` imports.
+  - Added PAL-backed GDI wrappers for `PInvoke.CreateSolidBrush` and `PInvoke.CreatePen` in `System.Windows.Forms.Primitives`, and removed those symbols from `NativeMethods.txt` generation so WinFormsX runs do not fall through to missing native `GDI32` imports.
   - Fixed PropertyGrid drop-down/dialog button accessibility fragment navigation to resolve parent/sibling targets from selected-entry state on WinFormsX timing paths.
   - Verification:
     - `UIIntegrationTests` filter `FullyQualifiedName~DesignBehaviorsTests_can_DragDrop_ToolboxItem`: `Passed`.
@@ -362,7 +389,7 @@ Ordered by observed frequency across components and blocker blast radius:
 
 - [ ] WXA-1201: Implement managed fallbacks for `OpenFileDialog`, `SaveFileDialog`, `FolderBrowserDialog`, `ColorDialog`, `FontDialog`.
 - [ ] WXA-1202: Implement managed `PrintDialog` and `PageSetupDialog` with no-spooler fallback path.
-- [ ] WXA-1203: Implement non-Windows fallback for internal modal dialogs (`PrintPreviewDialog`, `TaskDialog`, `GridErrorDialog`, `ThreadExceptionDialog`).
+- [ ] WXA-1203: Implement WinFormsX fallback for internal modal dialogs (`PrintPreviewDialog`, `TaskDialog`, `GridErrorDialog`, `ThreadExceptionDialog`).
 - [ ] WXA-1204: Route native `COMDLG32.dll` symbols used by `PInvoke` (`GetOpenFileName`, `GetSaveFileName`, `ChooseColor`, `ChooseFont`, `PrintDlg`, `PrintDlgEx`, `PageSetupDlg`) to WinFormsX-managed dialog services.
 
 ## Printing And Spooler
@@ -439,4 +466,11 @@ Ordered by observed frequency across components and blocker blast radius:
 
 - `WXA-1103` is actively in progress with managed drag/drop loop and target-resolution work.
 - `DragDropTests` targeted UI integration rerun is currently green except the intentional explorer-based skip.
-- Active priority lane moves to `P2`: OLE/clipboard/IME core and dialog service parity after `P1` button/modal/synthetic/resize blockers were cleared in focused UI integration coverage.
+- `WXA-2101` hang diagnostics have done their job for the current pass: the full
+  UIIntegration suite now completes and reports real failures instead of
+  aborting on ToolStrip/Silk window creation.
+- Active priority lane moves to `P3` accessibility/provider breadth first,
+  because the largest current full-suite clusters are `ListView` tile/subitem
+  UIA and PropertyGrid fragment navigation failures. Continue `P2`
+  dialog/print and OLE/drag-drop work immediately after those shared provider
+  failures are reduced.

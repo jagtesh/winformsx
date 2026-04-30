@@ -17,11 +17,12 @@ namespace System.Windows.Forms.UITests;
 public abstract class ControlTestBase : IAsyncLifetime, IDisposable
 {
     private const int SPIF_SENDCHANGE = 0x0002;
-    private static readonly TimeSpan s_nonWindowsTestTimeout = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan s_winFormsXTestTimeout = TimeSpan.FromSeconds(30);
 
     private bool _clientAreaAnimation;
     private JoinableTaskCollection _joinableTaskCollection = null!;
     private static string s_previousRunTestName = "This is the first test to run.";
+    private readonly string? _previousSuppressHiddenBackend;
 
     private Point? _mousePosition;
 
@@ -38,6 +39,8 @@ public abstract class ControlTestBase : IAsyncLifetime, IDisposable
         s_previousRunTestName = DataCollectionService.CurrentTest.DisplayName;
 
         Application.EnableVisualStyles();
+        _previousSuppressHiddenBackend = Environment.GetEnvironmentVariable("WINFORMSX_SUPPRESS_HIDDEN_BACKEND");
+        Environment.SetEnvironmentVariable("WINFORMSX_SUPPRESS_HIDDEN_BACKEND", "1");
 
         // Disable animations for maximum test performance
         bool disabled = false;
@@ -95,6 +98,7 @@ public abstract class ControlTestBase : IAsyncLifetime, IDisposable
     public virtual void Dispose()
     {
         Assert.True(PInvokeCore.SystemParametersInfo(SYSTEM_PARAMETERS_INFO_ACTION.SPI_SETCLIENTAREAANIMATION, ref _clientAreaAnimation));
+        Environment.SetEnvironmentVariable("WINFORMSX_SUPPRESS_HIDDEN_BACKEND", _previousSuppressHiddenBackend);
         DataCollectionService.CurrentTest = null;
     }
 
@@ -276,7 +280,7 @@ public abstract class ControlTestBase : IAsyncLifetime, IDisposable
         await WaitForIdleAsync();
         try
         {
-            await RunWithNonWindowsTimeoutAsync(
+            await RunWithWinFormsXTimeoutAsync(
                 () => testDriverAsync(dialog, control),
                 dialog);
         }
@@ -302,7 +306,7 @@ public abstract class ControlTestBase : IAsyncLifetime, IDisposable
         await WaitForIdleAsync();
         try
         {
-            await RunWithNonWindowsTimeoutAsync(
+            await RunWithWinFormsXTimeoutAsync(
                 () => testDriverAsync(dialog),
                 dialog);
         }
@@ -388,15 +392,9 @@ public abstract class ControlTestBase : IAsyncLifetime, IDisposable
         static int GetMiddle(int a, int b) => a + ((b - a) / 2);
     }
 
-    private async Task RunWithNonWindowsTimeoutAsync(Func<Task> action, Form dialog)
+    private async Task RunWithWinFormsXTimeoutAsync(Func<Task> action, Form dialog)
     {
-        if (OperatingSystem.IsWindows())
-        {
-            await action();
-            return;
-        }
-
-        Task timeoutTask = Task.Delay(s_nonWindowsTestTimeout);
+        Task timeoutTask = Task.Delay(s_winFormsXTestTimeout);
         Task actionTask = action();
         Task completed = await Task.WhenAny(actionTask, timeoutTask);
         if (ReferenceEquals(completed, actionTask))
@@ -405,7 +403,7 @@ public abstract class ControlTestBase : IAsyncLifetime, IDisposable
             return;
         }
 
-        TestOutputHelper.WriteLine($"Timed out after {s_nonWindowsTestTimeout.TotalSeconds:F0}s in '{DataCollectionService.CurrentTest?.DisplayName}'.");
+        TestOutputHelper.WriteLine($"Timed out after {s_winFormsXTestTimeout.TotalSeconds:F0}s in '{DataCollectionService.CurrentTest?.DisplayName}'.");
         TestOutputHelper.WriteLine($"Dialog.Visible={dialog.Visible} Dialog.IsDisposed={dialog.IsDisposed} Dialog.Handle={dialog.Handle}");
         TestOutputHelper.WriteLine($"Focus={PInvoke.GetFocus()} Active={PInvoke.GetActiveWindow()} Foreground={PInvoke.GetForegroundWindow()} Capture={PInvoke.GetCapture()}");
         TestOutputHelper.WriteLine($"OpenForms={Application.OpenForms.Count}");
@@ -414,6 +412,6 @@ public abstract class ControlTestBase : IAsyncLifetime, IDisposable
             TestOutputHelper.WriteLine($"OpenForm: Name='{openForm.Name}' Text='{openForm.Text}' Visible={openForm.Visible} Handle={openForm.Handle}");
         }
 
-        throw new TimeoutException($"Non-Windows UI test timed out after {s_nonWindowsTestTimeout.TotalSeconds:F0}s.");
+        throw new TimeoutException($"WinFormsX UI test timed out after {s_winFormsXTestTimeout.TotalSeconds:F0}s.");
     }
 }

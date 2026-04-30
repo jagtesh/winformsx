@@ -128,6 +128,17 @@ WF_EXPORT BOOL SetCursorPos(INT x, INT y)
     return g_dispatch.set_cursor_pos != 0 ? g_dispatch.set_cursor_pos(x, y) : 0;
 }
 
+WF_EXPORT UINT GetMessagePos(void)
+{
+    WinFormsXPoint point = { 0, 0 };
+    if (g_dispatch.get_cursor_pos == 0 || !g_dispatch.get_cursor_pos(&point))
+    {
+        return 0;
+    }
+
+    return ((UINT)(uint16_t)point.x) | (((UINT)(uint16_t)point.y) << 16);
+}
+
 WF_EXPORT SHORT GetAsyncKeyState(INT vkey)
 {
     return g_dispatch.get_async_key_state != 0 ? g_dispatch.get_async_key_state(vkey) : 0;

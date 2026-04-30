@@ -51,6 +51,7 @@ public class User32CompatibilityFacadeTests
             Assert.True(NativeUser32.SetCursorPos(321, 654));
             Assert.True(NativeUser32.GetCursorPos(out Point cursor));
             Assert.Equal(new Point(321, 654), cursor);
+            Assert.Equal(PInvoke.GetMessagePos(), NativeUser32.GetMessagePos());
 
             uint virtualKey = (uint)VIRTUAL_KEY.VK_RETURN;
             uint nativeScan = NativeUser32.MapVirtualKey(virtualKey, (uint)MAP_VIRTUAL_KEY_TYPE.MAPVK_VK_TO_VSC);
@@ -277,6 +278,9 @@ public class User32CompatibilityFacadeTests
         [DllImport(User32, ExactSpelling = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
         internal static extern bool SetCursorPos(int x, int y);
+
+        [DllImport(User32, ExactSpelling = true)]
+        internal static extern uint GetMessagePos();
 
         [DllImport(User32, ExactSpelling = true)]
         internal static extern short GetAsyncKeyState(int vkey);

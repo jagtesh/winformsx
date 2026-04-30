@@ -11,23 +11,29 @@ compatibility-facade coverage.
   ActiveX and remains intentionally out of scope for the first compatibility
   pass.
 - USER32 direct-DllImport facade exists for the first source-compatibility tier:
-  cursor position, keyboard state, focus/active/foreground window, desktop
-  window, system metrics, visibility, and enabled state.
-- UIIntegrationTests are no longer globally skipped as Windows-only tests, but
-  the suite still exposes real missing behavior. The last full run reached
-  `25 passed, 64 failed, 128 skipped` before the hang guard stopped it.
+  cursor/message position, keyboard state, focus/active/foreground window,
+  desktop window, system metrics, visibility, and enabled state.
+- UIIntegrationTests are no longer globally skipped by OS-gated attributes. The
+  suite now exposes real WinFormsX behavior gaps. The current full run completes
+  without a hang/abort and reports `25 passed, 166 failed, 331 skipped`.
 - First UIIntegration blockers observed:
   - `OLE32.dll` missing through `Application.ThreadContext.OleRequired()`,
     `InputLanguage.CurrentInputLanguage`, IME, clipboard, and drag/drop paths.
   - `winspool.drv` missing through `DocumentProperties` after the
     `GetDesktopWindow` USER32 gap was closed.
-  - `OpenFileDialogTests_ResultWithMultiselect` returns `Cancel` where the test
-    expects an accepted result.
-  - `ToolStrip_Hiding_ToolStripMenuItem_OnDropDownClosed_ShouldNotThrow` hangs,
-    with related PropertyGrid test utility null-reference exceptions seen in the
-    test process output.
-  - Remaining Button UIIntegration failures are behavioral: dialog-result close,
-    hit testing, mouse/drag flow, and layout/anchor sizing.
+  - Focused `OpenFileDialog`, `FolderBrowserDialog`, and `PrintDialog`
+    UIIntegration tests now pass; remaining dialog work is broader managed
+    service parity for save/color/font/page setup and native `COMDLG32` facades.
+  - `ToolStrip_Hiding_ToolStripMenuItem_OnDropDownClosed_ShouldNotThrow` and
+    `ToolStrip_shared_imagelist_should_not_get_disposed_when_toolstrip_does`
+    now pass in focused runs.
+  - Focused Button UIIntegration coverage is green. Any future button failures
+    should be treated as regressions or newly exposed shared infrastructure
+    gaps.
+  - Highest-volume remaining failures are accessibility/provider and layout
+    clusters: `ListView` tile/subitem UIA, PropertyGrid fragments,
+    Anchor/Layout resize state, MonthCalendar input, drag/drop polish, and
+    dialog/print fallbacks.
 
 ## Confirmed Managed Stub Blockers
 
@@ -91,8 +97,8 @@ Impacted APIs and areas:
 
 Plan:
 
-- Add an `OLE32.dll` non-Windows facade only for ABI-safe source-compatibility
-  APIs, backed by PAL state.
+- Add an `OLE32.dll` WinFormsX facade only for ABI-safe
+  source-compatibility APIs, backed by PAL state.
 - Move core clipboard/data-object/drag-drop behavior into managed PAL services.
 - Keep IME v1 as a managed input-language state layer with safe no-op native
   handles.
@@ -113,8 +119,9 @@ Impacted APIs and controls:
 - Native surfaces: `COMDLG32.dll` (`GetOpenFileName`, `GetSaveFileName`,
   `ChooseColor`, `ChooseFont`, `PrintDlg`, `PrintDlgEx`, `PageSetupDlg`,
   `CommDlgExtendedError`), shell item dialogs, `GetDlgItem`, and `EndDialog`.
-- Current UIIntegration evidence: file dialog multiselect still returns cancel;
-  print dialog reaches `winspool.drv`/`DocumentProperties`.
+- Current UIIntegration evidence: focused open-file, folder-browser, and
+  print-dialog tests pass; broader save/color/font/page-setup automation and
+  native common-dialog facade coverage remain incomplete.
 
 Plan:
 
@@ -459,22 +466,25 @@ cases were previously blockers and should remain regression targets:
 - [ ] OLE/drag-drop baseline: close remaining `DragDropTests` behavior gaps.
 - [ ] OLE/clipboard baseline: managed clipboard set/get and format mapping.
 - [ ] IME/input-language baseline: `InputLanguage`/IME no-crash managed state.
-- [ ] Dialog baseline: open/save/folder/color/font/message/task dialog parity.
-- [ ] Print baseline: no-printer `PrinterSettings` + `PrintDialog` behavior.
+- [~] Dialog baseline: focused open-file and folder-browser tests are green;
+  save/color/font/message/task/page-setup parity still needs coverage.
+- [~] Print baseline: focused `PrintDialog` tests are green; no-printer
+  `PrinterSettings`, `PageSetupDialog`, and print-controller behavior remain.
 - [ ] USER32 tier expansion: geometry/menu/message APIs used by UI tests.
 - [ ] KERNEL32 tier expansion: minimal module/resource and last-error semantics.
 - [ ] COMCTL32/ImageList tier: image list ops required by ListView/TreeView tests.
 - [ ] Shell/resources tier: stock icons/cursors/resource resolver centralization.
 - [ ] RichText tier: drag/drop + link/range compatibility follow-ups.
 - [ ] Accessibility tier: PropertyGrid/ListView/ToolStrip UIA parity gaps.
-- [ ] Theme/DPI tier: deterministic non-Windows UXTHEME/DWM/SHCore behavior.
+- [ ] Theme/DPI tier: deterministic WinFormsX UXTHEME/DWM/SHCore behavior.
 - [ ] SystemEvents tier: WinFormsX compatibility layer for common event subset.
 
 ### In Progress (current pass)
 
 - [x] Input key-state fidelity for mouse move messages on WinFormsX backend.
-- [x] Managed non-Windows `DoDragDrop` fallback path wired for Control/ToolStripItem.
-- [ ] Drag/drop target resolution and event ordering parity for UIIntegration tests.
+- [x] Managed WinFormsX `DoDragDrop` fallback path wired for Control/ToolStripItem.
+- [ ] ToolStrip dropdown close/hide lifecycle parity for UIIntegration full-suite progress.
+- [ ] Drag/drop target resolution and event ordering parity for remaining UIIntegration tests.
 
 ## Acceptance Bar
 
@@ -482,7 +492,7 @@ cases were previously blockers and should remain regression targets:
   WinForms.
 - WinFormsX internal behavior is PAL-owned; native facades forward to PAL rather
   than becoming separate logic.
-- Non-Windows tests do not skip simply because the OS is not Windows.
+- WinFormsX tests do not skip simply because the host OS is not Windows.
 - No acceptance-run output contains missing `USER32.dll`, `KERNEL32.dll`,
   `COMCTL32.dll`, `COMDLG32.dll`, `OLE32.dll`, `OLEAUT32.dll`, `GDI32.dll`,
   `winspool.drv`, `SHLWAPI.dll`, `SHELL32.dll`, `UXTHEME.dll`, `IMM32.dll`,

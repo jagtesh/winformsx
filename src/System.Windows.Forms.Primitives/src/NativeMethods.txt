@@ -195,7 +195,6 @@ GetLocaleInfoEx
 GetMapMode
 GetMenuItemCount
 GetMenuItemInfo
-GetMessagePos
 GetMessageTime
 GetModuleFileName
 GetMonitorInfo
