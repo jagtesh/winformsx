@@ -49,7 +49,7 @@ internal static partial class PInvoke
         fixed (void* p = &highContrast)
         {
             highContrast.cbSize = (uint)sizeof(HIGHCONTRASTW);
-            return SystemParametersInfo(
+            return PlatformApi.System.SystemParametersInfo(
                 SYSTEM_PARAMETERS_INFO_ACTION.SPI_GETHIGHCONTRAST,
                 highContrast.cbSize,
                 p,
@@ -63,7 +63,7 @@ internal static partial class PInvoke
         fixed (void* p = &metrics)
         {
             metrics.cbSize = (uint)sizeof(NONCLIENTMETRICSW);
-            return SystemParametersInfo(
+            return PlatformApi.System.SystemParametersInfo(
                 SYSTEM_PARAMETERS_INFO_ACTION.SPI_GETNONCLIENTMETRICS,
                 metrics.cbSize,
                 p,

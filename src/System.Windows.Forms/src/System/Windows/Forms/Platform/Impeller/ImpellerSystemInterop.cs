@@ -150,6 +150,8 @@ internal sealed unsafe class ImpellerSystemInterop : ISystemInterop
         _ => 0,
     };
 
+    public uint GetCaretBlinkTime() => (uint)_caretBlinkTime;
+
     public unsafe bool SystemParametersInfo(SYSTEM_PARAMETERS_INFO_ACTION action, uint param, void* pvParam, uint flags)
     {
         return action switch

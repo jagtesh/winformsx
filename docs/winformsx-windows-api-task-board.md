@@ -173,6 +173,20 @@ Ordered by observed frequency across components and blocker blast radius:
       `WinformsControlsTest --control-smoke-test` ->
       `total=42 passed=41 failed=0 skipped=1`; full UIIntegration ->
       `Failed: 0, Passed: 191, Skipped: 1, Total: 192`.
+    - `SystemInformation` now runs on the WinFormsX PAL path everywhere:
+      `GetSystemMetrics`, `SystemParametersInfo`, work-area, high-contrast,
+      non-client metric, menu-font, double-click, caret-blink, user-interactive,
+      orientation, sizing-border, small-caption, menu-bar, and locked-terminal
+      queries no longer branch on the OS.
+    - The structured `PInvoke.SystemParametersInfo` overloads now explicitly
+      call `PlatformApi.System.SystemParametersInfo`, fixing the overload trap
+      where `HighContrast` could resolve to the generated native
+      `SystemParametersInfoW` entrypoint.
+    - Verification after the SystemInformation sweep:
+      `dotnet build ...System.Windows.Forms.UI.IntegrationTests.csproj -c Debug -v:q` ->
+      build succeeded; `WinformsControlsTest --control-smoke-test` ->
+      `total=42 passed=41 failed=0 skipped=1`; full UIIntegration ->
+      `Failed: 0, Passed: 191, Skipped: 1, Total: 192`.
   - Priority order now moves to ListView tile accessibility, PropertyGrid
     provider breadth, RichTextBox link-range behavior, dialog/print fallbacks,
     and remaining lower-volume provider gaps.

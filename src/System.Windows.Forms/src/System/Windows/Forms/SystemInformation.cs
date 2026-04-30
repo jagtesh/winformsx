@@ -40,11 +40,6 @@ public static class SystemInformation
     {
         get
         {
-            if (!OperatingSystem.IsWindows())
-            {
-                return false;
-            }
-
             HIGHCONTRASTW data = default;
             return PInvoke.SystemParametersInfo(ref data)
                 && data.dwFlags.HasFlag(HIGHCONTRASTW_FLAGS.HCF_HIGHCONTRASTON);
@@ -147,11 +142,6 @@ public static class SystemInformation
 
     private static unsafe Font GetMenuFontHelper(uint dpi, bool useDpi)
     {
-        if (!OperatingSystem.IsWindows())
-        {
-            return Control.DefaultFont;
-        }
-
         // We can get the system's menu font through the NONCLIENTMETRICS structure
         // via SystemParametersInfo
         NONCLIENTMETRICSW data = default;
@@ -193,12 +183,6 @@ public static class SystemInformation
     {
         get
         {
-            if (!OperatingSystem.IsWindows())
-            {
-                Size primaryMonitorSize = PrimaryMonitorSize;
-                return new Rectangle(0, 0, primaryMonitorSize.Width, primaryMonitorSize.Height);
-            }
-
             RECT workingArea = default;
             PInvoke.SystemParametersInfo(SPI_GETWORKAREA, ref workingArea);
             return workingArea;
@@ -282,7 +266,7 @@ public static class SystemInformation
     /// <summary>
     ///  Gets the maximum number of milliseconds allowed between mouse clicks for a double-click.
     /// </summary>
-    public static int DoubleClickTime => OperatingSystem.IsWindows() ? (int)PInvoke.GetDoubleClickTime() : 500;
+    public static int DoubleClickTime => (int)PlatformApi.Input.GetDoubleClickTime();
 
     /// <summary>
     ///  Gets the dimensions in pixels, of the grid used to arrange icons in a large icon view.
@@ -508,30 +492,10 @@ public static class SystemInformation
     {
         get
         {
-            if (!OperatingSystem.IsWindows())
-            {
-                return true;
-            }
-
-            HWINSTA hwinsta = PInvoke.GetProcessWindowStation();
-            if (!hwinsta.IsNull && s_processWinStation != hwinsta)
+            HWINSTA hwinsta = (HWINSTA)(nint)1;
+            if (s_processWinStation != hwinsta)
             {
                 s_isUserInteractive = true;
-
-                USEROBJECTFLAGS flags = default;
-                if (PInvoke.GetUserObjectInformation(
-                    (HANDLE)hwinsta.Value,
-                    USER_OBJECT_INFORMATION_INDEX.UOI_FLAGS,
-                    &flags,
-                    (uint)sizeof(USEROBJECTFLAGS),
-                    lpnLengthNeeded: null))
-                {
-                    if ((flags.dwFlags & PInvoke.WSF_VISIBLE) == 0)
-                    {
-                        s_isUserInteractive = false;
-                    }
-                }
-
                 s_processWinStation = hwinsta;
             }
 
@@ -714,7 +678,7 @@ public static class SystemInformation
     /// <summary>
     ///  Indicates the caret blink time.
     /// </summary>
-    public static int CaretBlinkTime => OperatingSystem.IsWindows() ? (int)PInvoke.GetCaretBlinkTime() : 500;
+    public static int CaretBlinkTime => (int)PlatformApi.System.GetCaretBlinkTime();
 
     /// <summary>
     ///  Indicates the caret width in edit controls.
@@ -750,24 +714,7 @@ public static class SystemInformation
     {
         get
         {
-            if (!OperatingSystem.IsWindows())
-            {
-                return ScreenOrientation.Angle0;
-            }
-
-            ScreenOrientation so = ScreenOrientation.Angle0;
-            DEVMODEW dm = new()
-            {
-                dmSize = (ushort)sizeof(DEVMODEW),
-            };
-
-            PInvoke.EnumDisplaySettings(lpszDeviceName: null, ENUM_DISPLAY_SETTINGS_MODE.ENUM_CURRENT_SETTINGS, ref dm);
-            if ((dm.dmFields & DEVMODE_FIELD_FLAGS.DM_DISPLAYORIENTATION) > 0)
-            {
-                so = (ScreenOrientation)dm.Anonymous1.Anonymous2.dmDisplayOrientation;
-            }
-
-            return so;
+            return ScreenOrientation.Angle0;
         }
     }
 
@@ -778,11 +725,6 @@ public static class SystemInformation
     {
         get
         {
-            if (!OperatingSystem.IsWindows())
-            {
-                return 0;
-            }
-
             NONCLIENTMETRICSW data = default;
             return PInvoke.SystemParametersInfo(ref data)
                 && data.iBorderWidth > 0 ? data.iBorderWidth : 0;
@@ -796,11 +738,6 @@ public static class SystemInformation
     {
         get
         {
-            if (!OperatingSystem.IsWindows())
-            {
-                return Size.Empty;
-            }
-
             NONCLIENTMETRICSW data = default;
             return PInvoke.SystemParametersInfo(ref data)
                 && data.iSmCaptionHeight > 0 && data.iSmCaptionWidth > 0
@@ -816,11 +753,6 @@ public static class SystemInformation
     {
         get
         {
-            if (!OperatingSystem.IsWindows())
-            {
-                return Size.Empty;
-            }
-
             NONCLIENTMETRICSW data = default;
             return PInvoke.SystemParametersInfo(ref data)
                 && data.iMenuHeight > 0 && data.iMenuWidth > 0
@@ -837,11 +769,6 @@ public static class SystemInformation
     /// </summary>
     internal static bool InLockedTerminalSession()
     {
-        if (!OperatingSystem.IsWindows())
-        {
-            return false;
-        }
-
         if (TerminalServerSession)
         {
             // Try to open the input desktop. If it fails with access denied assume
@@ -859,20 +786,24 @@ public static class SystemInformation
     }
 
     private static int GetSystemMetrics(SYSTEM_METRICS_INDEX index)
-        => OperatingSystem.IsWindows()
-            ? PInvoke.GetSystemMetrics(index)
-            : PlatformApi.System.GetSystemMetrics(index);
+        => PInvoke.GetSystemMetrics(index);
 
     private static int GetCurrentSystemMetrics(SYSTEM_METRICS_INDEX index, uint dpi)
-        => OperatingSystem.IsWindows()
-            ? PInvoke.GetCurrentSystemMetrics(index, dpi)
-            : GetSystemMetrics(index);
+        => PInvoke.GetCurrentSystemMetrics(index, dpi);
 
     private static bool SystemParametersInfoBool(SYSTEM_PARAMETERS_INFO_ACTION action, bool fallback = false)
-        => OperatingSystem.IsWindows() ? PInvoke.SystemParametersInfoBool(action) : fallback;
+    {
+        bool value = fallback;
+        PInvoke.SystemParametersInfo(action, ref value);
+        return value;
+    }
 
     private static int SystemParametersInfoInt(SYSTEM_PARAMETERS_INFO_ACTION action, int fallback = 0)
-        => OperatingSystem.IsWindows() ? PInvoke.SystemParametersInfoInt(action) : fallback;
+    {
+        int value = fallback;
+        PInvoke.SystemParametersInfo(action, ref value);
+        return value;
+    }
 
     private static Size GetSize(SYSTEM_METRICS_INDEX x, SYSTEM_METRICS_INDEX y)
         => new(GetSystemMetrics(x), GetSystemMetrics(y));

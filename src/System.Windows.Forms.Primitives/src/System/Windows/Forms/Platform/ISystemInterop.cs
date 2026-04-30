@@ -17,6 +17,7 @@ internal unsafe interface ISystemInterop
     // ─── System Metrics / Info ──────────────────────────────────────────
 
     int GetSystemMetrics(SYSTEM_METRICS_INDEX nIndex);
+    uint GetCaretBlinkTime();
     bool SystemParametersInfo(SYSTEM_PARAMETERS_INFO_ACTION uiAction, uint uiParam, void* pvParam, uint fWinIni);
     COLORREF GetSysColor(SYS_COLOR_INDEX nIndex);
     bool GetMonitorInfo(HMONITOR hMonitor, ref MONITORINFO lpmi);

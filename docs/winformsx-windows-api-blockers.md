@@ -33,8 +33,13 @@ compatibility-facade coverage.
   focus failure in the broad UIIntegration slice. The current Control pass
   removes the remaining OS split from `Control.AdjustWindowRectExForDpi` and
   `Control.SetAcceptDrops`; both now route through the same PAL-backed
-  window/DPI and managed OLE registration paths everywhere. Larger provider
-  and dialog/print gaps remain tracked below.
+  window/DPI and managed OLE registration paths everywhere. The latest
+  SystemInformation pass removes that file's remaining OS split as well:
+  metrics, work area, high contrast, non-client metrics, menu fonts, caret
+  blink, and system-parameter values now use PAL-backed wrappers everywhere,
+  with direct `SystemParametersInfoW` overload resolution fixed to avoid the
+  generated native import. Larger provider and dialog/print gaps remain tracked
+  below.
 - First UIIntegration blockers observed:
   - `OLE32.dll` missing through `Application.ThreadContext.OleRequired()`,
     `InputLanguage.CurrentInputLanguage`, IME, clipboard, and drag/drop paths.
