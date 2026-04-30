@@ -13,12 +13,7 @@ internal static partial class PInvokeCore
     {
         fixed (void* p = &value)
         {
-            if (!OperatingSystem.IsWindows())
-            {
-                return SystemParametersInfoNonWindows(uiAction, 0, p);
-            }
-
-            return SystemParametersInfo(uiAction, 0, p, 0);
+            return SystemParametersInfoManaged(uiAction, 0, p);
         }
     }
 
@@ -33,16 +28,8 @@ internal static partial class PInvokeCore
     /// <inheritdoc cref="SystemParametersInfo(SYSTEM_PARAMETERS_INFO_ACTION, uint, void*, SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS)"/>
     public static unsafe bool SystemParametersInfo(SYSTEM_PARAMETERS_INFO_ACTION uiAction, ref bool value, uint fWinIni = 0)
     {
-        if (!OperatingSystem.IsWindows())
-        {
-            BOOL managedBool = value;
-            bool managedResult = SystemParametersInfoNonWindows(uiAction, 0, &managedBool);
-            value = managedBool;
-            return managedResult;
-        }
-
         BOOL nativeBool = value;
-        bool result = SystemParametersInfo(uiAction, 0, &nativeBool, (SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS)fWinIni);
+        bool result = SystemParametersInfoManaged(uiAction, 0, &nativeBool);
         value = nativeBool;
         return result;
     }
@@ -63,19 +50,10 @@ internal static partial class PInvokeCore
             // Note that the documentation for HIGHCONTRASTW says that the lpszDefaultScheme member needs to be
             // freed, but this is incorrect. No internal users ever free the pointer and the pointer never changes.
             highContrast.cbSize = (uint)sizeof(HIGHCONTRASTW);
-            if (!OperatingSystem.IsWindows())
-            {
-                return SystemParametersInfoNonWindows(
-                    SYSTEM_PARAMETERS_INFO_ACTION.SPI_GETHIGHCONTRAST,
-                    highContrast.cbSize,
-                    p);
-            }
-
-            return SystemParametersInfo(
+            return SystemParametersInfoManaged(
                 SYSTEM_PARAMETERS_INFO_ACTION.SPI_GETHIGHCONTRAST,
                 highContrast.cbSize,
-                p,
-                0); // This has no meaning when getting values
+                p);
         }
     }
 
@@ -85,19 +63,10 @@ internal static partial class PInvokeCore
         fixed (void* p = &metrics)
         {
             metrics.cbSize = (uint)sizeof(NONCLIENTMETRICSW);
-            if (!OperatingSystem.IsWindows())
-            {
-                return SystemParametersInfoNonWindows(
-                    SYSTEM_PARAMETERS_INFO_ACTION.SPI_GETNONCLIENTMETRICS,
-                    metrics.cbSize,
-                    p);
-            }
-
-            return SystemParametersInfo(
+            return SystemParametersInfoManaged(
                 SYSTEM_PARAMETERS_INFO_ACTION.SPI_GETNONCLIENTMETRICS,
                 metrics.cbSize,
-                p,
-                0); // This has no meaning when getting values
+                p);
         }
     }
 
@@ -107,24 +76,17 @@ internal static partial class PInvokeCore
     /// </summary>
     public static unsafe bool TrySystemParametersInfoForDpi(ref NONCLIENTMETRICSW metrics, uint dpi)
     {
-        if (OsVersion.IsWindows10_1607OrGreater())
+        fixed (void* p = &metrics)
         {
-            fixed (void* p = &metrics)
-            {
-                metrics.cbSize = (uint)sizeof(NONCLIENTMETRICSW);
-                return SystemParametersInfoForDpi(
-                    (uint)SYSTEM_PARAMETERS_INFO_ACTION.SPI_GETNONCLIENTMETRICS,
-                    metrics.cbSize,
-                    p,
-                    0, // This has no meaning when getting values
-                    dpi);
-            }
+            metrics.cbSize = (uint)sizeof(NONCLIENTMETRICSW);
+            return SystemParametersInfoManaged(
+                SYSTEM_PARAMETERS_INFO_ACTION.SPI_GETNONCLIENTMETRICS,
+                metrics.cbSize,
+                p);
         }
-
-        return SystemParametersInfo(ref metrics);
     }
 
-    private static unsafe bool SystemParametersInfoNonWindows(
+    private static unsafe bool SystemParametersInfoManaged(
         SYSTEM_PARAMETERS_INFO_ACTION uiAction,
         uint uiParam,
         void* pvParam)

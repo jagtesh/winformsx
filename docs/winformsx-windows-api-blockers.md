@@ -73,8 +73,12 @@ compatibility-facade coverage.
   controls so autosized smoke forms no longer trip docking assertions. It also
   removes closed PropertyGrid dropdown holders from `Application.OpenForms`,
   preserving broad-suite OpenForms counts without changing the public collection
-  surface. Full UIIntegration and controls smoke remain stable after this pass.
-  Larger provider and dialog/print gaps remain tracked below.
+  surface. The latest private-core system-parameter pass removes the remaining
+  host-API split from `PInvokeCore.SystemParametersInfo` and
+  `TrySystemParametersInfoForDpi`, so private core metric callers now use the
+  deterministic managed compatibility implementation on the same path. Full
+  UIIntegration and controls smoke remain stable after this pass. Larger
+  provider and dialog/print gaps remain tracked below.
 - First UIIntegration blockers observed:
   - `OLE32.dll` missing through `Application.ThreadContext.OleRequired()`,
     `InputLanguage.CurrentInputLanguage`, IME, clipboard, and drag/drop paths.

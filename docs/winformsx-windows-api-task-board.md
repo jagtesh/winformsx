@@ -46,6 +46,10 @@ Ordered by observed frequency across components and blocker blast radius:
       dropdown holders explicitly leave the collection so broad-suite
       `Application_OpenForms_RecreateHandle` remains stable without adding a
       public `FormCollection.Count` shadow.
+    - Private-core `PInvokeCore.SystemParametersInfo` and
+      `TrySystemParametersInfoForDpi` now use the managed compatibility
+      implementation directly, removing the remaining host-API branch for high
+      contrast and non-client metric callers.
     - Verification:
       `WinformsControlsTest --control-smoke-test` ->
       `total=42 passed=41 failed=0 skipped=1`; full UIIntegration ->
@@ -780,7 +784,7 @@ Ordered by observed frequency across components and blocker blast radius:
 
 ## SystemInformation / Theme / Power / Misc
 
-- [ ] WXA-2001: Implement `SystemParametersInfo` and `SystemParametersInfoForDpi` compatibility with deterministic defaults where side effects are not available.
+- [~] WXA-2001: Implement `SystemParametersInfo` and `SystemParametersInfoForDpi` compatibility with deterministic defaults where side effects are not available.
 - [ ] WXA-2002: Implement `UXTHEME` and `DWMAPI` no-op-safe stubs used by theme rendering.
 - [ ] WXA-2003: Add Power status and session change notifications where feasible (`PowerModeChanged`, `SessionSwitch`) from managed sources.
 

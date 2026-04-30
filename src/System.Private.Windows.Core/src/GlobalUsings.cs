@@ -3,7 +3,6 @@
 
 global using System.Diagnostics;
 global using System.Diagnostics.CodeAnalysis;
-global using System.Private.Windows.Core;
 global using global::Windows.Win32.Foundation;
 global using global::Windows.Win32.Graphics.Gdi;
 global using global::Windows.Win32.UI.WindowsAndMessaging;
