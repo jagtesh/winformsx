@@ -50,6 +50,7 @@ internal static unsafe class WinFormsXGdi32Shim
             GetTextColor = &GetTextColor,
             GetBkMode = &GetBkMode,
             SetBkMode = &SetBkMode,
+            SelectObject = &SelectObject,
         };
 
         delegate* unmanaged<DispatchTable*, int> register = (delegate* unmanaged<DispatchTable*, int>)registerExport;
@@ -296,6 +297,19 @@ internal static unsafe class WinFormsXGdi32Shim
         }
     }
 
+    [UnmanagedCallersOnly]
+    private static nint SelectObject(nint hdc, nint obj)
+    {
+        try
+        {
+            return (nint)PlatformApi.Gdi.SelectObject((HDC)hdc, (HGDIOBJ)obj);
+        }
+        catch
+        {
+            return obj;
+        }
+    }
+
     private struct DispatchTable
     {
         public uint Version;
@@ -315,5 +329,6 @@ internal static unsafe class WinFormsXGdi32Shim
         public delegate* unmanaged<nint, uint> GetTextColor;
         public delegate* unmanaged<nint, int> GetBkMode;
         public delegate* unmanaged<nint, int, int> SetBkMode;
+        public delegate* unmanaged<nint, nint, nint> SelectObject;
     }
 }

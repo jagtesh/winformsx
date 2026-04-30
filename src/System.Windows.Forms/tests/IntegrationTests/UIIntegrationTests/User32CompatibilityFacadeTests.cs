@@ -864,7 +864,17 @@ public class User32CompatibilityFacadeTests
 
         nint brush = NativeGdi32.CreateSolidBrush(0x0000FF00);
         Assert.NotEqual(0, brush);
+        Assert.Equal(brush, NativeGdi32.SelectObject(dc, brush));
         Assert.True(NativeGdi32.DeleteObject(brush));
+
+        NativeGdi32.LOGBRUSH logBrush = new()
+        {
+            lbStyle = 0,
+            lbColor = 0x000000CC,
+        };
+        nint indirectBrush = NativeGdi32.CreateBrushIndirect(ref logBrush);
+        Assert.NotEqual(0, indirectBrush);
+        Assert.True(NativeGdi32.DeleteObject(indirectBrush));
 
         nint pen = NativeGdi32.CreatePen(0, 1, 0x00FF0000);
         Assert.NotEqual(0, pen);
@@ -872,6 +882,9 @@ public class User32CompatibilityFacadeTests
 
         nint bitmap = NativeGdi32.CreateCompatibleBitmap(dc, 8, 8);
         Assert.NotEqual(0, bitmap);
+        nint patternBrush = NativeGdi32.CreatePatternBrush(bitmap);
+        Assert.NotEqual(0, patternBrush);
+        Assert.True(NativeGdi32.DeleteObject(patternBrush));
         Assert.True(NativeGdi32.DeleteObject(bitmap));
 
         nint dib = NativeGdi32.CreateDIBSection(dc, 0, 0, out nint bits, 0, 0);
@@ -886,7 +899,41 @@ public class User32CompatibilityFacadeTests
         nint region = NativeGdi32.CreateRectRgn(0, 0, 8, 8);
         Assert.NotEqual(0, region);
         Assert.Equal(1, NativeGdi32.CombineRgn(region, region, 0, 1));
+        Assert.True(NativeGdi32.SelectClipRgn(dc, region) > 0);
+        Assert.True(NativeGdi32.IntersectClipRect(dc, 0, 0, 8, 8) > 0);
+        Assert.True(NativeGdi32.GetClipBox(dc, out NativeGdi32.RECT clipBox) > 0);
+        Assert.True(clipBox.right > clipBox.left);
         Assert.True(NativeGdi32.DeleteObject(region));
+
+        nint palette = NativeGdi32.CreateHalftonePalette(dc);
+        Assert.NotEqual(0, palette);
+        Assert.Equal(palette, NativeGdi32.SelectPalette(dc, palette, false));
+        Assert.Equal(0u, NativeGdi32.RealizePalette(dc));
+        NativeGdi32.PALETTEENTRY[] entries = new NativeGdi32.PALETTEENTRY[2];
+        Assert.Equal(2u, NativeGdi32.GetPaletteEntries(palette, 0, (uint)entries.Length, entries));
+        Assert.True(NativeGdi32.DeleteObject(palette));
+
+        Assert.True(NativeGdi32.PatBlt(dc, 0, 0, 8, 8, 0x00F00021));
+        Assert.True(NativeGdi32.BitBlt(dc, 0, 0, 8, 8, dc, 0, 0, 0x00CC0020));
+
+        nint printerDc = NativeGdi32.CreateDCW("DISPLAY", null, null, 0);
+        Assert.NotEqual(0, printerDc);
+        NativeGdi32.DOCINFOW docInfo = new()
+        {
+            cbSize = Marshal.SizeOf<NativeGdi32.DOCINFOW>(),
+            lpszDocName = "WinFormsX direct GDI32 smoke"
+        };
+        Assert.True(NativeGdi32.StartDocW(printerDc, ref docInfo) > 0);
+        Assert.True(NativeGdi32.StartPage(printerDc) > 0);
+        Assert.True(NativeGdi32.EndPage(printerDc) > 0);
+        Assert.True(NativeGdi32.EndDoc(printerDc) > 0);
+        Assert.Equal(0, NativeGdi32.ExtEscape(printerDc, 0, 0, 0, 0, 0));
+        Assert.True(NativeGdi32.DeleteDC(printerDc));
+
+        nint infoDc = NativeGdi32.CreateICW("DISPLAY", null, null, 0);
+        Assert.NotEqual(0, infoDc);
+        Assert.True(NativeGdi32.AbortDoc(infoDc) > 0);
+        Assert.True(NativeGdi32.DeleteDC(infoDc));
 
         Assert.True(NativeGdi32.DeleteDC(dc));
     }
@@ -1666,6 +1713,15 @@ public class User32CompatibilityFacadeTests
         internal static extern bool DeleteObject(nint obj);
 
         [DllImport(Gdi32, ExactSpelling = true)]
+        internal static extern nint SelectObject(nint hdc, nint obj);
+
+        [DllImport(Gdi32, ExactSpelling = true)]
+        internal static extern nint CreateBrushIndirect(ref LOGBRUSH brush);
+
+        [DllImport(Gdi32, ExactSpelling = true)]
+        internal static extern nint CreatePatternBrush(nint bitmap);
+
+        [DllImport(Gdi32, ExactSpelling = true)]
         internal static extern nint CreateCompatibleBitmap(nint hdc, int width, int height);
 
         [DllImport(Gdi32, ExactSpelling = true)]
@@ -1679,6 +1735,94 @@ public class User32CompatibilityFacadeTests
 
         [DllImport(Gdi32, ExactSpelling = true)]
         internal static extern int CombineRgn(nint destination, nint source1, nint source2, int mode);
+
+        [DllImport(Gdi32, ExactSpelling = true)]
+        internal static extern int SelectClipRgn(nint hdc, nint region);
+
+        [DllImport(Gdi32, ExactSpelling = true)]
+        internal static extern int IntersectClipRect(nint hdc, int left, int top, int right, int bottom);
+
+        [DllImport(Gdi32, ExactSpelling = true)]
+        internal static extern int GetClipBox(nint hdc, out RECT rect);
+
+        [DllImport(Gdi32, ExactSpelling = true)]
+        internal static extern nint CreateHalftonePalette(nint hdc);
+
+        [DllImport(Gdi32, ExactSpelling = true)]
+        internal static extern nint SelectPalette(nint hdc, nint palette, [MarshalAs(UnmanagedType.Bool)] bool forceBackground);
+
+        [DllImport(Gdi32, ExactSpelling = true)]
+        internal static extern uint RealizePalette(nint hdc);
+
+        [DllImport(Gdi32, ExactSpelling = true)]
+        internal static extern uint GetPaletteEntries(nint palette, uint start, uint count, [Out] PALETTEENTRY[] entries);
+
+        [DllImport(Gdi32, ExactSpelling = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool PatBlt(nint hdc, int x, int y, int width, int height, uint rop);
+
+        [DllImport(Gdi32, ExactSpelling = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool BitBlt(nint hdc, int x, int y, int width, int height, nint source, int sourceX, int sourceY, uint rop);
+
+        [DllImport(Gdi32, ExactSpelling = true, CharSet = CharSet.Unicode)]
+        internal static extern nint CreateDCW(string? driver, string? device, string? output, nint initData);
+
+        [DllImport(Gdi32, ExactSpelling = true, CharSet = CharSet.Unicode)]
+        internal static extern nint CreateICW(string? driver, string? device, string? output, nint initData);
+
+        [DllImport(Gdi32, ExactSpelling = true, CharSet = CharSet.Unicode)]
+        internal static extern int StartDocW(nint hdc, ref DOCINFOW docInfo);
+
+        [DllImport(Gdi32, ExactSpelling = true)]
+        internal static extern int StartPage(nint hdc);
+
+        [DllImport(Gdi32, ExactSpelling = true)]
+        internal static extern int EndPage(nint hdc);
+
+        [DllImport(Gdi32, ExactSpelling = true)]
+        internal static extern int EndDoc(nint hdc);
+
+        [DllImport(Gdi32, ExactSpelling = true)]
+        internal static extern int AbortDoc(nint hdc);
+
+        [DllImport(Gdi32, ExactSpelling = true)]
+        internal static extern int ExtEscape(nint hdc, int escape, int inputSize, nint input, int outputSize, nint output);
+
+        internal struct LOGBRUSH
+        {
+            public uint lbStyle;
+            public uint lbColor;
+            public nuint lbHatch;
+        }
+
+        internal struct RECT
+        {
+            public int left;
+            public int top;
+            public int right;
+            public int bottom;
+        }
+
+        internal struct PALETTEENTRY
+        {
+            public byte peRed;
+            public byte peGreen;
+            public byte peBlue;
+            public byte peFlags;
+        }
+
+        internal struct DOCINFOW
+        {
+            public int cbSize;
+            [MarshalAs(UnmanagedType.LPWStr)]
+            public string? lpszDocName;
+            [MarshalAs(UnmanagedType.LPWStr)]
+            public string? lpszOutput;
+            [MarshalAs(UnmanagedType.LPWStr)]
+            public string? lpszDatatype;
+            public uint fwType;
+        }
     }
 
     private static unsafe partial class NativeShell32

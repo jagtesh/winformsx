@@ -20,15 +20,20 @@ typedef intptr_t HDC;
 typedef intptr_t HGDIOBJ;
 typedef intptr_t HBRUSH;
 typedef intptr_t HPEN;
+typedef intptr_t HBITMAP;
+typedef intptr_t HPALETTE;
+typedef intptr_t HRGN;
 
 #define OBJ_PEN 1u
 #define OBJ_BRUSH 2u
+#define OBJ_PAL 5u
 #define OBJ_FONT 6u
 #define OBJ_BITMAP 7u
 #define OBJ_REGION 8u
 #define OBJ_MEMDC 10u
 #define TRANSPARENT_MODE 1
 #define OPAQUE_MODE 2
+#define SIMPLEREGION 2
 
 typedef struct WinFormsXGdi32Dispatch
 {
@@ -49,6 +54,7 @@ typedef struct WinFormsXGdi32Dispatch
     COLORREF (*get_text_color)(HDC hdc);
     INT (*get_bk_mode)(HDC hdc);
     INT (*set_bk_mode)(HDC hdc, INT mode);
+    HGDIOBJ (*select_object)(HDC hdc, HGDIOBJ object);
 } WinFormsXGdi32Dispatch;
 
 typedef struct WinFormsXGdiObject
@@ -67,6 +73,22 @@ typedef struct WinFormsXLogBrush
     COLORREF color;
     uintptr_t hatch;
 } WinFormsXLogBrush;
+
+typedef struct WinFormsXRect
+{
+    INT left;
+    INT top;
+    INT right;
+    INT bottom;
+} WinFormsXRect;
+
+typedef struct WinFormsXPaletteEntry
+{
+    uint8_t red;
+    uint8_t green;
+    uint8_t blue;
+    uint8_t flags;
+} WinFormsXPaletteEntry;
 
 static WinFormsXGdi32Dispatch g_dispatch;
 static COLORREF g_default_bk_color = 0x00FFFFFFu;
@@ -143,6 +165,30 @@ WF_EXPORT HDC CreateCompatibleDC(HDC hdc)
     return ++g_next_dc;
 }
 
+WF_EXPORT HDC CreateDCW(const void* driver, const void* device, const void* output, const void* initData)
+{
+    (void)driver;
+    (void)device;
+    (void)output;
+    (void)initData;
+    return ++g_next_dc;
+}
+
+WF_EXPORT HDC CreateDCA(const void* driver, const void* device, const void* output, const void* initData)
+{
+    return CreateDCW(driver, device, output, initData);
+}
+
+WF_EXPORT HDC CreateICW(const void* driver, const void* device, const void* output, const void* initData)
+{
+    return CreateDCW(driver, device, output, initData);
+}
+
+WF_EXPORT HDC CreateICA(const void* driver, const void* device, const void* output, const void* initData)
+{
+    return CreateDCW(driver, device, output, initData);
+}
+
 WF_EXPORT BOOL DeleteDC(HDC hdc)
 {
     if (g_dispatch.delete_dc != 0)
@@ -200,6 +246,21 @@ WF_EXPORT HPEN CreatePen(INT style, INT width, COLORREF color)
     return (HPEN)create_fallback_object(OBJ_PEN, color, style, width);
 }
 
+WF_EXPORT HBRUSH CreateBrushIndirect(const WinFormsXLogBrush* brush)
+{
+    if (brush == 0)
+    {
+        return 0;
+    }
+
+    return (HBRUSH)create_fallback_object(OBJ_BRUSH, brush->color, (INT)brush->style, 0);
+}
+
+WF_EXPORT HBRUSH CreatePatternBrush(HBITMAP bitmap)
+{
+    return bitmap != 0 ? (HBRUSH)create_fallback_object(OBJ_BRUSH, 0, 3, 0) : 0;
+}
+
 WF_EXPORT HGDIOBJ CreateBitmap(INT width, INT height, UINT planes, UINT bitsPixel, const void* bits)
 {
     (void)planes;
@@ -248,6 +309,47 @@ WF_EXPORT INT CombineRgn(HGDIOBJ destination, HGDIOBJ source1, HGDIOBJ source2, 
     return destination != 0 ? 1 : 0;
 }
 
+WF_EXPORT HPALETTE CreateHalftonePalette(HDC hdc)
+{
+    (void)hdc;
+    return (HPALETTE)create_fallback_object(OBJ_PAL, 0, 0, 0);
+}
+
+WF_EXPORT HPALETTE SelectPalette(HDC hdc, HPALETTE palette, BOOL forceBackground)
+{
+    (void)hdc;
+    (void)forceBackground;
+    return palette;
+}
+
+WF_EXPORT UINT RealizePalette(HDC hdc)
+{
+    (void)hdc;
+    return 0;
+}
+
+WF_EXPORT UINT GetPaletteEntries(HPALETTE palette, UINT start, UINT count, WinFormsXPaletteEntry* entries)
+{
+    (void)start;
+    if (palette == 0)
+    {
+        return 0;
+    }
+
+    if (entries != 0)
+    {
+        for (UINT i = 0; i < count; i++)
+        {
+            entries[i].red = 0;
+            entries[i].green = 0;
+            entries[i].blue = 0;
+            entries[i].flags = 0;
+        }
+    }
+
+    return count;
+}
+
 WF_EXPORT BOOL DeleteObject(HGDIOBJ object)
 {
     if (g_dispatch.delete_object != 0 && g_dispatch.delete_object(object))
@@ -264,6 +366,20 @@ WF_EXPORT BOOL DeleteObject(HGDIOBJ object)
     }
 
     return object != 0 ? 1 : 0;
+}
+
+WF_EXPORT HGDIOBJ SelectObject(HDC hdc, HGDIOBJ object)
+{
+    if (g_dispatch.select_object != 0)
+    {
+        HGDIOBJ result = g_dispatch.select_object(hdc, object);
+        if (result != 0)
+        {
+            return result;
+        }
+    }
+
+    return object;
 }
 
 WF_EXPORT HGDIOBJ GetStockObject(INT object)
@@ -386,4 +502,102 @@ WF_EXPORT INT SetBkMode(HDC hdc, INT mode)
     INT previous = g_default_bk_mode;
     g_default_bk_mode = mode;
     return previous;
+}
+
+WF_EXPORT BOOL PatBlt(HDC hdc, INT x, INT y, INT width, INT height, uint32_t rop)
+{
+    (void)hdc;
+    (void)x;
+    (void)y;
+    (void)width;
+    (void)height;
+    (void)rop;
+    return 1;
+}
+
+WF_EXPORT BOOL BitBlt(HDC hdc, INT x, INT y, INT width, INT height, HDC source, INT sourceX, INT sourceY, uint32_t rop)
+{
+    (void)hdc;
+    (void)x;
+    (void)y;
+    (void)width;
+    (void)height;
+    (void)source;
+    (void)sourceX;
+    (void)sourceY;
+    (void)rop;
+    return 1;
+}
+
+WF_EXPORT INT SelectClipRgn(HDC hdc, HRGN region)
+{
+    (void)hdc;
+    return region != 0 ? SIMPLEREGION : 1;
+}
+
+WF_EXPORT INT IntersectClipRect(HDC hdc, INT left, INT top, INT right, INT bottom)
+{
+    (void)hdc;
+    return right > left && bottom > top ? SIMPLEREGION : 1;
+}
+
+WF_EXPORT INT GetClipBox(HDC hdc, WinFormsXRect* rect)
+{
+    (void)hdc;
+    if (rect != 0)
+    {
+        rect->left = 0;
+        rect->top = 0;
+        rect->right = 1920;
+        rect->bottom = 1080;
+    }
+
+    return SIMPLEREGION;
+}
+
+WF_EXPORT INT StartDocW(HDC hdc, const void* docInfo)
+{
+    (void)hdc;
+    (void)docInfo;
+    return 1;
+}
+
+WF_EXPORT INT StartDocA(HDC hdc, const void* docInfo)
+{
+    return StartDocW(hdc, docInfo);
+}
+
+WF_EXPORT INT StartPage(HDC hdc)
+{
+    (void)hdc;
+    return 1;
+}
+
+WF_EXPORT INT EndPage(HDC hdc)
+{
+    (void)hdc;
+    return 1;
+}
+
+WF_EXPORT INT EndDoc(HDC hdc)
+{
+    (void)hdc;
+    return 1;
+}
+
+WF_EXPORT INT AbortDoc(HDC hdc)
+{
+    (void)hdc;
+    return 1;
+}
+
+WF_EXPORT INT ExtEscape(HDC hdc, INT escape, INT inputSize, const void* input, INT outputSize, void* output)
+{
+    (void)hdc;
+    (void)escape;
+    (void)inputSize;
+    (void)input;
+    (void)outputSize;
+    (void)output;
+    return 0;
 }

@@ -257,7 +257,11 @@ compatibility-facade coverage.
   deterministically, file-drop queries return empty state, and SHLWAPI path
   existence/relative/extension helpers provide basic deterministic behavior.
   The follow-up GDI32 breadth pass adds safe bitmap, DIB section, font, and
-  region constructors to the direct-import facade.
+  region constructors to the direct-import facade. The current GDI32 breadth
+  pass adds safe direct-import coverage for drawing copy/fill calls, palette
+  selection/query calls, clipping calls, indirect/pattern brushes, and print
+  DC/document lifecycle entry points; these remain deterministic compatibility
+  defaults rather than real device or printer output.
   The latest broad UIIntegration snapshot is now green at
   `Failed: 0, Passed: 259, Skipped: 1, Total: 260`.
 - First UIIntegration blockers observed:
@@ -565,6 +569,10 @@ Plan:
   before physical output is implemented: the first `StandardPrintController`
   fallback creates an offscreen graphics surface and raises BeginPrint,
   PrintPage, and EndPrint deterministically.
+- Keep the direct `GDI32.dll` print-DC facade deterministic: `CreateDCW/A`,
+  `CreateICW/A`, `StartDocW/A`, `StartPage`, `EndPage`, `EndDoc`, `AbortDoc`,
+  and `ExtEscape` now resolve for source-compatible callers, but they do not
+  imply real printer/file/PDF output.
 - Keep the `winspool.drv` facade narrow: only expose PAL-backed calls with
   tested deterministic behavior.
 - Keep real platform print-provider work separate from the first no-printer pass.

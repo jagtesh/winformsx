@@ -1011,6 +1011,21 @@ Ordered by observed frequency across components and blocker blast radius:
       `DirectGdi32DllImports_ResolveToWinFormsXFacade`: `Passed`.
     - Full `UIIntegrationTests`: `Failed: 0, Passed: 259, Skipped: 1, Total: 260`.
     - `WinformsControlsTest --control-smoke-test`: `total=42 passed=41 failed=0 skipped=1`.
+- In-progress local changes (next commit):
+  - Expanded the native `GDI32.dll` facade with the next source-compatibility
+    breadth tier:
+    - drawing/no-op-safe calls: `SelectObject`, `PatBlt`, `BitBlt`;
+    - clipping calls: `SelectClipRgn`, `IntersectClipRect`, `GetClipBox`;
+    - brush/palette calls: `CreateBrushIndirect`, `CreatePatternBrush`,
+      `CreateHalftonePalette`, `SelectPalette`, `RealizePalette`,
+      `GetPaletteEntries`;
+    - print DC/document lifecycle calls: `CreateDCW/A`, `CreateICW/A`,
+      `StartDocW/A`, `StartPage`, `EndPage`, `EndDoc`, `AbortDoc`,
+      `ExtEscape`.
+  - Verification:
+    - Build `System.Windows.Forms.UI.IntegrationTests`: succeeded.
+    - UIIntegration filter
+      `DirectGdi32DllImports_ResolveToWinFormsXFacade`: `Passed: 1, Failed: 0`.
 
 ## Task Legend
 
@@ -1050,7 +1065,7 @@ Ordered by observed frequency across components and blocker blast radius:
 
 - [~] WXA-1301: Implement printer settings service without hard OS printer dependency (`PrinterSettings`, `PageSettings`). First no-printer/virtual-printer defaults are covered; richer printer profiles and full page-settings service parity remain.
 - [x] WXA-1302: Add minimal safe `winspool.drv` facade (`DocumentProperties`, `EnumPrinters`, `DeviceCapabilities`) with deterministic defaults.
-- [~] WXA-1303: Implement fallback graphics path for `PrintDocument` and `PrintControllerWithStatusDialog` for integration tests. Basic `StandardPrintController` event flow now has an offscreen graphics fallback; status dialog and real output provider work remain.
+- [~] WXA-1303: Implement fallback graphics path for `PrintDocument` and `PrintControllerWithStatusDialog` for integration tests. Basic `StandardPrintController` event flow now has an offscreen graphics fallback; the native `GDI32.dll` facade now resolves deterministic print DC/document lifecycle calls for source-compatible direct imports. Status dialog and real output provider work remain.
 
 ## USER32 Surface (Tiered)
 
@@ -1063,7 +1078,7 @@ Ordered by observed frequency across components and blocker blast radius:
 
 ## GDI / GDI+ and Resource Handles
 
-- [~] WXA-1501: Keep device-context and handle methods routed to managed drawing backend; add no-op-safe wrappers for missing legacy queries. `CreateCompatibleDC`, `DeleteDC`, `GetObject`, `GetObjectType`, and `GetStockObject` now route through the WinFormsX PAL/manual compatibility layer, and the native `GDI32.dll` facade resolves those same first-tier direct imports plus safe bitmap, DIB section, font, and region constructors; broader legacy handle queries remain.
+- [~] WXA-1501: Keep device-context and handle methods routed to managed drawing backend; add no-op-safe wrappers for missing legacy queries. `CreateCompatibleDC`, `DeleteDC`, `GetObject`, `GetObjectType`, and `GetStockObject` now route through the WinFormsX PAL/manual compatibility layer, and the native `GDI32.dll` facade resolves those same first-tier direct imports plus safe bitmap, DIB section, font, region, draw-copy/fill, clip-region, palette, and print-DC constructors/lifecycle calls; broader legacy handle queries remain.
 - [~] WXA-1502: Implement `GetSystemColor`, `SetTextColor`, `SetBkColor`, `GetDeviceCaps` fallback paths for controls that query these frequently. First-tier `GetSysColor`, `GetSysColorBrush`, `GetDeviceCaps`, `GetTextColor`, `GetBkColor`, `SetTextColor`, `SetBkColor`, `GetBkMode`, and `SetBkMode` paths now avoid generated native imports and have focused wrapper coverage; the native `GDI32.dll` facade now covers device caps and text/background color and mode state for direct import callers. Broader GDI color/mode parity remains.
 - [~] WXA-1503: Add curated GDI+ and cursor/font fallback handling for common property surfaces. Custom file/stream cursor serialization now round-trips `CursorData`; stock and handle-only cursor payloads, real hot spots, and richer drawing behavior remain.
 - [~] WXA-1504: Add resource and image compatibility shims for icon/cursor extraction and `Bitmap` conversion (`LoadImage`, `CreateIconFromResourceEx`, `ImageList` interoperability). ImageList synthetic bitmap metadata now round-trips through `GetObject(BITMAP)`; icon/cursor extraction and real image payload conversion remain.
