@@ -870,6 +870,24 @@ public class User32CompatibilityFacadeTests
         Assert.NotEqual(0, pen);
         Assert.True(NativeGdi32.DeleteObject(pen));
 
+        nint bitmap = NativeGdi32.CreateCompatibleBitmap(dc, 8, 8);
+        Assert.NotEqual(0, bitmap);
+        Assert.True(NativeGdi32.DeleteObject(bitmap));
+
+        nint dib = NativeGdi32.CreateDIBSection(dc, 0, 0, out nint bits, 0, 0);
+        Assert.NotEqual(0, dib);
+        Assert.Equal(0, bits);
+        Assert.True(NativeGdi32.DeleteObject(dib));
+
+        nint font = NativeGdi32.CreateFontIndirectW(0);
+        Assert.NotEqual(0, font);
+        Assert.True(NativeGdi32.DeleteObject(font));
+
+        nint region = NativeGdi32.CreateRectRgn(0, 0, 8, 8);
+        Assert.NotEqual(0, region);
+        Assert.Equal(1, NativeGdi32.CombineRgn(region, region, 0, 1));
+        Assert.True(NativeGdi32.DeleteObject(region));
+
         Assert.True(NativeGdi32.DeleteDC(dc));
     }
 
@@ -1646,6 +1664,21 @@ public class User32CompatibilityFacadeTests
         [DllImport(Gdi32, ExactSpelling = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
         internal static extern bool DeleteObject(nint obj);
+
+        [DllImport(Gdi32, ExactSpelling = true)]
+        internal static extern nint CreateCompatibleBitmap(nint hdc, int width, int height);
+
+        [DllImport(Gdi32, ExactSpelling = true)]
+        internal static extern nint CreateDIBSection(nint hdc, nint bitmapInfo, uint usage, out nint bits, nint section, uint offset);
+
+        [DllImport(Gdi32, ExactSpelling = true)]
+        internal static extern nint CreateFontIndirectW(nint logFont);
+
+        [DllImport(Gdi32, ExactSpelling = true)]
+        internal static extern nint CreateRectRgn(int left, int top, int right, int bottom);
+
+        [DllImport(Gdi32, ExactSpelling = true)]
+        internal static extern int CombineRgn(nint destination, nint source1, nint source2, int mode);
     }
 
     private static unsafe partial class NativeShell32

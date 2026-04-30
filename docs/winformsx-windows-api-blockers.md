@@ -256,6 +256,8 @@ compatibility-facade coverage.
   execute reports an accepted launch, folder/PIDL/shell-item APIs fail
   deterministically, file-drop queries return empty state, and SHLWAPI path
   existence/relative/extension helpers provide basic deterministic behavior.
+  The follow-up GDI32 breadth pass adds safe bitmap, DIB section, font, and
+  region constructors to the direct-import facade.
   The latest broad UIIntegration snapshot is now green at
   `Failed: 0, Passed: 259, Skipped: 1, Total: 260`.
 - First UIIntegration blockers observed:

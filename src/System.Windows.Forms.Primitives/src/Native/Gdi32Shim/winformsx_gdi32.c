@@ -23,6 +23,9 @@ typedef intptr_t HPEN;
 
 #define OBJ_PEN 1u
 #define OBJ_BRUSH 2u
+#define OBJ_FONT 6u
+#define OBJ_BITMAP 7u
+#define OBJ_REGION 8u
 #define OBJ_MEMDC 10u
 #define TRANSPARENT_MODE 1
 #define OPAQUE_MODE 2
@@ -55,6 +58,7 @@ typedef struct WinFormsXGdiObject
     COLORREF color;
     INT style;
     INT width;
+    INT height;
 } WinFormsXGdiObject;
 
 typedef struct WinFormsXLogBrush
@@ -71,6 +75,8 @@ static INT g_default_bk_mode = OPAQUE_MODE;
 static intptr_t g_next_dc = 0x320000;
 
 static const uint32_t g_object_magic = 0x58474449u;
+
+static WinFormsXGdiObject* as_fallback_object(HGDIOBJ object);
 
 WF_EXPORT BOOL WinFormsXGdi32RegisterDispatch(const WinFormsXGdi32Dispatch* dispatch)
 {
@@ -98,6 +104,18 @@ static HGDIOBJ create_fallback_object(UINT type, COLORREF color, INT style, INT 
     object->style = style;
     object->width = width;
     return (HGDIOBJ)(intptr_t)object;
+}
+
+static HGDIOBJ create_fallback_sized_object(UINT type, INT width, INT height)
+{
+    HGDIOBJ handle = create_fallback_object(type, 0, 0, width);
+    WinFormsXGdiObject* object = as_fallback_object(handle);
+    if (object != 0)
+    {
+        object->height = height;
+    }
+
+    return handle;
 }
 
 static WinFormsXGdiObject* as_fallback_object(HGDIOBJ object)
@@ -180,6 +198,54 @@ WF_EXPORT HPEN CreatePen(INT style, INT width, COLORREF color)
     }
 
     return (HPEN)create_fallback_object(OBJ_PEN, color, style, width);
+}
+
+WF_EXPORT HGDIOBJ CreateBitmap(INT width, INT height, UINT planes, UINT bitsPixel, const void* bits)
+{
+    (void)planes;
+    (void)bitsPixel;
+    (void)bits;
+    return create_fallback_sized_object(OBJ_BITMAP, width, height);
+}
+
+WF_EXPORT HGDIOBJ CreateCompatibleBitmap(HDC hdc, INT width, INT height)
+{
+    (void)hdc;
+    return create_fallback_sized_object(OBJ_BITMAP, width, height);
+}
+
+WF_EXPORT HGDIOBJ CreateDIBSection(HDC hdc, const void* bitmapInfo, UINT usage, void** bits, HANDLE section, uint32_t offset)
+{
+    (void)hdc;
+    (void)bitmapInfo;
+    (void)usage;
+    (void)section;
+    (void)offset;
+    if (bits != 0)
+    {
+        *bits = 0;
+    }
+
+    return create_fallback_sized_object(OBJ_BITMAP, 1, 1);
+}
+
+WF_EXPORT HGDIOBJ CreateFontIndirectW(const void* logFont)
+{
+    (void)logFont;
+    return create_fallback_object(OBJ_FONT, 0, 0, 0);
+}
+
+WF_EXPORT HGDIOBJ CreateRectRgn(INT left, INT top, INT right, INT bottom)
+{
+    return create_fallback_sized_object(OBJ_REGION, right - left, bottom - top);
+}
+
+WF_EXPORT INT CombineRgn(HGDIOBJ destination, HGDIOBJ source1, HGDIOBJ source2, INT mode)
+{
+    (void)source1;
+    (void)source2;
+    (void)mode;
+    return destination != 0 ? 1 : 0;
 }
 
 WF_EXPORT BOOL DeleteObject(HGDIOBJ object)
