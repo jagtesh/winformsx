@@ -256,6 +256,27 @@ Ordered by observed frequency across components and blocker blast radius:
       `Failed: 0, Passed: 191, Skipped: 1, Total: 192`;
       `WinformsControlsTest --control-smoke-test` ->
       `total=42 passed=41 failed=0 skipped=1`.
+    - MonthCalendar, Form, and MDI state now follow the same WinFormsX path:
+      `MonthCalendar.SingleMonthSize` no longer has an OS guard; `Form.Icon`
+      resolves a default icon everywhere and falls back to the managed
+      `SystemIcons.Application` resource if the legacy `wfc` resource lookup is
+      unavailable; Form menu/window-state updates no longer carry the old
+      guarded branch; and dummy MDI menu creation/destruction routes through
+      `PlatformApi.Control`.
+    - MDI minimized-child placement now preserves managed state through the PAL
+      window-placement layer: virtual `CreateWindowEx` seeds `ShowCmd` from
+      `WS_MINIMIZE` / `WS_MAXIMIZE`, `ShowWindow(SW_SHOW)` preserves managed
+      min/max state, `SetWindowPlacement` has a managed control fallback, and
+      Form/MDIClient resize adjustment keeps minimized children anchored to the
+      bottom.
+    - Verification after the Form/MonthCalendar/MDI single-path cleanup:
+      focused `MDITests` ->
+      `Passed: 2, Failed: 0`; focused
+      `MDITests|MonthCalendarTests|ApplicationTests|User32CompatibilityFacadeTests|ButtonTests` ->
+      `Passed: 38, Failed: 0`; full UIIntegration ->
+      `Failed: 0, Passed: 191, Skipped: 1, Total: 192`;
+      `WinformsControlsTest --control-smoke-test` ->
+      `total=42 passed=41 failed=0 skipped=1`.
   - Priority order now moves to ListView tile accessibility, PropertyGrid
     provider breadth, RichTextBox link-range behavior, dialog/print fallbacks,
     and remaining lower-volume provider gaps.

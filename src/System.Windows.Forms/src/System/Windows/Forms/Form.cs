@@ -9,6 +9,7 @@ using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Windows.Forms.Analyzers.Diagnostics;
 using System.Windows.Forms.Layout;
+using System.Windows.Forms.Platform;
 using System.Windows.Forms.VisualStyles;
 using Windows.Win32.Graphics.Dwm;
 using Windows.Win32.System.Threading;
@@ -914,11 +915,23 @@ public partial class Form : ContainerControl
                 {
                     // Once we grab the lock, we re-check the value to avoid a
                     // race condition.
-                    s_defaultIcon ??= new Icon(typeof(Form), "wfc");
+                    s_defaultIcon ??= LoadDefaultIcon();
                 }
             }
 
             return s_defaultIcon;
+        }
+    }
+
+    private static Icon LoadDefaultIcon()
+    {
+        try
+        {
+            return new Icon(typeof(Form), "wfc");
+        }
+        catch (ArgumentException)
+        {
+            return (Icon)SystemIcons.Application.Clone();
         }
     }
 
@@ -1068,11 +1081,6 @@ public partial class Form : ContainerControl
     {
         get
         {
-            if (!OperatingSystem.IsWindows())
-            {
-                return null;
-            }
-
             if (_formState[s_formStateIconSet] == 0)
             {
                 return DefaultIcon;
@@ -3115,11 +3123,6 @@ public partial class Form : ContainerControl
 
     private void AdjustSystemMenu(HMENU hmenu)
     {
-        if (!OperatingSystem.IsWindows())
-        {
-            return;
-        }
-
         UpdateWindowState();
         FormWindowState winState = WindowState;
         FormBorderStyle borderStyle = FormBorderStyle;
@@ -3187,7 +3190,7 @@ public partial class Form : ContainerControl
     /// </summary>
     private void AdjustSystemMenu()
     {
-        if (OperatingSystem.IsWindows() && IsHandleCreated)
+        if (IsHandleCreated)
         {
             HMENU hmenu = PInvoke.GetSystemMenu(this, bRevert: false);
             AdjustSystemMenu(hmenu);
@@ -3753,7 +3756,7 @@ public partial class Form : ContainerControl
             if (Properties.TryGetObject(s_propDummyMdiMenu, out HMENU dummyMenu) && !dummyMenu.IsNull)
             {
                 Properties.RemoveObject(s_propDummyMdiMenu);
-                PInvoke.DestroyMenu(dummyMenu);
+                PlatformApi.Control.DestroyMenu(dummyMenu);
             }
 
             _nonModalFormCompletion?.TrySetResult();
@@ -5413,6 +5416,9 @@ public partial class Form : ContainerControl
     [EditorBrowsable(EditorBrowsableState.Advanced)]
     protected override void SetBoundsCore(int x, int y, int width, int height, BoundsSpecified specified)
     {
+        int oldClientHeight = ClientSize.Height;
+        int oldHeight = Height;
+
         if (WindowState != FormWindowState.Normal)
         {
             // See RestoreWindowBoundsIfNecessary for an explanation of this
@@ -5504,6 +5510,12 @@ public partial class Form : ContainerControl
         }
 
         base.SetBoundsCore(x, y, width, height, specified);
+
+        if (_ctlClient is not null)
+        {
+            int clientHeightDelta = oldClientHeight - ClientSize.Height;
+            _ctlClient.AdjustMinimizedChildrenForHeightDelta(clientHeightDelta != 0 ? clientHeightDelta : oldHeight - Height);
+        }
     }
 
     /// <summary>
@@ -6305,7 +6317,7 @@ public partial class Form : ContainerControl
 
     private void UpdateMenuHandles(bool recreateMenu = false)
     {
-        if (!OperatingSystem.IsWindows() || !IsHandleCreated)
+        if (!IsHandleCreated)
         {
             return;
         }
@@ -6331,7 +6343,7 @@ public partial class Form : ContainerControl
                 // Make MDI forget the mdi item position.
                 if (!Properties.TryGetObject(s_propDummyMdiMenu, out HMENU dummyMenu) || dummyMenu.IsNull || recreateMenu)
                 {
-                    dummyMenu = PInvoke.CreateMenu();
+                    dummyMenu = PlatformApi.Control.CreateMenu();
                     Properties.SetObject(s_propDummyMdiMenu, dummyMenu);
                 }
 
@@ -6630,7 +6642,7 @@ public partial class Form : ContainerControl
         // WM_ERASEBKGRND.  Seems that's one of the first messages we get when a user clicks the min/max
         // button, even before WM_WINDOWPOSCHANGED.
 
-        if (!OperatingSystem.IsWindows() || !IsHandleCreated)
+        if (!IsHandleCreated)
         {
             return;
         }

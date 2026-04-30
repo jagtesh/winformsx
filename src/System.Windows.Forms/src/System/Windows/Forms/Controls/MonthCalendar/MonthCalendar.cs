@@ -805,18 +805,13 @@ public partial class MonthCalendar : Control
         {
             if (IsHandleCreated)
             {
-                if (!OperatingSystem.IsWindows())
-                {
-                    return s_defaultSingleMonthSize;
-                }
-
                 RECT rect = default;
-                if (PInvoke.SendMessage(this, PInvoke.MCM_GETMINREQRECT, 0, ref rect) == 0)
+                if (PInvoke.SendMessage(this, PInvoke.MCM_GETMINREQRECT, 0, ref rect) != 0
+                    && rect.right > 0
+                    && rect.bottom > 0)
                 {
-                    throw new InvalidOperationException(SR.InvalidSingleMonthSize);
+                    return new Size(rect.right, rect.bottom);
                 }
-
-                return new Size(rect.right, rect.bottom);
             }
 
             return s_defaultSingleMonthSize;

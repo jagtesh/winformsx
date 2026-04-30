@@ -219,20 +219,21 @@ public sealed partial class MdiClient : Control
 
     protected override unsafe void SetBoundsCore(int x, int y, int width, int height, BoundsSpecified specified)
     {
-        if (!IsHandleCreated
-            || ParentInternal is Form { MdiChildrenMinimizedAnchorBottom: false }
+        if (ParentInternal is Form { MdiChildrenMinimizedAnchorBottom: false }
             || ParentInternal?.Site?.DesignMode == true)
         {
             base.SetBoundsCore(x, y, width, height, specified);
             return;
         }
 
-        Rectangle oldBounds = Bounds;
         base.SetBoundsCore(x, y, width, height, specified);
-        Rectangle newBounds = Bounds;
+    }
 
-        int yDelta = oldBounds.Height - newBounds.Height;
-        if (yDelta == 0)
+    internal unsafe void AdjustMinimizedChildrenForHeightDelta(int yDelta)
+    {
+        if (yDelta == 0
+            || ParentInternal is Form { MdiChildrenMinimizedAnchorBottom: false }
+            || ParentInternal?.Site?.DesignMode == true)
         {
             return;
         }
@@ -240,11 +241,13 @@ public sealed partial class MdiClient : Control
         // NOTE: This logic is to keep minimized MDI children anchored to
         // the bottom left of the client area, normally they are anchored
         // to the top left which just looks weird!
-        for (int i = 0; i < Controls.Count; i++)
+        for (int i = 0; i < _children.Count; i++)
         {
+            Form child = _children[i];
+
             // Only adjust the window position for visible MDI Child windows to prevent
             // them from being re-displayed.
-            if (Controls[i] is Form child && child.CanRecreateHandle() && child.WindowState == FormWindowState.Minimized)
+            if (child.CanRecreateHandle() && child.WindowState == FormWindowState.Minimized)
             {
                 WINDOWPLACEMENT wp = new()
                 {
@@ -252,7 +255,11 @@ public sealed partial class MdiClient : Control
                 };
 
                 bool result = PInvoke.GetWindowPlacement(child.HWND, &wp);
-                Debug.Assert(result);
+                if (!result)
+                {
+                    continue;
+                }
+
                 wp.ptMinPosition.Y -= yDelta;
                 if (wp.ptMinPosition.Y == -1)
                 {

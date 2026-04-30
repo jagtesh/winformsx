@@ -176,6 +176,11 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
         bool isTopLevel = hWndParent == HWND.Null;
         int effectiveX = isTopLevel ? NormalizeTopLevelWindowCoordinate(x, DefaultTopLevelWindowX) : NormalizeChildWindowCoordinate(x);
         int effectiveY = isTopLevel ? NormalizeTopLevelWindowCoordinate(y, DefaultTopLevelWindowY) : NormalizeChildWindowCoordinate(y);
+        SHOW_WINDOW_CMD initialShowCmd = dwStyle.HasFlag(WINDOW_STYLE.WS_MAXIMIZE)
+            ? SHOW_WINDOW_CMD.SW_SHOWMAXIMIZED
+            : dwStyle.HasFlag(WINDOW_STYLE.WS_MINIMIZE)
+                ? SHOW_WINDOW_CMD.SW_SHOWMINIMIZED
+                : SHOW_WINDOW_CMD.SW_SHOW;
 
         // Some create paths hand us title-bar-sized bounds (e.g., 136x39) for top-level
         // forms. Clamp to a sane minimum so the render surface is usable.
@@ -206,6 +211,7 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
             Height = effectiveHeight,
             Parent = hWndParent,
             Visible = false,
+            ShowCmd = initialShowCmd,
             // Sentinel default WndProc — the framework expects a non-null prior
             // WndProc when subclassing via AssignHandle/SetWindowLong.
             WndProc = 0x1,
@@ -3865,6 +3871,16 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
     {
         if (_windows.TryGetValue(hWnd, out var state))
         {
+            if (nCmdShow == SHOW_WINDOW_CMD.SW_SHOW && Control.FromHandle(hWnd) is Form form)
+            {
+                nCmdShow = form.WindowState switch
+                {
+                    FormWindowState.Maximized => SHOW_WINDOW_CMD.SW_SHOWMAXIMIZED,
+                    FormWindowState.Minimized => SHOW_WINDOW_CMD.SW_SHOWMINIMIZED,
+                    _ => nCmdShow
+                };
+            }
+
             bool show = nCmdShow != SHOW_WINDOW_CMD.SW_HIDE;
             state.Visible = show;
             state.ShowCmd = nCmdShow;
@@ -4090,7 +4106,12 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
         {
             placement->length = (uint)sizeof(WINDOWPLACEMENT);
             placement->flags = default;
-            placement->showCmd = control.Visible ? SHOW_WINDOW_CMD.SW_SHOW : SHOW_WINDOW_CMD.SW_HIDE;
+            placement->showCmd = control switch
+            {
+                Form { WindowState: FormWindowState.Maximized } => SHOW_WINDOW_CMD.SW_SHOWMAXIMIZED,
+                Form { WindowState: FormWindowState.Minimized } => SHOW_WINDOW_CMD.SW_SHOWMINIMIZED,
+                _ => control.Visible ? SHOW_WINDOW_CMD.SW_SHOW : SHOW_WINDOW_CMD.SW_HIDE
+            };
             placement->ptMinPosition = new System.Drawing.Point(control.Left, control.Top);
             placement->ptMaxPosition = System.Drawing.Point.Empty;
             placement->rcNormalPosition = hasRect
@@ -4144,6 +4165,26 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                     width,
                     height,
                     SET_WINDOW_POS_FLAGS.SWP_NOZORDER | SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE);
+            }
+
+            return true;
+        }
+
+        Control? control = Control.FromHandle(hWnd);
+        if (control is not null)
+        {
+            if (placement->flags.HasFlag(WINDOWPLACEMENT_FLAGS.WPF_SETMINPOSITION))
+            {
+                control.Location = placement->ptMinPosition;
+                return true;
+            }
+
+            RECT normal = placement->rcNormalPosition;
+            int width = normal.right - normal.left;
+            int height = normal.bottom - normal.top;
+            if (width > 0 && height > 0)
+            {
+                control.SetBounds(normal.left, normal.top, width, height);
             }
 
             return true;

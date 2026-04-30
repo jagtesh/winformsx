@@ -58,7 +58,16 @@ compatibility-facade coverage.
   pass makes the managed RichTextBox fallback the single WinFormsX path for
   construction, text length, simple RTF/text stream in/out, coordinate mapping,
   and link selection/click handling, so it no longer attempts to load native
-  RichEdit DLLs. Larger provider and dialog/print gaps remain tracked below.
+  RichEdit DLLs. The latest form/calendar/MDI pass removes the MonthCalendar
+  `SingleMonthSize` OS guard, routes Form icon/menu/window-state behavior
+  through the WinFormsX path, falls back to the managed `SystemIcons`
+  application icon when the legacy `wfc` resource is unavailable, and routes
+  dummy MDI menu create/destroy through `PlatformApi.Control`. PAL window
+  placement now seeds state from `WS_MINIMIZE` / `WS_MAXIMIZE`, preserves
+  managed min/max state on `SW_SHOW`, and lets MDI minimized-child anchor-bottom
+  layout update through managed placement state. Full UIIntegration and
+  controls smoke remain stable after this pass. Larger provider and dialog/print
+  gaps remain tracked below.
 - First UIIntegration blockers observed:
   - `OLE32.dll` missing through `Application.ThreadContext.OleRequired()`,
     `InputLanguage.CurrentInputLanguage`, IME, clipboard, and drag/drop paths.
@@ -86,6 +95,10 @@ compatibility-facade coverage.
   - Focused anchor/MDI resize coverage is now green:
     `31 passed, 0 failed`. The latest pass closes the direct
     `GetWindowPlacement` import and MDI minimized-child anchor-bottom failure.
+    A follow-up pass also fixed the state reset where a child created with
+    minimized/maximized style could be normalized back to `SW_SHOW` during
+    virtual window creation; `CreateWindowEx`, `ShowWindow`, and managed
+    `SetWindowPlacement` now share PAL-backed placement state.
   - Focused `MonthCalendar` coverage is now green:
     `11 passed, 0 failed`. The latest pass routes managed calendar-grid date
     clicks through the same WinFormsX fallback path as navigation clicks, so
