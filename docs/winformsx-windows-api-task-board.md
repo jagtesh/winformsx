@@ -236,6 +236,15 @@ Ordered by observed frequency across components and blocker blast radius:
       `Failed: 0, Passed: 191, Skipped: 1, Total: 192`;
       `WinformsControlsTest --control-smoke-test` ->
       `total=42 passed=41 failed=0 skipped=1`.
+    - `RegistryKeyExtensions.GetMUIString` now follows one WinFormsX path:
+      attempt the wrapped localized resource lookup, then fall back to stored
+      registry text when MUI resources are unavailable.
+    - Verification after the registry MUI cleanup:
+      focused USER32/dialog/input coverage ->
+      `Passed: 6, Failed: 0`; full UIIntegration ->
+      `Failed: 0, Passed: 191, Skipped: 1, Total: 192`;
+      `WinformsControlsTest --control-smoke-test` ->
+      `total=42 passed=41 failed=0 skipped=1`.
   - Priority order now moves to ListView tile accessibility, PropertyGrid
     provider breadth, RichTextBox link-range behavior, dialog/print fallbacks,
     and remaining lower-volume provider gaps.

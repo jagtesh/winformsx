@@ -51,8 +51,11 @@ compatibility-facade coverage.
   listener state decide whether to raise UIA events. The latest OLE data-object
   pass uses the managed native-interface-to-runtime adapter everywhere when
   composing WinForms data objects, so internal data transfer no longer branches
-  through COM pointer marshalling for the runtime `IDataObject` view. Larger
-  provider and dialog/print gaps remain tracked below.
+  through COM pointer marshalling for the runtime `IDataObject` view. The
+  latest registry/resource pass removes the MUI-string OS guard as well:
+  localized registry resource lookup now attempts the wrapped API and falls
+  back to stored registry text on the same runtime path. Larger provider and
+  dialog/print gaps remain tracked below.
 - First UIIntegration blockers observed:
   - `OLE32.dll` missing through `Application.ThreadContext.OleRequired()`,
     `InputLanguage.CurrentInputLanguage`, IME, clipboard, and drag/drop paths.
@@ -125,6 +128,9 @@ compatibility-facade coverage.
     Focused drag/drop coverage remains green, so managed drag/drop and
     serialized/non-serialized data transfer no longer depend on a separate COM
     pointer marshalling branch.
+  - Registry MUI string lookup now uses a single WinFormsX path: it attempts
+    the wrapped `RegLoadMUIString` call and falls back to the plain registry
+    value when the localized resource path is unavailable.
   - Latest broad UIIntegration active slice is green:
     `191 passed, 0 failed, 1 skipped`.
   - Highest-volume remaining failures are accessibility/provider and layout
