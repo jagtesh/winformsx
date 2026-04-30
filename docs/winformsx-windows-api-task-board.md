@@ -22,10 +22,12 @@ Ordered by observed frequency across components and blocker blast radius:
   - Removed Windows-only guard branches introduced in recent ToolStrip/OLE paths to keep one WinFormsX pathway:
     - `ToolStripManager.ModalMenuFilter` now always activates message-hook flow when no owned message loop is present.
     - `PInvoke.RevokeDragDrop<T>` now follows the same managed compatibility path as `RegisterDragDrop<T>` across all platforms.
+  - Expanded native USER32 compatibility shim exports for hook APIs so direct entrypoints are present in the same pathway:
+    - Added `SetWindowsHookEx`, `SetWindowsHookExA`, `SetWindowsHookExW`, `UnhookWindowsHookEx`, and `CallNextHookEx` exports in `Native/User32Shim/winformsx_user32.c`.
   - Re-verified focused ToolStrip regression after guard removal:
     - `ToolStrip_Hiding_ToolStripMenuItem_OnDropDownClosed_ShouldNotThrow`
     - Current state remains deterministic hang/crash capture (same call-flow path, no OS branch short-circuit).
-    - Artifacts: `src/System.Windows.Forms/tests/IntegrationTests/UIIntegrationTests/TestResults/91ec2c23-6860-47b9-a9d7-277d439ebfdf/`
+    - Latest artifacts: `src/System.Windows.Forms/tests/IntegrationTests/UIIntegrationTests/TestResults/9cc70442-dee1-47bd-af0b-26f1c5d329d7/`
 - In-progress local changes (next commit):
   - Started KERNEL32 compatibility surface routing in `System.Windows.Forms.Primitives`:
     - Added managed/PAL wrappers for `GetCurrentProcess`, `GetCurrentThread`, `GetCurrentProcessId`, `GetProcAddress`, `LoadLibraryEx`, `FreeLibrary`, `GetLastError`, and `SetLastError`.

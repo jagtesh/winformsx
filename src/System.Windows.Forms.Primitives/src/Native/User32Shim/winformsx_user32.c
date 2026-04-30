@@ -16,6 +16,7 @@ typedef uint32_t UINT;
 typedef int32_t INT;
 typedef uint8_t UINT8;
 typedef intptr_t HWND;
+typedef intptr_t HHOOK;
 typedef intptr_t HMENU;
 typedef intptr_t WPARAM;
 typedef intptr_t LPARAM;
@@ -92,6 +93,7 @@ typedef struct WinFormsXUser32Dispatch
 } WinFormsXUser32Dispatch;
 
 static WinFormsXUser32Dispatch g_dispatch;
+static intptr_t g_next_hook_handle = 1;
 
 WF_EXPORT BOOL WinFormsXUser32RegisterDispatch(const WinFormsXUser32Dispatch* dispatch)
 {
@@ -380,4 +382,38 @@ WF_EXPORT BOOL InvalidateRect(HWND hwnd, const WinFormsXRect* rect, BOOL erase)
 WF_EXPORT BOOL ValidateRect(HWND hwnd, const WinFormsXRect* rect)
 {
     return g_dispatch.validate_rect != 0 ? g_dispatch.validate_rect(hwnd, rect) : 0;
+}
+
+WF_EXPORT HHOOK SetWindowsHookEx(INT id_hook, intptr_t hook_proc, intptr_t hmod, UINT thread_id)
+{
+    (void)id_hook;
+    (void)hook_proc;
+    (void)hmod;
+    (void)thread_id;
+    return (HHOOK)(g_next_hook_handle++);
+}
+
+WF_EXPORT HHOOK SetWindowsHookExA(INT id_hook, intptr_t hook_proc, intptr_t hmod, UINT thread_id)
+{
+    return SetWindowsHookEx(id_hook, hook_proc, hmod, thread_id);
+}
+
+WF_EXPORT HHOOK SetWindowsHookExW(INT id_hook, intptr_t hook_proc, intptr_t hmod, UINT thread_id)
+{
+    return SetWindowsHookEx(id_hook, hook_proc, hmod, thread_id);
+}
+
+WF_EXPORT BOOL UnhookWindowsHookEx(HHOOK hook)
+{
+    (void)hook;
+    return 1;
+}
+
+WF_EXPORT intptr_t CallNextHookEx(HHOOK hook, INT code, WPARAM wparam, LPARAM lparam)
+{
+    (void)hook;
+    (void)code;
+    (void)wparam;
+    (void)lparam;
+    return 0;
 }
