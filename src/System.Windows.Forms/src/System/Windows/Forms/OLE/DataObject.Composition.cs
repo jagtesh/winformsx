@@ -54,9 +54,7 @@ public unsafe partial class DataObject
         public static Composition CreateFromWinFormsDataObject(IDataObject winFormsDataObject)
         {
             WinFormsToNativeAdapter winFormsToNative = new(winFormsDataObject);
-            ComTypes.IDataObject nativeToRuntime = OperatingSystem.IsWindows()
-                ? new NativeToRuntimeAdapter(ComHelpers.GetComPointer<Com.IDataObject>(winFormsToNative))
-                : new NativeInterfaceToRuntimeAdapter(winFormsToNative);
+            ComTypes.IDataObject nativeToRuntime = new NativeInterfaceToRuntimeAdapter(winFormsToNative);
             return new(winFormsDataObject, winFormsToNative, nativeToRuntime);
         }
 

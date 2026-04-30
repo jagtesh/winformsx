@@ -48,8 +48,11 @@ compatibility-facade coverage.
   optional data source with managed fallback names, and adds
   `GetKeyboardLayoutList` to the USER32 facade. The latest accessibility pass
   removes UIA notification/event Windows guards and lets the accessibility PAL
-  listener state decide whether to raise UIA events. Larger provider and
-  dialog/print gaps remain tracked below.
+  listener state decide whether to raise UIA events. The latest OLE data-object
+  pass uses the managed native-interface-to-runtime adapter everywhere when
+  composing WinForms data objects, so internal data transfer no longer branches
+  through COM pointer marshalling for the runtime `IDataObject` view. Larger
+  provider and dialog/print gaps remain tracked below.
 - First UIIntegration blockers observed:
   - `OLE32.dll` missing through `Application.ThreadContext.OleRequired()`,
     `InputLanguage.CurrentInputLanguage`, IME, clipboard, and drag/drop paths.
@@ -117,6 +120,11 @@ compatibility-facade coverage.
     as the single PAL-backed gate instead of checking the OS first. The current
     Impeller provider still reports no active UIA clients, so this is a pathway
     cleanup rather than full accessibility-provider parity.
+  - WinForms data-object composition now uses the managed
+    `NativeInterfaceToRuntimeAdapter` path for the runtime `IDataObject` view.
+    Focused drag/drop coverage remains green, so managed drag/drop and
+    serialized/non-serialized data transfer no longer depend on a separate COM
+    pointer marshalling branch.
   - Latest broad UIIntegration active slice is green:
     `191 passed, 0 failed, 1 skipped`.
   - Highest-volume remaining failures are accessibility/provider and layout
