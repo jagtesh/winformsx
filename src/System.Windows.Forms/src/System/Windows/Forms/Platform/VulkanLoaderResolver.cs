@@ -104,6 +104,14 @@ internal static class VulkanLoaderResolver
             return true;
         }
 
+        if (TryFindMoltenVkIcdJson(out string? existingJson))
+        {
+            Environment.SetEnvironmentVariable("VK_ICD_FILENAMES", existingJson);
+            Environment.SetEnvironmentVariable("VK_DRIVER_FILES", existingJson);
+            detail = existingJson;
+            return true;
+        }
+
         string? moltenVkPath = FindMoltenVkLibrary();
         if (string.IsNullOrWhiteSpace(moltenVkPath))
         {
@@ -191,6 +199,56 @@ internal static class VulkanLoaderResolver
         return null;
     }
 
+    private static bool TryFindMoltenVkIcdJson(out string? icdPath)
+    {
+        string[] candidates =
+        [
+            "/opt/homebrew/etc/vulkan/icd.d/MoltenVK_icd.json",
+            "/usr/local/etc/vulkan/icd.d/MoltenVK_icd.json",
+            "/opt/homebrew/share/vulkan/icd.d/MoltenVK_icd.json",
+            "/usr/local/share/vulkan/icd.d/MoltenVK_icd.json",
+        ];
+
+        foreach (string candidate in candidates)
+        {
+            if (File.Exists(candidate))
+            {
+                icdPath = candidate;
+                return true;
+            }
+        }
+
+        string[] cellarRoots =
+        [
+            "/opt/homebrew/Cellar/molten-vk",
+            "/usr/local/Cellar/molten-vk",
+        ];
+
+        foreach (string root in cellarRoots)
+        {
+            if (!Directory.Exists(root))
+            {
+                continue;
+            }
+
+            string[] versions = Directory.GetDirectories(root);
+            Array.Sort(versions, StringComparer.Ordinal);
+            Array.Reverse(versions);
+            foreach (string versionDir in versions)
+            {
+                string candidate = Path.Combine(versionDir, "etc", "vulkan", "icd.d", "MoltenVK_icd.json");
+                if (File.Exists(candidate))
+                {
+                    icdPath = candidate;
+                    return true;
+                }
+            }
+        }
+
+        icdPath = null;
+        return false;
+    }
+
     private static string EnsureMoltenVkIcdJson(string moltenVkPath)
     {
         string runtimeDir = Path.Combine(Path.GetTempPath(), "winformsx-vulkan-runtime");
@@ -203,7 +261,8 @@ internal static class VulkanLoaderResolver
               "file_format_version": "1.0.0",
               "ICD": {
                 "library_path": "{{escapedLibraryPath}}",
-                "api_version": "1.3.0"
+                "api_version": "1.3.0",
+                "is_portability_driver": true
               }
             }
             """;

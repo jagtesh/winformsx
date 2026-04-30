@@ -3,6 +3,7 @@
 
 namespace System.Windows.Forms.Platform;
 
+using System.Runtime.InteropServices;
 using Silk.NET.Input;
 using Silk.NET.Maths;
 using Silk.NET.Windowing;
@@ -729,6 +730,11 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
     private static bool ShouldCreateBackendForHiddenTopLevelWindow()
         => Environment.GetEnvironmentVariable("WINFORMSX_SUPPRESS_HIDDEN_BACKEND") != "1";
 
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    private delegate void GlfwInitVulkanLoaderDelegate(nint loader);
+
+    private static GlfwInitVulkanLoaderDelegate? s_glfwInitVulkanLoader;
+
     private static IWindow CreateInitializedSilkWindow(WindowOptions vulkanOptions)
     {
         if (VulkanLoaderResolver.TryConfigureRuntime(out string? runtimeDetail))
@@ -747,6 +753,19 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
         else
         {
             TracePaint("[Window] Vulkan loader not found in default/system paths; GLFW Vulkan support may be unavailable.");
+        }
+
+        if (VulkanLoaderResolver.TryGetExport("vkGetInstanceProcAddr", out nint vkGetInstanceProcAddr, out string? vkProcSource)
+            && vkGetInstanceProcAddr != nint.Zero)
+        {
+            if (TryInitializeGlfwVulkanLoader(vkGetInstanceProcAddr, out string? glfwDetail))
+            {
+                TracePaint($"[Window] GLFW Vulkan loader initialized from {vkProcSource ?? "<unknown>"} via {glfwDetail}");
+            }
+            else
+            {
+                TracePaint($"[Window] GLFW Vulkan loader initialization unavailable: {glfwDetail ?? "<no detail>"}");
+            }
         }
 
         try
@@ -768,11 +787,66 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
             fallbackOptions.TopMost = vulkanOptions.TopMost;
             fallbackOptions.FramesPerSecond = vulkanOptions.FramesPerSecond;
             fallbackOptions.UpdatesPerSecond = vulkanOptions.UpdatesPerSecond;
+            fallbackOptions.ShouldSwapAutomatically = false;
 
             IWindow fallbackWindow = Window.Create(fallbackOptions);
             fallbackWindow.Initialize();
             return fallbackWindow;
         }
+    }
+
+    private static bool TryInitializeGlfwVulkanLoader(nint vkGetInstanceProcAddr, out string? detail)
+    {
+        if (s_glfwInitVulkanLoader is not null)
+        {
+            s_glfwInitVulkanLoader(vkGetInstanceProcAddr);
+            detail = "cached glfwInitVulkanLoader";
+            return true;
+        }
+
+        foreach (string candidate in GetGlfwCandidates())
+        {
+            if (!NativeLibrary.TryLoad(candidate, out nint glfwHandle) || glfwHandle == nint.Zero)
+            {
+                continue;
+            }
+
+            if (!NativeLibrary.TryGetExport(glfwHandle, "glfwInitVulkanLoader", out nint export)
+                || export == nint.Zero)
+            {
+                continue;
+            }
+
+            s_glfwInitVulkanLoader = Marshal.GetDelegateForFunctionPointer<GlfwInitVulkanLoaderDelegate>(export);
+            s_glfwInitVulkanLoader(vkGetInstanceProcAddr);
+            detail = candidate;
+            return true;
+        }
+
+        detail = "glfwInitVulkanLoader export not found";
+        return false;
+    }
+
+    private static IEnumerable<string> GetGlfwCandidates()
+    {
+        string baseDirectory = AppContext.BaseDirectory;
+        string[] relativeCandidates =
+        [
+            "libglfw.3.dylib",
+            "runtimes/osx-arm64/native/libglfw.3.dylib",
+            "runtimes/osx-x64/native/libglfw.3.dylib",
+            "runtimes/linux-arm64/native/libglfw.so.3",
+            "runtimes/linux-x64/native/libglfw.so.3",
+        ];
+
+        foreach (string relative in relativeCandidates)
+        {
+            yield return Path.Combine(baseDirectory, relative);
+        }
+
+        yield return "libglfw.3.dylib";
+        yield return "libglfw.so.3";
+        yield return "glfw3.dll";
     }
 
     private static bool IsVulkanWindowUnavailable(Exception ex)
