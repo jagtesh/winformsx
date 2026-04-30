@@ -545,7 +545,6 @@ OleCreatePropertyFrameIndirect
 OleDuplicateData
 OleFlushClipboard
 OleGetClipboard
-OleInitialize
 OleSetClipboard
 OleUninitialize
 OPEN_FILENAME_FLAGS

@@ -19,6 +19,13 @@ Ordered by observed frequency across components and blocker blast radius:
 ## Latest Progress (2026-04-29)
 
 - In-progress local changes (next commit):
+  - Removed the remaining Windows-only branch from `Application.ThreadContext.OleRequired()` so OLE apartment initialization now follows a single WinFormsX pathway on all platforms.
+  - Added managed `PInvoke.OleInitialize` compatibility wrapper in `System.Windows.Forms.Primitives` and removed generated direct import for `OleInitialize` from `NativeMethods.txt`.
+  - Verification:
+    - `dotnet build src/System.Windows.Forms/src/System.Windows.Forms.csproj -c Debug` -> `Build succeeded`.
+    - `UIIntegrationTests` filter `FullyQualifiedName~Button_Hotkey_Fires_OnClickAsync` -> `Passed: 1, Failed: 0`.
+    - `WinformsControlsTest --control-smoke-test` -> `total=42 passed=41 failed=0 skipped=1`.
+- In-progress local changes (next commit):
   - Removed another OS-conditional runtime branch in `Application.ThreadContext.OnThreadException`:
     - thread-exception fallback now keys on backend capability (`Graphics.IsBackendActive`) instead of Windows/non-Windows checks.
   - Verification:
@@ -258,7 +265,7 @@ Ordered by observed frequency across components and blocker blast radius:
 - [ ] WXA-1101: Implement PAL-backed `OleInitialize`, `CoInitialize`, `CoCreateInstance` and core `OLE32.dll` facade contracts.
 - [~] WXA-1102: Implement clipboard helpers (`OleGetClipboard`, `OleSetClipboard`, `OleFlushClipboard`) with managed storage and format metadata.
 - [~] WXA-1103: Implement `RevokeDragDrop`/`RegisterDragDrop`/`DoDragDrop` event flow and default drop effects.
-- [ ] WXA-1104: Implement `OleInitialize` + `InputLanguage.CurrentInputLanguage` to unblock data-grid and IME-dependent paths.
+- [x] WXA-1104: Implement `OleInitialize` + `InputLanguage.CurrentInputLanguage` to unblock data-grid and IME-dependent paths.
 
 ## Dialog and Common Controls
 

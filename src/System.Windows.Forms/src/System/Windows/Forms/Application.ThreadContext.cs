@@ -559,12 +559,6 @@ public sealed partial class Application
 
         internal unsafe ApartmentState OleRequired()
         {
-            if (!OperatingSystem.IsWindows())
-            {
-                _oleInitialized = true;
-                return ApartmentState.STA;
-            }
-
             if (!_oleInitialized)
             {
                 HRESULT hr = PInvoke.OleInitialize(pvReserved: (void*)null);
