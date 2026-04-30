@@ -728,8 +728,8 @@ public abstract partial class FileDialog : CommonDialog
         if (System.Drawing.Graphics.IsBackendActive)
         {
             string? selected = this is SaveFileDialog
-                ? Platform.PlatformApi.Dialog.ShowSaveFileDialog(Title, Filter, InitialDirectory)
-                : Platform.PlatformApi.Dialog.ShowOpenFileDialog(Title, Filter, InitialDirectory);
+                ? Platform.PlatformApi.Dialog.ShowSaveFileDialog(hWndOwner, Title, Filter, InitialDirectory, FileName)
+                : Platform.PlatformApi.Dialog.ShowOpenFileDialog(hWndOwner, Title, Filter, InitialDirectory, FileName);
 
             if (string.IsNullOrEmpty(selected))
             {

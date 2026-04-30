@@ -82,6 +82,12 @@ Ordered by observed frequency across components and blocker blast radius:
     - `OpenFileDialogTests`: `Passed: 3, Failed: 0`.
     - `FolderBrowserDialogTests`: `Passed: 2, Failed: 0`.
     - `PrintDialogTests`: `Passed: 2, Failed: 0`.
+    - Latest visible-dialog pass:
+      `CommonDialog.ShowDialog(owner)` now passes the real owner handle into
+      WinFormsX backend dialogs, allowing owner-driven `WM_ENTERIDLE`
+      accept/cancel automation to close modal dialogs without hanging. Managed
+      file, save, folder, color, and font dialogs now have visible WinFormsX
+      form baselines; richer OS-native picker parity remains separate work.
   - Focused ToolStrip/User32 coverage is now green:
     - `ToolStrip_Hiding_ToolStripMenuItem_OnDropDownClosed_ShouldNotThrow`.
     - `ToolStrip_shared_imagelist_should_not_get_disposed_when_toolstrip_does`.
@@ -156,8 +162,9 @@ Ordered by observed frequency across components and blocker blast radius:
       output, which needs a dedicated OS/provider printing PAL rather than more
       modal-dialog shimming.
   - Priority order moves to remaining high-impact infrastructure gaps:
-    dialog visible-service parity, print provider/PDF output design, then
-    lower-volume accessibility/provider breadth and resource polish.
+    message/task/page-setup dialog parity, print provider/PDF output design,
+    OS-native picker integration, then lower-volume accessibility/provider
+    breadth and resource polish.
   - Active lane update: focused PropertyGrid UIIntegration coverage is now
     green: `Passed: 38, Failed: 0, Skipped: 0, Total: 38`.
   - Active lane update: focused anchor/MDI resize coverage is now green:
@@ -778,7 +785,7 @@ Ordered by observed frequency across components and blocker blast radius:
 
 ## Dialog and Common Controls
 
-- [ ] WXA-1201: Implement managed fallbacks for `OpenFileDialog`, `SaveFileDialog`, `FolderBrowserDialog`, `ColorDialog`, `FontDialog`.
+- [~] WXA-1201: Implement managed fallbacks for `OpenFileDialog`, `SaveFileDialog`, `FolderBrowserDialog`, `ColorDialog`, `FontDialog`. Visible WinFormsX form baselines and owner-driven accept/cancel automation are covered; richer filtering, multi-select UI, overwrite/create prompts, font effects/scripts, custom-color state, and OS-native picker integration remain.
 - [~] WXA-1202: Implement managed `PrintDialog` and `PageSetupDialog` with no-spooler fallback path. Focused `PrintDialog` coverage and `PrintDlgEx(PD_RETURNDEFAULT)` default-printer state are covered; visible `PageSetupDialog` parity remains.
 - [ ] WXA-1203: Implement WinFormsX fallback for internal modal dialogs (`PrintPreviewDialog`, `TaskDialog`, `GridErrorDialog`, `ThreadExceptionDialog`).
 - [~] WXA-1204: Route native `COMDLG32.dll` symbols used by `PInvoke` (`GetOpenFileName`, `GetSaveFileName`, `ChooseColor`, `ChooseFont`, `PrintDlg`, `PrintDlgEx`, `PageSetupDlg`, `CommDlgExtendedError`) to WinFormsX-managed dialog services. First-tier safe-cancel facade is covered; richer visible dialog behavior remains under WXA-1201/WXA-1202.
@@ -862,6 +869,7 @@ Ordered by observed frequency across components and blocker blast radius:
   aborting on ToolStrip/Silk window creation.
 - Active priority lane moves to `P2` dialog/print and spooler work now that the
   active UIIntegration slice and controls smoke are green. First-tier
-  `COMDLG32.dll` and `winspool.drv` facade coverage is in place; next
-  highest-impact remaining blockers are visible managed save/color/font/page-
-  setup services and print-controller output.
+  `COMDLG32.dll` and `winspool.drv` facade coverage is in place, and visible
+  managed file/save/folder/color/font baselines are now covered; next
+  highest-impact remaining blockers are message/task/page-setup parity,
+  OS-native picker integration, and print-controller output.

@@ -160,7 +160,7 @@ public class ColorDialog : CommonDialog
         if (Graphics.IsBackendActive)
         {
             Color color = _color;
-            if (!Platform.PlatformApi.Dialog.ShowColorDialog(ref color))
+            if (!Platform.PlatformApi.Dialog.ShowColorDialog(hwndOwner, ref color))
             {
                 return false;
             }

@@ -180,7 +180,7 @@ public abstract class CommonDialog : Component
             s_backendDialogOwner = owner;
             try
             {
-                return RunDialog(IntPtr.Zero) ? DialogResult.OK : DialogResult.Cancel;
+                return RunDialog(owner?.Handle ?? IntPtr.Zero) ? DialogResult.OK : DialogResult.Cancel;
             }
             finally
             {

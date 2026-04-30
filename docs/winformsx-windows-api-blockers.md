@@ -95,8 +95,10 @@ compatibility-facade coverage.
   code. The latest common-dialog pass routes internal `COMDLG32` wrappers
   through a WinFormsX common-dialog interop layer and adds a native
   `COMDLG32.dll` compatibility facade for source-compatible direct DllImports;
-  v1 returns deterministic cancel/default state until richer visible dialog
-  services are implemented. The latest printing pass removes generated
+  the managed WinFormsX path now has visible file, save, folder, color, and
+  font dialog baselines, while direct COMDLG32 exports still return
+  deterministic cancel/default state until ABI-safe visible services are wired
+  through. The latest printing pass removes generated
   `winspool.drv` imports from the first managed print paths, adds deterministic
   no-printer defaults for `EnumPrinters`, `DeviceCapabilities`, and
   `DocumentProperties`, seeds `PrintDlgEx(PD_RETURNDEFAULT)` with a WinFormsX
@@ -116,10 +118,13 @@ compatibility-facade coverage.
     through deterministic WinFormsX defaults, with both managed wrappers and
     direct source-compatible DllImports covered.
   - Focused `OpenFileDialog`, `FolderBrowserDialog`, and `PrintDialog`
-    UIIntegration tests now pass. Direct `COMDLG32.dll` source-compatibility
-    imports now resolve through the WinFormsX facade with safe cancel/default
-    behavior. Remaining dialog work is broader managed service parity for
-    save/color/font/message/task/page setup and richer print automation.
+    UIIntegration tests now pass. The backend `CommonDialog.ShowDialog(owner)`
+    path now passes the real owner handle to PAL dialogs, so owner-driven
+    accept/cancel automation receives `WM_ENTERIDLE` and no longer wedges the
+    modal loop. Direct `COMDLG32.dll` source-compatibility imports now resolve
+    through the WinFormsX facade with safe cancel/default behavior. Remaining
+    dialog work is broader managed service parity for message/task/page setup,
+    OS-native picker integration, and richer print automation.
   - `ToolStrip_Hiding_ToolStripMenuItem_OnDropDownClosed_ShouldNotThrow` and
     `ToolStrip_shared_imagelist_should_not_get_disposed_when_toolstrip_does`
     now pass in focused runs.
@@ -310,16 +315,19 @@ Impacted APIs and controls:
   `ChooseColor`, `ChooseFont`, `PrintDlg`, `PrintDlgEx`, `PageSetupDlg`,
   `CommDlgExtendedError`), shell item dialogs, `GetDlgItem`, and `EndDialog`.
 - Current UIIntegration evidence: focused open-file, folder-browser, and
-  print-dialog tests pass. Native common-dialog facade coverage now exists for
-  the first safe-cancel tier; broader save/color/font/message/task/page-setup
-  automation remains incomplete.
+  print-dialog tests pass. Managed WinFormsX file, save, folder, color, and
+  font dialog services now have visible form baselines and honor owner
+  accept/cancel automation. Native common-dialog facade coverage exists for the
+  first safe-cancel tier; message/task/page-setup automation and OS-native
+  picker integration remain incomplete.
 
 Plan:
 
-- Build managed WinFormsX modal dialog services for file/save/folder,
-  color/font, message box, task dialog, print, and page setup.
-- Add test automation hooks so UIIntegration can accept/cancel dialogs without
-  native OS dialog windows.
+- Expand managed WinFormsX modal dialog services for file/save/folder and
+  color/font beyond the current visible baseline, then add message box, task
+  dialog, print, and page setup parity.
+- Keep owner/idle automation covered so UIIntegration can accept/cancel dialogs
+  without native OS dialog windows.
 - Keep native common-dialog exports as facades over those services where the ABI
   is simple enough.
 - For `TaskDialog`, cover command links, verification checkbox, radio buttons,
@@ -671,8 +679,10 @@ cases were previously blockers and should remain regression targets:
 - [x] IME/input-language baseline: `InputLanguage` and first-tier IME context
   calls use PAL-backed managed state plus USER32/IMM32 facades.
 - [~] Dialog baseline: focused open-file and folder-browser tests are green;
-  first-tier `COMDLG32.dll` safe-cancel facade is covered; save/color/font/
-  message/task/page-setup visible-service parity still needs coverage.
+  managed file/save/folder/color/font dialogs now have visible WinFormsX
+  baselines and owner-driven accept/cancel automation; first-tier
+  `COMDLG32.dll` safe-cancel facade is covered; message/task/page-setup
+  visible-service parity and OS-native picker integration still need coverage.
 - [~] Print baseline: focused `PrintDialog` tests are green; no-printer
   `PrinterSettings`, direct `winspool.drv` defaults, private-core print
   `Global*` memory, invalid-printer validation, and basic

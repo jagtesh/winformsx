@@ -273,7 +273,11 @@ public sealed class FolderBrowserDialog : CommonDialog
     {
         if (System.Drawing.Graphics.IsBackendActive)
         {
-            string? selected = Platform.PlatformApi.Dialog.ShowFolderBrowserDialog(Description);
+            string? selected = Platform.PlatformApi.Dialog.ShowFolderBrowserDialog(
+                hwndOwner,
+                Description,
+                InitialDirectory,
+                SelectedPath);
             if (string.IsNullOrEmpty(selected))
             {
                 return false;
