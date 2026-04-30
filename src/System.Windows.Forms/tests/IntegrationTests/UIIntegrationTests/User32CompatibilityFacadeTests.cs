@@ -511,6 +511,7 @@ public class User32CompatibilityFacadeTests
             Assert.Equal((uint)Environment.ProcessId, NativeKernel32.GetCurrentProcessId());
             Assert.Equal(PInvoke.GetCurrentThreadId(), NativeKernel32.GetCurrentThreadId());
             Assert.Equal((nint)PInvoke.GetCurrentProcess(), NativeKernel32.GetCurrentProcess());
+            Assert.Equal((nint)PInvoke.GetCurrentThread(), NativeKernel32.GetCurrentThread());
 
             nint nativeModule = NativeKernel32.GetModuleHandle(null);
             Assert.NotEqual(nint.Zero, nativeModule);
@@ -1223,6 +1224,9 @@ public class User32CompatibilityFacadeTests
 
         [DllImport(Kernel32, ExactSpelling = true)]
         internal static extern nint GetCurrentProcess();
+
+        [DllImport(Kernel32, ExactSpelling = true)]
+        internal static extern nint GetCurrentThread();
 
         [DllImport(Kernel32, ExactSpelling = true)]
         internal static extern uint GetCurrentProcessId();

@@ -229,6 +229,11 @@ WF_EXPORT void* GetCurrentProcess(void)
     return (void*)(intptr_t)-1;
 }
 
+WF_EXPORT void* GetCurrentThread(void)
+{
+    return (void*)(intptr_t)-2;
+}
+
 WF_EXPORT DWORD GetCurrentProcessId(void)
 {
     if (g_dispatch.get_current_process_id != 0)

@@ -208,7 +208,8 @@ compatibility-facade coverage.
   KERNEL32 facade pass removes the generated `GetModuleFileName` import from
   the managed path, adds PAL-backed module-file-name state, and packages a
   source-compatible `KERNEL32.dll` facade for `GetCurrentProcess`,
-  `GetCurrentProcessId`, `GetCurrentThreadId`, `GetModuleHandleW/A`, and
+  `GetCurrentThread`, `GetCurrentProcessId`, `GetCurrentThreadId`,
+  `GetModuleHandleW/A`, and
   `GetModuleFileNameW/A`. The follow-up last-error pass moves managed
   `GetLastError` / `SetLastError` to the system PAL and forwards direct
   KERNEL32 imports through the same thread-local WinFormsX state. The latest
