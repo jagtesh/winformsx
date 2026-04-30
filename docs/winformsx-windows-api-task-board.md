@@ -102,6 +102,12 @@ Ordered by observed frequency across components and blocker blast radius:
       instead of returning a synthetic result immediately. Standard button sets
       map to `DialogResult`, owner-driven accept/cancel automation is covered,
       and focused `MessageBoxTests` reports `Passed: 3, Failed: 0`.
+    - Latest MessageBox icon/help pass:
+      managed MessageBox now renders status icons through the shared
+      `SystemIcons` fallback set instead of text glyph placeholders, routes the
+      Help button to the owner's `HelpRequested` event, and applies first-tier
+      right-alignment/RTL options. Focused `MessageBoxTests` now reports
+      `Passed: 5, Failed: 0`.
   - Focused ToolStrip/User32 coverage is now green:
     - `ToolStrip_Hiding_ToolStripMenuItem_OnDropDownClosed_ShouldNotThrow`.
     - `ToolStrip_shared_imagelist_should_not_get_disposed_when_toolstrip_does`.
@@ -918,7 +924,7 @@ Ordered by observed frequency across components and blocker blast radius:
 - [~] WXA-1201: Implement managed fallbacks for `OpenFileDialog`, `SaveFileDialog`, `FolderBrowserDialog`, `ColorDialog`, `FontDialog`. Visible WinFormsX form baselines, focused owner-driven accept/cancel automation, Open/Save wildcard filter application, OpenFileDialog filtered multi-select, FontDialog effects/color selection, ColorDialog custom-color selection, overwrite/create-prompt acceptance, and missing-open-file cancellation are covered; font script parity and OS-native picker integration remain.
 - [~] WXA-1202: Implement managed `PrintDialog` and `PageSetupDialog` with no-spooler fallback path. Focused `PrintDialog` coverage, `PrintDlgEx(PD_RETURNDEFAULT)` default-printer state, and visible `PageSetupDialog` margin/orientation automation are covered; richer printer selection and real provider-backed output remain.
 - [~] WXA-1203: Implement WinFormsX fallback for internal modal dialogs (`PrintPreviewDialog`, `TaskDialog`, `GridErrorDialog`, `ThreadExceptionDialog`). `TaskDialog` now has a visible managed baseline covering public-API automation; `PrintPreviewDialog`, `GridErrorDialog`, `ThreadExceptionDialog`, richer task-dialog navigation/progress/link behavior, and internal error/status modals remain.
-- [~] WXA-1205: Implement visible managed `MessageBox` parity. Standard button-result handling and owner-driven automation are covered; icon imagery, help button, RTL/options polish, and richer native facade behavior remain.
+- [~] WXA-1205: Implement visible managed `MessageBox` parity. Standard button-result handling, owner-driven automation, managed icon imagery, Help button event routing, and first-tier right-alignment/RTL options are covered; richer native facade behavior and deeper option parity remain.
 - [~] WXA-1204: Route native `COMDLG32.dll` symbols used by `PInvoke` (`GetOpenFileName`, `GetSaveFileName`, `ChooseColor`, `ChooseFont`, `PrintDlg`, `PrintDlgEx`, `PageSetupDlg`, `CommDlgExtendedError`) to WinFormsX-managed dialog services. First-tier safe-cancel facade is covered; richer visible dialog behavior remains under WXA-1201/WXA-1202.
 
 ## Printing And Spooler
@@ -950,7 +956,7 @@ Ordered by observed frequency across components and blocker blast radius:
 
 ## Shell / Resources / Icons / Cursors
 
-- [ ] WXA-1701: Add stock icon and cursor provider service with canonical fallback set (`Application`, default status/error/warning/info/question, shield, folder/file, message/task dialog, scroll/dropdown arrows).
+- [~] WXA-1701: Add stock icon and cursor provider service with canonical fallback set (`Application`, default status/error/warning/info/question, shield, folder/file, message/task dialog, scroll/dropdown arrows). SystemIcons now supplies distinct managed application/status/help/lock/folder/printer fallback icons without native resources or font-dependent drawing; cursor, scroll/dropdown arrow, and broader shell/task-dialog icon coverage remain.
 - [ ] WXA-1702: Implement icon extraction/service equivalents for `ExtractAssociatedIcon`, `SHGetStockIconInfo`, shell execute placeholders.
 - [ ] WXA-1703: Add and centralize required icons/cursors in WinFormsX resources; ensure `Button.ico`, `ImageInError.ico`, `PropertiesTab.ico`, `ShieldIcon.ico`, and any missing icon/cursor assets are embedded with license notices.
 - [ ] WXA-1704: Harden `.resx` load/save and `ResXDataNode` behavior for image/icon/cursor/stream payloads.

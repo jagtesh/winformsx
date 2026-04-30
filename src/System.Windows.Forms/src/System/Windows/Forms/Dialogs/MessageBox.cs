@@ -456,7 +456,7 @@ public class MessageBox
         MESSAGEBOX_STYLE style = GetMessageBoxStyle(owner, buttons, icon, defaultButton, options, showHelp);
         if (System.Drawing.Graphics.IsBackendActive)
         {
-            return ShowManagedMessageBox(owner, text, caption, buttons, icon, defaultButton);
+            return ShowManagedMessageBox(owner, text, caption, buttons, icon, defaultButton, options, showHelp);
         }
 
         HandleRef<HWND> handle = default;
@@ -504,9 +504,11 @@ public class MessageBox
         string? caption,
         MessageBoxButtons buttons,
         MessageBoxIcon icon,
-        MessageBoxDefaultButton defaultButton)
+        MessageBoxDefaultButton defaultButton,
+        MessageBoxOptions options,
+        bool showHelp)
     {
-        using ManagedMessageBoxForm form = new(owner?.Handle ?? IntPtr.Zero, text, caption, buttons, icon, defaultButton);
+        using ManagedMessageBoxForm form = new(owner?.Handle ?? IntPtr.Zero, text, caption, buttons, icon, defaultButton, options, showHelp);
         return form.ShowDialog(owner);
     }
 
@@ -546,7 +548,9 @@ public class MessageBox
             string? caption,
             MessageBoxButtons buttons,
             MessageBoxIcon icon,
-            MessageBoxDefaultButton defaultButton)
+            MessageBoxDefaultButton defaultButton,
+            MessageBoxOptions options,
+            bool showHelp)
         {
             _owner = owner;
             _defaultResult = GetBackendDefaultDialogResult(buttons, defaultButton);
@@ -559,8 +563,10 @@ public class MessageBox
             FormBorderStyle = FormBorderStyle.FixedDialog;
             ClientSize = new Size(420, 160);
             MinimumSize = new Size(320, 150);
+            RightToLeft = (options & MessageBoxOptions.RtlReading) != 0 ? RightToLeft.Yes : RightToLeft.No;
+            RightToLeftLayout = RightToLeft == RightToLeft.Yes;
 
-            Controls.Add(CreateContent(text, icon, buttons, defaultButton));
+            Controls.Add(CreateContent(text, icon, buttons, defaultButton, options, showHelp));
         }
 
         protected override void OnShown(EventArgs e)
@@ -618,7 +624,9 @@ public class MessageBox
             string? text,
             MessageBoxIcon icon,
             MessageBoxButtons buttons,
-            MessageBoxDefaultButton defaultButton)
+            MessageBoxDefaultButton defaultButton,
+            MessageBoxOptions options,
+            bool showHelp)
         {
             TableLayoutPanel root = new()
             {
@@ -633,21 +641,27 @@ public class MessageBox
             root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
             root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
-            Label iconLabel = new()
+            Bitmap? iconBitmap = GetIconBitmap(icon);
+            if (iconBitmap is not null)
             {
-                AutoSize = true,
-                Font = new Font(Font.FontFamily, 22.0f, FontStyle.Bold),
-                Padding = new Padding(0, 0, 14, 0),
-                Text = GetIconText(icon)
-            };
-            root.Controls.Add(iconLabel, 0, 0);
+                PictureBox iconBox = new()
+                {
+                    Image = iconBitmap,
+                    Margin = new Padding(0, 8, 14, 0),
+                    Size = new Size(32, 32),
+                    SizeMode = PictureBoxSizeMode.CenterImage
+                };
+                root.Controls.Add(iconBox, 0, 0);
+            }
 
             Label message = new()
             {
                 AutoEllipsis = true,
                 Dock = DockStyle.Fill,
                 Text = text ?? string.Empty,
-                TextAlign = ContentAlignment.MiddleLeft
+                TextAlign = (options & MessageBoxOptions.RightAlign) != 0
+                    ? ContentAlignment.MiddleRight
+                    : ContentAlignment.MiddleLeft
             };
             root.Controls.Add(message, 1, 0);
 
@@ -692,6 +706,19 @@ public class MessageBox
                 }
             }
 
+            if (showHelp)
+            {
+                Button helpButton = new()
+                {
+                    AutoSize = true,
+                    MinimumSize = new Size(82, 28),
+                    Text = "Help"
+                };
+
+                helpButton.Click += (sender, e) => SendHelpRequest();
+                buttonPanel.Controls.Add(helpButton);
+            }
+
             AcceptButton = defaultButtonControl ?? buttonPanel.Controls.OfType<Button>().FirstOrDefault();
             CancelButton = cancelButtonControl;
             return root;
@@ -712,14 +739,31 @@ public class MessageBox
             }
         }
 
-        private static string GetIconText(MessageBoxIcon icon)
+        private void SendHelpRequest()
+        {
+            if (_owner == 0)
+            {
+                return;
+            }
+
+            Control? owner = Control.FromHandle((IntPtr)_owner);
+            if (owner is null)
+            {
+                return;
+            }
+
+            HelpEventArgs e = new(MousePosition);
+            owner.RaiseHelpRequestedFromMessageBox(e);
+        }
+
+        private static Bitmap? GetIconBitmap(MessageBoxIcon icon)
             => icon switch
             {
-                MessageBoxIcon.Error => "X",
-                MessageBoxIcon.Question => "?",
-                MessageBoxIcon.Warning => "!",
-                MessageBoxIcon.Information => "i",
-                _ => string.Empty
+                MessageBoxIcon.Hand => SystemIcons.Error.ToBitmap(),
+                MessageBoxIcon.Question => SystemIcons.Question.ToBitmap(),
+                MessageBoxIcon.Exclamation => SystemIcons.Warning.ToBitmap(),
+                MessageBoxIcon.Asterisk => SystemIcons.Information.ToBitmap(),
+                _ => null
             };
 
         private static (string Label, DialogResult Result)[] GetButtons(MessageBoxButtons buttons)

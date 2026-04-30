@@ -166,7 +166,12 @@ compatibility-facade coverage.
   The latest ToolStrip designer pass wires the documented dropdown-item
   `Edit Items...` verb to `DropDownItems`, keeping top-level and nested
   ToolStrip collection editing on the same managed editor path. Focused
-  `InternalModalDialogUITests` now reports `27 passed, 0 failed`.
+  `InternalModalDialogUITests` now reports `27 passed, 0 failed`. The latest
+  MessageBox/resource pass renders managed MessageBox icons from the shared
+  `SystemIcons` fallback set, raises owner `HelpRequested` from the managed
+  Help button, applies first-tier right-alignment/RTL options, and makes
+  SystemIcons stock/status fallbacks visually distinct without depending on
+  native icon resources or font-based drawing during form startup.
 - First UIIntegration blockers observed:
   - `OLE32.dll` missing through `Application.ThreadContext.OleRequired()`,
     clipboard, and drag/drop paths. `InputLanguage.CurrentInputLanguage`,
@@ -398,6 +403,7 @@ Impacted APIs and controls:
   file-dialog prompts now have owner-driven automation for
   overwrite acceptance, create acceptance, and missing-open-file cancellation.
   ColorDialog now covers seeded `CustomColors` selection on the managed path.
+  MessageBox now covers managed icon rendering and Help button event routing.
   Native common-dialog facade coverage exists for the first
   safe-cancel tier. Ordinary managed modal forms now synthesize `WM_ENTERIDLE`
   for their owner on `Shown`, and

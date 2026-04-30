@@ -7795,6 +7795,8 @@ public unsafe partial class Control :
         }
     }
 
+    internal void RaiseHelpRequestedFromMessageBox(HelpEventArgs hevent) => OnHelpRequested(hevent);
+
     /// <summary>
     ///  Inheriting classes should override this method to handle this event.
     ///  Call base.OnInvalidate to send this event to any registered event listeners.

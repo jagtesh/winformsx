@@ -52,6 +52,13 @@ public class SystemIconsTests
         Assert.Throws<ArgumentException>(() => SystemIcons.GetStockIcon((StockIconId)(-1)));
     }
 
+    [Fact]
+    public void SystemIcons_CommonIcons_AreVisuallyDistinct()
+    {
+        Assert.NotEqual(GetBitmapHash(SystemIcons.Error), GetBitmapHash(SystemIcons.Information));
+        Assert.NotEqual(GetBitmapHash(SystemIcons.Warning), GetBitmapHash(SystemIcons.Question));
+    }
+
     public static TheoryData<StockIconOptions> StockIconOptions_TestData => new()
     {
         StockIconOptions.LinkOverlay,
@@ -67,5 +74,20 @@ public class SystemIconsTests
     {
         using Icon icon = SystemIcons.GetStockIcon(StockIconId.Shield, options);
         Assert.NotNull(icon);
+    }
+
+    private static int GetBitmapHash(Icon icon)
+    {
+        using Bitmap bitmap = icon.ToBitmap();
+        HashCode hash = new();
+        for (int y = 0; y < bitmap.Height; y++)
+        {
+            for (int x = 0; x < bitmap.Width; x++)
+            {
+                hash.Add(bitmap.GetPixel(x, y).ToArgb());
+            }
+        }
+
+        return hash.ToHashCode();
     }
 }
