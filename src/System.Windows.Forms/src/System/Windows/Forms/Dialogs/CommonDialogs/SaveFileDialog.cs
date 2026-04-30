@@ -112,7 +112,7 @@ public sealed partial class SaveFileDialog : FileDialog
 
         // Note: Vista dialog mode automatically prompts for overwrite.
         if (_fileNameFlags.HasFlag(OFN_OVERWRITEPROMPT)
-            && !UseVistaDialogInternal
+            && (System.Drawing.Graphics.IsBackendActive || !UseVistaDialogInternal)
             && FileExists(fileName)
             && !PromptFileOverwrite(fileName))
         {

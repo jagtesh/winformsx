@@ -401,6 +401,13 @@ Ordered by observed frequency across components and blocker blast radius:
       multi-select selection.
       Focused `OpenFileDialogTests` now reports
       `Passed: 4, Failed: 0`.
+    - Latest file-prompt pass:
+      managed `SaveFileDialog.OverwritePrompt` now remains active on the
+      WinFormsX backend path instead of being treated as OS-native Vista dialog
+      work, and file-dialog prompt message boxes receive the same owner handle
+      used by the picker. Focused `ManagedCommonDialogTests` now reports
+      `Passed: 9, Failed: 0`, covering overwrite-prompt acceptance and
+      missing-open-file cancellation.
     - Verification after the input-language/window-enumeration/common-dialog sweep:
       `dotnet build ...System.Windows.Forms.UI.IntegrationTests.csproj -c Debug -v:q` ->
       build succeeded; `dotnet test ... --filter "FullyQualifiedName~User32CompatibilityFacadeTests" -v:n` ->
@@ -894,7 +901,7 @@ Ordered by observed frequency across components and blocker blast radius:
 
 ## Dialog and Common Controls
 
-- [~] WXA-1201: Implement managed fallbacks for `OpenFileDialog`, `SaveFileDialog`, `FolderBrowserDialog`, `ColorDialog`, `FontDialog`. Visible WinFormsX form baselines, focused owner-driven accept/cancel automation, Open/Save wildcard filter application, OpenFileDialog filtered multi-select, and FontDialog effects are covered; overwrite/create prompts, font script/color parity, custom-color state, and OS-native picker integration remain.
+- [~] WXA-1201: Implement managed fallbacks for `OpenFileDialog`, `SaveFileDialog`, `FolderBrowserDialog`, `ColorDialog`, `FontDialog`. Visible WinFormsX form baselines, focused owner-driven accept/cancel automation, Open/Save wildcard filter application, OpenFileDialog filtered multi-select, FontDialog effects, overwrite-prompt acceptance, and missing-open-file cancellation are covered; create prompts, font script/color parity, custom-color state, and OS-native picker integration remain.
 - [~] WXA-1202: Implement managed `PrintDialog` and `PageSetupDialog` with no-spooler fallback path. Focused `PrintDialog` coverage, `PrintDlgEx(PD_RETURNDEFAULT)` default-printer state, and visible `PageSetupDialog` margin/orientation automation are covered; richer printer selection and real provider-backed output remain.
 - [~] WXA-1203: Implement WinFormsX fallback for internal modal dialogs (`PrintPreviewDialog`, `TaskDialog`, `GridErrorDialog`, `ThreadExceptionDialog`). `TaskDialog` now has a visible managed baseline covering public-API automation; `PrintPreviewDialog`, `GridErrorDialog`, `ThreadExceptionDialog`, richer task-dialog navigation/progress/link behavior, and internal error/status modals remain.
 - [~] WXA-1205: Implement visible managed `MessageBox` parity. Standard button-result handling and owner-driven automation are covered; icon imagery, help button, RTL/options polish, and richer native facade behavior remain.

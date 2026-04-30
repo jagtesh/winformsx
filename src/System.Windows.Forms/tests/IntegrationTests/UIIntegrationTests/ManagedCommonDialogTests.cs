@@ -3,6 +3,7 @@
 
 using System.Drawing;
 using System.Windows.Forms.Platform;
+using Windows.Win32.UI.WindowsAndMessaging;
 using Xunit.Abstractions;
 
 namespace System.Windows.Forms.UITests;
@@ -40,6 +41,44 @@ public class ManagedCommonDialogTests : ControlTestBase
 
         Assert.Equal(DialogResult.OK, dialog.ShowDialog(dialogOwnerForm));
         Assert.Equal(fileName, dialog.FileName);
+    }
+
+    [UIFact]
+    public void SaveFileDialog_ShowDialog_OverwritePromptAccepts_Success()
+    {
+        string fileName = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.txt");
+        File.WriteAllText(fileName, "existing");
+        try
+        {
+            using PromptAcceptDialogForm dialogOwnerForm = new();
+            using SaveFileDialog dialog = new()
+            {
+                InitialDirectory = Path.GetDirectoryName(fileName),
+                FileName = fileName,
+                OverwritePrompt = true
+            };
+
+            Assert.Equal(DialogResult.OK, dialog.ShowDialog(dialogOwnerForm));
+            Assert.Equal(fileName, dialog.FileName);
+        }
+        finally
+        {
+            File.Delete(fileName);
+        }
+    }
+
+    [UIFact]
+    public void OpenFileDialog_ShowDialog_MissingFilePromptCancels_Success()
+    {
+        string fileName = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.txt");
+        using PromptAcceptDialogForm dialogOwnerForm = new();
+        using OpenFileDialog dialog = new()
+        {
+            InitialDirectory = Path.GetDirectoryName(fileName),
+            FileName = fileName
+        };
+
+        Assert.Equal(DialogResult.Cancel, dialog.ShowDialog(dialogOwnerForm));
     }
 
     [UIFact]
@@ -122,6 +161,38 @@ public class ManagedCommonDialogTests : ControlTestBase
                         checkBox.Checked = true;
                     }
                 }
+            }
+
+            Accept(dialogHandle);
+        }
+
+        private static IEnumerable<T> FindControls<T>(Control parent)
+            where T : Control
+        {
+            foreach (Control child in parent.Controls)
+            {
+                if (child is T match)
+                {
+                    yield return match;
+                }
+
+                foreach (T nested in FindControls<T>(child))
+                {
+                    yield return nested;
+                }
+            }
+        }
+    }
+
+    private class PromptAcceptDialogForm : DialogHostForm
+    {
+        protected override void OnDialogIdle(HWND dialogHandle)
+        {
+            if (Control.FromHandle(dialogHandle) is Form dialog
+                && FindControls<Button>(dialog).Any(button => button.Text == "Yes"))
+            {
+                PInvoke.SendMessage(dialogHandle, PInvoke.WM_COMMAND, (WPARAM)(nint)MESSAGEBOX_RESULT.IDYES);
+                return;
             }
 
             Accept(dialogHandle);

@@ -33,6 +33,7 @@ public abstract partial class FileDialog : CommonDialog
     private int _okNotificationCount;
     private char[]? _charBuffer;
     private HWND _dialogHWnd;
+    private IntPtr _backendDialogOwner;
 
     /// <summary>
     ///  In an inherited class, initializes a new instance of the <see cref="FileDialog"/> class.
@@ -662,7 +663,7 @@ public abstract partial class FileDialog : CommonDialog
     ///  Prompts the user with a <see cref="MessageBox"/> with the given parameters. It also ensures that the
     ///  focus is set back on the window that had the focus to begin with (before we displayed the MessageBox).
     /// </summary>
-    private protected static bool MessageBoxWithFocusRestore(
+    private protected bool MessageBoxWithFocusRestore(
         string message,
         string caption,
         MessageBoxButtons buttons,
@@ -671,13 +672,19 @@ public abstract partial class FileDialog : CommonDialog
         HWND focusHandle = PInvoke.GetFocus();
         try
         {
-            return RTLAwareMessageBox.Show(null, message, caption, buttons, icon, MessageBoxDefaultButton.Button1, 0)
+            IWin32Window? owner = _backendDialogOwner == IntPtr.Zero ? null : new DialogOwnerWindow(_backendDialogOwner);
+            return RTLAwareMessageBox.Show(owner, message, caption, buttons, icon, MessageBoxDefaultButton.Button1, 0)
                 == DialogResult.Yes;
         }
         finally
         {
             PInvoke.SetFocus(focusHandle);
         }
+    }
+
+    private sealed class DialogOwnerWindow(IntPtr handle) : IWin32Window
+    {
+        public IntPtr Handle { get; } = handle;
     }
 
     /// <summary>
@@ -727,40 +734,48 @@ public abstract partial class FileDialog : CommonDialog
     {
         if (System.Drawing.Graphics.IsBackendActive)
         {
-            if (this is SaveFileDialog)
+            _backendDialogOwner = hWndOwner;
+            try
             {
-                string? selected = Platform.PlatformApi.Dialog.ShowSaveFileDialog(
+                if (this is SaveFileDialog)
+                {
+                    string? selected = Platform.PlatformApi.Dialog.ShowSaveFileDialog(
+                        hWndOwner,
+                        Title,
+                        Filter,
+                        FilterIndex,
+                        InitialDirectory,
+                        FileName);
+
+                    if (string.IsNullOrEmpty(selected))
+                    {
+                        return TryAcceptPrepopulatedBackendSelection();
+                    }
+
+                    return TryApplySelectedFileNames([selected]);
+                }
+
+                bool multiselect = this is OpenFileDialog openFileDialog && openFileDialog.Multiselect;
+                string[]? selectedFiles = Platform.PlatformApi.Dialog.ShowOpenFileDialog(
                     hWndOwner,
                     Title,
                     Filter,
                     FilterIndex,
                     InitialDirectory,
-                    FileName);
+                    FileName,
+                    multiselect);
 
-                if (string.IsNullOrEmpty(selected))
+                if (selectedFiles is null || selectedFiles.Length == 0)
                 {
                     return TryAcceptPrepopulatedBackendSelection();
                 }
 
-                return TryApplySelectedFileNames([selected]);
+                return TryApplySelectedFileNames(selectedFiles);
             }
-
-            bool multiselect = this is OpenFileDialog openFileDialog && openFileDialog.Multiselect;
-            string[]? selectedFiles = Platform.PlatformApi.Dialog.ShowOpenFileDialog(
-                hWndOwner,
-                Title,
-                Filter,
-                FilterIndex,
-                InitialDirectory,
-                FileName,
-                multiselect);
-
-            if (selectedFiles is null || selectedFiles.Length == 0)
+            finally
             {
-                return TryAcceptPrepopulatedBackendSelection();
+                _backendDialogOwner = IntPtr.Zero;
             }
-
-            return TryApplySelectedFileNames(selectedFiles);
         }
 
         if (Control.CheckForIllegalCrossThreadCalls && Application.OleRequired() != ApartmentState.STA)
