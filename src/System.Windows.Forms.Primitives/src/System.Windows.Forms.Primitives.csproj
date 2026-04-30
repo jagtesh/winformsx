@@ -69,6 +69,9 @@
     <WinFormsXComDlg32ShimSource>$(MSBuildProjectDirectory)/Native/ComDlg32Shim/winformsx_comdlg32.c</WinFormsXComDlg32ShimSource>
     <WinFormsXComDlg32ShimOutputDirectory>$(IntermediateOutputPath)winformsx-comdlg32/</WinFormsXComDlg32ShimOutputDirectory>
     <WinFormsXComDlg32ShimBinary>$(WinFormsXComDlg32ShimOutputDirectory)COMDLG32.dll</WinFormsXComDlg32ShimBinary>
+    <WinFormsXComCtl32ShimSource>$(MSBuildProjectDirectory)/Native/ComCtl32Shim/winformsx_comctl32.c</WinFormsXComCtl32ShimSource>
+    <WinFormsXComCtl32ShimOutputDirectory>$(IntermediateOutputPath)winformsx-comctl32/</WinFormsXComCtl32ShimOutputDirectory>
+    <WinFormsXComCtl32ShimBinary>$(WinFormsXComCtl32ShimOutputDirectory)COMCTL32.dll</WinFormsXComCtl32ShimBinary>
     <WinFormsXWinSpoolShimSource>$(MSBuildProjectDirectory)/Native/WinSpoolShim/winformsx_winspool.c</WinFormsXWinSpoolShimSource>
     <WinFormsXWinSpoolShimOutputDirectory>$(IntermediateOutputPath)winformsx-winspool/</WinFormsXWinSpoolShimOutputDirectory>
     <WinFormsXWinSpoolShimBinary>$(WinFormsXWinSpoolShimOutputDirectory)winspool.drv</WinFormsXWinSpoolShimBinary>
@@ -102,6 +105,15 @@
     <None Include="$(WinFormsXComDlg32ShimOutputDirectory)libCOMDLG32.dll.so" TargetPath="libCOMDLG32.dll.so" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
     <None Include="$(WinFormsXComDlg32ShimOutputDirectory)COMDLG32.dll.so" TargetPath="COMDLG32.dll.so" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
     <None Include="$(WinFormsXComDlg32ShimOutputDirectory)libcomdlg32.so" TargetPath="libcomdlg32.so" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+    <None Include="$(WinFormsXComCtl32ShimOutputDirectory)COMCTL32.dll" TargetPath="COMCTL32.dll" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" />
+    <None Include="$(WinFormsXComCtl32ShimOutputDirectory)comctl32.dll" TargetPath="comctl32.dll" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" />
+    <None Include="$(WinFormsXComCtl32ShimOutputDirectory)comctl32" TargetPath="comctl32" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" />
+    <None Include="$(WinFormsXComCtl32ShimOutputDirectory)COMCTL32.dll.dylib" TargetPath="COMCTL32.dll.dylib" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+    <None Include="$(WinFormsXComCtl32ShimOutputDirectory)libCOMCTL32.dll.dylib" TargetPath="libCOMCTL32.dll.dylib" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+    <None Include="$(WinFormsXComCtl32ShimOutputDirectory)libcomctl32.dylib" TargetPath="libcomctl32.dylib" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+    <None Include="$(WinFormsXComCtl32ShimOutputDirectory)libCOMCTL32.dll.so" TargetPath="libCOMCTL32.dll.so" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+    <None Include="$(WinFormsXComCtl32ShimOutputDirectory)COMCTL32.dll.so" TargetPath="COMCTL32.dll.so" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+    <None Include="$(WinFormsXComCtl32ShimOutputDirectory)libcomctl32.so" TargetPath="libcomctl32.so" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
     <None Include="$(WinFormsXWinSpoolShimOutputDirectory)winspool.drv" TargetPath="winspool.drv" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" />
     <None Include="$(WinFormsXWinSpoolShimOutputDirectory)winspool" TargetPath="winspool" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" />
     <None Include="$(WinFormsXWinSpoolShimOutputDirectory)winspool.drv.dylib" TargetPath="winspool.drv.dylib" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
@@ -170,6 +182,26 @@
     <Copy SourceFiles="$(WinFormsXComDlg32ShimBinary)" DestinationFiles="$(WinFormsXComDlg32ShimOutputDirectory)libCOMDLG32.dll.so" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
     <Copy SourceFiles="$(WinFormsXComDlg32ShimBinary)" DestinationFiles="$(WinFormsXComDlg32ShimOutputDirectory)COMDLG32.dll.so" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
     <Copy SourceFiles="$(WinFormsXComDlg32ShimBinary)" DestinationFiles="$(WinFormsXComDlg32ShimOutputDirectory)libcomdlg32.so" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+  </Target>
+
+  <Target Name="BuildWinFormsXComCtl32Shim"
+          BeforeTargets="PrepareForBuild;GetCopyToOutputDirectoryItems"
+          Inputs="$(WinFormsXComCtl32ShimSource)"
+          Outputs="$(WinFormsXComCtl32ShimBinary)"
+          Condition="'$(OS)' != 'Windows_NT'">
+    <MakeDir Directories="$(WinFormsXComCtl32ShimOutputDirectory)" />
+    <Exec Condition="$([MSBuild]::IsOSPlatform('OSX'))"
+          Command="cc -dynamiclib -fvisibility=hidden &quot;$(WinFormsXComCtl32ShimSource)&quot; -o &quot;$(WinFormsXComCtl32ShimBinary)&quot;" />
+    <Exec Condition="$([MSBuild]::IsOSPlatform('Linux'))"
+          Command="cc -shared -fPIC -fvisibility=hidden &quot;$(WinFormsXComCtl32ShimSource)&quot; -o &quot;$(WinFormsXComCtl32ShimBinary)&quot;" />
+    <Copy SourceFiles="$(WinFormsXComCtl32ShimBinary)" DestinationFiles="$(WinFormsXComCtl32ShimOutputDirectory)comctl32.dll" />
+    <Copy SourceFiles="$(WinFormsXComCtl32ShimBinary)" DestinationFiles="$(WinFormsXComCtl32ShimOutputDirectory)comctl32" />
+    <Copy SourceFiles="$(WinFormsXComCtl32ShimBinary)" DestinationFiles="$(WinFormsXComCtl32ShimOutputDirectory)COMCTL32.dll.dylib" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+    <Copy SourceFiles="$(WinFormsXComCtl32ShimBinary)" DestinationFiles="$(WinFormsXComCtl32ShimOutputDirectory)libCOMCTL32.dll.dylib" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+    <Copy SourceFiles="$(WinFormsXComCtl32ShimBinary)" DestinationFiles="$(WinFormsXComCtl32ShimOutputDirectory)libcomctl32.dylib" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+    <Copy SourceFiles="$(WinFormsXComCtl32ShimBinary)" DestinationFiles="$(WinFormsXComCtl32ShimOutputDirectory)libCOMCTL32.dll.so" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+    <Copy SourceFiles="$(WinFormsXComCtl32ShimBinary)" DestinationFiles="$(WinFormsXComCtl32ShimOutputDirectory)COMCTL32.dll.so" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+    <Copy SourceFiles="$(WinFormsXComCtl32ShimBinary)" DestinationFiles="$(WinFormsXComCtl32ShimOutputDirectory)libcomctl32.so" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
   </Target>
 
   <Target Name="BuildWinFormsXWinSpoolShim"

@@ -194,7 +194,10 @@ compatibility-facade coverage.
   init pass makes `InitCommonControls` / `InitCommonControlsEx` stateful:
   valid `INITCOMMONCONTROLSEX` requests record supported feature flags,
   malformed struct sizes return failure, and the Impeller control provider
-  uses the same wrapper path.
+  uses the same wrapper path. The follow-up native COMCTL32 facade pass adds
+  packaged `COMCTL32.dll` shim assets for direct source-compatible DllImports,
+  exports `InitCommonControls` / `InitCommonControlsEx`, and verifies direct
+  import resolution with focused UIIntegration coverage.
 - First UIIntegration blockers observed:
   - `OLE32.dll` missing through `Application.ThreadContext.OleRequired()`,
     clipboard, and drag/drop paths. `InputLanguage.CurrentInputLanguage`,
@@ -611,7 +614,9 @@ Impacted APIs and controls:
   remove/replace bounds, handle cleanup, and synthetic bitmap metadata are now
   covered. Some image-list native details remain fake or incomplete.
   `InitCommonControls` / `InitCommonControlsEx` now preserve deterministic
-  requested-class state for managed feature probes.
+  requested-class state for managed feature probes, and direct
+  source-compatible `COMCTL32.dll` imports for those init APIs now resolve
+  through a packaged facade.
 
 Plan:
 
@@ -620,8 +625,8 @@ Plan:
   draw composition, mask/overlay semantics, stream read/write payload fidelity,
   and native facade exports.
 - Add direct COMCTL32 facade exports only for ImageList and init APIs that are
-  common in source-compatible WinForms apps; managed init feature state is now
-  available for that facade to forward into.
+  common in source-compatible WinForms apps; init exports are covered, while
+  ImageList exports remain.
 
 ### 8. SHELL32, SHLWAPI, Stock Icons, Tray, And Shell Resources
 

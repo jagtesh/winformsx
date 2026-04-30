@@ -410,6 +410,30 @@ public class User32CompatibilityFacadeTests
     }
 
     [Fact]
+    public void DirectComCtl32DllImports_ResolveCommonControlsInit()
+    {
+        using (new EnvironmentOverride("WINFORMSX_SUPPRESS_HIDDEN_BACKEND", "1"))
+        {
+            Application.EnableVisualStyles();
+
+            NativeComCtl32.InitCommonControls();
+            Assert.Equal(0x000000FFu, NativeComCtl32.GetInitializedClasses() & 0x000000FFu);
+
+            var icc = new NativeComCtl32.INITCOMMONCONTROLSEX
+            {
+                _dwSize = (uint)Marshal.SizeOf<NativeComCtl32.INITCOMMONCONTROLSEX>(),
+                _dwICC = 0x00000001u | 0x00000002u | 0x00000100u
+            };
+
+            Assert.True(NativeComCtl32.InitCommonControlsEx(ref icc));
+            Assert.Equal(icc._dwICC, NativeComCtl32.GetInitializedClasses() & icc._dwICC);
+
+            icc._dwSize = 0;
+            Assert.False(NativeComCtl32.InitCommonControlsEx(ref icc));
+        }
+    }
+
+    [Fact]
     public void DirectWinSpoolDllImports_RouteToWinFormsXPal()
     {
         using (new EnvironmentOverride("WINFORMSX_SUPPRESS_HIDDEN_BACKEND", "1"))
@@ -715,6 +739,28 @@ public class User32CompatibilityFacadeTests
 
         [DllImport(ComDlg32, ExactSpelling = true)]
         internal static extern uint CommDlgExtendedError();
+    }
+
+    private static partial class NativeComCtl32
+    {
+        private const string ComCtl32 = "COMCTL32.dll";
+
+        [StructLayout(LayoutKind.Sequential)]
+        internal struct INITCOMMONCONTROLSEX
+        {
+            internal uint _dwSize;
+            internal uint _dwICC;
+        }
+
+        [DllImport(ComCtl32, ExactSpelling = true)]
+        internal static extern void InitCommonControls();
+
+        [DllImport(ComCtl32, ExactSpelling = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool InitCommonControlsEx(ref INITCOMMONCONTROLSEX icc);
+
+        [DllImport(ComCtl32, EntryPoint = "WinFormsXComCtl32GetInitializedClasses", ExactSpelling = true)]
+        internal static extern uint GetInitializedClasses();
     }
 
     private static partial class NativeWinSpool
