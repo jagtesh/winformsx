@@ -247,9 +247,12 @@ compatibility-facade coverage.
   `LoadRegTypeLib` failure, and safe-array default behavior; dispatch
   accessibility wrappers now tolerate absent registered type libraries and
   return dispatch failure/default results instead of failing type
-  initialization.
+  initialization. The latest GDI32 pass packages a native `GDI32.dll` facade
+  for source-compatible direct imports and routes DC creation/deletion, device
+  caps, object queries, stock/basic object handles, brush/pen creation, text
+  and background colors, and background mode through the WinFormsX GDI PAL.
   The latest broad UIIntegration snapshot is now green at
-  `Failed: 0, Passed: 256, Skipped: 1, Total: 257`.
+  `Failed: 0, Passed: 257, Skipped: 1, Total: 258`.
 - First UIIntegration blockers observed:
   - `OLE32.dll` missing through `Application.ThreadContext.OleRequired()`,
     clipboard, and drag/drop paths. `InputLanguage.CurrentInputLanguage`,

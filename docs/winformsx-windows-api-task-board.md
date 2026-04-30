@@ -975,11 +975,18 @@ Ordered by observed frequency across components and blocker blast radius:
     - `UIIntegrationTests` filter `FullyQualifiedName~ButtonTests`: `Failed: 0, Passed: 22, Skipped: 0, Total: 22`.
     - `WinformsControlsTest --control-smoke-test`: `total=42 passed=41 failed=0 skipped=1`.
 - In-progress local changes (next commit):
-  - Added PAL-backed GDI wrappers for `PInvoke.CreateSolidBrush` and `PInvoke.CreatePen` in `System.Windows.Forms.Primitives`, and removed those symbols from `NativeMethods.txt` generation so WinFormsX runs do not fall through to missing native `GDI32` imports.
-  - Fixed PropertyGrid drop-down/dialog button accessibility fragment navigation to resolve parent/sibling targets from selected-entry state on WinFormsX timing paths.
+  - Added a packaged native `GDI32.dll` facade for source-compatible direct
+    imports. First-tier exports now resolve for `CreateCompatibleDC`,
+    `DeleteDC`, `GetDeviceCaps`, `GetObject`, `GetObjectType`,
+    `GetStockObject`, `CreateSolidBrush`, `CreatePen`, `DeleteObject`,
+    `SetTextColor`, `GetTextColor`, `SetBkColor`, `GetBkColor`,
+    `SetBkMode`, and `GetBkMode`, forwarding initialized calls through
+    `PlatformApi.Gdi` with deterministic fallback defaults before
+    initialization.
   - Verification:
-    - `UIIntegrationTests` filter `FullyQualifiedName~DesignBehaviorsTests_can_DragDrop_ToolboxItem`: `Passed`.
-    - `UIIntegrationTests` filter `FullyQualifiedName~DropDownButtonAccessibleObjectTests`: `Failed: 0, Passed: 4, Skipped: 0`.
+    - `UIIntegrationTests` filter `DirectGdi32DllImports_ResolveToWinFormsXFacade`: `Passed`.
+    - Full `UIIntegrationTests`: `Failed: 0, Passed: 257, Skipped: 1, Total: 258`.
+    - `WinformsControlsTest --control-smoke-test`: `total=42 passed=41 failed=0 skipped=1`.
 
 ## Task Legend
 
@@ -1032,8 +1039,8 @@ Ordered by observed frequency across components and blocker blast radius:
 
 ## GDI / GDI+ and Resource Handles
 
-- [~] WXA-1501: Keep device-context and handle methods routed to managed drawing backend; add no-op-safe wrappers for missing legacy queries. `CreateCompatibleDC`, `DeleteDC`, `GetObject`, `GetObjectType`, and `GetStockObject` now route through the WinFormsX PAL/manual compatibility layer; broader legacy handle queries remain.
-- [~] WXA-1502: Implement `GetSystemColor`, `SetTextColor`, `SetBkColor`, `GetDeviceCaps` fallback paths for controls that query these frequently. First-tier `GetSysColor`, `GetSysColorBrush`, `GetDeviceCaps`, `GetTextColor`, `GetBkColor`, `SetTextColor`, `SetBkColor`, `GetBkMode`, and `SetBkMode` paths now avoid generated native imports and have focused wrapper coverage; broader GDI color/mode and direct native facade breadth remain.
+- [~] WXA-1501: Keep device-context and handle methods routed to managed drawing backend; add no-op-safe wrappers for missing legacy queries. `CreateCompatibleDC`, `DeleteDC`, `GetObject`, `GetObjectType`, and `GetStockObject` now route through the WinFormsX PAL/manual compatibility layer, and the native `GDI32.dll` facade resolves those same first-tier direct imports; broader legacy handle queries remain.
+- [~] WXA-1502: Implement `GetSystemColor`, `SetTextColor`, `SetBkColor`, `GetDeviceCaps` fallback paths for controls that query these frequently. First-tier `GetSysColor`, `GetSysColorBrush`, `GetDeviceCaps`, `GetTextColor`, `GetBkColor`, `SetTextColor`, `SetBkColor`, `GetBkMode`, and `SetBkMode` paths now avoid generated native imports and have focused wrapper coverage; the native `GDI32.dll` facade now covers device caps and text/background color and mode state for direct import callers. Broader GDI color/mode parity remains.
 - [~] WXA-1503: Add curated GDI+ and cursor/font fallback handling for common property surfaces. Custom file/stream cursor serialization now round-trips `CursorData`; stock and handle-only cursor payloads, real hot spots, and richer drawing behavior remain.
 - [~] WXA-1504: Add resource and image compatibility shims for icon/cursor extraction and `Bitmap` conversion (`LoadImage`, `CreateIconFromResourceEx`, `ImageList` interoperability). ImageList synthetic bitmap metadata now round-trips through `GetObject(BITMAP)`; icon/cursor extraction and real image payload conversion remain.
 

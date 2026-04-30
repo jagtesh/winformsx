@@ -844,6 +844,35 @@ public class User32CompatibilityFacadeTests
         Assert.Equal(S_OK, NativeOleAut32.SafeArrayDestroy(null));
     }
 
+    [Fact]
+    public void DirectGdi32DllImports_ResolveToWinFormsXFacade()
+    {
+        const int LOGPIXELSX = 88;
+        const int TRANSPARENT = 1;
+        const int OPAQUE = 2;
+
+        nint dc = NativeGdi32.CreateCompatibleDC(0);
+        Assert.NotEqual(0, dc);
+        Assert.Equal(96, NativeGdi32.GetDeviceCaps(dc, LOGPIXELSX));
+
+        Assert.Equal(0u, NativeGdi32.SetTextColor(dc, 0x000000AA));
+        Assert.Equal(0x000000AAu, NativeGdi32.GetTextColor(dc));
+        Assert.Equal(0x00FFFFFFu, NativeGdi32.SetBkColor(dc, 0x0000AA00));
+        Assert.Equal(0x0000AA00u, NativeGdi32.GetBkColor(dc));
+        Assert.Equal(OPAQUE, NativeGdi32.SetBkMode(dc, TRANSPARENT));
+        Assert.Equal(TRANSPARENT, NativeGdi32.GetBkMode(dc));
+
+        nint brush = NativeGdi32.CreateSolidBrush(0x0000FF00);
+        Assert.NotEqual(0, brush);
+        Assert.True(NativeGdi32.DeleteObject(brush));
+
+        nint pen = NativeGdi32.CreatePen(0, 1, 0x00FF0000);
+        Assert.NotEqual(0, pen);
+        Assert.True(NativeGdi32.DeleteObject(pen));
+
+        Assert.True(NativeGdi32.DeleteDC(dc));
+    }
+
     private sealed class EnvironmentOverride : IDisposable
     {
         private readonly string _name;
@@ -1544,5 +1573,48 @@ public class User32CompatibilityFacadeTests
             public nint data1;
             public nint data2;
         }
+    }
+
+    private static partial class NativeGdi32
+    {
+        private const string Gdi32 = "GDI32.dll";
+
+        [DllImport(Gdi32, ExactSpelling = true)]
+        internal static extern nint CreateCompatibleDC(nint hdc);
+
+        [DllImport(Gdi32, ExactSpelling = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool DeleteDC(nint hdc);
+
+        [DllImport(Gdi32, ExactSpelling = true)]
+        internal static extern int GetDeviceCaps(nint hdc, int index);
+
+        [DllImport(Gdi32, ExactSpelling = true)]
+        internal static extern uint SetTextColor(nint hdc, uint color);
+
+        [DllImport(Gdi32, ExactSpelling = true)]
+        internal static extern uint GetTextColor(nint hdc);
+
+        [DllImport(Gdi32, ExactSpelling = true)]
+        internal static extern uint SetBkColor(nint hdc, uint color);
+
+        [DllImport(Gdi32, ExactSpelling = true)]
+        internal static extern uint GetBkColor(nint hdc);
+
+        [DllImport(Gdi32, ExactSpelling = true)]
+        internal static extern int SetBkMode(nint hdc, int mode);
+
+        [DllImport(Gdi32, ExactSpelling = true)]
+        internal static extern int GetBkMode(nint hdc);
+
+        [DllImport(Gdi32, ExactSpelling = true)]
+        internal static extern nint CreateSolidBrush(uint color);
+
+        [DllImport(Gdi32, ExactSpelling = true)]
+        internal static extern nint CreatePen(int style, int width, uint color);
+
+        [DllImport(Gdi32, ExactSpelling = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool DeleteObject(nint obj);
     }
 }

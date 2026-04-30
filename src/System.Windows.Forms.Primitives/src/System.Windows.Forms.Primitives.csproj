@@ -90,6 +90,9 @@
     <WinFormsXOleAut32ShimSource>$(MSBuildProjectDirectory)/Native/OleAut32Shim/winformsx_oleaut32.c</WinFormsXOleAut32ShimSource>
     <WinFormsXOleAut32ShimOutputDirectory>$(IntermediateOutputPath)winformsx-oleaut32/</WinFormsXOleAut32ShimOutputDirectory>
     <WinFormsXOleAut32ShimBinary>$(WinFormsXOleAut32ShimOutputDirectory)OLEAUT32.dll</WinFormsXOleAut32ShimBinary>
+    <WinFormsXGdi32ShimSource>$(MSBuildProjectDirectory)/Native/Gdi32Shim/winformsx_gdi32.c</WinFormsXGdi32ShimSource>
+    <WinFormsXGdi32ShimOutputDirectory>$(IntermediateOutputPath)winformsx-gdi32/</WinFormsXGdi32ShimOutputDirectory>
+    <WinFormsXGdi32ShimBinary>$(WinFormsXGdi32ShimOutputDirectory)GDI32.dll</WinFormsXGdi32ShimBinary>
   </PropertyGroup>
 
   <ItemGroup Condition="'$(OS)' != 'Windows_NT'">
@@ -182,6 +185,15 @@
     <None Include="$(WinFormsXOleAut32ShimOutputDirectory)libOLEAUT32.dll.so" TargetPath="libOLEAUT32.dll.so" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
     <None Include="$(WinFormsXOleAut32ShimOutputDirectory)OLEAUT32.dll.so" TargetPath="OLEAUT32.dll.so" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
     <None Include="$(WinFormsXOleAut32ShimOutputDirectory)liboleaut32.so" TargetPath="liboleaut32.so" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+    <None Include="$(WinFormsXGdi32ShimOutputDirectory)GDI32.dll" TargetPath="GDI32.dll" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" />
+    <None Include="$(WinFormsXGdi32ShimOutputDirectory)gdi32.dll" TargetPath="gdi32.dll" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" />
+    <None Include="$(WinFormsXGdi32ShimOutputDirectory)gdi32" TargetPath="gdi32" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" />
+    <None Include="$(WinFormsXGdi32ShimOutputDirectory)GDI32.dll.dylib" TargetPath="GDI32.dll.dylib" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+    <None Include="$(WinFormsXGdi32ShimOutputDirectory)libGDI32.dll.dylib" TargetPath="libGDI32.dll.dylib" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+    <None Include="$(WinFormsXGdi32ShimOutputDirectory)libgdi32.dylib" TargetPath="libgdi32.dylib" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+    <None Include="$(WinFormsXGdi32ShimOutputDirectory)libGDI32.dll.so" TargetPath="libGDI32.dll.so" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+    <None Include="$(WinFormsXGdi32ShimOutputDirectory)GDI32.dll.so" TargetPath="GDI32.dll.so" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+    <None Include="$(WinFormsXGdi32ShimOutputDirectory)libgdi32.so" TargetPath="libgdi32.so" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
   </ItemGroup>
 
   <Target Name="BuildWinFormsXKernel32Shim"
@@ -381,6 +393,26 @@
     <Copy SourceFiles="$(WinFormsXOleAut32ShimBinary)" DestinationFiles="$(WinFormsXOleAut32ShimOutputDirectory)libOLEAUT32.dll.so" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
     <Copy SourceFiles="$(WinFormsXOleAut32ShimBinary)" DestinationFiles="$(WinFormsXOleAut32ShimOutputDirectory)OLEAUT32.dll.so" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
     <Copy SourceFiles="$(WinFormsXOleAut32ShimBinary)" DestinationFiles="$(WinFormsXOleAut32ShimOutputDirectory)liboleaut32.so" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+  </Target>
+
+  <Target Name="BuildWinFormsXGdi32Shim"
+          BeforeTargets="PrepareForBuild;GetCopyToOutputDirectoryItems"
+          Inputs="$(WinFormsXGdi32ShimSource)"
+          Outputs="$(WinFormsXGdi32ShimBinary)"
+          Condition="'$(OS)' != 'Windows_NT'">
+    <MakeDir Directories="$(WinFormsXGdi32ShimOutputDirectory)" />
+    <Exec Condition="$([MSBuild]::IsOSPlatform('OSX'))"
+          Command="cc -dynamiclib -fvisibility=hidden &quot;$(WinFormsXGdi32ShimSource)&quot; -o &quot;$(WinFormsXGdi32ShimBinary)&quot;" />
+    <Exec Condition="$([MSBuild]::IsOSPlatform('Linux'))"
+          Command="cc -shared -fPIC -fvisibility=hidden &quot;$(WinFormsXGdi32ShimSource)&quot; -o &quot;$(WinFormsXGdi32ShimBinary)&quot;" />
+    <Copy SourceFiles="$(WinFormsXGdi32ShimBinary)" DestinationFiles="$(WinFormsXGdi32ShimOutputDirectory)gdi32.dll" />
+    <Copy SourceFiles="$(WinFormsXGdi32ShimBinary)" DestinationFiles="$(WinFormsXGdi32ShimOutputDirectory)gdi32" />
+    <Copy SourceFiles="$(WinFormsXGdi32ShimBinary)" DestinationFiles="$(WinFormsXGdi32ShimOutputDirectory)GDI32.dll.dylib" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+    <Copy SourceFiles="$(WinFormsXGdi32ShimBinary)" DestinationFiles="$(WinFormsXGdi32ShimOutputDirectory)libGDI32.dll.dylib" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+    <Copy SourceFiles="$(WinFormsXGdi32ShimBinary)" DestinationFiles="$(WinFormsXGdi32ShimOutputDirectory)libgdi32.dylib" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+    <Copy SourceFiles="$(WinFormsXGdi32ShimBinary)" DestinationFiles="$(WinFormsXGdi32ShimOutputDirectory)libGDI32.dll.so" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+    <Copy SourceFiles="$(WinFormsXGdi32ShimBinary)" DestinationFiles="$(WinFormsXGdi32ShimOutputDirectory)GDI32.dll.so" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+    <Copy SourceFiles="$(WinFormsXGdi32ShimBinary)" DestinationFiles="$(WinFormsXGdi32ShimOutputDirectory)libgdi32.so" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
   </Target>
 
 </Project>
