@@ -705,6 +705,9 @@ Plan:
 - Continue cursor serialization/resource work by routing stock cursor payloads
   through the same central provider instead of leaving known cursors as
   metadata-only synthetic handles.
+- `ResXDataNode.ISerializable` now snapshots stable node metadata and file-ref
+  state instead of throwing, but full resource payload fidelity still depends
+  on the icon/cursor/image providers above.
 
 ### 10. RichEdit And Text Editing
 

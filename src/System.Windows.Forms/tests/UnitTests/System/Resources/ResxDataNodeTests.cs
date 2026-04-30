@@ -6,6 +6,7 @@
 using System.Collections;
 using System.ComponentModel;
 using System.Drawing;
+using System.Runtime.Serialization;
 
 namespace System.Resources.Tests;
 
@@ -21,6 +22,52 @@ public class ResxDataNodeTests
 
         Assert.Equal(nodeName, dataNode.Name);
         Assert.Same(fileRef, dataNode.FileRef);
+    }
+
+    [Fact]
+    public void ResxDataNode_ISerializableGetObjectData_StringNode_SerializesDataNodeInfo()
+    {
+        ResXDataNode dataNode = new("Node", "Value")
+        {
+            Comment = "Comment"
+        };
+
+        ISerializable serializable = dataNode;
+        SerializationInfo info = new(typeof(ResXDataNode), new FormatterConverter());
+
+        serializable.GetObjectData(info, new StreamingContext());
+
+        Assert.Equal("Node", info.GetString("Name"));
+        Assert.Equal("Comment", info.GetString("Comment"));
+        Assert.True(info.GetBoolean("HasDataNodeInfo"));
+        Assert.Equal("Node", info.GetString("DataNodeInfo.Name"));
+        Assert.Equal("Comment", info.GetString("DataNodeInfo.Comment"));
+        Assert.Equal("Value", info.GetString("DataNodeInfo.ValueData"));
+    }
+
+    [Fact]
+    public void ResxDataNode_ISerializableGetObjectData_FileRefNode_SerializesFileRefData()
+    {
+        ResXFileRef fileRef = new("file.txt", typeof(string).AssemblyQualifiedName!);
+        ResXDataNode dataNode = new("Node", fileRef);
+        ISerializable serializable = dataNode;
+        SerializationInfo info = new(typeof(ResXDataNode), new FormatterConverter());
+
+        serializable.GetObjectData(info, new StreamingContext());
+
+        Assert.Equal("file.txt", info.GetString("FileRefFullPath"));
+        Assert.Equal(typeof(string).AssemblyQualifiedName, info.GetString("FileRefType"));
+        Assert.Contains(nameof(ResXFileRef), info.GetString("DataNodeInfo.TypeName")!);
+        Assert.Equal(fileRef.ToString(), info.GetString("DataNodeInfo.ValueData"));
+    }
+
+    [Fact]
+    public void ResxDataNode_ISerializableGetObjectData_NullInfo_ThrowsArgumentNullException()
+    {
+        ResXDataNode dataNode = new("Node", "Value");
+        ISerializable serializable = dataNode;
+
+        Assert.Throws<ArgumentNullException>("si", () => serializable.GetObjectData(null!, new StreamingContext()));
     }
 
     [Fact]

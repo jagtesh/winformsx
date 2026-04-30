@@ -50,6 +50,34 @@ public sealed class ResXDataNode : ISerializable
     {
     }
 
+    private ResXDataNode(SerializationInfo info, StreamingContext context)
+    {
+        ArgumentNullException.ThrowIfNull(info);
+        _ = context;
+
+        _name = GetOptionalString(info, "Name");
+        _comment = GetOptionalString(info, "Comment");
+        _typeName = GetOptionalString(info, "TypeName");
+        _fileRefFullPath = GetOptionalString(info, "FileRefFullPath");
+        _fileRefType = GetOptionalString(info, "FileRefType");
+        _fileRefTextEncoding = GetOptionalString(info, "FileRefTextEncoding");
+
+        if (GetOptionalBoolean(info, "HasDataNodeInfo"))
+        {
+            _nodeInfo = new()
+            {
+                Name = GetOptionalString(info, "DataNodeInfo.Name") ?? _name ?? string.Empty,
+                Comment = GetOptionalString(info, "DataNodeInfo.Comment"),
+                TypeName = GetOptionalString(info, "DataNodeInfo.TypeName"),
+                MimeType = GetOptionalString(info, "DataNodeInfo.MimeType"),
+                ValueData = GetOptionalString(info, "DataNodeInfo.ValueData") ?? string.Empty,
+                ReaderPosition = new(
+                    GetOptionalInt32(info, "DataNodeInfo.ReaderPosition.X"),
+                    GetOptionalInt32(info, "DataNodeInfo.ReaderPosition.Y"))
+            };
+        }
+    }
+
     internal ResXDataNode DeepClone()
     {
         return new ResXDataNode()
@@ -632,6 +660,45 @@ public sealed class ResXDataNode : ISerializable
     /// </summary>
     public object? GetValue(AssemblyName[]? names) => GetValue(new AssemblyNamesTypeResolutionService(names));
 
+    private static string? GetOptionalString(SerializationInfo info, string name)
+    {
+        foreach (SerializationEntry entry in info)
+        {
+            if (entry.Name == name)
+            {
+                return (string?)entry.Value;
+            }
+        }
+
+        return null;
+    }
+
+    private static bool GetOptionalBoolean(SerializationInfo info, string name)
+    {
+        foreach (SerializationEntry entry in info)
+        {
+            if (entry.Name == name)
+            {
+                return entry.Value is bool value && value;
+            }
+        }
+
+        return false;
+    }
+
+    private static int GetOptionalInt32(SerializationInfo info, string name)
+    {
+        foreach (SerializationEntry entry in info)
+        {
+            if (entry.Name == name)
+            {
+                return entry.Value is int value ? value : 0;
+            }
+        }
+
+        return 0;
+    }
+
     private static byte[] FromBase64WrappedString(string text)
     {
         if (text.IndexOfAny(s_specialChars) != -1)
@@ -683,5 +750,25 @@ public sealed class ResXDataNode : ISerializable
     }
 
     void ISerializable.GetObjectData(SerializationInfo si, StreamingContext context)
-        => throw new PlatformNotSupportedException();
+    {
+        ArgumentNullException.ThrowIfNull(si);
+        _ = context;
+
+        DataNodeInfo nodeInfo = GetDataNodeInfo();
+
+        si.AddValue("Name", Name);
+        si.AddValue("Comment", Comment);
+        si.AddValue("TypeName", _typeName);
+        si.AddValue("FileRefFullPath", FileRefFullPath);
+        si.AddValue("FileRefType", FileRefType);
+        si.AddValue("FileRefTextEncoding", FileRefTextEncoding);
+        si.AddValue("HasDataNodeInfo", true);
+        si.AddValue("DataNodeInfo.Name", nodeInfo.Name);
+        si.AddValue("DataNodeInfo.Comment", nodeInfo.Comment);
+        si.AddValue("DataNodeInfo.TypeName", nodeInfo.TypeName);
+        si.AddValue("DataNodeInfo.MimeType", nodeInfo.MimeType);
+        si.AddValue("DataNodeInfo.ValueData", nodeInfo.ValueData);
+        si.AddValue("DataNodeInfo.ReaderPosition.X", nodeInfo.ReaderPosition.X);
+        si.AddValue("DataNodeInfo.ReaderPosition.Y", nodeInfo.ReaderPosition.Y);
+    }
 }
