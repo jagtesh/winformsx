@@ -46,7 +46,9 @@ compatibility-facade coverage.
   input-language pass routes WinFormsX `InputLanguage` keyboard layout
   get/list/activate calls through PAL, keeps registry layout names as an
   optional data source with managed fallback names, and adds
-  `GetKeyboardLayoutList` to the USER32 facade. Larger provider and
+  `GetKeyboardLayoutList` to the USER32 facade. The latest accessibility pass
+  removes UIA notification/event Windows guards and lets the accessibility PAL
+  listener state decide whether to raise UIA events. Larger provider and
   dialog/print gaps remain tracked below.
 - First UIIntegration blockers observed:
   - `OLE32.dll` missing through `Application.ThreadContext.OleRequired()`,
@@ -111,6 +113,10 @@ compatibility-facade coverage.
     truth. Direct USER32 facade coverage includes `GetKeyboardLayout` and
     `GetKeyboardLayoutList`, while managed `InputLanguage` calls no longer need
     generated direct USER32 imports for current/default layout enumeration.
+  - UIA event and notification paths now use `PInvoke.UiaClientsAreListening()`
+    as the single PAL-backed gate instead of checking the OS first. The current
+    Impeller provider still reports no active UIA clients, so this is a pathway
+    cleanup rather than full accessibility-provider parity.
   - Latest broad UIIntegration active slice is green:
     `191 passed, 0 failed, 1 skipped`.
   - Highest-volume remaining failures are accessibility/provider and layout
