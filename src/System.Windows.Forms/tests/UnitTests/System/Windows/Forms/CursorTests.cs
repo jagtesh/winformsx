@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Drawing;
+using System.Runtime.Serialization;
 using System.Windows.Forms.Design.Tests;
 
 namespace System.Windows.Forms.Tests;
@@ -443,6 +444,38 @@ public class CursorTests
         Graphics graphics = Graphics.FromImage(image);
         graphics.Dispose();
         Assert.Throws<ArgumentException>(() => cursor.DrawStretched(graphics, new Rectangle(Point.Empty, cursor.Size)));
+    }
+
+    [Fact]
+    public void Cursor_ISerializableGetObjectData_CustomCursor_SerializesCursorData()
+    {
+        byte[] data = File.ReadAllBytes(Path.Combine("bitmaps", "10x16_one_entry_32bit.ico"));
+        using MemoryStream stream = new(data);
+        using Cursor cursor = new(stream);
+        ISerializable serializable = cursor;
+        SerializationInfo info = new(typeof(Cursor), new FormatterConverter());
+
+        serializable.GetObjectData(info, new StreamingContext());
+
+        Assert.Equal(data, Assert.IsType<byte[]>(info.GetValue("CursorData", typeof(byte[]))));
+    }
+
+    [Fact]
+    public void Cursor_ISerializableGetObjectData_KnownCursor_ThrowsFormatException()
+    {
+        ISerializable serializable = Cursors.AppStarting;
+        SerializationInfo info = new(typeof(Cursor), new FormatterConverter());
+
+        Assert.Throws<FormatException>(() => serializable.GetObjectData(info, new StreamingContext()));
+    }
+
+    [Fact]
+    public void Cursor_ISerializableGetObjectData_NullInfo_ThrowsArgumentNullException()
+    {
+        using Cursor cursor = new(Path.Combine("bitmaps", "10x16_one_entry_32bit.ico"));
+        ISerializable serializable = cursor;
+
+        Assert.Throws<ArgumentNullException>("si", () => serializable.GetObjectData(null!, new StreamingContext()));
     }
 
     public static IEnumerable<object[]> Equals_Object_TestData()

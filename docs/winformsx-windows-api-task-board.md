@@ -960,7 +960,7 @@ Ordered by observed frequency across components and blocker blast radius:
 
 - [~] WXA-1501: Keep device-context and handle methods routed to managed drawing backend; add no-op-safe wrappers for missing legacy queries. `CreateCompatibleDC`, `DeleteDC`, `GetObject`, `GetObjectType`, and `GetStockObject` now route through the WinFormsX PAL/manual compatibility layer; broader legacy handle queries remain.
 - [~] WXA-1502: Implement `GetSystemColor`, `SetTextColor`, `SetBkColor`, `GetDeviceCaps` fallback paths for controls that query these frequently. First-tier `GetSysColor`, `GetSysColorBrush`, `GetDeviceCaps`, `GetTextColor`, `GetBkColor`, `SetTextColor`, `SetBkColor`, `GetBkMode`, and `SetBkMode` paths now avoid generated native imports and have focused wrapper coverage; broader GDI color/mode and direct native facade breadth remain.
-- [ ] WXA-1503: Add curated GDI+ and cursor/font fallback handling for common property surfaces.
+- [~] WXA-1503: Add curated GDI+ and cursor/font fallback handling for common property surfaces. Custom file/stream cursor serialization now round-trips `CursorData`; stock and handle-only cursor payloads, real hot spots, and richer drawing behavior remain.
 - [~] WXA-1504: Add resource and image compatibility shims for icon/cursor extraction and `Bitmap` conversion (`LoadImage`, `CreateIconFromResourceEx`, `ImageList` interoperability). ImageList synthetic bitmap metadata now round-trips through `GetObject(BITMAP)`; icon/cursor extraction and real image payload conversion remain.
 
 ## COMCTL32 and Common Control Helpers
@@ -970,10 +970,10 @@ Ordered by observed frequency across components and blocker blast radius:
 
 ## Shell / Resources / Icons / Cursors
 
-- [~] WXA-1701: Add stock icon and cursor provider service with canonical fallback set (`Application`, default status/error/warning/info/question, shield, folder/file, message/task dialog, scroll/dropdown arrows). SystemIcons now supplies distinct managed application/status/help/lock/folder/printer fallback icons without native resources or font-dependent drawing; the shell stock-icon wrapper shares this fallback state. Cursor, scroll/dropdown arrow, and broader shell/task-dialog icon coverage remain.
+- [~] WXA-1701: Add stock icon and cursor provider service with canonical fallback set (`Application`, default status/error/warning/info/question, shield, folder/file, message/task dialog, scroll/dropdown arrows). SystemIcons now supplies distinct managed application/status/help/lock/folder/printer fallback icons without native resources or font-dependent drawing; the shell stock-icon wrapper shares this fallback state. Custom cursor streams/files now preserve serializable payload bytes; stock cursor, scroll/dropdown arrow, and broader shell/task-dialog icon coverage remain.
 - [~] WXA-1702: Implement icon extraction/service equivalents for `ExtractAssociatedIcon`, `SHGetStockIconInfo`, shell execute placeholders. First-tier `SHGetStockIconInfo` now returns deterministic managed stock icon info; `ExtractAssociatedIcon`, shell execute, and real file-association metadata remain.
 - [ ] WXA-1703: Add and centralize required icons/cursors in WinFormsX resources; ensure `Button.ico`, `ImageInError.ico`, `PropertiesTab.ico`, `ShieldIcon.ico`, and any missing icon/cursor assets are embedded with license notices.
-- [ ] WXA-1704: Harden `.resx` load/save and `ResXDataNode` behavior for image/icon/cursor/stream payloads.
+- [~] WXA-1704: Harden `.resx` load/save and `ResXDataNode` behavior for image/icon/cursor/stream payloads. Custom cursor `ISerializable` data is now available for stream/file cursors; full `.resx` object metadata and stock cursor/icon payload fidelity remain.
 
 ## Rich Text and Text Editing
 

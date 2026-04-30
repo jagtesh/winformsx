@@ -101,6 +101,16 @@ public sealed class Cursor : IDisposable, ISerializable, IHandle<HICON>, IHandle
         _handle = CreateSyntheticCursorHandle();
     }
 
+    private Cursor(SerializationInfo info, StreamingContext context)
+    {
+        ArgumentNullException.ThrowIfNull(info);
+        _ = context;
+
+        _cursorData = (byte[]?)info.GetValue("CursorData", typeof(byte[])) ?? [];
+        _disposeHandle = true;
+        _handle = CreateSyntheticCursorHandle();
+    }
+
     /// <summary>
     ///  Gets or sets a <see cref="Rectangle"/> that represents the current clipping
     ///  rectangle for this <see cref="Cursor"/> in screen coordinates.
@@ -238,7 +248,10 @@ public sealed class Cursor : IDisposable, ISerializable, IHandle<HICON>, IHandle
 
     void ISerializable.GetObjectData(SerializationInfo si, StreamingContext context)
     {
-        throw new PlatformNotSupportedException();
+        ArgumentNullException.ThrowIfNull(si);
+        _ = context;
+
+        si.AddValue("CursorData", GetData(), typeof(byte[]));
     }
 
     /// <summary>

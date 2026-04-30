@@ -359,8 +359,12 @@ implementations.
   - `Shell_NotifyIconW` is acknowledged without tray integration.
   - `HtmlHelp` returns a null handle.
 - Cursor:
-  - `Cursor.GetObjectData` still throws `PlatformNotSupportedException`.
-  - Cursor drawing, hot spot, hide/show, and real cursor-image data are minimal.
+  - `Cursor.GetObjectData` now serializes custom file/stream cursor payloads
+    through `CursorData` instead of throwing `PlatformNotSupportedException`.
+    Stock and handle-only cursors still need a real resource/image payload
+    provider before they can round-trip bytes.
+  - Cursor drawing, hot spot, hide/show, and real stock cursor-image data are
+    minimal.
 - Printing:
   - `StandardPrintController` can now raise a basic print event flow using an
     offscreen WinFormsX graphics surface, but actual physical/file/PDF output
@@ -698,6 +702,9 @@ Plan:
 - Embed assets at build/package time with license notices.
 - Add tests that enumerate all stock cursors/icons/resources and construct each
   without touching Windows DLLs.
+- Continue cursor serialization/resource work by routing stock cursor payloads
+  through the same central provider instead of leaving known cursors as
+  metadata-only synthetic handles.
 
 ### 10. RichEdit And Text Editing
 
