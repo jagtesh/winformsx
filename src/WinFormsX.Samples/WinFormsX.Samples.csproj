@@ -27,26 +27,11 @@
   </ItemGroup>
 
   <ItemGroup Condition="'$(UseWasm)'!='true'">
-    <WinFormsXImpellerNative Include="..\..\artifacts\impeller\windows-x64\*\lib\impeller.dll" />
-    <Content Include="@(WinFormsXImpellerNative)"
-             Link="impeller.dll"
-             CopyToOutputDirectory="PreserveNewest"
-             CopyToPublishDirectory="PreserveNewest" />
-    <Content Include="@(WinFormsXImpellerNative)"
-             Link="runtimes\win-x64\native\impeller.dll"
-             CopyToOutputDirectory="PreserveNewest"
-             CopyToPublishDirectory="PreserveNewest" />
     <Content Include="..\System.Drawing.Common\src\System\Drawing\Fonts\**\*.*"
              Link="System\Drawing\Fonts\%(RecursiveDir)%(Filename)%(Extension)"
              CopyToOutputDirectory="PreserveNewest"
              CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
-
-  <Target Name="ValidateWinFormsXNativeDependencies"
-          BeforeTargets="ResolveReferences"
-          Condition="'$(UseWasm)'!='true' and '@(WinFormsXImpellerNative)'==''">
-    <Error Text="WinFormsX.Samples requires a built Impeller native binary. Expected artifacts\impeller\windows-x64\*\lib\impeller.dll under the winforms repository root." />
-  </Target>
 
   <!-- Copy wwwroot content to WASM AppBundle -->
   <ItemGroup Condition="'$(UseWasm)'=='true'">

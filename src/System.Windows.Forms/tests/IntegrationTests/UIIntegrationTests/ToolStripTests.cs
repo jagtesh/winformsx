@@ -62,27 +62,43 @@ public class ToolStripTests : ControlTestBase
 
     // Regression test for https://github.com/dotnet/winforms/issues/7884
     [UIFact]
-    public void ToolStrip_Hiding_ToolStripMenuItem_OnDropDownClosed_ShouldNotThrow()
+    public async Task ToolStrip_Hiding_ToolStripMenuItem_OnDropDownClosed_ShouldNotThrow()
     {
-        using Form form = new();
+        ToolStripMenuItem? menu1 = null;
+        ToolStripMenuItem? hiddenMenu = null;
 
-        using ToolStripMenuItem menu1 = new("Menu1");
-        using ToolStripMenuItem menu1Item1 = new("Item1");
-        menu1.DropDownItems.Add(menu1Item1);
+        await RunFormWithoutControlAsync(
+            createForm: () =>
+            {
+                Form form = new();
 
-        using ToolStripMenuItem hiddenMenu = new("hiddenMenu");
-        using ToolStripMenuItem hiddenMenuItem1 = new("hiddenMenuItem1");
-        hiddenMenu.DropDownItems.Add(hiddenMenuItem1);
-        hiddenMenu.DropDownClosed += (object? sender, EventArgs e) => { hiddenMenu.Visible = false; };
+                menu1 = new ToolStripMenuItem("Menu1");
+                ToolStripMenuItem menu1Item1 = new("Item1");
+                menu1.DropDownItems.Add(menu1Item1);
 
-        using MenuStrip menuStrip = new();
-        menuStrip.Items.Add(menu1);
-        menuStrip.Items.Add(hiddenMenu);
+                hiddenMenu = new ToolStripMenuItem("hiddenMenu");
+                ToolStripMenuItem hiddenMenuItem1 = new("hiddenMenuItem1");
+                hiddenMenu.DropDownItems.Add(hiddenMenuItem1);
+                hiddenMenu.DropDownClosed += (object? sender, EventArgs e) => { hiddenMenu.Visible = false; };
 
-        form.Controls.Add(menuStrip);
-        form.MainMenuStrip = menuStrip;
-        form.Show();
-        hiddenMenu.ShowDropDown();
-        menu1.Select();
+                MenuStrip menuStrip = new();
+                menuStrip.Items.Add(menu1);
+                menuStrip.Items.Add(hiddenMenu);
+
+                form.Controls.Add(menuStrip);
+                form.MainMenuStrip = menuStrip;
+
+                return form;
+            },
+            testDriverAsync: form =>
+            {
+                Assert.NotNull(menu1);
+                Assert.NotNull(hiddenMenu);
+
+                hiddenMenu!.ShowDropDown();
+                menu1!.Select();
+
+                return Task.CompletedTask;
+            });
     }
 }

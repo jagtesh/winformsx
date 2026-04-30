@@ -36,6 +36,33 @@
     <PackageReadmeFile>PACKAGE.md</PackageReadmeFile>
   </PropertyGroup>
 
+  <PropertyGroup>
+    <WinFormsXImpellerSdkSha Condition="'$(WinFormsXImpellerSdkSha)' == ''">3452d735bd38224ef2db85ca763d862d6326b17f</WinFormsXImpellerSdkSha>
+    <WinFormsXImpellerArtifactRoot Condition="'$(WinFormsXImpellerArtifactRoot)' == '' and '$(RepoRoot)' != ''">$(RepoRoot)artifacts/impeller</WinFormsXImpellerArtifactRoot>
+    <WinFormsXImpellerArtifactRoot Condition="'$(WinFormsXImpellerArtifactRoot)' == ''">$(MSBuildProjectDirectory)/../../../artifacts/impeller</WinFormsXImpellerArtifactRoot>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="$([MSBuild]::IsOSPlatform('OSX'))">
+    <WinFormsXImpellerNativeBinary Condition="'$(WinFormsXImpellerNativeBinary)' == '' and Exists('$(WinFormsXImpellerArtifactRoot)/darwin-arm64/$(WinFormsXImpellerSdkSha)/lib/libimpeller.dylib')">$(WinFormsXImpellerArtifactRoot)/darwin-arm64/$(WinFormsXImpellerSdkSha)/lib/libimpeller.dylib</WinFormsXImpellerNativeBinary>
+    <WinFormsXImpellerRuntimeId Condition="'$(WinFormsXImpellerRuntimeId)' == '' and Exists('$(WinFormsXImpellerArtifactRoot)/darwin-arm64/$(WinFormsXImpellerSdkSha)/lib/libimpeller.dylib')">osx-arm64</WinFormsXImpellerRuntimeId>
+    <WinFormsXImpellerNativeBinary Condition="'$(WinFormsXImpellerNativeBinary)' == '' and Exists('$(WinFormsXImpellerArtifactRoot)/darwin-x64/$(WinFormsXImpellerSdkSha)/lib/libimpeller.dylib')">$(WinFormsXImpellerArtifactRoot)/darwin-x64/$(WinFormsXImpellerSdkSha)/lib/libimpeller.dylib</WinFormsXImpellerNativeBinary>
+    <WinFormsXImpellerRuntimeId Condition="'$(WinFormsXImpellerRuntimeId)' == '' and Exists('$(WinFormsXImpellerArtifactRoot)/darwin-x64/$(WinFormsXImpellerSdkSha)/lib/libimpeller.dylib')">osx-x64</WinFormsXImpellerRuntimeId>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="$([MSBuild]::IsOSPlatform('Linux'))">
+    <WinFormsXImpellerNativeBinary Condition="'$(WinFormsXImpellerNativeBinary)' == '' and Exists('$(WinFormsXImpellerArtifactRoot)/linux-arm64/$(WinFormsXImpellerSdkSha)/lib/libimpeller.so')">$(WinFormsXImpellerArtifactRoot)/linux-arm64/$(WinFormsXImpellerSdkSha)/lib/libimpeller.so</WinFormsXImpellerNativeBinary>
+    <WinFormsXImpellerRuntimeId Condition="'$(WinFormsXImpellerRuntimeId)' == '' and Exists('$(WinFormsXImpellerArtifactRoot)/linux-arm64/$(WinFormsXImpellerSdkSha)/lib/libimpeller.so')">linux-arm64</WinFormsXImpellerRuntimeId>
+    <WinFormsXImpellerNativeBinary Condition="'$(WinFormsXImpellerNativeBinary)' == '' and Exists('$(WinFormsXImpellerArtifactRoot)/linux-x64/$(WinFormsXImpellerSdkSha)/lib/libimpeller.so')">$(WinFormsXImpellerArtifactRoot)/linux-x64/$(WinFormsXImpellerSdkSha)/lib/libimpeller.so</WinFormsXImpellerNativeBinary>
+    <WinFormsXImpellerRuntimeId Condition="'$(WinFormsXImpellerRuntimeId)' == '' and Exists('$(WinFormsXImpellerArtifactRoot)/linux-x64/$(WinFormsXImpellerSdkSha)/lib/libimpeller.so')">linux-x64</WinFormsXImpellerRuntimeId>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="$([MSBuild]::IsOSPlatform('Windows'))">
+    <WinFormsXImpellerNativeBinary Condition="'$(WinFormsXImpellerNativeBinary)' == '' and Exists('$(WinFormsXImpellerArtifactRoot)/windows-arm64/$(WinFormsXImpellerSdkSha)/lib/impeller.dll')">$(WinFormsXImpellerArtifactRoot)/windows-arm64/$(WinFormsXImpellerSdkSha)/lib/impeller.dll</WinFormsXImpellerNativeBinary>
+    <WinFormsXImpellerRuntimeId Condition="'$(WinFormsXImpellerRuntimeId)' == '' and Exists('$(WinFormsXImpellerArtifactRoot)/windows-arm64/$(WinFormsXImpellerSdkSha)/lib/impeller.dll')">win-arm64</WinFormsXImpellerRuntimeId>
+    <WinFormsXImpellerNativeBinary Condition="'$(WinFormsXImpellerNativeBinary)' == '' and Exists('$(WinFormsXImpellerArtifactRoot)/windows-x64/$(WinFormsXImpellerSdkSha)/lib/impeller.dll')">$(WinFormsXImpellerArtifactRoot)/windows-x64/$(WinFormsXImpellerSdkSha)/lib/impeller.dll</WinFormsXImpellerNativeBinary>
+    <WinFormsXImpellerRuntimeId Condition="'$(WinFormsXImpellerRuntimeId)' == '' and Exists('$(WinFormsXImpellerArtifactRoot)/windows-x64/$(WinFormsXImpellerSdkSha)/lib/impeller.dll')">win-x64</WinFormsXImpellerRuntimeId>
+  </PropertyGroup>
+
   <ItemGroup>
     <None Include="PACKAGE.md" Pack="true" PackagePath="" />
     <None Include="packaging.targets" />
@@ -78,6 +105,20 @@
     </PackageReference>
     <PackageReference Include="HarfBuzzSharp" Version="8.3.1.3" />
     <PackageReference Include="HarfBuzzSharp.NativeAssets.Win32" Version="8.3.1.3" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(WinFormsXImpellerNativeBinary)' != ''">
+    <None Include="$(WinFormsXImpellerNativeBinary)"
+          TargetPath="$([System.IO.Path]::GetFileName('$(WinFormsXImpellerNativeBinary)'))"
+          CopyToOutputDirectory="PreserveNewest"
+          CopyToPublishDirectory="PreserveNewest"
+          Visible="false" />
+    <None Include="$(WinFormsXImpellerNativeBinary)"
+          TargetPath="runtimes/$(WinFormsXImpellerRuntimeId)/native/$([System.IO.Path]::GetFileName('$(WinFormsXImpellerNativeBinary)'))"
+          CopyToOutputDirectory="PreserveNewest"
+          CopyToPublishDirectory="PreserveNewest"
+          Visible="false"
+          Condition="'$(WinFormsXImpellerRuntimeId)' != ''" />
   </ItemGroup>
 
   <ItemGroup Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net7.0'))">
