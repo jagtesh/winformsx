@@ -9,6 +9,25 @@ namespace System.Windows.Forms.Tests;
 public class ImpellerWindowInteropTests
 {
     [Theory]
+    [InlineData(200, 100, 900, 600, 200, 100)]
+    [InlineData(2000, 1300, 900, 600, 899, 599)]
+    public void ClampMousePointToLogical_TreatsSilkMousePositionAsLogicalClientCoordinates(
+        float x,
+        float y,
+        int logicalW,
+        int logicalH,
+        int expectedX,
+        int expectedY)
+    {
+        Point point = ImpellerWindowInterop.ClampMousePointToLogical(
+            new PointF(x, y),
+            logicalW,
+            logicalH);
+
+        point.Should().Be(new Point(expectedX, expectedY));
+    }
+
+    [Theory]
     [InlineData(200, 100, 900, 600, 1800, 1200, 100, 50)]
     [InlineData(200, 100, 900, 600, 900, 600, 200, 100)]
     [InlineData(2000, 1300, 900, 600, 1800, 1200, 899, 599)]

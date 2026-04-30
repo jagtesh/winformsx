@@ -355,17 +355,19 @@ public partial class TabControl : Control
     {
         get
         {
+            bool isBackendActive = Graphics.IsBackendActive;
+
             // Set the cached display rect to Rectangle.Empty whenever we do anything to change it.
-            if (!_cachedDisplayRect.IsEmpty)
+            if (!_cachedDisplayRect.IsEmpty && !isBackendActive)
             {
                 return _cachedDisplayRect;
             }
 
-            RECT rect = Bounds;
+            RECT rect = isBackendActive ? ClientRectangle : Bounds;
 
             if (!IsDisposed)
             {
-                if (Graphics.IsBackendActive)
+                if (isBackendActive)
                 {
                     // Fallback since native TCM_ADJUSTRECT won't work correctly.
                     int headerHeight = _itemSize.Height > 0 ? _itemSize.Height : 24;
@@ -417,9 +419,12 @@ public partial class TabControl : Control
 
             Rectangle r = rect;
 
-            Point p = Location;
-            r.X -= p.X;
-            r.Y -= p.Y;
+            if (!isBackendActive)
+            {
+                Point p = Location;
+                r.X -= p.X;
+                r.Y -= p.Y;
+            }
 
             _cachedDisplayRect = r;
             return r;

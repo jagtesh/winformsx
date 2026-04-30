@@ -22,11 +22,18 @@ Ordered by observed frequency across components and blocker blast radius:
   - Restored visible Impeller rendering for `WinFormsX.Samples` and the controls smoke harness by initializing GLFW's Vulkan loader with the Homebrew `vulkan-loader` entrypoint before creating the Silk/GLFW Vulkan window.
   - Hardened Impeller native asset selection so stale Windows `impeller.dll` output is removed from macOS/Linux build output and the runtime resolver loads only the platform-correct `libimpeller.dylib` / `libimpeller.so` / `impeller.dll` asset.
   - Runtime guard now reports a direct `BadImageFormatException` if only an incompatible Impeller native binary is present, instead of silently falling through to renderer failure.
+  - Fixed the next sample interaction blocker:
+    - PAL `GetWindowRect` now returns screen coordinates for virtual child handles, matching the Win32 contract that `Control.UpdateBounds` expects before mapping to parent coordinates.
+    - Direct Silk mouse events now hit-test root-client logical coordinates and only convert to screen coordinates when updating PAL cursor state.
+    - Tab clicks now use the `TabControl.SelectedIndex` path first instead of manually moving tab pages before the framework selection/layout update runs.
+    - Virtual child window coordinates now normalize `CW_USEDEFAULT`/sentinel coordinates before screen-origin math, avoiding the MDI overflow exposed by the corrected `GetWindowRect` path.
   - Verification:
     - `dotnet build src/WinFormsX.Samples/WinFormsX.Samples.csproj -v:q` -> `Build succeeded`.
+    - Live `WinFormsX.Samples` launch with trace showed selected tab content painting at positive bounds, and clicked tabs loading visible content instead of crashing during `SelectTabSafe`.
+    - `dotnet build src/System.Windows.Forms/tests/IntegrationTests/WinformsControlsTest/WinformsControlsTest.csproj -v:q` -> `Build succeeded`.
     - `dotnet artifacts/bin/WinformsControlsTest/Debug/net9.0/WinformsControlsTest.dll --control-smoke-test` -> `total=42 passed=41 failed=0 skipped=1`.
   - Current follow-up blocker:
-    - `WinFormsX.Samples` is painting again, but the selected `TabPage` can still be laid out at negative coordinates (`{X=-575,Y=-214,...}`), so catalog layout/click targeting remains the next focused renderer/control issue.
+    - The sample no longer reproduces the black-window, mis-targeted-click, or tab-content-crash symptoms. Remaining work shifts back to broader UIIntegrationTests parity and visual fidelity gaps.
 
 - Landed:
   - Fixed `Application_OpenForms_RecreateHandle` lifecycle hang in `Form` owner/taskbar-owner flow for backend mode.

@@ -172,8 +172,8 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
         int effectiveWidth = nWidth > 0 ? nWidth : 800;
         int effectiveHeight = nHeight > 0 ? nHeight : 600;
         bool isTopLevel = hWndParent == HWND.Null;
-        int effectiveX = isTopLevel ? NormalizeTopLevelWindowCoordinate(x, DefaultTopLevelWindowX) : x;
-        int effectiveY = isTopLevel ? NormalizeTopLevelWindowCoordinate(y, DefaultTopLevelWindowY) : y;
+        int effectiveX = isTopLevel ? NormalizeTopLevelWindowCoordinate(x, DefaultTopLevelWindowX) : NormalizeChildWindowCoordinate(x);
+        int effectiveY = isTopLevel ? NormalizeTopLevelWindowCoordinate(y, DefaultTopLevelWindowY) : NormalizeChildWindowCoordinate(y);
 
         // Some create paths hand us title-bar-sized bounds (e.g., 136x39) for top-level
         // forms. Clamp to a sane minimum so the render surface is usable.
@@ -497,12 +497,12 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                     {
                         using var guard = WinFormsXExecutionGuard.Enter(WinFormsXExecutionKind.Input, "MouseMove");
                         var pt = GetLogicalMousePoint(handle, m);
-                        PlatformApi.Input.SetCursorPos(pt.X, pt.Y);
+                        SetCursorPosFromRootClient(handle, pt);
                         HWND target = PlatformApi.Input.GetCapture();
                         System.Drawing.Point clientPt;
                         if (target == HWND.Null || !TryGetClientPoint(target, pt, out clientPt))
                         {
-                            target = HitTest(handle, pt, out clientPt);
+                            target = HitTestRootClient(handle, pt, out clientPt);
                         }
 
                         if (TryUpdateManagedTextBoxSelectionDrag(handle, target, clientPt))
@@ -535,7 +535,8 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                                 return;
                             }
 
-                            HWND target = HitTest(handle, pt, out var clientPt);
+                            SetCursorPosFromRootClient(handle, pt);
+                            HWND target = HitTestRootClient(handle, pt, out var clientPt);
                             Control? ctrl = Control.FromHandle(target);
                             TraceInput($"[MouseDown] button={button} pt={pt} target=0x{(nint)target:X} control={ctrl?.GetType().Name ?? "<none>"} client={clientPt}");
                             if (msg == WM_LBUTTONDOWN && _windows.TryGetValue(handle, out var mouseDownState))
@@ -643,7 +644,7 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                             System.Drawing.Point clientPt;
                             if (target == HWND.Null || !TryGetClientPoint(target, pt, out clientPt))
                             {
-                                target = HitTest(handle, pt, out clientPt);
+                                target = HitTestRootClient(handle, pt, out clientPt);
                             }
 
                             if (msg == WM_LBUTTONUP && _windows.TryGetValue(handle, out var mouseUpState))
@@ -694,7 +695,8 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                         }
 
                         var pt = GetLogicalMousePoint(handle, m);
-                        HWND target = HitTest(handle, pt, out var clientPt);
+                        SetCursorPosFromRootClient(handle, pt);
+                        HWND target = HitTestRootClient(handle, pt, out var clientPt);
                         TraceInput(
                             $"[MouseScroll] pt={pt} target=0x{(nint)target:X} delta={wheelDelta} client={clientPt}");
                         if (!TryHandleManagedMouseWheel(handle, target, wheelDelta))
@@ -866,6 +868,9 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
 
     private static int NormalizeTopLevelWindowCoordinate(int value, int fallback)
         => value is CwUseDefault or < -32000 or > 32000 ? fallback : value;
+
+    private static int NormalizeChildWindowCoordinate(int value)
+        => value is CwUseDefault or < -32000 or > 32000 ? 0 : value;
 
     /// <summary>
     /// Keep root bounds synced with the Silk window so Dock/Anchor layouts expand before painting.
@@ -1956,29 +1961,48 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
             return;
         }
 
-        // Always keep visual state correct through PAL-managed visibility.
-        for (int i = 0; i < tabControl.TabPages.Count; i++)
-        {
-            var page = tabControl.TabPages[i];
-            bool visible = i == index;
-            page.Visible = visible;
-            if (visible)
-            {
-                page.SetBounds(0, ManagedTabHeaderHeight, tabControl.Width, Math.Max(1, tabControl.Height - ManagedTabHeaderHeight));
-            }
-        }
-
-        // Try to update framework selection state, but never allow this to throw.
         try
         {
-            tabControl.SelectedIndex = index;
+            if (tabControl.SelectedIndex != index)
+            {
+                tabControl.SelectedIndex = index;
+            }
         }
         catch (Exception ex)
         {
             Console.Error.WriteLine($"[TabSelectSafe] SelectedIndex failed: {ex.Message}");
+            ApplyManagedTabSelectionFallback(tabControl, index);
         }
 
         tabControl.Invalidate();
+    }
+
+    private static void ApplyManagedTabSelectionFallback(TabControl tabControl, int index)
+    {
+        System.Drawing.Rectangle displayRectangle = tabControl.DisplayRectangle;
+
+        for (int i = 0; i < tabControl.TabPages.Count; i++)
+        {
+            TabPage page = tabControl.TabPages[i];
+            bool visible = i == index;
+            if (visible)
+            {
+                page.SuspendLayout();
+                try
+                {
+                    page.Bounds = displayRectangle;
+                    page.Visible = true;
+                }
+                finally
+                {
+                    page.ResumeLayout(false);
+                }
+            }
+            else
+            {
+                page.Visible = false;
+            }
+        }
     }
 
     private static int GetManagedTabIndexAtPoint(TabControl tabControl, System.Drawing.Point clientPoint)
@@ -3468,6 +3492,19 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
         return true;
     }
 
+    private void SetCursorPosFromRootClient(HWND rootHandle, System.Drawing.Point rootClientPoint)
+    {
+        System.Drawing.Point screenPoint = rootClientPoint;
+        if (ClientToScreen(rootHandle, ref screenPoint))
+        {
+            PlatformApi.Input.SetCursorPos(screenPoint.X, screenPoint.Y);
+        }
+        else
+        {
+            PlatformApi.Input.SetCursorPos(rootClientPoint.X, rootClientPoint.Y);
+        }
+    }
+
     private static HiDpiMode ParseHiDpiMode()
     {
         string? raw = Environment.GetEnvironmentVariable("WINFORMSX_HIDPI_MODE");
@@ -3517,26 +3554,34 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
         {
             int logicalW = state.LastLogicalWidth;
             int logicalH = state.LastLogicalHeight;
-            int framebufferW = state.LastFramebufferWidth;
-            int framebufferH = state.LastFramebufferHeight;
-
             if ((logicalW <= 0 || logicalH <= 0) && state.Width > 0 && state.Height > 0)
             {
                 logicalW = state.Width;
                 logicalH = state.Height;
             }
 
-            if ((framebufferW <= 0 || framebufferH <= 0) && state.SilkWindow is IWindow silkWindow)
-            {
-                (framebufferW, framebufferH) = ResolveFramebufferSize(silkWindow, logicalW, logicalH);
-            }
+            return ClampMousePointToLogical(new System.Drawing.PointF(x, y), logicalW, logicalH);
+        }
 
-            return ScaleMousePointToLogical(
-                new System.Drawing.PointF(x, y),
-                logicalW,
-                logicalH,
-                framebufferW,
-                framebufferH);
+        return new System.Drawing.Point((int)Math.Floor(x), (int)Math.Floor(y));
+    }
+
+    internal static System.Drawing.Point ClampMousePointToLogical(
+        System.Drawing.PointF point,
+        int logicalW,
+        int logicalH)
+    {
+        float x = point.X;
+        float y = point.Y;
+
+        if (logicalW > 0)
+        {
+            x = Math.Clamp(x, 0, logicalW - 1);
+        }
+
+        if (logicalH > 0)
+        {
+            y = Math.Clamp(y, 0, logicalH - 1);
         }
 
         return new System.Drawing.Point((int)Math.Floor(x), (int)Math.Floor(y));
@@ -3851,6 +3896,11 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                 x = NormalizeTopLevelWindowCoordinate(x, DefaultTopLevelWindowX);
                 y = NormalizeTopLevelWindowCoordinate(y, DefaultTopLevelWindowY);
             }
+            else
+            {
+                x = NormalizeChildWindowCoordinate(x);
+                y = NormalizeChildWindowCoordinate(y);
+            }
 
             s.X = x;
             s.Y = y;
@@ -3874,10 +3924,18 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
     {
         if (_windows.TryGetValue(hWnd, out var s))
         {
-            if (s.Parent == HWND.Null && !flags.HasFlag(SET_WINDOW_POS_FLAGS.SWP_NOMOVE))
+            if (!flags.HasFlag(SET_WINDOW_POS_FLAGS.SWP_NOMOVE))
             {
-                x = NormalizeTopLevelWindowCoordinate(x, DefaultTopLevelWindowX);
-                y = NormalizeTopLevelWindowCoordinate(y, DefaultTopLevelWindowY);
+                if (s.Parent == HWND.Null)
+                {
+                    x = NormalizeTopLevelWindowCoordinate(x, DefaultTopLevelWindowX);
+                    y = NormalizeTopLevelWindowCoordinate(y, DefaultTopLevelWindowY);
+                }
+                else
+                {
+                    x = NormalizeChildWindowCoordinate(x);
+                    y = NormalizeChildWindowCoordinate(y);
+                }
             }
 
             if (!flags.HasFlag(SET_WINDOW_POS_FLAGS.SWP_NOMOVE))
@@ -3930,7 +3988,17 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
     {
         if (_windows.TryGetValue(hWnd, out var s))
         {
-            rect = new RECT(s.X, s.Y, s.X + s.Width, s.Y + s.Height);
+            if (TryGetScreenOrigin(hWnd, out System.Drawing.Point origin))
+            {
+                rect = new RECT(origin.X, origin.Y, origin.X + s.Width, origin.Y + s.Height);
+                return true;
+            }
+        }
+
+        Control? control = Control.FromHandle(hWnd);
+        if (control is not null && TryGetControlScreenOrigin(control, out System.Drawing.Point controlOrigin))
+        {
+            rect = new RECT(controlOrigin.X, controlOrigin.Y, controlOrigin.X + control.Width, controlOrigin.Y + control.Height);
             return true;
         }
 
@@ -3943,6 +4011,13 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
         if (_windows.TryGetValue(hWnd, out var s))
         {
             rect = new RECT(0, 0, s.Width, s.Height);
+            return true;
+        }
+
+        Control? control = Control.FromHandle(hWnd);
+        if (control is not null)
+        {
+            rect = new RECT(0, 0, control.Width, control.Height);
             return true;
         }
 
@@ -4138,8 +4213,7 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                 continue;
             }
 
-            System.Drawing.Rectangle childRect = GetControlScreenBounds(child);
-            if (childRect.Contains(screenPoint))
+            if (TryGetControlScreenBounds(child, out System.Drawing.Rectangle childRect) && childRect.Contains(screenPoint))
             {
                 return (HWND)(nint)child.Handle;
             }
@@ -4285,6 +4359,12 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
     {
         clientPt = pt;
         ScreenToClient(root, ref clientPt);
+        return HitTestRootClient(root, clientPt, out clientPt);
+    }
+
+    private HWND HitTestRootClient(HWND root, System.Drawing.Point rootClientPoint, out System.Drawing.Point clientPt)
+    {
+        clientPt = rootClientPoint;
         HWND current = root;
 
         while (true)
@@ -4323,10 +4403,16 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
         return current;
     }
 
-    private static System.Drawing.Rectangle GetControlScreenBounds(Control control)
+    private bool TryGetControlScreenBounds(Control control, out System.Drawing.Rectangle bounds)
     {
-        System.Drawing.Point topLeft = control.PointToScreen(System.Drawing.Point.Empty);
-        return new System.Drawing.Rectangle(topLeft, control.Size);
+        if (TryGetControlScreenOrigin(control, out System.Drawing.Point topLeft))
+        {
+            bounds = new System.Drawing.Rectangle(topLeft, control.Size);
+            return true;
+        }
+
+        bounds = default;
+        return false;
     }
 
     private HWND FindTopLevelWindowAtPoint(System.Drawing.Point pt)
@@ -4411,9 +4497,8 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
         }
 
         Control? control = Control.FromHandle(hwnd);
-        if (control is not null)
+        if (control is not null && TryGetControlScreenBounds(control, out rect))
         {
-            rect = GetControlScreenBounds(control);
             return true;
         }
 
@@ -4431,27 +4516,62 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
 
         if (_windows.TryGetValue(hwnd, out ImpellerWindowState? state))
         {
-            int x = state.X;
-            int y = state.Y;
+            long x = state.Parent == HWND.Null
+                ? NormalizeTopLevelWindowCoordinate(state.X, DefaultTopLevelWindowX)
+                : NormalizeChildWindowCoordinate(state.X);
+            long y = state.Parent == HWND.Null
+                ? NormalizeTopLevelWindowCoordinate(state.Y, DefaultTopLevelWindowY)
+                : NormalizeChildWindowCoordinate(state.Y);
             HWND currentParent = state.Parent;
             while (currentParent != HWND.Null && _windows.TryGetValue(currentParent, out ImpellerWindowState? parentState))
             {
-                x += parentState.X;
-                y += parentState.Y;
+                x += parentState.Parent == HWND.Null
+                    ? NormalizeTopLevelWindowCoordinate(parentState.X, DefaultTopLevelWindowX)
+                    : NormalizeChildWindowCoordinate(parentState.X);
+                y += parentState.Parent == HWND.Null
+                    ? NormalizeTopLevelWindowCoordinate(parentState.Y, DefaultTopLevelWindowY)
+                    : NormalizeChildWindowCoordinate(parentState.Y);
                 currentParent = parentState.Parent;
             }
 
-            origin = new System.Drawing.Point(x, y);
+            origin = new System.Drawing.Point((int)Math.Clamp(x, int.MinValue, int.MaxValue), (int)Math.Clamp(y, int.MinValue, int.MaxValue));
             return true;
         }
 
         Control? control = Control.FromHandle(hwnd);
         if (control?.IsHandleCreated == true)
         {
-            origin = control.PointToScreen(System.Drawing.Point.Empty);
-            return true;
+            return TryGetControlScreenOrigin(control, out origin);
         }
 
+        return false;
+    }
+
+    private bool TryGetControlScreenOrigin(Control control, out System.Drawing.Point origin)
+    {
+        int x = 0;
+        int y = 0;
+        Control? current = control;
+
+        while (current is not null)
+        {
+            if (current.IsHandleCreated)
+            {
+                HWND handle = (HWND)(nint)current.Handle;
+                if (_windows.TryGetValue(handle, out _)
+                    && TryGetScreenOrigin(handle, out System.Drawing.Point ancestorOrigin))
+                {
+                    origin = new System.Drawing.Point(ancestorOrigin.X + x, ancestorOrigin.Y + y);
+                    return true;
+                }
+            }
+
+            x += current.Left;
+            y += current.Top;
+            current = current.Parent;
+        }
+
+        origin = default;
         return false;
     }
 
