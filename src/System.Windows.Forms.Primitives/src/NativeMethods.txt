@@ -542,9 +542,6 @@ OleCreatePictureIndirect
 OleCreatePropertyFrame
 OleCreatePropertyFrameIndirect
 OleDuplicateData
-OleFlushClipboard
-OleGetClipboard
-OleSetClipboard
 OPEN_FILENAME_FLAGS
 OPEN_FILENAME_FLAGS_EX
 OpenInputDesktop

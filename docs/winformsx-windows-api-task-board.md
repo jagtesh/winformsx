@@ -19,6 +19,16 @@ Ordered by observed frequency across components and blocker blast radius:
 ## Latest Progress (2026-04-29)
 
 - In-progress local changes (next commit):
+  - Added managed `PInvoke` OLE clipboard compatibility wrappers:
+    - `OleSetClipboard(IDataObject*)` -> deterministic `S_OK`.
+    - `OleFlushClipboard()` -> deterministic `S_OK`.
+    - `OleGetClipboard(IDataObject**)` -> deterministic `CLIPBRD_E_BAD_DATA` with null output.
+  - Removed generated direct imports for `OleSetClipboard`, `OleGetClipboard`, and `OleFlushClipboard` from `System.Windows.Forms.Primitives` `NativeMethods.txt`.
+  - Verification:
+    - `dotnet build src/System.Windows.Forms.Primitives/src/System.Windows.Forms.Primitives.csproj -c Debug -p:BuildProjectReferences=false` -> `Build succeeded`.
+    - `UIIntegrationTests` filter `FullyQualifiedName~Button_Hotkey_Fires_OnClickAsync` -> `Passed: 1, Failed: 0`.
+    - Full graph build / controls smoke remain blocked in this workspace by unrelated dirty-tree renderer and `System.Drawing.Common` changes.
+- In-progress local changes (next commit):
   - Started `WXA-1101` managed COM activation compatibility routing:
     - Added managed `CoCreateInstance` wrappers in `PInvoke` (`System.Windows.Forms.Primitives`) and `PInvokeCore` (`System.Private.Windows.Core`) that return deterministic `REGDB_E_CLASSNOTREG` and null outputs instead of binding directly to `OLE32.dll`.
     - Removed generated direct `CoCreateInstance` imports from both `NativeMethods.txt` files.
