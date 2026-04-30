@@ -245,6 +245,17 @@ Ordered by observed frequency across components and blocker blast radius:
       `Failed: 0, Passed: 191, Skipped: 1, Total: 192`;
       `WinformsControlsTest --control-smoke-test` ->
       `total=42 passed=41 failed=0 skipped=1`.
+    - `RichTextBox` now uses the managed WinFormsX fallback as its single path:
+      construction no longer probes native RichEdit DLLs, simple RTF/plain-text
+      stream in/out stays managed, text length/line/coordinate queries use
+      managed text state, and link selection/click handling no longer depends
+      on OS checks or native RichEdit selection assertions.
+    - Verification after the RichTextBox single-path cleanup:
+      focused `RichTextBoxTests|DragDropTests` ->
+      `Passed: 9, Failed: 0, Skipped: 1`; full UIIntegration ->
+      `Failed: 0, Passed: 191, Skipped: 1, Total: 192`;
+      `WinformsControlsTest --control-smoke-test` ->
+      `total=42 passed=41 failed=0 skipped=1`.
   - Priority order now moves to ListView tile accessibility, PropertyGrid
     provider breadth, RichTextBox link-range behavior, dialog/print fallbacks,
     and remaining lower-volume provider gaps.
@@ -709,7 +720,7 @@ Ordered by observed frequency across components and blocker blast radius:
 
 ## Rich Text and Text Editing
 
-- [ ] WXA-1801: Implement managed `RichTextBox`/`TextBoxBase` fallback for `MsftEdit.DLL`-less environments (selection, link detection, scrolling, RTF read/write).
+- [~] WXA-1801: Implement managed `RichTextBox`/`TextBoxBase` fallback for `MsftEdit.DLL`-less environments (selection, link detection, scrolling, RTF read/write). RichTextBox now constructs, streams simple text/RTF, maps line/character coordinates, and handles link formatting/click tests through the managed path; richer formatting and scrolling parity remain.
 - [ ] WXA-1802: Add deterministic default font/cursor/input-language interactions used by text editors.
 
 ## KERNEL32 / Process / Loader

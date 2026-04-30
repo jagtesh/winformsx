@@ -54,8 +54,11 @@ compatibility-facade coverage.
   through COM pointer marshalling for the runtime `IDataObject` view. The
   latest registry/resource pass removes the MUI-string OS guard as well:
   localized registry resource lookup now attempts the wrapped API and falls
-  back to stored registry text on the same runtime path. Larger provider and
-  dialog/print gaps remain tracked below.
+  back to stored registry text on the same runtime path. The latest rich-text
+  pass makes the managed RichTextBox fallback the single WinFormsX path for
+  construction, text length, simple RTF/text stream in/out, coordinate mapping,
+  and link selection/click handling, so it no longer attempts to load native
+  RichEdit DLLs. Larger provider and dialog/print gaps remain tracked below.
 - First UIIntegration blockers observed:
   - `OLE32.dll` missing through `Application.ThreadContext.OleRequired()`,
     `InputLanguage.CurrentInputLanguage`, IME, clipboard, and drag/drop paths.
@@ -131,6 +134,12 @@ compatibility-facade coverage.
   - Registry MUI string lookup now uses a single WinFormsX path: it attempts
     the wrapped `RegLoadMUIString` call and falls back to the plain registry
     value when the localized resource path is unavailable.
+  - RichTextBox now uses the managed fallback path everywhere in WinFormsX:
+    construction no longer attempts native RichEdit DLL loading, text length
+    and line/character coordinate queries use managed text state, stream
+    in/out uses the existing simple RTF/plain-text fallback, and link
+    formatting/click handling reads managed selection and mapping state without
+    OS checks.
   - Latest broad UIIntegration active slice is green:
     `191 passed, 0 failed, 1 skipped`.
   - Highest-volume remaining failures are accessibility/provider and layout

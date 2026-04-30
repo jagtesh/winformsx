@@ -78,6 +78,7 @@ public partial class RichTextBox : TextBoxBase
 
     private static int[]? s_shortcutsToDisable;
     private static int s_richEditMajorVersion = 3;
+    private static bool UseManagedRichTextFallback => true;
 
     private BitVector32 _richTextBoxFlags;
     private static readonly BitVector32.Section s_autoWordSelectionSection = BitVector32.CreateSection(1);
@@ -260,38 +261,8 @@ public partial class RichTextBox : TextBoxBase
             // Check for library
             if (s_moduleHandle == IntPtr.Zero)
             {
-                if (!OperatingSystem.IsWindows())
-                {
-                    s_moduleHandle = (IntPtr)0x100;
-                    s_richEditMajorVersion = 4;
-                }
-                else
-                {
-                    s_moduleHandle = PInvoke.LoadLibraryFromSystemPathIfAvailable(Libraries.RichEdit41);
-
-                    int lastWin32Error = Marshal.GetLastWin32Error();
-
-                    // This code has been here since the inception of the project,
-                    // we can't determine why we have to compare w/ 32 here.
-                    // This fails on 3-GB mode, (once the dll is loaded above 3GB memory space)
-                    if ((ulong)s_moduleHandle < 32)
-                    {
-                        throw new Win32Exception(lastWin32Error, string.Format(SR.LoadDLLError, Libraries.RichEdit41));
-                    }
-
-                    string path = PInvoke.GetModuleFileNameLongPath(new HINSTANCE(s_moduleHandle));
-                    FileVersionInfo versionInfo = FileVersionInfo.GetVersionInfo(path);
-
-                    Debug.Assert(versionInfo is not null && !string.IsNullOrEmpty(versionInfo.ProductVersion), "Couldn't get the version info for the richedit dll");
-                    if (versionInfo is not null && !string.IsNullOrEmpty(versionInfo.ProductVersion))
-                    {
-                        // Note: this only allows for one digit version
-                        if (int.TryParse(versionInfo.ProductVersion.AsSpan(0, 1), out int parsedValue))
-                        {
-                            s_richEditMajorVersion = parsedValue;
-                        }
-                    }
-                }
+                s_moduleHandle = (IntPtr)0x100;
+                s_richEditMajorVersion = 4;
             }
 
             CreateParams cp = base.CreateParams;
@@ -1330,7 +1301,7 @@ public partial class RichTextBox : TextBoxBase
                 return string.Empty;
             }
 
-            if (!OperatingSystem.IsWindows())
+            if (UseManagedRichTextFallback)
             {
                 return _textPlain ?? (_textRtf is not null ? ConvertSimpleRtfToPlainText(_textRtf) : base.Text);
             }
@@ -1399,6 +1370,11 @@ public partial class RichTextBox : TextBoxBase
     {
         get
         {
+            if (UseManagedRichTextFallback)
+            {
+                return Text.Length;
+            }
+
             GETTEXTLENGTHEX gtl = new()
             {
                 flags = GETTEXTLENGTHEX_FLAGS.GTL_NUMCHARS,
@@ -2232,7 +2208,7 @@ public partial class RichTextBox : TextBoxBase
     /// </summary>
     public override int GetCharIndexFromPosition(Point pt)
     {
-        if (!OperatingSystem.IsWindows())
+        if (UseManagedRichTextFallback)
         {
             return GetManagedCharIndexFromPosition(pt);
         }
@@ -2275,14 +2251,16 @@ public partial class RichTextBox : TextBoxBase
     ///  return 1 and not 0.
     /// </summary>
     public override int GetLineFromCharIndex(int index)
-        => (int)PInvoke.SendMessage(this, PInvoke.EM_EXLINEFROMCHAR, 0, index);
+        => UseManagedRichTextFallback
+            ? GetManagedLineFromCharIndex(index)
+            : (int)PInvoke.SendMessage(this, PInvoke.EM_EXLINEFROMCHAR, 0, index);
 
     /// <summary>
     ///  Returns the location of the character at the given index.
     /// </summary>
     public override unsafe Point GetPositionFromCharIndex(int index)
     {
-        if (!OperatingSystem.IsWindows())
+        if (UseManagedRichTextFallback)
         {
             return GetManagedPositionFromCharIndex(index);
         }
@@ -2316,6 +2294,27 @@ public partial class RichTextBox : TextBoxBase
         int x = MeasureManagedTextWidth(prefix);
         int y = lineIndex * lineHeight;
         return new Point(x, y);
+    }
+
+    private int GetManagedLineFromCharIndex(int index)
+    {
+        string text = Text;
+        if (text.Length == 0)
+        {
+            return 0;
+        }
+
+        index = Math.Clamp(index, 0, text.Length);
+        int line = 0;
+        for (int i = 0; i < index; i++)
+        {
+            if (text[i] == '\n')
+            {
+                line++;
+            }
+        }
+
+        return line;
     }
 
     private int GetManagedCharIndexFromPosition(Point pt)
@@ -2915,7 +2914,7 @@ public partial class RichTextBox : TextBoxBase
 
     private void StreamIn(string str, uint flags)
     {
-        if (!OperatingSystem.IsWindows())
+        if (UseManagedRichTextFallback)
         {
             ApplyManagedStreamIn(str, flags);
             return;
@@ -2964,7 +2963,7 @@ public partial class RichTextBox : TextBoxBase
 
     private void StreamIn(Stream data, uint flags)
     {
-        if (!OperatingSystem.IsWindows())
+        if (UseManagedRichTextFallback)
         {
             ApplyManagedStreamIn(data, flags);
             return;
@@ -3103,7 +3102,7 @@ public partial class RichTextBox : TextBoxBase
 
     private void StreamOut(Stream data, uint flags, bool includeCrLfs)
     {
-        if (!OperatingSystem.IsWindows())
+        if (UseManagedRichTextFallback)
         {
             WriteManagedStreamOut(data, flags, includeCrLfs);
             return;
@@ -3624,7 +3623,7 @@ public partial class RichTextBox : TextBoxBase
 
     private void TryRaiseManagedLinkClicked(Point clientPoint)
     {
-        if (OperatingSystem.IsWindows())
+        if (!UseManagedRichTextFallback)
         {
             return;
         }
@@ -3764,7 +3763,7 @@ public partial class RichTextBox : TextBoxBase
 
     private unsafe bool HandleManagedSetCharFormat(ref Message m)
     {
-        if (OperatingSystem.IsWindows() || m.LParamInternal == 0 || m.WParamInternal != PInvoke.SCF_SELECTION)
+        if (!UseManagedRichTextFallback || m.LParamInternal == 0 || m.WParamInternal != PInvoke.SCF_SELECTION)
         {
             return false;
         }
@@ -3775,9 +3774,15 @@ public partial class RichTextBox : TextBoxBase
             return false;
         }
 
-        int start = SelectionStart;
-        int length = SelectionLength;
-        if (start < 0 || length <= 0)
+        int rawStart = 0;
+        int rawEnd = 0;
+        PInvoke.SendMessage(this, PInvoke.EM_GETSEL, (WPARAM)(&rawStart), ref rawEnd);
+
+        int textLength = Text.Length;
+        int selectionStart = Math.Clamp(rawStart, 0, textLength);
+        int selectionEnd = Math.Clamp(rawEnd, selectionStart, textLength);
+        int selectionLength = selectionEnd - selectionStart;
+        if (selectionStart < 0 || selectionLength <= 0)
         {
             return false;
         }
@@ -3785,14 +3790,15 @@ public partial class RichTextBox : TextBoxBase
         bool linkEnabled = (charFormat->dwEffects & CFE_EFFECTS.CFE_LINK) != 0;
         if (linkEnabled)
         {
-            AddManagedLinkMapping(start, length, start, length);
+            AddManagedLinkMapping(selectionStart, selectionLength, selectionStart, selectionLength);
         }
         else
         {
-            int end = start + length;
+            int removeStart = selectionStart;
+            int removeEnd = selectionStart + selectionLength;
             _managedLinkMappings.RemoveAll(link =>
-                link.HitStart < end
-                && link.HitStart + link.HitLength > start
+                link.HitStart < removeEnd
+                && link.HitStart + link.HitLength > removeStart
                 && link.ReportStart == link.HitStart
                 && link.ReportLength == link.HitLength);
         }
@@ -4036,7 +4042,7 @@ public partial class RichTextBox : TextBoxBase
                 break;
 
             case PInvoke.WM_LBUTTONDOWN:
-                if (!OperatingSystem.IsWindows())
+                if (UseManagedRichTextFallback)
                 {
                     Point clickPoint = new(m.LParamInternal.LOWORD, m.LParamInternal.HIWORD);
                     TryRaiseManagedLinkClicked(clickPoint);
