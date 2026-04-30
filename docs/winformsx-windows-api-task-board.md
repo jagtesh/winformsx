@@ -147,8 +147,16 @@ Ordered by observed frequency across components and blocker blast radius:
       `Passed: 5, Failed: 0`, including direct WINSPOOL coverage. Full
       UIIntegration now reports
       `Failed: 0, Passed: 194, Skipped: 1, Total: 195`.
+    - Latest print-controller wrap-up:
+      private-core print memory now uses managed WinFormsX `Global*` helpers
+      instead of generated KERNEL32 imports; explicitly invalid printer names
+      remain invalid against the virtual spooler; and `StandardPrintController`
+      can raise a basic one-page print event flow with a non-null offscreen
+      `Graphics`. This intentionally stops short of real printer/file/PDF
+      output, which needs a dedicated OS/provider printing PAL rather than more
+      modal-dialog shimming.
   - Priority order moves to remaining high-impact infrastructure gaps:
-    dialog/print visible-service parity, print-controller output, then
+    dialog visible-service parity, print provider/PDF output design, then
     lower-volume accessibility/provider breadth and resource polish.
   - Active lane update: focused PropertyGrid UIIntegration coverage is now
     green: `Passed: 38, Failed: 0, Skipped: 0, Total: 38`.
@@ -779,7 +787,7 @@ Ordered by observed frequency across components and blocker blast radius:
 
 - [~] WXA-1301: Implement printer settings service without hard OS printer dependency (`PrinterSettings`, `PageSettings`). First no-printer/virtual-printer defaults are covered; richer printer profiles and full page-settings service parity remain.
 - [x] WXA-1302: Add minimal safe `winspool.drv` facade (`DocumentProperties`, `EnumPrinters`, `DeviceCapabilities`) with deterministic defaults.
-- [ ] WXA-1303: Implement fallback graphics path for `PrintDocument` and `PrintControllerWithStatusDialog` for integration tests.
+- [~] WXA-1303: Implement fallback graphics path for `PrintDocument` and `PrintControllerWithStatusDialog` for integration tests. Basic `StandardPrintController` event flow now has an offscreen graphics fallback; status dialog and real output provider work remain.
 
 ## USER32 Surface (Tiered)
 

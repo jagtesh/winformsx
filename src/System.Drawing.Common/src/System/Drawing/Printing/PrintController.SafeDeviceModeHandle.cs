@@ -33,7 +33,7 @@ public abstract partial class PrintController
         {
             if (!IsInvalid)
             {
-                PInvokeCore.GlobalFree((HGLOBAL)handle);
+                PInvokeCore.WinFormsXGlobalFree((HGLOBAL)handle);
             }
 
             handle = 0;

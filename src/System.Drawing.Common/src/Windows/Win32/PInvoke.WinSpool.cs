@@ -52,9 +52,13 @@ internal static unsafe partial class PInvoke
         PWSTR pOutput,
         DEVMODEW* pDevMode)
     {
-        _ = pDevice;
         _ = pPort;
         _ = pDevMode;
+
+        if (!IsVirtualPrinter(pDevice))
+        {
+            return -1;
+        }
 
         void* output = pOutput.Value;
         return fwCapability switch
@@ -82,8 +86,12 @@ internal static unsafe partial class PInvoke
     {
         _ = hWnd;
         _ = hPrinter;
-        _ = pDeviceName;
         _ = fMode;
+
+        if (!IsVirtualPrinter(pDeviceName))
+        {
+            return -1;
+        }
 
         if (pDevModeOutput is null)
         {
@@ -130,6 +138,16 @@ internal static unsafe partial class PInvoke
         devmode->dmColor = DEVMODE_COLOR.DMCOLOR_COLOR;
         devmode->dmDuplex = DEVMODE_DUPLEX.DMDUP_SIMPLEX;
         devmode->dmCollate = DEVMODE_COLLATE.DMCOLLATE_FALSE;
+    }
+
+    private static bool IsVirtualPrinter(char* printerName)
+    {
+        if (printerName is null || printerName[0] == '\0')
+        {
+            return true;
+        }
+
+        return VirtualPrinterName.AsSpan().Equals(new string(printerName), StringComparison.OrdinalIgnoreCase);
     }
 
     private static int WriteFixedString(void* output, int length, string value)

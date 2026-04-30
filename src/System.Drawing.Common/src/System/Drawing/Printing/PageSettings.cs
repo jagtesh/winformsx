@@ -42,7 +42,7 @@ public unsafe class PageSettings : ICloneable
             HGLOBAL modeHandle = (HGLOBAL)_printerSettings.GetHdevmode();
             Rectangle pageBounds = GetBounds(modeHandle);
 
-            PInvokeCore.GlobalFree(modeHandle);
+            PInvokeCore.WinFormsXGlobalFree(modeHandle);
             return pageBounds;
         }
     }
@@ -122,12 +122,12 @@ public unsafe class PageSettings : ICloneable
             }
 
             HGLOBAL modeHandle = (HGLOBAL)_printerSettings.GetHdevmode();
-            DEVMODEW* devmode = (DEVMODEW*)PInvokeCore.GlobalLock(modeHandle);
+            DEVMODEW* devmode = (DEVMODEW*)PInvokeCore.WinFormsXGlobalLock(modeHandle);
 
             PaperSource result = PaperSourceFromMode(devmode);
 
-            PInvokeCore.GlobalUnlock(modeHandle);
-            PInvokeCore.GlobalFree(modeHandle);
+            PInvokeCore.WinFormsXGlobalUnlock(modeHandle);
+            PInvokeCore.WinFormsXGlobalFree(modeHandle);
 
             return result;
         }
@@ -159,11 +159,11 @@ public unsafe class PageSettings : ICloneable
             }
 
             HGLOBAL modeHandle = (HGLOBAL)_printerSettings.GetHdevmode();
-            DEVMODEW* devmode = (DEVMODEW*)PInvokeCore.GlobalLock(modeHandle);
+            DEVMODEW* devmode = (DEVMODEW*)PInvokeCore.WinFormsXGlobalLock(modeHandle);
             PrinterResolution result = PrinterResolutionFromMode(devmode);
 
-            PInvokeCore.GlobalUnlock(modeHandle);
-            PInvokeCore.GlobalFree(modeHandle);
+            PInvokeCore.WinFormsXGlobalUnlock(modeHandle);
+            PInvokeCore.WinFormsXGlobalFree(modeHandle);
 
             return result;
         }
@@ -199,7 +199,7 @@ public unsafe class PageSettings : ICloneable
             throw new ArgumentNullException(nameof(hdevmode));
         }
 
-        DEVMODEW* devmode = (DEVMODEW*)PInvokeCore.GlobalLock((HGLOBAL)hdevmode);
+        DEVMODEW* devmode = (DEVMODEW*)PInvokeCore.WinFormsXGlobalLock((HGLOBAL)hdevmode);
 
         if (_color.IsNotDefault && devmode->dmFields.HasFlag(DEVMODE_FIELD_FLAGS.DM_COLOR))
         {
@@ -302,12 +302,12 @@ public unsafe class PageSettings : ICloneable
 
                 if (result < 0)
                 {
-                    PInvokeCore.GlobalFree((HGLOBAL)hdevmode);
+                    PInvokeCore.WinFormsXGlobalFree((HGLOBAL)hdevmode);
                 }
             }
         }
 
-        PInvokeCore.GlobalUnlock((HGLOBAL)hdevmode);
+        PInvokeCore.WinFormsXGlobalUnlock((HGLOBAL)hdevmode);
     }
 
     private short ExtraBytes
@@ -315,12 +315,12 @@ public unsafe class PageSettings : ICloneable
         get
         {
             HGLOBAL modeHandle = _printerSettings.GetHdevmodeInternal();
-            DEVMODEW* devmode = (DEVMODEW*)PInvokeCore.GlobalLock(modeHandle);
+            DEVMODEW* devmode = (DEVMODEW*)PInvokeCore.WinFormsXGlobalLock(modeHandle);
 
             short result = devmode is null ? default : (short)devmode->dmDriverExtra;
 
-            PInvokeCore.GlobalUnlock(modeHandle);
-            PInvokeCore.GlobalFree(modeHandle);
+            PInvokeCore.WinFormsXGlobalUnlock(modeHandle);
+            PInvokeCore.WinFormsXGlobalFree(modeHandle);
 
             return result;
         }
@@ -352,15 +352,15 @@ public unsafe class PageSettings : ICloneable
             ownHandle = true;
         }
 
-        DEVMODEW* devmode = (DEVMODEW*)PInvokeCore.GlobalLock(modeHandle);
+        DEVMODEW* devmode = (DEVMODEW*)PInvokeCore.WinFormsXGlobalLock(modeHandle);
 
         PaperSize result = PaperSizeFromMode(devmode);
 
-        PInvokeCore.GlobalUnlock(modeHandle);
+        PInvokeCore.WinFormsXGlobalUnlock(modeHandle);
 
         if (ownHandle)
         {
-            PInvokeCore.GlobalFree(modeHandle);
+            PInvokeCore.WinFormsXGlobalFree(modeHandle);
         }
 
         return result;
@@ -446,7 +446,7 @@ public unsafe class PageSettings : ICloneable
             throw new ArgumentException(SR.Format(SR.InvalidPrinterHandle, hdevmode));
         }
 
-        DEVMODEW* devmode = (DEVMODEW*)PInvokeCore.GlobalLock((HGLOBAL)hdevmode);
+        DEVMODEW* devmode = (DEVMODEW*)PInvokeCore.WinFormsXGlobalLock((HGLOBAL)hdevmode);
 
         if (devmode->dmFields.HasFlag(DEVMODE_FIELD_FLAGS.DM_COLOR))
         {
@@ -462,7 +462,7 @@ public unsafe class PageSettings : ICloneable
         _paperSource = PaperSourceFromMode(devmode);
         _printerResolution = PrinterResolutionFromMode(devmode);
 
-        PInvokeCore.GlobalUnlock((HGLOBAL)hdevmode);
+        PInvokeCore.WinFormsXGlobalUnlock((HGLOBAL)hdevmode);
     }
 
     public override string ToString() =>

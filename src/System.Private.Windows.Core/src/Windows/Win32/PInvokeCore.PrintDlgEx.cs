@@ -38,7 +38,7 @@ internal static partial class PInvokeCore
             + VirtualPrinterPort.Length + 1
             + 1);
 
-        HGLOBAL handle = GlobalAlloc(
+        HGLOBAL handle = WinFormsXGlobalAlloc(
             GLOBAL_ALLOC_FLAGS.GMEM_MOVEABLE | GLOBAL_ALLOC_FLAGS.GMEM_ZEROINIT,
             (uint)(sizeof(char) * sizeInChars));
         if (handle.IsNull)
@@ -46,10 +46,10 @@ internal static partial class PInvokeCore
             return HGLOBAL.Null;
         }
 
-        DEVNAMES* devnames = (DEVNAMES*)GlobalLock(handle);
+        DEVNAMES* devnames = (DEVNAMES*)WinFormsXGlobalLock(handle);
         if (devnames is null)
         {
-            GlobalFree(handle);
+            WinFormsXGlobalFree(handle);
             return HGLOBAL.Null;
         }
 
@@ -68,7 +68,7 @@ internal static partial class PInvokeCore
         offsetInChars += VirtualPrinterPort.Length + 1;
 
         devnames->wDefault = checked((ushort)offsetInChars);
-        GlobalUnlock(handle);
+        WinFormsXGlobalUnlock(handle);
         return handle;
     }
 }

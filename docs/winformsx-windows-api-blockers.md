@@ -101,7 +101,11 @@ compatibility-facade coverage.
   no-printer defaults for `EnumPrinters`, `DeviceCapabilities`, and
   `DocumentProperties`, seeds `PrintDlgEx(PD_RETURNDEFAULT)` with a WinFormsX
   virtual printer, and adds a native `winspool.drv` compatibility facade for
-  source-compatible direct DllImports.
+  source-compatible direct DllImports. The latest print-controller pass removes
+  generated KERNEL32 `Global*` imports from private-core print memory handling,
+  keeps explicitly invalid printer names invalid, and lets
+  `StandardPrintController` raise a basic one-page print event flow using an
+  offscreen WinFormsX graphics surface.
 - First UIIntegration blockers observed:
   - `OLE32.dll` missing through `Application.ThreadContext.OleRequired()`,
     clipboard, and drag/drop paths. `InputLanguage.CurrentInputLanguage`,
@@ -248,7 +252,9 @@ implementations.
   - `Cursor.GetObjectData` still throws `PlatformNotSupportedException`.
   - Cursor drawing, hot spot, hide/show, and real cursor-image data are minimal.
 - Printing:
-  - `DefaultPrintController` throws because physical printing has no PAL yet.
+  - `StandardPrintController` can now raise a basic print event flow using an
+    offscreen WinFormsX graphics surface, but actual physical/file/PDF output
+    still has no PAL-backed provider.
   - `PrinterSettings` can now query deterministic no-printer/virtual-printer
     defaults without requiring host spooler APIs, but real printer enumeration,
     printer-specific DEVMODE state, and actual print output remain incomplete.
@@ -340,6 +346,10 @@ Plan:
 - Keep extending `PrinterSettings` and `PageSettings` without requiring a host
   spooler. The first deterministic default path is in place; richer physical or
   virtual printer profiles still need a PAL service.
+- Keep `PrintDocument` source-compatible for normal event-driven printing even
+  before physical output is implemented: the first `StandardPrintController`
+  fallback creates an offscreen graphics surface and raises BeginPrint,
+  PrintPage, and EndPrint deterministically.
 - Keep the `winspool.drv` facade narrow: only expose PAL-backed calls with
   tested deterministic behavior.
 - Keep real platform print-provider work separate from the first no-printer pass.
@@ -664,8 +674,10 @@ cases were previously blockers and should remain regression targets:
   first-tier `COMDLG32.dll` safe-cancel facade is covered; save/color/font/
   message/task/page-setup visible-service parity still needs coverage.
 - [~] Print baseline: focused `PrintDialog` tests are green; no-printer
-  `PrinterSettings` and direct `winspool.drv` defaults are covered.
-  `PageSetupDialog`, print-preview, and print-controller output remain.
+  `PrinterSettings`, direct `winspool.drv` defaults, private-core print
+  `Global*` memory, invalid-printer validation, and basic
+  `StandardPrintController` event flow are covered. `PageSetupDialog`,
+  print-preview, status dialog, and real print/file/PDF output remain.
 - [ ] USER32 tier expansion: geometry/menu/message APIs used by UI tests.
 - [ ] KERNEL32 tier expansion: minimal module/resource and last-error semantics.
 - [ ] COMCTL32/ImageList tier: image list ops required by ListView/TreeView tests.

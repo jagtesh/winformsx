@@ -8,13 +8,15 @@ namespace System.Drawing.Printing;
 /// </summary>
 public class StandardPrintController : PrintController
 {
+    private Bitmap? _pageImage;
+    private Graphics? _pageGraphics;
+
     /// <summary>
     ///  Implements StartPrint for printing to a physical printer.
     /// </summary>
     public override void OnStartPrint(PrintDocument document, PrintEventArgs e)
     {
         base.OnStartPrint(document, e);
-        throw new PlatformNotSupportedException("Physical printing requires a WinFormsX printing PAL implementation.");
     }
 
     /// <summary>
@@ -22,7 +24,15 @@ public class StandardPrintController : PrintController
     /// </summary>
     public override Graphics OnStartPage(PrintDocument document, PrintPageEventArgs e)
     {
-        throw new PlatformNotSupportedException("Physical printing requires a WinFormsX printing PAL implementation.");
+        DisposeCurrentPage();
+
+        Rectangle pageBounds = e.PageBounds;
+        int width = Math.Max(1, pageBounds.Width);
+        int height = Math.Max(1, pageBounds.Height);
+
+        _pageImage = new Bitmap(width, height);
+        _pageGraphics = Graphics.FromImage(_pageImage);
+        return _pageGraphics;
     }
 
     /// <summary>
@@ -31,6 +41,7 @@ public class StandardPrintController : PrintController
     public override void OnEndPage(PrintDocument document, PrintPageEventArgs e)
     {
         base.OnEndPage(document, e);
+        DisposeCurrentPage();
     }
 
     /// <summary>
@@ -38,6 +49,16 @@ public class StandardPrintController : PrintController
     /// </summary>
     public override void OnEndPrint(PrintDocument document, PrintEventArgs e)
     {
+        DisposeCurrentPage();
         base.OnEndPrint(document, e);
+    }
+
+    private void DisposeCurrentPage()
+    {
+        _pageGraphics?.Dispose();
+        _pageGraphics = null;
+
+        _pageImage?.Dispose();
+        _pageImage = null;
     }
 }

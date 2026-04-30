@@ -93,12 +93,7 @@ GetSystemDefaultLCID
 GetThreadLocale
 GetViewportExtEx
 GetViewportOrgEx
-GlobalAlloc
-GlobalFree
-GlobalLock
-GlobalReAlloc
-GlobalSize
-GlobalUnlock
+GLOBAL_ALLOC_FLAGS
 GpBitmap
 GpGraphics
 GpImage

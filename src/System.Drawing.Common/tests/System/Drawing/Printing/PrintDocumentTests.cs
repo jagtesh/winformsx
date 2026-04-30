@@ -185,6 +185,31 @@ public class PrintDocumentTests : FileCleanupTestBase
         Assert.True(endPrintCalled);
     }
 
+    [Fact]
+    public void Print_DefaultPrintController_VirtualPrinter_RaisesPrintEvents()
+    {
+        bool beginPrintCalled = false;
+        bool printPageCalled = false;
+        bool endPrintCalled = false;
+
+        using PrintDocument document = new();
+        document.BeginPrint += (sender, e) => beginPrintCalled = true;
+        document.PrintPage += (sender, e) =>
+        {
+            printPageCalled = true;
+            Assert.NotNull(e.Graphics);
+            Assert.True(e.PageBounds.Width > 0);
+            Assert.True(e.PageBounds.Height > 0);
+        };
+        document.EndPrint += (sender, e) => endPrintCalled = true;
+
+        document.Print();
+
+        Assert.True(beginPrintCalled);
+        Assert.True(printPageCalled);
+        Assert.True(endPrintCalled);
+    }
+
     [ConditionalFact(Helpers.AnyInstalledPrinters)]
     public void PrintPage_SetValue_ReturnsExpected()
     {
