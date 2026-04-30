@@ -705,6 +705,11 @@ Plan:
   dialog icons, and shell item metadata.
 - Prefer existing repo assets first, including `Button.ico`, `ImageInError.ico`,
   `PropertiesTab.ico`, `ShieldIcon.ico`, and test BMP/PNG resources.
+- Current asset inventory confirms those required icons and the bundled
+  WinForms cursor set already live under repo resources, are embedded by the
+  existing project globs, and are covered by `EmbeddedResourceTests` /
+  `SystemIconsTests`; no downloaded third-party assets or new notices are
+  required for the first pass.
 - Add only permissively licensed assets when absent: MIT, Apache-2.0, BSD, OFL,
   or CC0-compatible. No runtime downloads.
 - Keep tray integration as a later platform-provider feature; v1 can preserve
