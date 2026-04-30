@@ -526,6 +526,14 @@ public class User32CompatibilityFacadeTests
                     new string(managedPathPointer, 0, (int)managedLength),
                     new string(nativePathPointer, 0, (int)nativeLength));
             }
+
+            PInvoke.SetLastError(0);
+            NativeKernel32.SetLastError(0x2Au);
+            Assert.Equal(0x2Au, NativeKernel32.GetLastError());
+            Assert.Equal(0x2Au, PInvoke.GetLastError());
+
+            PInvoke.SetLastError(0x33u);
+            Assert.Equal(0x33u, NativeKernel32.GetLastError());
         }
     }
 
@@ -945,5 +953,11 @@ public class User32CompatibilityFacadeTests
 
         [DllImport(Kernel32, EntryPoint = "GetModuleFileNameW", ExactSpelling = true)]
         internal static extern uint GetModuleFileName(nint hModule, char* lpFilename, uint nSize);
+
+        [DllImport(Kernel32, ExactSpelling = true)]
+        internal static extern uint GetLastError();
+
+        [DllImport(Kernel32, ExactSpelling = true)]
+        internal static extern void SetLastError(uint dwErrCode);
     }
 }

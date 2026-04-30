@@ -24,9 +24,12 @@ typedef struct WinFormsXKernel32Dispatch
     DWORD (*get_current_thread_id)(void);
     void* (*get_module_handle)(const WCHAR* module_name);
     DWORD (*get_module_file_name)(void* module, WCHAR* filename, DWORD size);
+    DWORD (*get_last_error)(void);
+    void (*set_last_error)(DWORD error);
 } WinFormsXKernel32Dispatch;
 
 static WinFormsXKernel32Dispatch g_dispatch;
+static DWORD g_last_error;
 
 static DWORD copy_ascii_path(char* buffer, DWORD size)
 {
@@ -147,4 +150,23 @@ WF_EXPORT DWORD GetModuleFileNameA(void* module, char* filename, DWORD size)
 WF_EXPORT DWORD GetModuleFileName(void* module, WCHAR* filename, DWORD size)
 {
     return GetModuleFileNameW(module, filename, size);
+}
+
+WF_EXPORT DWORD GetLastError(void)
+{
+    if (g_dispatch.get_last_error != 0)
+    {
+        return g_dispatch.get_last_error();
+    }
+
+    return g_last_error;
+}
+
+WF_EXPORT void SetLastError(DWORD error)
+{
+    g_last_error = error;
+    if (g_dispatch.set_last_error != 0)
+    {
+        g_dispatch.set_last_error(error);
+    }
 }

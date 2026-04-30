@@ -83,6 +83,10 @@ Ordered by observed frequency across components and blocker blast radius:
       `GetModuleFileNameW/A`. The managed WinFormsX wrapper path also now
       routes `GetModuleFileName` through `PlatformApi.System`, so internal
       callers and direct imports share the same process/module state.
+    - KERNEL32 last-error state now belongs to the system PAL as well:
+      managed `PInvoke.GetLastError` / `SetLastError` and direct
+      `KERNEL32.dll` `GetLastError` / `SetLastError` imports use the same
+      thread-local WinFormsX state.
     - UIIntegration test setup/teardown now closes leftover open forms before
       each test boundary, keeping `Application.OpenForms` deterministic in the
       shared-process suite.
@@ -930,7 +934,7 @@ Ordered by observed frequency across components and blocker blast radius:
 
 ## KERNEL32 Surface
 
-- [~] WXA-1100: Add KERNEL32 compatibility for process/thread/module/memory primitives used by WinForms (`GetModuleHandle`, `LoadLibrary`, `FreeLibrary`, `GetProcAddress`, `GetCurrentProcessId`, `GetCurrentThreadId`, `GetCurrentThread`, `Global*/Local*`, `GetLastError`, `SetLastError`). Managed wrappers cover the current process/thread/module-handle loader subset; a direct `KERNEL32.dll` facade now covers `GetCurrentProcess`, `GetCurrentProcessId`, `GetCurrentThreadId`, `GetModuleHandleW/A`, and `GetModuleFileNameW/A`. Memory, resource, activation-context, and last-error breadth remain.
+- [~] WXA-1100: Add KERNEL32 compatibility for process/thread/module/memory primitives used by WinForms (`GetModuleHandle`, `LoadLibrary`, `FreeLibrary`, `GetProcAddress`, `GetCurrentProcessId`, `GetCurrentThreadId`, `GetCurrentThread`, `Global*/Local*`, `GetLastError`, `SetLastError`). Managed wrappers cover the current process/thread/module-handle loader subset; a direct `KERNEL32.dll` facade now covers `GetCurrentProcess`, `GetCurrentProcessId`, `GetCurrentThreadId`, `GetModuleHandleW/A`, `GetModuleFileNameW/A`, `GetLastError`, and `SetLastError`. Memory, resource, and activation-context breadth remain.
 
 ## OLE, COM, Clipboard, IME, Drag/Drop
 
@@ -990,7 +994,7 @@ Ordered by observed frequency across components and blocker blast radius:
 ## KERNEL32 / Process / Loader
 
 - [~] WXA-1304: Implement process/module query compatibility stubs where PAL cannot supply native handles (`GetModuleFileName`, `GetWindowThreadProcessId`, `GetCurrentProcess`, activation context basics). `GetModuleFileName`, `GetCurrentProcess`, process/thread ids, and direct source-compatible KERNEL32 module-handle imports are covered; activation context basics remain.
-- [~] WXA-1305: Implement error reporting compatibility (`GetLastError`/`SetLastError`) for direct-PInvoke consumers.
+- [x] WXA-1305: Implement error reporting compatibility (`GetLastError`/`SetLastError`) for direct-PInvoke consumers. Managed wrappers and the direct `KERNEL32.dll` facade now share PAL-backed thread-local state.
 
 ## Accessibility / UI Automation
 

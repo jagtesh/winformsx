@@ -40,6 +40,8 @@ internal static unsafe class WinFormsXKernel32Shim
             GetCurrentThreadId = &GetCurrentThreadId,
             GetModuleHandle = &GetModuleHandle,
             GetModuleFileName = &GetModuleFileName,
+            GetLastError = &GetLastError,
+            SetLastError = &SetLastError,
         };
 
         delegate* unmanaged<DispatchTable*, int> register = (delegate* unmanaged<DispatchTable*, int>)registerExport;
@@ -144,6 +146,31 @@ internal static unsafe class WinFormsXKernel32Shim
         }
     }
 
+    [UnmanagedCallersOnly]
+    private static uint GetLastError()
+    {
+        try
+        {
+            return PlatformApi.System.GetLastError();
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    [UnmanagedCallersOnly]
+    private static void SetLastError(uint error)
+    {
+        try
+        {
+            PlatformApi.System.SetLastError(error);
+        }
+        catch
+        {
+        }
+    }
+
     private struct DispatchTable
     {
         public uint Version;
@@ -153,5 +180,7 @@ internal static unsafe class WinFormsXKernel32Shim
         public delegate* unmanaged<uint> GetCurrentThreadId;
         public delegate* unmanaged<char*, nint> GetModuleHandle;
         public delegate* unmanaged<nint, char*, uint, uint> GetModuleFileName;
+        public delegate* unmanaged<uint> GetLastError;
+        public delegate* unmanaged<uint, void> SetLastError;
     }
 }

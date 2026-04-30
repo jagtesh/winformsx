@@ -205,7 +205,9 @@ compatibility-facade coverage.
   the managed path, adds PAL-backed module-file-name state, and packages a
   source-compatible `KERNEL32.dll` facade for `GetCurrentProcess`,
   `GetCurrentProcessId`, `GetCurrentThreadId`, `GetModuleHandleW/A`, and
-  `GetModuleFileNameW/A`.
+  `GetModuleFileNameW/A`. The follow-up last-error pass moves managed
+  `GetLastError` / `SetLastError` to the system PAL and forwards direct
+  KERNEL32 imports through the same thread-local WinFormsX state.
 - First UIIntegration blockers observed:
   - `OLE32.dll` missing through `Application.ThreadContext.OleRequired()`,
     clipboard, and drag/drop paths. `InputLanguage.CurrentInputLanguage`,
@@ -570,8 +572,8 @@ Impacted APIs and areas:
 
 Plan:
 
-- Implement memory handles and last-error propagation consistently for all native
-  compatibility facades.
+- Keep memory handles and resource lookup deterministic, with PAL owning any
+  shared state that native compatibility facades expose.
 - Keep the first-tier `KERNEL32.dll` facade limited to ABI-simple process,
   thread, and module-path APIs until tests justify broader loader/resource
   semantics.
@@ -868,8 +870,8 @@ cases were previously blockers and should remain regression targets:
   dialog UI and real print/file/PDF output remain.
 - [ ] USER32 tier expansion: geometry/menu/message APIs used by UI tests.
 - [~] KERNEL32 tier expansion: process/thread/module-path facade is covered;
-  module resources, activation context, loader edge cases, and last-error
-  propagation remain.
+  direct last-error state is covered; module resources, activation context, and
+  loader edge cases remain.
 - [ ] COMCTL32/ImageList tier: image list ops required by ListView/TreeView tests.
 - [~] Shell/resources tier: stock icons/cursors/resource resolver centralization.
 - [ ] RichText tier: drag/drop + link/range compatibility follow-ups.

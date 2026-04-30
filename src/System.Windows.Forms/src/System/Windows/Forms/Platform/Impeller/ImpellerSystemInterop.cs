@@ -14,6 +14,9 @@ internal sealed unsafe class ImpellerSystemInterop : ISystemInterop
     private const int DefaultWorkAreaWidth = 1920;
     private const int DefaultWorkAreaHeight = 1080;
 
+    [ThreadStatic]
+    private static uint s_lastError;
+
     private long _nextTimerId = 1;
     private readonly Dictionary<nint, System.Threading.Timer> _timers = [];
     private readonly Dictionary<string, uint> _clipboardFormats = new(StringComparer.OrdinalIgnoreCase);
@@ -581,6 +584,10 @@ internal sealed unsafe class ImpellerSystemInterop : ISystemInterop
         processId = (uint)Environment.ProcessId;
         return (uint)Environment.CurrentManagedThreadId;
     }
+
+    public uint GetLastError() => s_lastError;
+
+    public void SetLastError(uint dwErrCode) => s_lastError = dwErrCode;
 
     // --- Clipboard ------------------------------------------------------
 

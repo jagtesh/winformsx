@@ -51,6 +51,8 @@ internal unsafe interface ISystemInterop
     uint GetCurrentThreadId();
     uint GetCurrentProcessId();
     uint GetWindowThreadProcessId(HWND hWnd, out uint lpdwProcessId);
+    uint GetLastError();
+    void SetLastError(uint dwErrCode);
 
     // ─── Clipboard ──────────────────────────────────────────────────────
 
