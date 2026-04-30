@@ -868,8 +868,37 @@ public class User32CompatibilityFacadeTests
         Assert.Equal(S_OK, NativeOleAut32.VariantClear(&variant));
         Assert.Equal(0, variant.vt);
 
-        Assert.Equal(0, (nint)NativeOleAut32.SafeArrayCreate(0, 1, null));
         Assert.Equal(S_OK, NativeOleAut32.SafeArrayDestroy(null));
+
+        NativeOleAut32.SAFEARRAYBOUND bound = new()
+        {
+            cElements = 3,
+            lLbound = 2
+        };
+        void* safeArray = NativeOleAut32.SafeArrayCreate(3, 1, &bound);
+        Assert.NotEqual(0, (nint)safeArray);
+        Assert.Equal(1u, NativeOleAut32.SafeArrayGetDim(safeArray));
+
+        int lowerBound;
+        int upperBound;
+        Assert.Equal(S_OK, NativeOleAut32.SafeArrayGetLBound(safeArray, 1, &lowerBound));
+        Assert.Equal(S_OK, NativeOleAut32.SafeArrayGetUBound(safeArray, 1, &upperBound));
+        Assert.Equal(2, lowerBound);
+        Assert.Equal(4, upperBound);
+
+        int index = 3;
+        int value = 42;
+        Assert.Equal(S_OK, NativeOleAut32.SafeArrayPutElement(safeArray, &index, &value));
+
+        int actualValue = 0;
+        Assert.Equal(S_OK, NativeOleAut32.SafeArrayGetElement(safeArray, &index, &actualValue));
+        Assert.Equal(value, actualValue);
+
+        void* data;
+        Assert.Equal(S_OK, NativeOleAut32.SafeArrayAccessData(safeArray, &data));
+        Assert.NotEqual(0, (nint)data);
+        Assert.Equal(S_OK, NativeOleAut32.SafeArrayUnaccessData(safeArray));
+        Assert.Equal(S_OK, NativeOleAut32.SafeArrayDestroy(safeArray));
     }
 
     [Fact]
@@ -1733,6 +1762,33 @@ public class User32CompatibilityFacadeTests
 
         [DllImport(OleAut32, ExactSpelling = true)]
         internal static extern int SafeArrayDestroy(void* array);
+
+        [DllImport(OleAut32, ExactSpelling = true)]
+        internal static extern uint SafeArrayGetDim(void* array);
+
+        [DllImport(OleAut32, ExactSpelling = true)]
+        internal static extern int SafeArrayGetLBound(void* array, uint dimension, int* lowerBound);
+
+        [DllImport(OleAut32, ExactSpelling = true)]
+        internal static extern int SafeArrayGetUBound(void* array, uint dimension, int* upperBound);
+
+        [DllImport(OleAut32, ExactSpelling = true)]
+        internal static extern int SafeArrayAccessData(void* array, void** data);
+
+        [DllImport(OleAut32, ExactSpelling = true)]
+        internal static extern int SafeArrayUnaccessData(void* array);
+
+        [DllImport(OleAut32, ExactSpelling = true)]
+        internal static extern int SafeArrayPutElement(void* array, int* indices, void* value);
+
+        [DllImport(OleAut32, ExactSpelling = true)]
+        internal static extern int SafeArrayGetElement(void* array, int* indices, void* value);
+
+        internal struct SAFEARRAYBOUND
+        {
+            public uint cElements;
+            public int lLbound;
+        }
 
         internal struct NativeVariant
         {

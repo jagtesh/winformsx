@@ -247,7 +247,10 @@ compatibility-facade coverage.
   `LoadRegTypeLib` failure, and safe-array default behavior; dispatch
   accessibility wrappers now tolerate absent registered type libraries and
   return dispatch failure/default results instead of failing type
-  initialization. The latest GDI32 pass packages a native `GDI32.dll` facade
+  initialization. The current OLEAUT32 SafeArray pass adds minimal owned array
+  allocation, bounds, access/unaccess, get/put, and destroy behavior for
+  source-compatible callers; full VARIANT/type-library marshaling remains
+  future work. The latest GDI32 pass packages a native `GDI32.dll` facade
   for source-compatible direct imports and routes DC creation/deletion, device
   caps, object queries, stock/basic object handles, brush/pen creation, text
   and background colors, and background mode through the WinFormsX GDI PAL. The
@@ -477,8 +480,10 @@ Plan:
 - Add an `OLEAUT32.dll` WinFormsX facade only for ABI-safe
   source-compatibility APIs. The latest pass adds BSTR allocation/free/length,
   `VariantClear`, `PropVariantClear`, deterministic missing-type-library
-  behavior for `LoadRegTypeLib`, and safe-array no-data defaults. Registered
-  type-library backed dispatch remains a richer COM/type-info gap.
+  behavior for `LoadRegTypeLib`, and minimal owned SAFEARRAY storage for
+  creation, bounds, access/unaccess, get/put, and destroy. Registered
+  type-library backed dispatch and full automation marshaling remain richer
+  COM/type-info gaps.
 - Move core clipboard/data-object/drag-drop behavior into managed PAL services.
 - Keep IME v1 as a managed input-language/context state layer. Expand only
   toward actual composition/candidate behavior when tests require it.

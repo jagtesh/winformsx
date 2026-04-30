@@ -1038,6 +1038,17 @@ Ordered by observed frequency across components and blocker blast radius:
     - Build `System.Windows.Forms.UI.IntegrationTests`: succeeded.
     - UIIntegration filter `DirectDllImports_RouteToWinFormsXPal`:
       `Passed: 1, Failed: 0`.
+- In-progress local changes (next commit):
+  - Expanded the native `OLEAUT32.dll` facade from safe-array no-data defaults
+    to minimal owned SAFEARRAY storage for source-compatible direct imports:
+    `SafeArrayCreate`, `SafeArrayDestroy`, `SafeArrayGetDim`,
+    `SafeArrayGetLBound`, `SafeArrayGetUBound`, `SafeArrayAccessData`,
+    `SafeArrayUnaccessData`, `SafeArrayPutElement`, and
+    `SafeArrayGetElement`.
+  - Verification:
+    - Build `System.Windows.Forms.UI.IntegrationTests`: succeeded.
+    - UIIntegration filter
+      `DirectOleAut32DllImports_ResolveToWinFormsXFacade`: `Passed: 1, Failed: 0`.
 
 ## Task Legend
 
@@ -1063,7 +1074,7 @@ Ordered by observed frequency across components and blocker blast radius:
 - [~] WXA-1103: Implement `RevokeDragDrop`/`RegisterDragDrop`/`DoDragDrop` event flow and default drop effects. Managed WinForms drag/drop event flow is covered, and the native `OLE32.dll` facade now tracks direct registration/revocation state and returns cancelled default drag effects; richer native drop-target callback flow remains.
 - [x] WXA-1104: Implement `OleInitialize` + `InputLanguage.CurrentInputLanguage` to unblock data-grid and IME-dependent paths.
 - [x] WXA-1105: Implement first-tier IME context state and `IMM32.dll` source-compatibility facade (`ImmGetContext`, `ImmReleaseContext`, open/conversion status, notify, create, associate).
-- [~] WXA-1106: Implement first-tier `OLEAUT32.dll` source-compatibility facade and type-library fallback. BSTR allocation/free/length, `VariantClear`, `PropVariantClear`, deterministic `LoadRegTypeLib` failure, safe-array no-data defaults, and null-type-info dispatch construction are covered; real `ITypeLib`/`ITypeInfo` and full SAFEARRAY behavior remain.
+- [~] WXA-1106: Implement first-tier `OLEAUT32.dll` source-compatibility facade and type-library fallback. BSTR allocation/free/length, `VariantClear`, `PropVariantClear`, deterministic `LoadRegTypeLib` failure, minimal owned SAFEARRAY create/bounds/access/get/put/destroy behavior, and null-type-info dispatch construction are covered; real `ITypeLib`/`ITypeInfo` and full automation marshaling remain.
 
 ## Dialog and Common Controls
 
