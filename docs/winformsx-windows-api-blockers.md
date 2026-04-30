@@ -16,9 +16,13 @@ compatibility-facade coverage.
   `MsgWaitForMultipleObjectsEx` modal-wait path used by PropertyGrid, plus
   `GetWindowPlacement` / `SetWindowPlacement` for MDI minimized-window layout.
 - UIIntegrationTests are no longer globally skipped by OS-gated attributes. The
-  suite now exposes real WinFormsX behavior gaps. The current broad run
-  completes without a hang/abort and reports
-  `170 passed, 21 failed, 43 skipped`.
+  suite now exposes real WinFormsX behavior gaps. The latest unfiltered broad
+  run completes without a hang/abort and reports
+  `115 passed, 76 failed, 151 skipped`. This run activates a wider provider
+  surface than the earlier post-placement snapshot, and its remaining failures
+  cluster around ListView/PropertyGrid accessibility, drag/drop, dialogs,
+  DataGridView tooltips, TabControl hover/input state, NumericUpDown
+  accessibility focus, and application handle recreation.
 - First UIIntegration blockers observed:
   - `OLE32.dll` missing through `Application.ThreadContext.OleRequired()`,
     `InputLanguage.CurrentInputLanguage`, IME, clipboard, and drag/drop paths.
@@ -46,11 +50,17 @@ compatibility-facade coverage.
   - Focused anchor/MDI resize coverage is now green:
     `31 passed, 0 failed`. The latest pass closes the direct
     `GetWindowPlacement` import and MDI minimized-child anchor-bottom failure.
+  - Focused `MonthCalendar` coverage is now green:
+    `11 passed, 0 failed`. The latest pass routes managed calendar-grid date
+    clicks through the same WinFormsX fallback path as navigation clicks, so
+    click, double-click, keyboard, and mouse SetDate flows no longer depend on
+    native common-control hit testing.
   - Highest-volume remaining failures are accessibility/provider and layout
-    clusters: MonthCalendar input, drag/drop polish, RichTextBox link-range
-    behavior, TabControl hover/input state, NumericUpDown accessibility focus,
-    application handle recreation, dialog/print fallbacks, and remaining
-    lower-volume provider gaps.
+    clusters: ListView tile accessibility, PropertyGrid fragment navigation in
+    broad-suite state, drag/drop polish, RichTextBox link-range behavior,
+    DataGridView tooltip state, TabControl hover/input state, NumericUpDown
+    accessibility focus, application handle recreation, dialog/print fallbacks,
+    and remaining lower-volume provider gaps.
 
 ## Confirmed Managed Stub Blockers
 

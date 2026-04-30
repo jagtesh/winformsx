@@ -1289,7 +1289,7 @@ public partial class MonthCalendar : Control
             : (DayOfWeek)((int)value - 1);
 
     private bool IsManagedCalendarGridFallbackEnabled()
-        => !OperatingSystem.IsWindows() && Graphics.IsBackendActive;
+        => Graphics.IsBackendActive;
 
     private Rectangle GetManagedCalendarBounds()
     {
@@ -1551,6 +1551,56 @@ public partial class MonthCalendar : Control
         SetDate(target);
         Invalidate();
         return true;
+    }
+
+    private bool TryHandleManagedDateClick(Point clientPoint)
+    {
+        if (!IsManagedCalendarGridFallbackEnabled())
+        {
+            return false;
+        }
+
+        for (int row = 0; row < 6; row++)
+        {
+            for (int column = 0; column < 7; column++)
+            {
+                if (!TryGetManagedCalendarPartInfo(
+                    MCGRIDINFO_PART.MCGIP_CALENDARCELL,
+                    row,
+                    column,
+                    out Rectangle rect,
+                    out DateTime start,
+                    out _,
+                    out _,
+                    out _)
+                    || !rect.Contains(clientPoint))
+                {
+                    continue;
+                }
+
+                DateTime target = start.Date;
+                if (target < _minDate.Date || target > _maxDate.Date)
+                {
+                    return false;
+                }
+
+                if (target == _minDate.Date)
+                {
+                    target = _minDate;
+                }
+                else if (target == _maxDate.Date)
+                {
+                    target = _maxDate;
+                }
+
+                SetDate(target);
+                OnDateSelected(new DateRangeEventArgs(_selectionStart, _selectionEnd));
+                Invalidate();
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>
@@ -2497,7 +2547,8 @@ public partial class MonthCalendar : Control
         {
             case PInvoke.WM_LBUTTONDOWN:
                 Focus();
-                if (TryHandleManagedNavigationClick(PARAM.ToPoint(m.LParamInternal)))
+                if (TryHandleManagedNavigationClick(PARAM.ToPoint(m.LParamInternal))
+                    || TryHandleManagedDateClick(PARAM.ToPoint(m.LParamInternal)))
                 {
                     m.ResultInternal = (LRESULT)1;
                     break;

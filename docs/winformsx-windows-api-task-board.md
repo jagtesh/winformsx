@@ -64,19 +64,42 @@ Ordered by observed frequency across components and blocker blast radius:
       `Failed: 112, Passed: 79, Skipped: 223, Total: 414`.
     - Latest broad snapshot after MDI/placement work:
       `Failed: 21, Passed: 170, Skipped: 43, Total: 234`.
+    - Latest unfiltered broad snapshot after MonthCalendar date-click work:
+      `Failed: 76, Passed: 115, Skipped: 151, Total: 342`. This run activates
+      a wider provider surface than the prior snapshot; the new high-volume
+      clusters are ListView tile accessibility and PropertyGrid fragment
+      navigation in broad-suite state.
   - Priority order moves to highest-volume remaining failure clusters:
-    MonthCalendar input, drag/drop polish, RichTextBox link-range behavior,
-    TabControl hover/input state, NumericUpDown accessibility focus,
+    ListView tile accessibility, PropertyGrid broad-suite provider state,
+    drag/drop polish, RichTextBox link-range behavior, DataGridView tooltip
+    state, TabControl hover/input state, NumericUpDown accessibility focus,
     application handle recreation, dialog/print fallbacks, and remaining
     lower-volume provider gaps.
   - Active lane update: focused PropertyGrid UIIntegration coverage is now
     green: `Passed: 38, Failed: 0, Skipped: 0, Total: 38`.
   - Active lane update: focused anchor/MDI resize coverage is now green:
     `Passed: 31, Failed: 0`.
-  - Priority order now moves to MonthCalendar input, drag/drop polish,
-    RichTextBox link-range behavior, TabControl hover/input state,
+  - Active lane update: focused MonthCalendar coverage is now green:
+    `Passed: 11, Failed: 0`.
+  - Priority order now moves to ListView tile accessibility, PropertyGrid
+    broad-suite provider state, drag/drop polish, RichTextBox link-range
+    behavior, DataGridView tooltip state, TabControl hover/input state,
     NumericUpDown accessibility focus, application handle recreation,
     dialog/print fallbacks, and remaining lower-volume provider gaps.
+
+- Landed:
+  - Closed the focused MonthCalendar input lane:
+    - the managed calendar grid fallback now runs on the single WinFormsX
+      backend path whenever the renderer is active;
+    - date-cell hit testing now uses managed calendar part bounds and updates
+      selection without native common-control hit testing;
+    - MinDate/MaxDate edge clicks preserve the caller's exact boundary
+      DateTime values while still comparing by visible calendar date.
+  - Verification:
+    - `dotnet test ... --filter "FullyQualifiedName~MonthCalendarTests" -v:n` ->
+      `Passed: 11, Failed: 0`.
+    - `WinformsControlsTest --control-smoke-test` ->
+      `total=42 passed=41 failed=0 skipped=1`.
 
 - Landed:
   - Added PAL-backed `GetWindowPlacement` / `SetWindowPlacement` paths:
