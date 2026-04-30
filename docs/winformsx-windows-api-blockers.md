@@ -87,10 +87,17 @@ compatibility-facade coverage.
   PAL. UIIntegration now also clears stray forms at test boundaries to keep
   `Application.OpenForms` deterministic across the shared-process suite. Full
   UIIntegration and controls smoke remain stable after this pass. Larger
-  provider and dialog/print gaps remain tracked below.
+  provider and dialog/print gaps remain tracked below. The latest IME pass
+  moves WinFormsX IME handling behind the input PAL: generated IMM32 imports
+  were removed for internal WinForms calls, managed IME context/open/conversion
+  state now lives in `ImpellerInputInterop`, and a direct `IMM32.dll`
+  compatibility facade resolves to the same PAL state for source-compatible app
+  code.
 - First UIIntegration blockers observed:
   - `OLE32.dll` missing through `Application.ThreadContext.OleRequired()`,
-    `InputLanguage.CurrentInputLanguage`, IME, clipboard, and drag/drop paths.
+    clipboard, and drag/drop paths. `InputLanguage.CurrentInputLanguage`,
+    USER32 keyboard layout calls, and the first IMM32 IME context calls now use
+    PAL-backed state/facades.
   - `winspool.drv` missing through `DocumentProperties` after the
     `GetDesktopWindow` USER32 gap was closed.
   - Focused `OpenFileDialog`, `FolderBrowserDialog`, and `PrintDialog`
@@ -212,7 +219,11 @@ implementations.
   - `InitCommonControls`, `InitCommonControlsEx`, `DrawFrameControl`,
     `DrawEdge`, and `SetWindowTheme` are acknowledged/no-op style paths.
 - IME:
-  - `ImmReleaseContext` is a no-op; IME context state is not implemented.
+  - Basic IME context, open-status, conversion-status, notify, release,
+    create, and association calls are PAL-backed and covered through managed
+    wrappers plus direct `IMM32.dll` imports. Full composition windows,
+    candidate UI, language-specific conversion behavior, and real platform IME
+    integration remain future work.
 - Shell:
   - `Shell_NotifyIconW` is acknowledged without tray integration.
   - `HtmlHelp` returns a null handle.
@@ -238,8 +249,9 @@ Impacted APIs and areas:
   storage/stream helpers, and data-object lifetime.
 - `OLEAUT32.dll`: `SafeArray*`, `LoadRegTypeLib`, type-library and VARIANT
   support used by COM/property/editor paths.
-- `IMM32.dll`: `ImmGetContext`, `ImmReleaseContext`, keyboard layout/input
-  language state, and managed IME no-op semantics.
+- `IMM32.dll`: basic context handles, open/conversion state, notify/release,
+  and context association are PAL-backed; keyboard layout/input language state
+  is already routed through USER32/PAL.
 - Clipboard and data transfer: `OleGetClipboard`, `OleSetClipboard`,
   `OleFlushClipboard`, Windows clipboard formats, `DROPFILES`, and file-drop
   data.
@@ -252,8 +264,8 @@ Plan:
 - Add an `OLE32.dll` WinFormsX facade only for ABI-safe
   source-compatibility APIs, backed by PAL state.
 - Move core clipboard/data-object/drag-drop behavior into managed PAL services.
-- Keep IME v1 as a managed input-language state layer with safe no-op native
-  handles.
+- Keep IME v1 as a managed input-language/context state layer. Expand only
+  toward actual composition/candidate behavior when tests require it.
 - Add UIIntegration tests for clipboard, `InputLanguage`, simple drag/drop, and
   file-drop flows before attempting richer COM behavior.
 
@@ -619,7 +631,8 @@ cases were previously blockers and should remain regression targets:
   the existing explorer-driven skip; drag-image/effect-negotiation polish
   remains.
 - [~] OLE/clipboard baseline: managed clipboard set/get and format mapping.
-- [ ] IME/input-language baseline: `InputLanguage`/IME no-crash managed state.
+- [x] IME/input-language baseline: `InputLanguage` and first-tier IME context
+  calls use PAL-backed managed state plus USER32/IMM32 facades.
 - [~] Dialog baseline: focused open-file and folder-browser tests are green;
   save/color/font/message/task/page-setup parity still needs coverage.
 - [~] Print baseline: focused `PrintDialog` tests are green; no-printer

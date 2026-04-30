@@ -4,6 +4,7 @@
 namespace System.Windows.Forms.Platform;
 
 using global::Windows.Win32.UI.Input.KeyboardAndMouse;
+using global::Windows.Win32.UI.Input.Ime;
 
 /// <summary>
 /// Input abstraction — keyboard, mouse, cursor, focus, and capture.
@@ -47,6 +48,18 @@ internal unsafe interface IInputInterop
     nint GetKeyboardLayout(uint idThread);
     int GetKeyboardLayoutList(int nBuff, nint* lpList);
     nint ActivateKeyboardLayout(nint hkl, uint flags);
+
+    // ─── IME ───────────────────────────────────────────────────────────
+
+    HIMC ImmAssociateContext(HWND hWnd, HIMC hIMC);
+    HIMC ImmCreateContext();
+    HIMC ImmGetContext(HWND hWnd);
+    bool ImmGetConversionStatus(HIMC hIMC, IME_CONVERSION_MODE* lpfdwConversion, IME_SENTENCE_MODE* lpfdwSentence);
+    bool ImmGetOpenStatus(HIMC hIMC);
+    bool ImmNotifyIME(HIMC hIMC, NOTIFY_IME_ACTION dwAction, NOTIFY_IME_INDEX dwIndex, uint dwValue);
+    bool ImmReleaseContext(HWND hWnd, HIMC hIMC);
+    bool ImmSetConversionStatus(HIMC hIMC, IME_CONVERSION_MODE fdwConversion, IME_SENTENCE_MODE fdwSentence);
+    bool ImmSetOpenStatus(HIMC hIMC, bool fOpen);
 
     // ─── Mouse ──────────────────────────────────────────────────────────
 

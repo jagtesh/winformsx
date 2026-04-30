@@ -2,11 +2,17 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using Windows.Win32.UI.Input.Ime;
+using System.Windows.Forms.Platform;
 
 namespace Windows.Win32;
 
 internal static partial class PInvoke
 {
+    public static HIMC ImmGetContext(HWND hWnd)
+    {
+        return PlatformApi.Input.ImmGetContext(hWnd);
+    }
+
     /// <inheritdoc cref="ImmGetContext(HWND)"/>
     public static HIMC ImmGetContext<T>(T hWnd) where T : IHandle<HWND>
     {

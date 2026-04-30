@@ -63,6 +63,9 @@
     <WinFormsXUser32ShimSource>$(MSBuildProjectDirectory)/Native/User32Shim/winformsx_user32.c</WinFormsXUser32ShimSource>
     <WinFormsXUser32ShimOutputDirectory>$(IntermediateOutputPath)winformsx-user32/</WinFormsXUser32ShimOutputDirectory>
     <WinFormsXUser32ShimBinary>$(WinFormsXUser32ShimOutputDirectory)USER32.dll</WinFormsXUser32ShimBinary>
+    <WinFormsXImm32ShimSource>$(MSBuildProjectDirectory)/Native/Imm32Shim/winformsx_imm32.c</WinFormsXImm32ShimSource>
+    <WinFormsXImm32ShimOutputDirectory>$(IntermediateOutputPath)winformsx-imm32/</WinFormsXImm32ShimOutputDirectory>
+    <WinFormsXImm32ShimBinary>$(WinFormsXImm32ShimOutputDirectory)IMM32.dll</WinFormsXImm32ShimBinary>
   </PropertyGroup>
 
   <ItemGroup Condition="'$(OS)' != 'Windows_NT'">
@@ -75,6 +78,15 @@
     <None Include="$(WinFormsXUser32ShimOutputDirectory)libUSER32.dll.so" TargetPath="libUSER32.dll.so" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
     <None Include="$(WinFormsXUser32ShimOutputDirectory)USER32.dll.so" TargetPath="USER32.dll.so" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
     <None Include="$(WinFormsXUser32ShimOutputDirectory)libuser32.so" TargetPath="libuser32.so" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+    <None Include="$(WinFormsXImm32ShimOutputDirectory)IMM32.dll" TargetPath="IMM32.dll" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" />
+    <None Include="$(WinFormsXImm32ShimOutputDirectory)imm32.dll" TargetPath="imm32.dll" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" />
+    <None Include="$(WinFormsXImm32ShimOutputDirectory)imm32" TargetPath="imm32" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" />
+    <None Include="$(WinFormsXImm32ShimOutputDirectory)IMM32.dll.dylib" TargetPath="IMM32.dll.dylib" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+    <None Include="$(WinFormsXImm32ShimOutputDirectory)libIMM32.dll.dylib" TargetPath="libIMM32.dll.dylib" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+    <None Include="$(WinFormsXImm32ShimOutputDirectory)libimm32.dylib" TargetPath="libimm32.dylib" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+    <None Include="$(WinFormsXImm32ShimOutputDirectory)libIMM32.dll.so" TargetPath="libIMM32.dll.so" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+    <None Include="$(WinFormsXImm32ShimOutputDirectory)IMM32.dll.so" TargetPath="IMM32.dll.so" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+    <None Include="$(WinFormsXImm32ShimOutputDirectory)libimm32.so" TargetPath="libimm32.so" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
   </ItemGroup>
 
   <Target Name="BuildWinFormsXUser32Shim"
@@ -95,6 +107,26 @@
     <Copy SourceFiles="$(WinFormsXUser32ShimBinary)" DestinationFiles="$(WinFormsXUser32ShimOutputDirectory)libUSER32.dll.so" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
     <Copy SourceFiles="$(WinFormsXUser32ShimBinary)" DestinationFiles="$(WinFormsXUser32ShimOutputDirectory)USER32.dll.so" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
     <Copy SourceFiles="$(WinFormsXUser32ShimBinary)" DestinationFiles="$(WinFormsXUser32ShimOutputDirectory)libuser32.so" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+  </Target>
+
+  <Target Name="BuildWinFormsXImm32Shim"
+          BeforeTargets="PrepareForBuild;GetCopyToOutputDirectoryItems"
+          Inputs="$(WinFormsXImm32ShimSource)"
+          Outputs="$(WinFormsXImm32ShimBinary)"
+          Condition="'$(OS)' != 'Windows_NT'">
+    <MakeDir Directories="$(WinFormsXImm32ShimOutputDirectory)" />
+    <Exec Condition="$([MSBuild]::IsOSPlatform('OSX'))"
+          Command="cc -dynamiclib -fvisibility=hidden &quot;$(WinFormsXImm32ShimSource)&quot; -o &quot;$(WinFormsXImm32ShimBinary)&quot;" />
+    <Exec Condition="$([MSBuild]::IsOSPlatform('Linux'))"
+          Command="cc -shared -fPIC -fvisibility=hidden &quot;$(WinFormsXImm32ShimSource)&quot; -o &quot;$(WinFormsXImm32ShimBinary)&quot;" />
+    <Copy SourceFiles="$(WinFormsXImm32ShimBinary)" DestinationFiles="$(WinFormsXImm32ShimOutputDirectory)imm32.dll" />
+    <Copy SourceFiles="$(WinFormsXImm32ShimBinary)" DestinationFiles="$(WinFormsXImm32ShimOutputDirectory)imm32" />
+    <Copy SourceFiles="$(WinFormsXImm32ShimBinary)" DestinationFiles="$(WinFormsXImm32ShimOutputDirectory)IMM32.dll.dylib" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+    <Copy SourceFiles="$(WinFormsXImm32ShimBinary)" DestinationFiles="$(WinFormsXImm32ShimOutputDirectory)libIMM32.dll.dylib" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+    <Copy SourceFiles="$(WinFormsXImm32ShimBinary)" DestinationFiles="$(WinFormsXImm32ShimOutputDirectory)libimm32.dylib" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+    <Copy SourceFiles="$(WinFormsXImm32ShimBinary)" DestinationFiles="$(WinFormsXImm32ShimOutputDirectory)libIMM32.dll.so" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+    <Copy SourceFiles="$(WinFormsXImm32ShimBinary)" DestinationFiles="$(WinFormsXImm32ShimOutputDirectory)IMM32.dll.so" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+    <Copy SourceFiles="$(WinFormsXImm32ShimBinary)" DestinationFiles="$(WinFormsXImm32ShimOutputDirectory)libimm32.so" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
   </Target>
 
 </Project>

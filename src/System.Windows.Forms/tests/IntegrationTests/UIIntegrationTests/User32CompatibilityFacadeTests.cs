@@ -4,6 +4,7 @@
 using System.Drawing;
 using System.Runtime.InteropServices;
 using System.Windows.Forms.UITests.Input;
+using Windows.Win32.UI.Input.Ime;
 using Windows.Win32.UI.Input.KeyboardAndMouse;
 using Windows.Win32.UI.WindowsAndMessaging;
 
@@ -340,6 +341,50 @@ public class User32CompatibilityFacadeTests
         }
     }
 
+    [Fact]
+    public unsafe void DirectImm32DllImports_RouteToWinFormsXPal()
+    {
+        using (new EnvironmentOverride("WINFORMSX_SUPPRESS_HIDDEN_BACKEND", "1"))
+        {
+            Application.EnableVisualStyles();
+
+            using Form form = new();
+            form.CreateControl();
+            nint handle = form.Handle;
+
+            nint nativeContext = NativeImm32.ImmGetContext(handle);
+            Assert.NotEqual(nint.Zero, nativeContext);
+            Assert.Equal(nativeContext, (nint)PInvoke.ImmGetContext((HWND)handle));
+
+            Assert.False(NativeImm32.ImmGetOpenStatus(nativeContext));
+            Assert.True(NativeImm32.ImmSetOpenStatus(nativeContext, true));
+            Assert.True(PInvoke.ImmGetOpenStatus((HIMC)nativeContext));
+
+            uint nativeConversion = 0;
+            uint nativeSentence = 0;
+            Assert.True(NativeImm32.ImmGetConversionStatus(nativeContext, &nativeConversion, &nativeSentence));
+            Assert.Equal(0u, nativeConversion);
+            Assert.Equal(0u, nativeSentence);
+
+            Assert.True(NativeImm32.ImmSetConversionStatus(nativeContext, 0x0001, 0x0008));
+            IME_CONVERSION_MODE managedConversion;
+            IME_SENTENCE_MODE managedSentence;
+            Assert.True(PInvoke.ImmGetConversionStatus((HIMC)nativeContext, &managedConversion, &managedSentence));
+            Assert.Equal(0x0001u, (uint)managedConversion);
+            Assert.Equal(0x0008u, (uint)managedSentence);
+
+            Assert.True(NativeImm32.ImmNotifyIME(nativeContext, 0x0015, 0x0001, 0));
+            Assert.True(NativeImm32.ImmReleaseContext(handle, nativeContext));
+
+            nint createdContext = NativeImm32.ImmCreateContext();
+            Assert.NotEqual(nint.Zero, createdContext);
+            Assert.Equal(nativeContext, NativeImm32.ImmAssociateContext(handle, createdContext));
+            Assert.Equal(createdContext, (nint)PInvoke.ImmGetContext((HWND)handle));
+            Assert.Equal(createdContext, NativeImm32.ImmAssociateContext(handle, nint.Zero));
+            Assert.Equal(nint.Zero, NativeImm32.ImmAssociateContext(handle, nativeContext));
+        }
+    }
+
     private sealed class EnvironmentOverride : IDisposable
     {
         private readonly string _name;
@@ -558,5 +603,43 @@ public class User32CompatibilityFacadeTests
 
         [DllImport(User32, ExactSpelling = true)]
         internal static extern uint GetDpiForSystem();
+    }
+
+    private static unsafe partial class NativeImm32
+    {
+        private const string Imm32 = "IMM32.dll";
+
+        [DllImport(Imm32, ExactSpelling = true)]
+        internal static extern nint ImmAssociateContext(nint hwnd, nint himc);
+
+        [DllImport(Imm32, ExactSpelling = true)]
+        internal static extern nint ImmCreateContext();
+
+        [DllImport(Imm32, ExactSpelling = true)]
+        internal static extern nint ImmGetContext(nint hwnd);
+
+        [DllImport(Imm32, ExactSpelling = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool ImmGetConversionStatus(nint himc, uint* conversion, uint* sentence);
+
+        [DllImport(Imm32, ExactSpelling = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool ImmGetOpenStatus(nint himc);
+
+        [DllImport(Imm32, ExactSpelling = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool ImmNotifyIME(nint himc, uint action, uint index, uint value);
+
+        [DllImport(Imm32, ExactSpelling = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool ImmReleaseContext(nint hwnd, nint himc);
+
+        [DllImport(Imm32, ExactSpelling = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool ImmSetConversionStatus(nint himc, uint conversion, uint sentence);
+
+        [DllImport(Imm32, ExactSpelling = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool ImmSetOpenStatus(nint himc, bool open);
     }
 }

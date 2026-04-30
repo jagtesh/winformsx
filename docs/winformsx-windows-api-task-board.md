@@ -253,6 +253,11 @@ Ordered by observed frequency across components and blocker blast radius:
       retaining a platform split around native `EnumThreadWindows`.
     - The native USER32 facade now exports `GetKeyboardLayoutList`, forwarding
       to the same PAL keyboard-layout state as `GetKeyboardLayout`.
+    - IME context handling now uses the WinFormsX input PAL everywhere:
+      generated IMM32 imports were removed from internal WinForms calls,
+      `ImpellerInputInterop` owns context/open/conversion/association state,
+      and a native `IMM32.dll` facade forwards direct app DllImports to the
+      same managed dispatch table.
     - Verification after the input-language/window-enumeration sweep:
       `dotnet build ...System.Windows.Forms.UI.IntegrationTests.csproj -c Debug -v:q` ->
       build succeeded; `dotnet test ... --filter "FullyQualifiedName~User32CompatibilityFacadeTests" -v:n` ->
@@ -741,6 +746,7 @@ Ordered by observed frequency across components and blocker blast radius:
 - [~] WXA-1102: Implement clipboard helpers (`OleGetClipboard`, `OleSetClipboard`, `OleFlushClipboard`) with managed storage and format metadata.
 - [~] WXA-1103: Implement `RevokeDragDrop`/`RegisterDragDrop`/`DoDragDrop` event flow and default drop effects.
 - [x] WXA-1104: Implement `OleInitialize` + `InputLanguage.CurrentInputLanguage` to unblock data-grid and IME-dependent paths.
+- [x] WXA-1105: Implement first-tier IME context state and `IMM32.dll` source-compatibility facade (`ImmGetContext`, `ImmReleaseContext`, open/conversion status, notify, create, associate).
 
 ## Dialog and Common Controls
 

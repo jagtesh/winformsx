@@ -4,6 +4,7 @@
 namespace System.Windows.Forms.Platform;
 
 using global::Windows.Win32.UI.Input.KeyboardAndMouse;
+using global::Windows.Win32.UI.Input.Ime;
 
 /// <summary>
 /// Impeller input interop — keyboard, mouse, cursor, focus, capture.
@@ -39,11 +40,14 @@ internal sealed unsafe class ImpellerInputInterop : IInputInterop
     private bool _resizeRightEdge;
     private bool _resizeBottomEdge;
     private nint _keyboardLayout = unchecked((nint)0x04090409);
+    private nint _nextImeContext = 0x4000;
     private System.Drawing.Point _cursorPos;
     private int? _dispatchedMouseKeyState;
     private bool _snapLayoutActive;
     private int _snapLayoutRightPresses;
     private readonly HashSet<int> _pressedKeys = [];
+    private readonly Dictionary<HWND, HIMC> _imeContextsByWindow = [];
+    private readonly Dictionary<HIMC, ImeContextState> _imeContexts = [];
     private readonly object _inputStateLock = new();
     private static readonly string? s_traceFile = Environment.GetEnvironmentVariable("WINFORMSX_TRACE_FILE");
 
@@ -208,12 +212,150 @@ internal sealed unsafe class ImpellerInputInterop : IInputInterop
         }
     }
 
+    // --- IME ------------------------------------------------------------
+
+    public HIMC ImmAssociateContext(HWND hWnd, HIMC hIMC)
+    {
+        lock (_inputStateLock)
+        {
+            HIMC previous = _imeContextsByWindow.TryGetValue(hWnd, out HIMC existing)
+                ? existing
+                : default;
+
+            if ((nint)hIMC == 0)
+            {
+                _imeContextsByWindow.Remove(hWnd);
+                return previous;
+            }
+
+            EnsureImeContextNoLock(hIMC);
+            _imeContextsByWindow[hWnd] = hIMC;
+            return previous;
+        }
+    }
+
+    public HIMC ImmCreateContext()
+    {
+        lock (_inputStateLock)
+        {
+            HIMC context = (HIMC)_nextImeContext++;
+            _imeContexts[context] = new ImeContextState();
+            return context;
+        }
+    }
+
+    public HIMC ImmGetContext(HWND hWnd)
+    {
+        if (hWnd == HWND.Null)
+        {
+            return default;
+        }
+
+        lock (_inputStateLock)
+        {
+            if (_imeContextsByWindow.TryGetValue(hWnd, out HIMC context))
+            {
+                return context;
+            }
+
+            context = (HIMC)_nextImeContext++;
+            _imeContexts[context] = new ImeContextState();
+            _imeContextsByWindow[hWnd] = context;
+            return context;
+        }
+    }
+
+    public bool ImmGetConversionStatus(HIMC hIMC, IME_CONVERSION_MODE* lpfdwConversion, IME_SENTENCE_MODE* lpfdwSentence)
+    {
+        if (lpfdwConversion is null || lpfdwSentence is null)
+        {
+            return false;
+        }
+
+        lock (_inputStateLock)
+        {
+            ImeContextState state = EnsureImeContextNoLock(hIMC);
+            *lpfdwConversion = state.ConversionMode;
+            *lpfdwSentence = state.SentenceMode;
+            return true;
+        }
+    }
+
+    public bool ImmGetOpenStatus(HIMC hIMC)
+    {
+        lock (_inputStateLock)
+        {
+            return _imeContexts.TryGetValue(hIMC, out ImeContextState? state) && state.Open;
+        }
+    }
+
+    public bool ImmNotifyIME(HIMC hIMC, NOTIFY_IME_ACTION dwAction, NOTIFY_IME_INDEX dwIndex, uint dwValue)
+    {
+        lock (_inputStateLock)
+        {
+            EnsureImeContextNoLock(hIMC);
+            return true;
+        }
+    }
+
+    public bool ImmReleaseContext(HWND hWnd, HIMC hIMC)
+    {
+        lock (_inputStateLock)
+        {
+            return _imeContexts.ContainsKey(hIMC);
+        }
+    }
+
+    public bool ImmSetConversionStatus(HIMC hIMC, IME_CONVERSION_MODE fdwConversion, IME_SENTENCE_MODE fdwSentence)
+    {
+        lock (_inputStateLock)
+        {
+            ImeContextState state = EnsureImeContextNoLock(hIMC);
+            state.ConversionMode = fdwConversion;
+            state.SentenceMode = fdwSentence;
+            return true;
+        }
+    }
+
+    public bool ImmSetOpenStatus(HIMC hIMC, bool fOpen)
+    {
+        lock (_inputStateLock)
+        {
+            ImeContextState state = EnsureImeContextNoLock(hIMC);
+            state.Open = fOpen;
+            return true;
+        }
+    }
+
     // --- Mouse ----------------------------------------------------------
 
     public uint GetDoubleClickTime() => 500;
     public bool SwapMouseButton(bool fSwap) => false;
     public bool DragDetect(HWND hwnd, System.Drawing.Point pt) => false;
     public bool TrackMouseEvent(HWND hwnd, uint dwFlags, uint dwHoverTime) => true;
+
+    private ImeContextState EnsureImeContextNoLock(HIMC hIMC)
+    {
+        if ((nint)hIMC == 0)
+        {
+            return new ImeContextState();
+        }
+
+        if (!_imeContexts.TryGetValue(hIMC, out ImeContextState? state))
+        {
+            state = new ImeContextState();
+            _imeContexts[hIMC] = state;
+        }
+
+        return state;
+    }
+
+    private sealed class ImeContextState
+    {
+        public bool Open { get; set; }
+        public IME_CONVERSION_MODE ConversionMode { get; set; }
+        public IME_SENTENCE_MODE SentenceMode { get; set; }
+    }
 
     internal void SetDispatchedMouseKeyState(WPARAM wParam)
     {
