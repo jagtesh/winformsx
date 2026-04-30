@@ -620,17 +620,29 @@ public sealed partial class ImageList : Component, IHandle<HIMAGELIST>
                 BitmapData? targetData = null;
                 try
                 {
-                    tmpBitmap = Image.FromHbitmap((IntPtr)imageInfo.hbmImage);
-
-                    bmpData = tmpBitmap.LockBits(imageInfo.rcImage, ImageLockMode.ReadOnly, tmpBitmap.PixelFormat);
-
-                    int offset = bmpData.Stride * _imageSize.Height * index;
-                    // we need do the following if the image has alpha because otherwise the image is fully transparent even though it has data
-                    if (BitmapHasAlpha(bmpData))
+                    try
                     {
-                        result = new Bitmap(_imageSize.Width, _imageSize.Height, PixelFormat.Format32bppArgb);
-                        targetData = result.LockBits(new Rectangle(0, 0, _imageSize.Width, _imageSize.Height), ImageLockMode.WriteOnly, PixelFormat.Format32bppArgb);
-                        CopyBitmapData(bmpData, targetData);
+                        tmpBitmap = Image.FromHbitmap((IntPtr)imageInfo.hbmImage);
+                    }
+                    catch (System.Runtime.InteropServices.ExternalException)
+                    {
+                        // WinFormsX synthetic image-list handles carry metadata
+                        // for native API compatibility, but they are not always
+                        // real GDI bitmaps that GDI+ can materialize.
+                    }
+
+                    if (tmpBitmap is not null)
+                    {
+                        bmpData = tmpBitmap.LockBits(imageInfo.rcImage, ImageLockMode.ReadOnly, tmpBitmap.PixelFormat);
+
+                        int offset = bmpData.Stride * _imageSize.Height * index;
+                        // we need do the following if the image has alpha because otherwise the image is fully transparent even though it has data
+                        if (BitmapHasAlpha(bmpData))
+                        {
+                            result = new Bitmap(_imageSize.Width, _imageSize.Height, PixelFormat.Format32bppArgb);
+                            targetData = result.LockBits(new Rectangle(0, 0, _imageSize.Width, _imageSize.Height), ImageLockMode.WriteOnly, PixelFormat.Format32bppArgb);
+                            CopyBitmapData(bmpData, targetData);
+                        }
                     }
                 }
                 finally

@@ -207,7 +207,10 @@ compatibility-facade coverage.
   `GetCurrentProcessId`, `GetCurrentThreadId`, `GetModuleHandleW/A`, and
   `GetModuleFileNameW/A`. The follow-up last-error pass moves managed
   `GetLastError` / `SetLastError` to the system PAL and forwards direct
-  KERNEL32 imports through the same thread-local WinFormsX state.
+  KERNEL32 imports through the same thread-local WinFormsX state. The latest
+  ImageList follow-up keeps `ImageList.GetBitmap` stable when WinFormsX
+  synthetic bitmap handles cannot be materialized by GDI+, preserving shared
+  `ToolStrip.ImageList` enumeration after form disposal.
 - First UIIntegration blockers observed:
   - `OLE32.dll` missing through `Application.ThreadContext.OleRequired()`,
     clipboard, and drag/drop paths. `InputLanguage.CurrentInputLanguage`,
@@ -872,7 +875,9 @@ cases were previously blockers and should remain regression targets:
 - [~] KERNEL32 tier expansion: process/thread/module-path facade is covered;
   direct last-error state is covered; module resources, activation context, and
   loader edge cases remain.
-- [ ] COMCTL32/ImageList tier: image list ops required by ListView/TreeView tests.
+- [~] COMCTL32/ImageList tier: first-tier image-list state, synthetic bitmap
+  metadata, and managed enumeration fallback are covered; richer draw/mask and
+  stream payload fidelity remain.
 - [~] Shell/resources tier: stock icons/cursors/resource resolver centralization.
 - [ ] RichText tier: drag/drop + link/range compatibility follow-ups.
 - [ ] Accessibility tier: PropertyGrid/ListView/ToolStrip UIA parity gaps.

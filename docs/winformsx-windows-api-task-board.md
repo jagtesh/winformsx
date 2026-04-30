@@ -87,6 +87,9 @@ Ordered by observed frequency across components and blocker blast radius:
       managed `PInvoke.GetLastError` / `SetLastError` and direct
       `KERNEL32.dll` `GetLastError` / `SetLastError` imports use the same
       thread-local WinFormsX state.
+    - `ImageList.GetBitmap` now tolerates WinFormsX synthetic bitmap handles
+      returned by managed/common-control image-list state and falls back to the
+      existing draw path instead of failing through `Image.FromHbitmap`.
     - UIIntegration test setup/teardown now closes leftover open forms before
       each test boundary, keeping `Application.OpenForms` deterministic in the
       shared-process suite.
@@ -136,6 +139,8 @@ Ordered by observed frequency across components and blocker blast radius:
     - `ToolStrip_Hiding_ToolStripMenuItem_OnDropDownClosed_ShouldNotThrow`.
     - `ToolStrip_shared_imagelist_should_not_get_disposed_when_toolstrip_does`.
     - `User32CompatibilityFacadeTests`.
+    - The latest ToolStrip shared-image-list regression is covered after the
+      synthetic bitmap fallback: focused run `Passed: 1, Failed: 0`.
   - Focused ListView UIIntegration coverage is now green:
     - `ListViewTests`: `Passed: 43, Failed: 0`.
     - Added managed common-control behavior for `LVM_SETTILEVIEWINFO`,
@@ -976,7 +981,7 @@ Ordered by observed frequency across components and blocker blast radius:
 
 ## COMCTL32 and Common Control Helpers
 
-- [~] WXA-1601: Expand `COMCTL32` shim for image list primitives used by `ListView`, `TreeView`, and image-backed controls (`Create/Read/Draw/Destroy` semantics). First-tier managed and direct native facade state covers icon size, count, replace/remove bounds, background color, `GetImageInfo`, write/write-ex success, handle cleanup, and `GetObject(BITMAP)` metadata; draw composition, mask/overlay behavior, stream payload fidelity, and broader native parity remain.
+- [~] WXA-1601: Expand `COMCTL32` shim for image list primitives used by `ListView`, `TreeView`, and image-backed controls (`Create/Read/Draw/Destroy` semantics). First-tier managed and direct native facade state covers icon size, count, replace/remove bounds, background color, `GetImageInfo`, write/write-ex success, handle cleanup, `GetObject(BITMAP)` metadata, and managed `ImageList` enumeration over WinFormsX synthetic bitmap handles; draw composition, mask/overlay behavior, stream payload fidelity, and broader native parity remain.
 - [x] WXA-1602: Keep `InitCommonControls` / `InitCommonControlsEx` as deterministic no-op with explicit supported-control feature flags. Managed wrapper state records requested classes and rejects malformed struct sizes; direct native `COMCTL32.dll` facade exports are packaged and covered.
 
 ## Shell / Resources / Icons / Cursors
