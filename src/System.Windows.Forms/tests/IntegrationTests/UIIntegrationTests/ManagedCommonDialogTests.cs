@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Drawing;
+using System.Windows.Forms.Platform;
 using Xunit.Abstractions;
 
 namespace System.Windows.Forms.UITests;
@@ -67,6 +68,21 @@ public class ManagedCommonDialogTests : ControlTestBase
         Assert.Equal(DialogResult.OK, dialog.ShowDialog(dialogOwnerForm));
         Assert.Equal(selectedFont.FontFamily.Name, dialog.Font.FontFamily.Name);
         Assert.Equal(selectedFont.Size, dialog.Font.Size);
+    }
+
+    [UIFact]
+    public void FileDialog_FilterPatterns_SelectsRequestedFilterIndex()
+    {
+        Assert.Equal(["*.png", "*.jpg"], ImpellerDialogInterop.GetFilterPatterns("Images|*.png;*.jpg|Text|*.txt", 1));
+        Assert.Equal(["*.txt"], ImpellerDialogInterop.GetFilterPatterns("Images|*.png;*.jpg|Text|*.txt", 2));
+    }
+
+    [UIFact]
+    public void FileDialog_MatchesFilter_AppliesWildcardPatterns()
+    {
+        Assert.True(ImpellerDialogInterop.MatchesFilter("report.TXT", ["*.txt"]));
+        Assert.True(ImpellerDialogInterop.MatchesFilter("archive.tar.gz", ["*.tar.?z"]));
+        Assert.False(ImpellerDialogInterop.MatchesFilter("image.png", ["*.txt"]));
     }
 
     private class AcceptDialogForm : DialogHostForm

@@ -96,7 +96,9 @@ compatibility-facade coverage.
   through a WinFormsX common-dialog interop layer and adds a native
   `COMDLG32.dll` compatibility facade for source-compatible direct DllImports;
   the managed WinFormsX path now has visible file, save, folder, color, and
-  font dialog baselines, while direct COMDLG32 exports still return
+  font dialog baselines. The latest file-picker pass threads `FilterIndex`
+  through the dialog PAL and applies wildcard filter patterns when populating
+  managed Open/Save file lists. Direct COMDLG32 exports still return
   deterministic cancel/default state until ABI-safe visible services are wired
   through. The latest printing pass removes generated
   `winspool.drv` imports from the first managed print paths, adds deterministic

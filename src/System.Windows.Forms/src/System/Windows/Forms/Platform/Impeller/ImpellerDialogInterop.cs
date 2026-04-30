@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Drawing;
+using System.Text.RegularExpressions;
 
 namespace System.Windows.Forms.Platform;
 
@@ -10,15 +11,15 @@ namespace System.Windows.Forms.Platform;
 /// </summary>
 internal sealed class ImpellerDialogInterop : IDialogInterop
 {
-    public string? ShowOpenFileDialog(nint owner, string? title, string? filter, string? initialDir, string? fileName)
+    public string? ShowOpenFileDialog(nint owner, string? title, string? filter, int filterIndex, string? initialDir, string? fileName)
     {
-        using FilePickerDialog dialog = new(owner, saveMode: false, title, filter, initialDir, fileName);
+        using FilePickerDialog dialog = new(owner, saveMode: false, title, filter, filterIndex, initialDir, fileName);
         return dialog.ShowDialog(new WindowWrapper(owner)) == DialogResult.OK ? dialog.SelectedPath : null;
     }
 
-    public string? ShowSaveFileDialog(nint owner, string? title, string? filter, string? initialDir, string? fileName)
+    public string? ShowSaveFileDialog(nint owner, string? title, string? filter, int filterIndex, string? initialDir, string? fileName)
     {
-        using FilePickerDialog dialog = new(owner, saveMode: true, title, filter, initialDir, fileName);
+        using FilePickerDialog dialog = new(owner, saveMode: true, title, filter, filterIndex, initialDir, fileName);
         return dialog.ShowDialog(new WindowWrapper(owner)) == DialogResult.OK ? dialog.SelectedPath : null;
     }
 
@@ -117,12 +118,14 @@ internal sealed class ImpellerDialogInterop : IDialogInterop
         private readonly bool _saveMode;
         private readonly TextBox _pathBox = new() { Anchor = AnchorStyles.Left | AnchorStyles.Right };
         private readonly ListBox _items = new() { Dock = DockStyle.Fill };
+        private readonly string[] _filterPatterns;
         private string _currentDirectory;
 
-        public FilePickerDialog(nint owner, bool saveMode, string? title, string? filter, string? initialDir, string? fileName)
+        public FilePickerDialog(nint owner, bool saveMode, string? title, string? filter, int filterIndex, string? initialDir, string? fileName)
             : base(owner)
         {
             _saveMode = saveMode;
+            _filterPatterns = GetFilterPatterns(filter, filterIndex);
             Text = string.IsNullOrWhiteSpace(title) ? (saveMode ? "Save File" : "Open File") : title;
             ClientSize = new Size(720, 460);
             MinimumSize = new Size(520, 320);
@@ -266,7 +269,10 @@ internal sealed class ImpellerDialogInterop : IDialogInterop
 
                 foreach (string file in Directory.EnumerateFiles(directory).Order(StringComparer.OrdinalIgnoreCase))
                 {
-                    _items.Items.Add(new FileSystemEntry(file, isDirectory: false));
+                    if (MatchesFilter(file, _filterPatterns))
+                    {
+                        _items.Items.Add(new FileSystemEntry(file, isDirectory: false));
+                    }
                 }
             }
             catch
@@ -313,6 +319,49 @@ internal sealed class ImpellerDialogInterop : IDialogInterop
 
             return Path.IsPathFullyQualified(fileName) ? fileName : Path.Combine(currentDirectory, fileName);
         }
+    }
+
+    internal static string[] GetFilterPatterns(string? filter, int filterIndex)
+    {
+        if (string.IsNullOrWhiteSpace(filter))
+        {
+            return ["*.*"];
+        }
+
+        string[] tokens = filter.Split('|');
+        int patternIndex = Math.Max(0, filterIndex - 1) * 2 + 1;
+        if (patternIndex >= tokens.Length)
+        {
+            patternIndex = 1;
+        }
+
+        return tokens[patternIndex]
+            .Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+    }
+
+    internal static bool MatchesFilter(string path, string[] patterns)
+    {
+        if (patterns.Length == 0)
+        {
+            return true;
+        }
+
+        string fileName = Path.GetFileName(path);
+        foreach (string pattern in patterns)
+        {
+            if (pattern is "*" or "*.*")
+            {
+                return true;
+            }
+
+            string regexPattern = "^" + Regex.Escape(pattern).Replace("\\*", ".*").Replace("\\?", ".") + "$";
+            if (Regex.IsMatch(fileName, regexPattern, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private sealed class FolderPickerDialog : ManagedDialogForm

@@ -10,10 +10,10 @@ namespace System.Windows.Forms.Platform;
 internal interface IDialogInterop
 {
     /// <summary>Show a file-open dialog. Returns the selected path, or null if cancelled.</summary>
-    string? ShowOpenFileDialog(nint owner, string? title, string? filter, string? initialDir, string? fileName);
+    string? ShowOpenFileDialog(nint owner, string? title, string? filter, int filterIndex, string? initialDir, string? fileName);
 
     /// <summary>Show a file-save dialog. Returns the selected path, or null if cancelled.</summary>
-    string? ShowSaveFileDialog(nint owner, string? title, string? filter, string? initialDir, string? fileName);
+    string? ShowSaveFileDialog(nint owner, string? title, string? filter, int filterIndex, string? initialDir, string? fileName);
 
     /// <summary>Show a color picker. Returns true if a color was selected.</summary>
     bool ShowColorDialog(nint owner, ref System.Drawing.Color color);
