@@ -17,7 +17,6 @@ BM_*
 BN_*
 BROWSEINFOW
 BS_*
-CallNextHookEx
 CB_*
 CBN_*
 CBS_*
@@ -623,7 +622,6 @@ SetWindowExtEx
 SetWindowOrgEx
 SetWindowPlacement
 SetWindowRgn
-SetWindowsHookEx
 SetWinEventHook
 SF_*
 SF_*
@@ -756,3 +754,5 @@ WSF_VISIBLE
 XBUTTON1
 XBUTTON2
 XFORMCOORDS
+CallNextHookEx
+SetWindowsHookEx

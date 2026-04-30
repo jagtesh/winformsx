@@ -8,7 +8,11 @@ internal static partial class PInvoke
     /// <inheritdoc cref="RevokeDragDrop(HWND)"/>
     public static HRESULT RevokeDragDrop<T>(T hwnd) where T : IHandle<HWND>
     {
-        HRESULT result = RevokeDragDrop(hwnd.Handle);
+        WinFormsXCompatibilityWarning.Once(
+            "PInvoke.RevokeDragDrop",
+            "Native OLE drag/drop revocation is not implemented in WinFormsX yet; RevokeDragDrop acknowledged without OS integration.");
+        HRESULT result = HRESULT.S_OK;
+
         GC.KeepAlive(hwnd.Wrapper);
         return result;
     }

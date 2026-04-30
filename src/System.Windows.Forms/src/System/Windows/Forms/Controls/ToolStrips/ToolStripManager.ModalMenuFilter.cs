@@ -145,12 +145,8 @@ public static partial class ToolStripManager
                 if (!Application.ThreadContext.FromCurrent().GetMessageLoop(true))
                 {
                     // Message filter isn't going to help as we don't own the message pump
-                    // switch over to a MessageHook. This relies on USER32 hooks and is
-                    // only available on Windows.
-                    if (OperatingSystem.IsWindows())
-                    {
-                        MessageHook.HookMessages = true;
-                    }
+                    // switch over to a MessageHook.
+                    MessageHook.HookMessages = true;
                 }
 
                 _inMenuMode = true;
