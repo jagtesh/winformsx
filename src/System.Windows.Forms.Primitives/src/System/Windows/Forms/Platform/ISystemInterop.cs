@@ -46,6 +46,7 @@ internal unsafe interface ISystemInterop
     // ─── Module / Process ───────────────────────────────────────────────
 
     HMODULE GetModuleHandle(string? lpModuleName);
+    uint GetModuleFileName(HMODULE hModule, Span<char> lpFilename);
     nint GetProcAddress(HMODULE hModule, PCSTR lpProcName);
     uint GetCurrentThreadId();
     uint GetCurrentProcessId();

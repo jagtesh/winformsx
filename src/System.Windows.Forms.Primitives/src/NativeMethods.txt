@@ -189,7 +189,6 @@ GetMapMode
 GetMenuItemCount
 GetMenuItemInfo
 GetMessageTime
-GetModuleFileName
 GetMonitorInfo
 GetNearestColor
 GetOpenFileName

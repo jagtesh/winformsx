@@ -60,6 +60,9 @@
   </ItemGroup>
 
   <PropertyGroup Condition="'$(OS)' != 'Windows_NT'">
+    <WinFormsXKernel32ShimSource>$(MSBuildProjectDirectory)/Native/Kernel32Shim/winformsx_kernel32.c</WinFormsXKernel32ShimSource>
+    <WinFormsXKernel32ShimOutputDirectory>$(IntermediateOutputPath)winformsx-kernel32/</WinFormsXKernel32ShimOutputDirectory>
+    <WinFormsXKernel32ShimBinary>$(WinFormsXKernel32ShimOutputDirectory)KERNEL32.dll</WinFormsXKernel32ShimBinary>
     <WinFormsXUser32ShimSource>$(MSBuildProjectDirectory)/Native/User32Shim/winformsx_user32.c</WinFormsXUser32ShimSource>
     <WinFormsXUser32ShimOutputDirectory>$(IntermediateOutputPath)winformsx-user32/</WinFormsXUser32ShimOutputDirectory>
     <WinFormsXUser32ShimBinary>$(WinFormsXUser32ShimOutputDirectory)USER32.dll</WinFormsXUser32ShimBinary>
@@ -78,6 +81,15 @@
   </PropertyGroup>
 
   <ItemGroup Condition="'$(OS)' != 'Windows_NT'">
+    <None Include="$(WinFormsXKernel32ShimOutputDirectory)KERNEL32.dll" TargetPath="KERNEL32.dll" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" />
+    <None Include="$(WinFormsXKernel32ShimOutputDirectory)kernel32.dll" TargetPath="kernel32.dll" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" />
+    <None Include="$(WinFormsXKernel32ShimOutputDirectory)kernel32" TargetPath="kernel32" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" />
+    <None Include="$(WinFormsXKernel32ShimOutputDirectory)KERNEL32.dll.dylib" TargetPath="KERNEL32.dll.dylib" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+    <None Include="$(WinFormsXKernel32ShimOutputDirectory)libKERNEL32.dll.dylib" TargetPath="libKERNEL32.dll.dylib" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+    <None Include="$(WinFormsXKernel32ShimOutputDirectory)libkernel32.dylib" TargetPath="libkernel32.dylib" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+    <None Include="$(WinFormsXKernel32ShimOutputDirectory)libKERNEL32.dll.so" TargetPath="libKERNEL32.dll.so" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+    <None Include="$(WinFormsXKernel32ShimOutputDirectory)KERNEL32.dll.so" TargetPath="KERNEL32.dll.so" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+    <None Include="$(WinFormsXKernel32ShimOutputDirectory)libkernel32.so" TargetPath="libkernel32.so" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
     <None Include="$(WinFormsXUser32ShimOutputDirectory)USER32.dll" TargetPath="USER32.dll" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" />
     <None Include="$(WinFormsXUser32ShimOutputDirectory)user32.dll" TargetPath="user32.dll" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" />
     <None Include="$(WinFormsXUser32ShimOutputDirectory)user32" TargetPath="user32" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" />
@@ -123,6 +135,26 @@
     <None Include="$(WinFormsXWinSpoolShimOutputDirectory)winspool.drv.so" TargetPath="winspool.drv.so" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
     <None Include="$(WinFormsXWinSpoolShimOutputDirectory)libwinspool.so" TargetPath="libwinspool.so" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
   </ItemGroup>
+
+  <Target Name="BuildWinFormsXKernel32Shim"
+          BeforeTargets="PrepareForBuild;GetCopyToOutputDirectoryItems"
+          Inputs="$(WinFormsXKernel32ShimSource)"
+          Outputs="$(WinFormsXKernel32ShimBinary)"
+          Condition="'$(OS)' != 'Windows_NT'">
+    <MakeDir Directories="$(WinFormsXKernel32ShimOutputDirectory)" />
+    <Exec Condition="$([MSBuild]::IsOSPlatform('OSX'))"
+          Command="cc -dynamiclib -fvisibility=hidden &quot;$(WinFormsXKernel32ShimSource)&quot; -o &quot;$(WinFormsXKernel32ShimBinary)&quot;" />
+    <Exec Condition="$([MSBuild]::IsOSPlatform('Linux'))"
+          Command="cc -shared -fPIC -fvisibility=hidden &quot;$(WinFormsXKernel32ShimSource)&quot; -o &quot;$(WinFormsXKernel32ShimBinary)&quot;" />
+    <Copy SourceFiles="$(WinFormsXKernel32ShimBinary)" DestinationFiles="$(WinFormsXKernel32ShimOutputDirectory)kernel32.dll" />
+    <Copy SourceFiles="$(WinFormsXKernel32ShimBinary)" DestinationFiles="$(WinFormsXKernel32ShimOutputDirectory)kernel32" />
+    <Copy SourceFiles="$(WinFormsXKernel32ShimBinary)" DestinationFiles="$(WinFormsXKernel32ShimOutputDirectory)KERNEL32.dll.dylib" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+    <Copy SourceFiles="$(WinFormsXKernel32ShimBinary)" DestinationFiles="$(WinFormsXKernel32ShimOutputDirectory)libKERNEL32.dll.dylib" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+    <Copy SourceFiles="$(WinFormsXKernel32ShimBinary)" DestinationFiles="$(WinFormsXKernel32ShimOutputDirectory)libkernel32.dylib" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+    <Copy SourceFiles="$(WinFormsXKernel32ShimBinary)" DestinationFiles="$(WinFormsXKernel32ShimOutputDirectory)libKERNEL32.dll.so" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+    <Copy SourceFiles="$(WinFormsXKernel32ShimBinary)" DestinationFiles="$(WinFormsXKernel32ShimOutputDirectory)KERNEL32.dll.so" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+    <Copy SourceFiles="$(WinFormsXKernel32ShimBinary)" DestinationFiles="$(WinFormsXKernel32ShimOutputDirectory)libkernel32.so" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+  </Target>
 
   <Target Name="BuildWinFormsXUser32Shim"
           BeforeTargets="PrepareForBuild;GetCopyToOutputDirectoryItems"

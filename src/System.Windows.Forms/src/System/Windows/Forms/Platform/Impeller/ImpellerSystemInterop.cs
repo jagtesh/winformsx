@@ -550,6 +550,29 @@ internal sealed unsafe class ImpellerSystemInterop : ISystemInterop
     // --- Module / Process -----------------------------------------------
 
     public HMODULE GetModuleHandle(string? name) => (HMODULE)(nint)0x400000;
+    public uint GetModuleFileName(HMODULE hModule, Span<char> lpFilename)
+    {
+        if (lpFilename.IsEmpty)
+        {
+            return 0;
+        }
+
+        string? path = Environment.ProcessPath;
+        if (string.IsNullOrEmpty(path))
+        {
+            return 0;
+        }
+
+        int length = Math.Min(path.Length, lpFilename.Length);
+        path.AsSpan(0, length).CopyTo(lpFilename);
+        if (length < lpFilename.Length)
+        {
+            lpFilename[length] = '\0';
+        }
+
+        return (uint)length;
+    }
+
     public nint GetProcAddress(HMODULE hModule, PCSTR name) => 0;
     public uint GetCurrentThreadId() => (uint)Environment.CurrentManagedThreadId;
     public uint GetCurrentProcessId() => (uint)Environment.ProcessId;

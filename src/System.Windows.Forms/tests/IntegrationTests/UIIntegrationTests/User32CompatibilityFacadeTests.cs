@@ -498,6 +498,37 @@ public class User32CompatibilityFacadeTests
         }
     }
 
+    [Fact]
+    public unsafe void DirectKernel32DllImports_RouteToWinFormsXPal()
+    {
+        using (new EnvironmentOverride("WINFORMSX_SUPPRESS_HIDDEN_BACKEND", "1"))
+        {
+            Application.EnableVisualStyles();
+
+            Assert.Equal((uint)Environment.ProcessId, NativeKernel32.GetCurrentProcessId());
+            Assert.Equal(PInvoke.GetCurrentThreadId(), NativeKernel32.GetCurrentThreadId());
+            Assert.Equal((nint)PInvoke.GetCurrentProcess(), NativeKernel32.GetCurrentProcess());
+
+            nint nativeModule = NativeKernel32.GetModuleHandle(null);
+            Assert.NotEqual(nint.Zero, nativeModule);
+            Assert.Equal((nint)PInvoke.GetModuleHandle((string?)null), nativeModule);
+
+            Span<char> managedPath = stackalloc char[512];
+            Span<char> nativePath = stackalloc char[512];
+            fixed (char* managedPathPointer = managedPath)
+            fixed (char* nativePathPointer = nativePath)
+            {
+                uint managedLength = PInvoke.GetModuleFileName(HINSTANCE.Null, managedPathPointer, (uint)managedPath.Length);
+                uint nativeLength = NativeKernel32.GetModuleFileName(nint.Zero, nativePathPointer, (uint)nativePath.Length);
+                Assert.Equal(managedLength, nativeLength);
+                Assert.True(nativeLength > 0);
+                Assert.Equal(
+                    new string(managedPathPointer, 0, (int)managedLength),
+                    new string(nativePathPointer, 0, (int)nativeLength));
+            }
+        }
+    }
+
     private sealed class EnvironmentOverride : IDisposable
     {
         private readonly string _name;
@@ -894,5 +925,25 @@ public class User32CompatibilityFacadeTests
 
         [DllImport(WinSpool, EntryPoint = "DocumentPropertiesW", ExactSpelling = true)]
         internal static extern int DocumentProperties(nint hwnd, nint printer, nint deviceName, nint devModeOutput, nint devModeInput, uint mode);
+    }
+
+    private static unsafe partial class NativeKernel32
+    {
+        private const string Kernel32 = "KERNEL32.dll";
+
+        [DllImport(Kernel32, ExactSpelling = true)]
+        internal static extern nint GetCurrentProcess();
+
+        [DllImport(Kernel32, ExactSpelling = true)]
+        internal static extern uint GetCurrentProcessId();
+
+        [DllImport(Kernel32, ExactSpelling = true)]
+        internal static extern uint GetCurrentThreadId();
+
+        [DllImport(Kernel32, EntryPoint = "GetModuleHandleW", CharSet = CharSet.Unicode, ExactSpelling = true)]
+        internal static extern nint GetModuleHandle(string? lpModuleName);
+
+        [DllImport(Kernel32, EntryPoint = "GetModuleFileNameW", ExactSpelling = true)]
+        internal static extern uint GetModuleFileName(nint hModule, char* lpFilename, uint nSize);
     }
 }

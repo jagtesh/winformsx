@@ -200,7 +200,12 @@ compatibility-facade coverage.
   import resolution with focused UIIntegration coverage. The latest native
   ImageList facade pass adds first-tier `ImageList_Create`, destroy,
   add/replace/remove, count, icon-size, `GetImageInfo`, background-color, and
-  write/write-ex exports with deterministic native shim state.
+  write/write-ex exports with deterministic native shim state. The latest
+  KERNEL32 facade pass removes the generated `GetModuleFileName` import from
+  the managed path, adds PAL-backed module-file-name state, and packages a
+  source-compatible `KERNEL32.dll` facade for `GetCurrentProcess`,
+  `GetCurrentProcessId`, `GetCurrentThreadId`, `GetModuleHandleW/A`, and
+  `GetModuleFileNameW/A`.
 - First UIIntegration blockers observed:
   - `OLE32.dll` missing through `Application.ThreadContext.OleRequired()`,
     clipboard, and drag/drop paths. `InputLanguage.CurrentInputLanguage`,
@@ -567,8 +572,9 @@ Plan:
 
 - Implement memory handles and last-error propagation consistently for all native
   compatibility facades.
-- Add a small `KERNEL32.dll` facade only after tests identify direct-DllImport
-  production surfaces that cannot be handled by managed wrappers.
+- Keep the first-tier `KERNEL32.dll` facade limited to ABI-simple process,
+  thread, and module-path APIs until tests justify broader loader/resource
+  semantics.
 - Keep process-global and activation-context APIs conservative and deterministic.
 
 ### 6. GDI32, GDI+, MSIMG32, And Drawing Handles
@@ -861,7 +867,9 @@ cases were previously blockers and should remain regression targets:
   through managed bitmap-backed `PreviewPrintController` output. Real status
   dialog UI and real print/file/PDF output remain.
 - [ ] USER32 tier expansion: geometry/menu/message APIs used by UI tests.
-- [ ] KERNEL32 tier expansion: minimal module/resource and last-error semantics.
+- [~] KERNEL32 tier expansion: process/thread/module-path facade is covered;
+  module resources, activation context, loader edge cases, and last-error
+  propagation remain.
 - [ ] COMCTL32/ImageList tier: image list ops required by ListView/TreeView tests.
 - [~] Shell/resources tier: stock icons/cursors/resource resolver centralization.
 - [ ] RichText tier: drag/drop + link/range compatibility follow-ups.

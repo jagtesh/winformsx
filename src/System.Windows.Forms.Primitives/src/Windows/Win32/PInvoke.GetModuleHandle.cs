@@ -13,5 +13,5 @@ internal static partial class PInvoke
 
     /// <summary>PCWSTR overload used by NativeWindow.DefaultWindowProc.</summary>
     public static unsafe HMODULE GetModuleHandle(PCWSTR lpModuleName)
-        => PlatformApi.System.GetModuleHandle(null);
+        => PlatformApi.System.GetModuleHandle(lpModuleName.Value is null ? null : new string(lpModuleName.Value));
 }
