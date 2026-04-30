@@ -44,6 +44,12 @@ internal sealed class SilkPlatformBackend : IPlatformBackend
                 _swapchain = ImpellerSwapchainManager.CreateVulkanSwapchain(impellerContext, (nint)vkSurfaceHandle.Value.Handle);
                 Trace($"[SilkPlatformBackend] swapchain=0x{_swapchain:X}");
             }
+
+            if (_swapchain == nint.Zero)
+            {
+                _useWrappedFbo = true;
+                Trace("[SilkPlatformBackend] swapchain unavailable -> using wrapped FBO path");
+            }
         }
         else
         {

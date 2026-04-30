@@ -731,6 +731,24 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
 
     private static IWindow CreateInitializedSilkWindow(WindowOptions vulkanOptions)
     {
+        if (VulkanLoaderResolver.TryConfigureRuntime(out string? runtimeDetail))
+        {
+            TracePaint($"[Window] Vulkan runtime configured: {runtimeDetail}");
+        }
+        else
+        {
+            TracePaint($"[Window] Vulkan runtime auto-config unavailable: {runtimeDetail ?? "<no detail>"}");
+        }
+
+        if (VulkanLoaderResolver.TryEnsureLoaded(out string? loadedFrom))
+        {
+            TracePaint($"[Window] Vulkan loader preloaded from {loadedFrom}");
+        }
+        else
+        {
+            TracePaint("[Window] Vulkan loader not found in default/system paths; GLFW Vulkan support may be unavailable.");
+        }
+
         try
         {
             IWindow vulkanWindow = Window.Create(vulkanOptions);
@@ -3684,6 +3702,7 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
     {
         if (_windows.TryGetValue(hWnd, out var state))
         {
+            state.NativeHwnd = HWND.Null;
             state.SilkWindow?.Dispose();
             _windows.Remove(hWnd);
             return true;

@@ -101,28 +101,10 @@ internal sealed class ImpellerPlatformProvider : IPlatformProvider
 
     private static VkGetInstanceProcAddrDelegate? LoadVkGetInstanceProcAddr()
     {
-        string[] candidates =
-        [
-            "libvulkan.1.dylib",
-            "libvulkan.dylib",
-            "libvulkan.so.1",
-            "libvulkan.so",
-            "vulkan-1.dll",
-        ];
-
-        foreach (string lib in candidates)
+        if (VulkanLoaderResolver.TryGetExport("vkGetInstanceProcAddr", out nint fn, out string? source)
+            && fn != nint.Zero)
         {
-            if (!NativeLibrary.TryLoad(lib, out nint handle) || handle == nint.Zero)
-            {
-                continue;
-            }
-
-            if (!NativeLibrary.TryGetExport(handle, "vkGetInstanceProcAddr", out nint fn) || fn == nint.Zero)
-            {
-                continue;
-            }
-
-            Trace($"[BackendInit] loaded vkGetInstanceProcAddr from {lib}");
+            Trace($"[BackendInit] loaded vkGetInstanceProcAddr from {source ?? "<unknown>"}");
             return Marshal.GetDelegateForFunctionPointer<VkGetInstanceProcAddrDelegate>(fn);
         }
 
