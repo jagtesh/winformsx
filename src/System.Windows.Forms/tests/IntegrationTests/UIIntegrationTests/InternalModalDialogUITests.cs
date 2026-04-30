@@ -175,10 +175,87 @@ public class InternalModalDialogUITests : ControlTestBase
         Assert.Equal(DialogResult.OK, dialog.ShowDialog());
     }
 
+    [UIFact]
+    public void StringCollectionEditor_ShowDialog_CloseFromOwner_ReturnsCancel()
+    {
+        using DialogHostForm dialogOwnerForm = new();
+        using Form dialog = CreateStringCollectionEditorForm(["one"]);
+
+        Assert.Equal(DialogResult.Cancel, dialog.ShowDialog(dialogOwnerForm));
+    }
+
+    [UIFact]
+    public void StringCollectionEditor_ShowDialog_OkButton_ReturnsOk()
+    {
+        using Form dialog = CreateStringCollectionEditorForm(["one"]);
+        dialog.Shown += (sender, e) =>
+        {
+            TextBox textEntry = GetPrivateField<TextBox>(dialog, "_textEntry");
+            Button okButton = GetPrivateField<Button>(dialog, "_okButton");
+
+            textEntry.Text = "one" + Environment.NewLine + "two";
+            okButton.PerformClick();
+        };
+
+        Assert.Equal(DialogResult.OK, dialog.ShowDialog());
+    }
+
+    [UIFact]
+    public void DataGridViewColumnCollectionDialog_ShowDialog_CloseFromOwner_ReturnsCancel()
+    {
+        using DialogHostForm dialogOwnerForm = new();
+        using DataGridView liveDataGridView = CreateLiveDataGridViewForColumnDialog();
+        using DataGridViewColumnCollectionDialog dialog = CreateDataGridViewColumnCollectionDialog(liveDataGridView);
+
+        Assert.Equal(DialogResult.Cancel, dialog.ShowDialog(dialogOwnerForm));
+    }
+
+    [UIFact]
+    public void DataGridViewColumnCollectionDialog_ShowDialog_OkButton_ReturnsOk()
+    {
+        using DataGridView liveDataGridView = CreateLiveDataGridViewForColumnDialog();
+        using DataGridViewColumnCollectionDialog dialog = CreateDataGridViewColumnCollectionDialog(liveDataGridView);
+
+        dialog.Shown += (sender, e) =>
+        {
+            Button okButton = GetPrivateField<Button>(dialog, "_okButton");
+            okButton.PerformClick();
+        };
+
+        Assert.Equal(DialogResult.OK, dialog.ShowDialog());
+        Assert.Single(liveDataGridView.Columns);
+    }
+
     private static MdiWindowDialog CreateMdiWindowDialog(Form first, Form second)
     {
         MdiWindowDialog dialog = new();
         dialog.SetItems(first, [first, second]);
+        return dialog;
+    }
+
+    private static Form CreateStringCollectionEditorForm(string[] values)
+    {
+        TestStringCollectionEditor editor = new();
+        return editor.CreateForm(values);
+    }
+
+    private static DataGridView CreateLiveDataGridViewForColumnDialog()
+    {
+        DataGridView dataGridView = new();
+        dataGridView.Columns.Add(new DataGridViewTextBoxColumn
+        {
+            HeaderText = "Name",
+            Name = "nameColumn"
+        });
+
+        return dataGridView;
+    }
+
+    private static DataGridViewColumnCollectionDialog CreateDataGridViewColumnCollectionDialog(
+        DataGridView liveDataGridView)
+    {
+        DataGridViewColumnCollectionDialog dialog = new();
+        dialog.SetLiveDataGridView(liveDataGridView);
         return dialog;
     }
 
@@ -199,6 +276,21 @@ public class InternalModalDialogUITests : ControlTestBase
             ?? throw new MissingFieldException(instance.GetType().FullName, fieldName);
 
         return (T)field.GetValue(instance)!;
+    }
+
+    private sealed class TestStringCollectionEditor : StringCollectionEditor
+    {
+        public TestStringCollectionEditor()
+            : base(typeof(string[]))
+        {
+        }
+
+        public Form CreateForm(string[] values)
+        {
+            CollectionForm form = CreateCollectionForm();
+            form.EditValue = values;
+            return form;
+        }
     }
 
     private sealed class MdiWindowDialogHost : IDisposable

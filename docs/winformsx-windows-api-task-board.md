@@ -213,8 +213,16 @@ Ordered by observed frequency across components and blocker blast radius:
       adds PAL message handling for managed `LVM_SETCOLUMNW`, closing the
       ListView-backed column-header initialization failure that blocked
       `MaskDesignerDialog` construction.
+    - Latest collection/data-grid editor modal pass:
+      focused `StringCollectionEditor` and
+      `DataGridViewColumnCollectionDialog` owner-close/OK coverage is green,
+      bringing `InternalModalDialogUITests` to
+      `Passed: 14, Failed: 0`. These paths did not expose a new PAL/runtime
+      blocker, so the larger-editor lane now narrows to remaining
+      component-specific editors.
   - Priority order moves to remaining high-impact infrastructure gaps:
-    larger collection/data-grid editor modal parity, real print provider/PDF
+    remaining component-specific editor modals such as add-column,
+    tree-node/style, and ToolStrip collection editors, real print provider/PDF
     output design, OS-native picker integration, then lower-volume
     accessibility/provider breadth and resource polish.
   - Active lane update: focused PropertyGrid UIIntegration coverage is now
