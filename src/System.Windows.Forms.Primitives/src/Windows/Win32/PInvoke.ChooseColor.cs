@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using Windows.Win32.UI.Controls.Dialogs;
+using System.Windows.Forms.Platform;
 
 namespace Windows.Win32;
 
@@ -11,8 +12,7 @@ internal static partial class PInvoke
     {
         WinFormsXCompatibilityWarning.Once(
             "PInvoke.ChooseColor",
-            "The stock Windows color picker is not implemented in WinFormsX yet; ChooseColor returned false.");
-        _ = param0;
-        return BOOL.FALSE;
+            "The stock Windows color picker is not implemented in WinFormsX yet; ChooseColor returned cancel.");
+        return WinFormsXCommonDialogInterop.ChooseColor(param0);
     }
 }

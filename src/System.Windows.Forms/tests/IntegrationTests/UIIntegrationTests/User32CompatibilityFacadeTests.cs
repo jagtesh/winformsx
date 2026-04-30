@@ -385,6 +385,30 @@ public class User32CompatibilityFacadeTests
         }
     }
 
+    [Fact]
+    public void DirectComDlg32DllImports_RouteToWinFormsXPal()
+    {
+        using (new EnvironmentOverride("WINFORMSX_SUPPRESS_HIDDEN_BACKEND", "1"))
+        {
+            Application.EnableVisualStyles();
+
+            Assert.False(NativeComDlg32.GetOpenFileName(nint.Zero));
+            Assert.Equal(0u, NativeComDlg32.CommDlgExtendedError());
+            Assert.False(NativeComDlg32.GetSaveFileName(nint.Zero));
+            Assert.Equal(0u, NativeComDlg32.CommDlgExtendedError());
+            Assert.False(NativeComDlg32.ChooseColor(nint.Zero));
+            Assert.Equal(0u, NativeComDlg32.CommDlgExtendedError());
+            Assert.False(NativeComDlg32.ChooseFont(nint.Zero));
+            Assert.Equal(0u, NativeComDlg32.CommDlgExtendedError());
+            Assert.False(NativeComDlg32.PrintDlg(nint.Zero));
+            Assert.Equal(0u, NativeComDlg32.CommDlgExtendedError());
+            Assert.Equal(0, NativeComDlg32.PrintDlgEx(nint.Zero));
+            Assert.Equal(0u, NativeComDlg32.CommDlgExtendedError());
+            Assert.False(NativeComDlg32.PageSetupDlg(nint.Zero));
+            Assert.Equal(0u, NativeComDlg32.CommDlgExtendedError());
+        }
+    }
+
     private sealed class EnvironmentOverride : IDisposable
     {
         private readonly string _name;
@@ -641,5 +665,40 @@ public class User32CompatibilityFacadeTests
         [DllImport(Imm32, ExactSpelling = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
         internal static extern bool ImmSetOpenStatus(nint himc, bool open);
+    }
+
+    private static partial class NativeComDlg32
+    {
+        private const string ComDlg32 = "COMDLG32.dll";
+
+        [DllImport(ComDlg32, EntryPoint = "GetOpenFileNameW", ExactSpelling = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool GetOpenFileName(nint ofn);
+
+        [DllImport(ComDlg32, EntryPoint = "GetSaveFileNameW", ExactSpelling = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool GetSaveFileName(nint ofn);
+
+        [DllImport(ComDlg32, EntryPoint = "ChooseColorW", ExactSpelling = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool ChooseColor(nint chooseColor);
+
+        [DllImport(ComDlg32, EntryPoint = "ChooseFontW", ExactSpelling = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool ChooseFont(nint chooseFont);
+
+        [DllImport(ComDlg32, EntryPoint = "PrintDlgW", ExactSpelling = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool PrintDlg(nint printDlg);
+
+        [DllImport(ComDlg32, EntryPoint = "PrintDlgExW", ExactSpelling = true)]
+        internal static extern int PrintDlgEx(nint printDlgEx);
+
+        [DllImport(ComDlg32, EntryPoint = "PageSetupDlgW", ExactSpelling = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool PageSetupDlg(nint pageSetup);
+
+        [DllImport(ComDlg32, ExactSpelling = true)]
+        internal static extern uint CommDlgExtendedError();
     }
 }

@@ -27,6 +27,7 @@ public sealed partial class Application
         Platform.PlatformApi.Initialize(new Platform.ImpellerPlatformProvider());
         Platform.WinFormsXUser32Shim.Register();
         Platform.WinFormsXImm32Shim.Register();
+        Platform.WinFormsXComDlg32Shim.Register();
     }
 
     private static void InitializeMessageLoopPlatform()

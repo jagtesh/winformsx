@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using Windows.Win32.UI.Controls.Dialogs;
+using System.Windows.Forms.Platform;
 
 namespace Windows.Win32;
 
@@ -11,8 +12,7 @@ internal static partial class PInvoke
     {
         WinFormsXCompatibilityWarning.Once(
             "PInvoke.ChooseFont",
-            "The stock Windows font picker is not implemented in WinFormsX yet; ChooseFont returned false.");
-        _ = lpcf;
-        return BOOL.FALSE;
+            "The stock Windows font picker is not implemented in WinFormsX yet; ChooseFont returned cancel.");
+        return WinFormsXCommonDialogInterop.ChooseFont(lpcf);
     }
 }

@@ -69,7 +69,7 @@ Ordered by observed frequency across components and blocker blast radius:
     - Verification:
       `WinformsControlsTest --control-smoke-test` ->
       `total=42 passed=41 failed=0 skipped=1`; full UIIntegration ->
-      `Failed: 0, Passed: 191, Skipped: 1, Total: 192`.
+      `Failed: 0, Passed: 193, Skipped: 1, Total: 194`.
   - Added WinFormsX virtual-window handling for ToolStrip dropdown overlays and
     hidden dropdown owner windows so they no longer create nested Silk/GLFW
     windows during UIIntegration runs.
@@ -134,10 +134,12 @@ Ordered by observed frequency across components and blocker blast radius:
     - Latest unfiltered broad snapshot after UpDown accessibility/focus cleanup:
       `Failed: 0, Passed: 191, Skipped: 1, Total: 192`. The active
       UIIntegration slice is currently green.
-  - Priority order moves to highest-volume remaining failure clusters:
-    ListView tile accessibility, PropertyGrid provider breadth, RichTextBox
-    link-range behavior, dialog/print fallbacks, and remaining lower-volume
-    provider gaps.
+    - Latest unfiltered broad snapshot after COMDLG32 facade coverage:
+      `Failed: 0, Passed: 193, Skipped: 1, Total: 194`. The active
+      UIIntegration slice remains green.
+  - Priority order moves to remaining high-impact infrastructure gaps:
+    dialog/print visible-service parity, no-printer spooler behavior, then
+    lower-volume accessibility/provider breadth and resource polish.
   - Active lane update: focused PropertyGrid UIIntegration coverage is now
     green: `Passed: 38, Failed: 0, Skipped: 0, Total: 38`.
   - Active lane update: focused anchor/MDI resize coverage is now green:
@@ -258,11 +260,19 @@ Ordered by observed frequency across components and blocker blast radius:
       `ImpellerInputInterop` owns context/open/conversion/association state,
       and a native `IMM32.dll` facade forwards direct app DllImports to the
       same managed dispatch table.
-    - Verification after the input-language/window-enumeration sweep:
+    - Common-dialog calls now route through a WinFormsX dialog interop layer:
+      generated/direct `COMDLG32` wrappers for open/save, color, font, print,
+      print-ex, page setup, and extended-error state no longer bind straight to
+      native Windows DLLs. A native `COMDLG32.dll` facade forwards direct
+      source-compatible DllImports to the same managed dispatch table and
+      currently returns deterministic cancel/default state until richer visible
+      dialog services land.
+    - Verification after the input-language/window-enumeration/common-dialog sweep:
       `dotnet build ...System.Windows.Forms.UI.IntegrationTests.csproj -c Debug -v:q` ->
       build succeeded; `dotnet test ... --filter "FullyQualifiedName~User32CompatibilityFacadeTests" -v:n` ->
-      `Passed: 2, Failed: 0`; full UIIntegration ->
-      `Failed: 0, Passed: 191, Skipped: 1, Total: 192`;
+      `Passed: 2, Failed: 0`; latest facade verification ->
+      `Passed: 4, Failed: 0`; full UIIntegration ->
+      `Failed: 0, Passed: 193, Skipped: 1, Total: 194`;
       `WinformsControlsTest --control-smoke-test` ->
       `total=42 passed=41 failed=0 skipped=1`.
     - UIA event/notification callers now use the PAL-backed
@@ -753,7 +763,7 @@ Ordered by observed frequency across components and blocker blast radius:
 - [ ] WXA-1201: Implement managed fallbacks for `OpenFileDialog`, `SaveFileDialog`, `FolderBrowserDialog`, `ColorDialog`, `FontDialog`.
 - [ ] WXA-1202: Implement managed `PrintDialog` and `PageSetupDialog` with no-spooler fallback path.
 - [ ] WXA-1203: Implement WinFormsX fallback for internal modal dialogs (`PrintPreviewDialog`, `TaskDialog`, `GridErrorDialog`, `ThreadExceptionDialog`).
-- [ ] WXA-1204: Route native `COMDLG32.dll` symbols used by `PInvoke` (`GetOpenFileName`, `GetSaveFileName`, `ChooseColor`, `ChooseFont`, `PrintDlg`, `PrintDlgEx`, `PageSetupDlg`) to WinFormsX-managed dialog services.
+- [~] WXA-1204: Route native `COMDLG32.dll` symbols used by `PInvoke` (`GetOpenFileName`, `GetSaveFileName`, `ChooseColor`, `ChooseFont`, `PrintDlg`, `PrintDlgEx`, `PageSetupDlg`, `CommDlgExtendedError`) to WinFormsX-managed dialog services. First-tier safe-cancel facade is covered; richer visible dialog behavior remains under WXA-1201/WXA-1202.
 
 ## Printing And Spooler
 
@@ -832,8 +842,8 @@ Ordered by observed frequency across components and blocker blast radius:
 - `WXA-2101` hang diagnostics have done their job for the current pass: the full
   UIIntegration suite now completes and reports real failures instead of
   aborting on ToolStrip/Silk window creation.
-- Active priority lane moves to `P3` accessibility/provider breadth first,
-  because the largest current full-suite clusters are `ListView` tile/subitem
-  UIA and PropertyGrid fragment navigation failures. Continue `P2`
-  dialog/print and OLE/drag-drop work immediately after those shared provider
-  failures are reduced.
+- Active priority lane moves to `P2` dialog/print and spooler work now that the
+  active UIIntegration slice and controls smoke are green. First-tier
+  `COMDLG32.dll` facade coverage is in place; next highest-impact remaining
+  blocker is no-printer `winspool.drv`/`PrinterSettings` plus visible managed
+  save/color/font/page-setup services.

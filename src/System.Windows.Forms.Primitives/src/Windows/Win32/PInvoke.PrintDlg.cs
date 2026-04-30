@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using Windows.Win32.UI.Controls.Dialogs;
+using System.Windows.Forms.Platform;
 
 namespace Windows.Win32;
 
@@ -11,17 +12,15 @@ internal static partial class PInvoke
     {
         WinFormsXCompatibilityWarning.Once(
             "PInvoke.PrintDlg",
-            "The stock Windows print dialog is not implemented in WinFormsX yet; PrintDlg returned false.");
-        _ = pPD;
-        return BOOL.FALSE;
+            "The stock Windows print dialog is not implemented in WinFormsX yet; PrintDlg returned cancel.");
+        return WinFormsXCommonDialogInterop.PrintDlg(pPD);
     }
 
     internal static unsafe BOOL PrintDlg(PRINTDLGW_32* pPD)
     {
         WinFormsXCompatibilityWarning.Once(
             "PInvoke.PrintDlg",
-            "The stock Windows print dialog is not implemented in WinFormsX yet; PrintDlg returned false.");
-        _ = pPD;
-        return BOOL.FALSE;
+            "The stock Windows print dialog is not implemented in WinFormsX yet; PrintDlg returned cancel.");
+        return WinFormsXCommonDialogInterop.PrintDlg(pPD);
     }
 }

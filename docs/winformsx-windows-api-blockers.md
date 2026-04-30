@@ -18,7 +18,7 @@ compatibility-facade coverage.
 - UIIntegrationTests are no longer globally skipped by OS-gated attributes. The
   suite now exposes real WinFormsX behavior gaps. The latest unfiltered broad
   run completes without a hang/abort and reports
-  `191 passed, 0 failed, 1 skipped`. Recent passes removed the cross-suite
+  `193 passed, 0 failed, 1 skipped`. Recent passes removed the cross-suite
   `VK_RETURN` stuck-key cascade by making PAL `SendInput` accept packets even
   when a synthetic/stale target cannot be dispatched, then closed focused
   `TabControlTests` by aligning backend tab-rectangle minimum width with Win32
@@ -92,7 +92,11 @@ compatibility-facade coverage.
   were removed for internal WinForms calls, managed IME context/open/conversion
   state now lives in `ImpellerInputInterop`, and a direct `IMM32.dll`
   compatibility facade resolves to the same PAL state for source-compatible app
-  code.
+  code. The latest common-dialog pass routes internal `COMDLG32` wrappers
+  through a WinFormsX common-dialog interop layer and adds a native
+  `COMDLG32.dll` compatibility facade for source-compatible direct DllImports;
+  v1 returns deterministic cancel/default state until richer visible dialog
+  services are implemented.
 - First UIIntegration blockers observed:
   - `OLE32.dll` missing through `Application.ThreadContext.OleRequired()`,
     clipboard, and drag/drop paths. `InputLanguage.CurrentInputLanguage`,
@@ -101,8 +105,10 @@ compatibility-facade coverage.
   - `winspool.drv` missing through `DocumentProperties` after the
     `GetDesktopWindow` USER32 gap was closed.
   - Focused `OpenFileDialog`, `FolderBrowserDialog`, and `PrintDialog`
-    UIIntegration tests now pass; remaining dialog work is broader managed
-    service parity for save/color/font/page setup and native `COMDLG32` facades.
+    UIIntegration tests now pass. Direct `COMDLG32.dll` source-compatibility
+    imports now resolve through the WinFormsX facade with safe cancel/default
+    behavior. Remaining dialog work is broader managed service parity for
+    save/color/font/message/task/page setup and richer print automation.
   - `ToolStrip_Hiding_ToolStripMenuItem_OnDropDownClosed_ShouldNotThrow` and
     `ToolStrip_shared_imagelist_should_not_get_disposed_when_toolstrip_does`
     now pass in focused runs.
@@ -181,7 +187,7 @@ compatibility-facade coverage.
     formatting/click handling reads managed selection and mapping state without
     OS checks.
   - Latest broad UIIntegration active slice is green:
-    `191 passed, 0 failed, 1 skipped`.
+    `193 passed, 0 failed, 1 skipped`.
   - DPI awareness, UIAutomationCore wrapper, snap-layout keyboard, and
     autosized layout smoke paths now run through the same WinFormsX/PAL pathway
     everywhere. `Application.OpenForms` also stays stable after PropertyGrid
@@ -199,10 +205,14 @@ safe stubs. They should be treated as known blockers, not successful
 implementations.
 
 - Common dialogs:
-  - `GetOpenFileName` and `GetSaveFileName` return false.
-  - `ChooseColor` returns false.
-  - `ChooseFont` returns false.
-  - `PrintDlg` and `PageSetupDlg` return false.
+  - `GetOpenFileName` and `GetSaveFileName` route through the WinFormsX
+    common-dialog interop layer and currently return deterministic cancel.
+  - `ChooseColor` routes through the same layer and currently returns
+    deterministic cancel.
+  - `ChooseFont` routes through the same layer and currently returns
+    deterministic cancel.
+  - `PrintDlg`, `PrintDlgEx`, and `PageSetupDlg` route through the same layer
+    and currently return deterministic cancel/default result state.
 - OLE drag/drop:
   - `RegisterDragDrop` returns success without OS registration.
   - `DoDragDrop` now has a managed WinFormsX event-flow implementation. Focused
@@ -284,8 +294,9 @@ Impacted APIs and controls:
   `ChooseColor`, `ChooseFont`, `PrintDlg`, `PrintDlgEx`, `PageSetupDlg`,
   `CommDlgExtendedError`), shell item dialogs, `GetDlgItem`, and `EndDialog`.
 - Current UIIntegration evidence: focused open-file, folder-browser, and
-  print-dialog tests pass; broader save/color/font/page-setup automation and
-  native common-dialog facade coverage remain incomplete.
+  print-dialog tests pass. Native common-dialog facade coverage now exists for
+  the first safe-cancel tier; broader save/color/font/message/task/page-setup
+  automation remains incomplete.
 
 Plan:
 
@@ -634,7 +645,8 @@ cases were previously blockers and should remain regression targets:
 - [x] IME/input-language baseline: `InputLanguage` and first-tier IME context
   calls use PAL-backed managed state plus USER32/IMM32 facades.
 - [~] Dialog baseline: focused open-file and folder-browser tests are green;
-  save/color/font/message/task/page-setup parity still needs coverage.
+  first-tier `COMDLG32.dll` safe-cancel facade is covered; save/color/font/
+  message/task/page-setup visible-service parity still needs coverage.
 - [~] Print baseline: focused `PrintDialog` tests are green; no-printer
   `PrinterSettings`, `PageSetupDialog`, and print-controller behavior remain.
 - [ ] USER32 tier expansion: geometry/menu/message APIs used by UI tests.
