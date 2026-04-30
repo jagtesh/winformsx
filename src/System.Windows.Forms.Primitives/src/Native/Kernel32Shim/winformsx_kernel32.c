@@ -63,6 +63,12 @@ typedef struct WinFormsXKernel32Dispatch
     void* (*load_library_ex)(const WCHAR* file_name, void* file, DWORD flags);
     BOOL (*free_library)(void* module);
     void* (*get_proc_address)(void* module, const char* proc_name);
+    void* (*find_resource)(void* module, const WCHAR* name, const WCHAR* type);
+    void* (*find_resource_ex)(void* module, const WCHAR* type, const WCHAR* name, uint16_t language);
+    void* (*load_resource)(void* module, void* resource_info);
+    void* (*lock_resource)(void* resource_data);
+    DWORD (*sizeof_resource)(void* module, void* resource_info);
+    BOOL (*free_resource)(void* resource_data);
     DWORD (*get_last_error)(void);
     void (*set_last_error)(DWORD error);
     BOOL (*close_handle)(void* handle);
@@ -368,6 +374,103 @@ WF_EXPORT void* GetProcAddress(void* module, const char* proc_name)
 
     (void)module;
     (void)proc_name;
+    return 0;
+}
+
+WF_EXPORT void* FindResourceW(void* module, const WCHAR* name, const WCHAR* type)
+{
+    if (g_dispatch.find_resource != 0)
+    {
+        return g_dispatch.find_resource(module, name, type);
+    }
+
+    (void)module;
+    (void)name;
+    (void)type;
+    g_last_error = 1814;
+    return 0;
+}
+
+WF_EXPORT void* FindResourceA(void* module, const char* name, const char* type)
+{
+    (void)name;
+    (void)type;
+    return FindResourceW(module, 0, 0);
+}
+
+WF_EXPORT void* FindResource(void* module, const WCHAR* name, const WCHAR* type)
+{
+    return FindResourceW(module, name, type);
+}
+
+WF_EXPORT void* FindResourceExW(void* module, const WCHAR* type, const WCHAR* name, uint16_t language)
+{
+    if (g_dispatch.find_resource_ex != 0)
+    {
+        return g_dispatch.find_resource_ex(module, type, name, language);
+    }
+
+    (void)module;
+    (void)type;
+    (void)name;
+    (void)language;
+    g_last_error = 1814;
+    return 0;
+}
+
+WF_EXPORT void* FindResourceExA(void* module, const char* type, const char* name, uint16_t language)
+{
+    (void)type;
+    (void)name;
+    return FindResourceExW(module, 0, 0, language);
+}
+
+WF_EXPORT void* LoadResource(void* module, void* resource_info)
+{
+    if (g_dispatch.load_resource != 0)
+    {
+        return g_dispatch.load_resource(module, resource_info);
+    }
+
+    (void)module;
+    (void)resource_info;
+    g_last_error = 1814;
+    return 0;
+}
+
+WF_EXPORT void* LockResource(void* resource_data)
+{
+    if (g_dispatch.lock_resource != 0)
+    {
+        return g_dispatch.lock_resource(resource_data);
+    }
+
+    (void)resource_data;
+    g_last_error = 1814;
+    return 0;
+}
+
+WF_EXPORT DWORD SizeofResource(void* module, void* resource_info)
+{
+    if (g_dispatch.sizeof_resource != 0)
+    {
+        return g_dispatch.sizeof_resource(module, resource_info);
+    }
+
+    (void)module;
+    (void)resource_info;
+    g_last_error = 1814;
+    return 0;
+}
+
+WF_EXPORT BOOL FreeResource(void* resource_data)
+{
+    if (g_dispatch.free_resource != 0)
+    {
+        return g_dispatch.free_resource(resource_data);
+    }
+
+    (void)resource_data;
     return 0;
 }
 

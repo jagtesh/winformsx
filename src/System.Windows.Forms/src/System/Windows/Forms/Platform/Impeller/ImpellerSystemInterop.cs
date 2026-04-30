@@ -618,6 +618,59 @@ internal sealed unsafe class ImpellerSystemInterop : ISystemInterop
     public bool FreeLibrary(HINSTANCE hLibModule) => !hLibModule.IsNull;
 
     public nint GetProcAddress(HMODULE hModule, PCSTR name) => 0;
+
+    public HRSRC FindResource(HMODULE hModule, PCWSTR lpName, PCWSTR lpType)
+    {
+        _ = hModule;
+        _ = lpName;
+        _ = lpType;
+        SetLastError(1814);
+        return default;
+    }
+
+    public HRSRC FindResourceEx(HMODULE hModule, PCWSTR lpType, PCWSTR lpName, ushort wLanguage)
+    {
+        _ = hModule;
+        _ = lpType;
+        _ = lpName;
+        _ = wLanguage;
+        SetLastError(1814);
+        return default;
+    }
+
+    public HGLOBAL LoadResource(HMODULE hModule, HRSRC hResInfo)
+    {
+        _ = hModule;
+        _ = hResInfo;
+        SetLastError(1814);
+        return default;
+    }
+
+    public void* LockResource(HGLOBAL hResData)
+    {
+        if (hResData.Value is null)
+        {
+            SetLastError(1814);
+            return null;
+        }
+
+        return GlobalLock(hResData);
+    }
+
+    public uint SizeofResource(HMODULE hModule, HRSRC hResInfo)
+    {
+        _ = hModule;
+        _ = hResInfo;
+        SetLastError(1814);
+        return 0;
+    }
+
+    public bool FreeResource(HGLOBAL hResData)
+    {
+        _ = hResData;
+        return false;
+    }
+
     public uint GetCurrentThreadId() => (uint)Environment.CurrentManagedThreadId;
     public uint GetCurrentProcessId() => (uint)Environment.ProcessId;
     public uint GetWindowThreadProcessId(HWND hWnd, out uint processId)

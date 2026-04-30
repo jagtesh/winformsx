@@ -110,6 +110,11 @@ Ordered by observed frequency across components and blocker blast radius:
       `GetMenuItemInfo` wrappers. Visible controls catalog startup now stays on
       the PAL path while Form system-menu adjustment runs, instead of attempting
       to load `USER32.dll` directly.
+    - KERNEL32 module-resource lookup now belongs to the system PAL as well:
+      managed wrappers and direct `KERNEL32.dll` imports for `FindResourceW/A`,
+      `FindResourceExW/A`, `LoadResource`, `LockResource`, `SizeofResource`,
+      and `FreeResource` share deterministic missing-resource behavior instead
+      of falling through to host KERNEL32 lookup.
     - `ImageList.GetBitmap` now tolerates WinFormsX synthetic bitmap handles
       returned by managed/common-control image-list state and falls back to the
       existing draw path instead of failing through `Image.FromHbitmap`.
@@ -965,7 +970,7 @@ Ordered by observed frequency across components and blocker blast radius:
 
 ## KERNEL32 Surface
 
-- [~] WXA-1100: Add KERNEL32 compatibility for process/thread/module/memory primitives used by WinForms (`GetModuleHandle`, `LoadLibrary`, `FreeLibrary`, `GetProcAddress`, `GetCurrentProcessId`, `GetCurrentThreadId`, `GetCurrentThread`, `Global*/Local*`, `GetLastError`, `SetLastError`). Managed wrappers cover the current process/thread/module-handle loader subset; a direct `KERNEL32.dll` facade now covers `GetCurrentProcess`, `GetCurrentProcessId`, `GetCurrentThreadId`, `GetModuleHandleW/A`, `GetModuleFileNameW/A`, `LoadLibraryW/A`, `LoadLibraryExW/A`, `FreeLibrary`, `GetProcAddress`, `GetLastError`, `SetLastError`, `GlobalAlloc`, `GlobalReAlloc`, `GlobalLock`, `GlobalUnlock`, `GlobalSize`, `GlobalFree`, matching `Local*` memory APIs, first-tier activation context APIs, and basic thread/locale/startup helpers. Resource and richer export-table breadth remain.
+- [~] WXA-1100: Add KERNEL32 compatibility for process/thread/module/memory primitives used by WinForms (`GetModuleHandle`, `LoadLibrary`, `FreeLibrary`, `GetProcAddress`, `GetCurrentProcessId`, `GetCurrentThreadId`, `GetCurrentThread`, `Global*/Local*`, `GetLastError`, `SetLastError`). Managed wrappers cover the current process/thread/module-handle loader subset; a direct `KERNEL32.dll` facade now covers `GetCurrentProcess`, `GetCurrentProcessId`, `GetCurrentThreadId`, `GetModuleHandleW/A`, `GetModuleFileNameW/A`, `LoadLibraryW/A`, `LoadLibraryExW/A`, `FreeLibrary`, `GetProcAddress`, first-tier module-resource lookup (`FindResourceW/A`, `FindResourceExW/A`, `LoadResource`, `LockResource`, `SizeofResource`, `FreeResource`), `GetLastError`, `SetLastError`, `GlobalAlloc`, `GlobalReAlloc`, `GlobalLock`, `GlobalUnlock`, `GlobalSize`, `GlobalFree`, matching `Local*` memory APIs, first-tier activation context APIs, and basic thread/locale/startup helpers. Richer export-table breadth remains.
 
 ## OLE, COM, Clipboard, IME, Drag/Drop
 

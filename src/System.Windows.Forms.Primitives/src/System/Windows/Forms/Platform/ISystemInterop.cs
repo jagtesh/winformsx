@@ -54,6 +54,12 @@ internal unsafe interface ISystemInterop
     HINSTANCE LoadLibraryEx(string? lpLibFileName, uint dwFlags);
     bool FreeLibrary(HINSTANCE hLibModule);
     nint GetProcAddress(HMODULE hModule, PCSTR lpProcName);
+    HRSRC FindResource(HMODULE hModule, PCWSTR lpName, PCWSTR lpType);
+    HRSRC FindResourceEx(HMODULE hModule, PCWSTR lpType, PCWSTR lpName, ushort wLanguage);
+    HGLOBAL LoadResource(HMODULE hModule, HRSRC hResInfo);
+    void* LockResource(HGLOBAL hResData);
+    uint SizeofResource(HMODULE hModule, HRSRC hResInfo);
+    bool FreeResource(HGLOBAL hResData);
     uint GetCurrentThreadId();
     uint GetCurrentProcessId();
     uint GetWindowThreadProcessId(HWND hWnd, out uint lpdwProcessId);

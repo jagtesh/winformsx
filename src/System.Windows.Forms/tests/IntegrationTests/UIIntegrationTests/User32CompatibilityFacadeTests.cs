@@ -533,6 +533,25 @@ public class User32CompatibilityFacadeTests
             Assert.True(NativeKernel32.FreeLibrary(loadedModule));
             Assert.Equal(nint.Zero, NativeKernel32.GetProcAddress(loadedModule, "MissingExport"));
 
+            fixed (char* resourceName = "MissingResource")
+            fixed (char* resourceType = "CUSTOM")
+            {
+                HRSRC managedResource = PInvoke.FindResource((HMODULE)loadedModule, (PCWSTR)resourceName, (PCWSTR)resourceType);
+                nint nativeResource = NativeKernel32.FindResource(loadedModule, "MissingResource", "CUSTOM");
+                Assert.Equal((nint)managedResource.Value, nativeResource);
+                Assert.Equal(nint.Zero, nativeResource);
+
+                managedResource = PInvoke.FindResourceEx((HMODULE)loadedModule, (PCWSTR)resourceType, (PCWSTR)resourceName, 0);
+                nativeResource = NativeKernel32.FindResourceEx(loadedModule, "CUSTOM", "MissingResource", 0);
+                Assert.Equal((nint)managedResource.Value, nativeResource);
+                Assert.Equal(nint.Zero, nativeResource);
+
+                Assert.Equal(nint.Zero, NativeKernel32.LoadResource(loadedModule, nativeResource));
+                Assert.Equal(0u, NativeKernel32.SizeofResource(loadedModule, nativeResource));
+                Assert.Equal(nint.Zero, NativeKernel32.LockResource(nint.Zero));
+                Assert.False(NativeKernel32.FreeResource(nint.Zero));
+            }
+
             PInvoke.SetLastError(0);
             NativeKernel32.SetLastError(0x2Au);
             Assert.Equal(0x2Au, NativeKernel32.GetLastError());
@@ -1057,6 +1076,24 @@ public class User32CompatibilityFacadeTests
 
         [DllImport(Kernel32, ExactSpelling = true)]
         internal static extern nint GetProcAddress(nint hModule, string lpProcName);
+
+        [DllImport(Kernel32, EntryPoint = "FindResourceW", CharSet = CharSet.Unicode, ExactSpelling = true)]
+        internal static extern nint FindResource(nint hModule, string lpName, string lpType);
+
+        [DllImport(Kernel32, EntryPoint = "FindResourceExW", CharSet = CharSet.Unicode, ExactSpelling = true)]
+        internal static extern nint FindResourceEx(nint hModule, string lpType, string lpName, ushort wLanguage);
+
+        [DllImport(Kernel32, ExactSpelling = true)]
+        internal static extern nint LoadResource(nint hModule, nint hResInfo);
+
+        [DllImport(Kernel32, ExactSpelling = true)]
+        internal static extern nint LockResource(nint hResData);
+
+        [DllImport(Kernel32, ExactSpelling = true)]
+        internal static extern uint SizeofResource(nint hModule, nint hResInfo);
+
+        [DllImport(Kernel32, ExactSpelling = true)]
+        internal static extern bool FreeResource(nint hResData);
 
         [DllImport(Kernel32, ExactSpelling = true)]
         internal static extern uint GetLastError();

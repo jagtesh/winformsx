@@ -226,6 +226,11 @@ compatibility-facade coverage.
   managed and direct `LoadLibraryW/A`, `LoadLibraryExW/A`, `FreeLibrary`, and
   `GetProcAddress` through PAL-owned synthetic module handles, preserving safe
   source-compatible loader behavior without native OS loader dependence. The
+  latest resource lookup pass adds conservative PAL-backed `FindResourceW/A`,
+  `FindResourceExW/A`, `LoadResource`, `LockResource`, `SizeofResource`, and
+  `FreeResource` coverage to the managed wrappers and native `KERNEL32.dll`
+  facade; unresolved resources now return deterministic failure/default values
+  instead of falling through to host KERNEL32 lookup. The
   latest ImageList follow-up keeps `ImageList.GetBitmap` stable when WinFormsX
   synthetic bitmap handles cannot be materialized by GDI+, preserving shared
   `ToolStrip.ImageList` enumeration after form disposal. The latest broad
@@ -935,8 +940,10 @@ cases were previously blockers and should remain regression targets:
   `EnableMenuItem`, `GetMenuItemCount`, and `GetMenuItemInfo` calls through
   PAL-backed wrappers; the visible controls catalog starts and paints without a
   direct `USER32.dll` load failure.
-- [ ] Next KERNEL32 breadth: module resource lookup and richer export-table
-  compatibility.
+- [x] KERNEL32 resource lookup facade now routes `FindResourceW/A`,
+  `FindResourceExW/A`, `LoadResource`, `LockResource`, `SizeofResource`, and
+  `FreeResource` through PAL-owned deterministic failure/default behavior.
+- [ ] Next KERNEL32 breadth: richer export-table compatibility.
 
 ## Acceptance Bar
 

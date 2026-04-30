@@ -46,6 +46,12 @@ internal static unsafe class WinFormsXKernel32Shim
             LoadLibraryEx = &LoadLibraryEx,
             FreeLibrary = &FreeLibrary,
             GetProcAddress = &GetProcAddress,
+            FindResource = &FindResource,
+            FindResourceEx = &FindResourceEx,
+            LoadResource = &LoadResource,
+            LockResource = &LockResource,
+            SizeofResource = &SizeofResource,
+            FreeResource = &FreeResource,
             GetLastError = &GetLastError,
             SetLastError = &SetLastError,
             CloseHandle = &CloseHandle,
@@ -209,6 +215,84 @@ internal static unsafe class WinFormsXKernel32Shim
         try
         {
             return PlatformApi.System.GetProcAddress((HMODULE)module, (PCSTR)procName);
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    [UnmanagedCallersOnly]
+    private static nint FindResource(nint module, char* name, char* type)
+    {
+        try
+        {
+            return (nint)PlatformApi.System.FindResource((HMODULE)module, (PCWSTR)name, (PCWSTR)type).Value;
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    [UnmanagedCallersOnly]
+    private static nint FindResourceEx(nint module, char* type, char* name, ushort language)
+    {
+        try
+        {
+            return (nint)PlatformApi.System.FindResourceEx((HMODULE)module, (PCWSTR)type, (PCWSTR)name, language).Value;
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    [UnmanagedCallersOnly]
+    private static nint LoadResource(nint module, nint resourceInfo)
+    {
+        try
+        {
+            return (nint)PlatformApi.System.LoadResource((HMODULE)module, (HRSRC)resourceInfo).Value;
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    [UnmanagedCallersOnly]
+    private static void* LockResource(nint resourceData)
+    {
+        try
+        {
+            return PlatformApi.System.LockResource((HGLOBAL)resourceData);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    [UnmanagedCallersOnly]
+    private static uint SizeofResource(nint module, nint resourceInfo)
+    {
+        try
+        {
+            return PlatformApi.System.SizeofResource((HMODULE)module, (HRSRC)resourceInfo);
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    [UnmanagedCallersOnly]
+    private static int FreeResource(nint resourceData)
+    {
+        try
+        {
+            return PlatformApi.System.FreeResource((HGLOBAL)resourceData) ? 1 : 0;
         }
         catch
         {
@@ -597,6 +681,12 @@ internal static unsafe class WinFormsXKernel32Shim
         public delegate* unmanaged<char*, nint, uint, nint> LoadLibraryEx;
         public delegate* unmanaged<nint, int> FreeLibrary;
         public delegate* unmanaged<nint, byte*, nint> GetProcAddress;
+        public delegate* unmanaged<nint, char*, char*, nint> FindResource;
+        public delegate* unmanaged<nint, char*, char*, ushort, nint> FindResourceEx;
+        public delegate* unmanaged<nint, nint, nint> LoadResource;
+        public delegate* unmanaged<nint, void*> LockResource;
+        public delegate* unmanaged<nint, nint, uint> SizeofResource;
+        public delegate* unmanaged<nint, int> FreeResource;
         public delegate* unmanaged<uint> GetLastError;
         public delegate* unmanaged<uint, void> SetLastError;
         public delegate* unmanaged<nint, int> CloseHandle;
