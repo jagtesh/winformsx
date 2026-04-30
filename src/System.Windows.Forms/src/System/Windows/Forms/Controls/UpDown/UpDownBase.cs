@@ -259,6 +259,19 @@ public abstract partial class UpDownBase : ContainerControl
     [SRDescription(nameof(SR.ControlFocusedDescr))]
     public override bool Focused => _upDownEdit.Focused;
 
+    private protected override bool FocusInternal()
+    {
+        if (TextBox.Visible && TextBox.Enabled)
+        {
+            _ = TextBox.Handle;
+            SetActiveControl(TextBox);
+            PInvoke.SetFocus(TextBox);
+            return Focused;
+        }
+
+        return base.FocusInternal();
+    }
+
     /// <summary>
     ///  Indicates the foreground color for the control.
     /// </summary>

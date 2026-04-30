@@ -18,7 +18,7 @@ compatibility-facade coverage.
 - UIIntegrationTests are no longer globally skipped by OS-gated attributes. The
   suite now exposes real WinFormsX behavior gaps. The latest unfiltered broad
   run completes without a hang/abort and reports
-  `190 passed, 1 failed, 3 skipped`. Recent passes removed the cross-suite
+  `191 passed, 0 failed, 1 skipped`. Recent passes removed the cross-suite
   `VK_RETURN` stuck-key cascade by making PAL `SendInput` accept packets even
   when a synthetic/stale target cannot be dispatched, then closed focused
   `TabControlTests` by aligning backend tab-rectangle minimum width with Win32
@@ -27,9 +27,11 @@ compatibility-facade coverage.
   on native tooltip registration. The latest pass also keeps synthetic form
   resize anchored to managed client size, closing focused Button resize
   coverage, and keeps `Application.OpenForms` idempotent across recreate/dispose
-  paths so stale forms no longer poison later drag/drop runs. The remaining
-  active failure is NumericUpDown accessibility focus, with the larger provider
-  and dialog/print gaps still tracked below.
+  paths so stale forms no longer poison later drag/drop runs. The latest pass
+  also routes `UpDownBase` focus to its embedded edit child and supplies a
+  managed accessibility child fallback, closing the remaining NumericUpDown
+  focus failure in the broad UIIntegration slice. Larger provider and
+  dialog/print gaps remain tracked below.
 - First UIIntegration blockers observed:
   - `OLE32.dll` missing through `Application.ThreadContext.OleRequired()`,
     `InputLanguage.CurrentInputLanguage`, IME, clipboard, and drag/drop paths.
@@ -81,11 +83,16 @@ compatibility-facade coverage.
     latest pass makes `Application.OpenForms` membership idempotent and removes
     disposed forms during `Form.Dispose`, closing the recreate-handle over-count
     and the downstream order-dependent drag/drop failures in the full run.
+  - Focused `NumericUpDownAccessibleObject_Focused_ReturnsCorrectValueAsync`
+    is now green. `UpDownBase.Focus()` routes to the embedded edit child, and
+    `UpDownBaseAccessibleObject` can return managed child accessibility objects
+    when no native OLEACC parent wrapper exists.
+  - Latest broad UIIntegration active slice is green:
+    `191 passed, 0 failed, 1 skipped`.
   - Highest-volume remaining failures are accessibility/provider and layout
-    clusters: NumericUpDown accessibility focus, ListView tile accessibility,
-    PropertyGrid fragment navigation in broad-suite state, RichTextBox
-    link-range behavior, dialog/print fallbacks, and remaining lower-volume
-    provider gaps.
+    clusters outside the current active slice: ListView tile accessibility,
+    PropertyGrid provider breadth, RichTextBox link-range behavior,
+    dialog/print fallbacks, and remaining lower-volume provider gaps.
 
 ## Confirmed Managed Stub Blockers
 

@@ -20,11 +20,39 @@ public abstract partial class UpDownBase
             return index switch
             {
                 // TextBox child
-                0 => owner.TextBox.AccessibilityObject.Parent,
+                0 => GetAccessibleChild(owner.TextBox.AccessibilityObject),
                 // Up/down buttons
-                1 => owner.UpDownButtonsInternal.AccessibilityObject.Parent,
+                1 => GetAccessibleChild(owner.UpDownButtonsInternal.AccessibilityObject),
                 _ => null,
             };
+        }
+
+        public override AccessibleObject? GetFocused()
+        {
+            if (!this.TryGetOwnerAs(out UpDownBase? owner))
+            {
+                return null;
+            }
+
+            if (owner.TextBox.Focused)
+            {
+                return GetAccessibleChild(owner.TextBox.AccessibilityObject);
+            }
+
+            if (owner.UpDownButtonsInternal.Focused)
+            {
+                return GetAccessibleChild(owner.UpDownButtonsInternal.AccessibilityObject);
+            }
+
+            return owner.Focused ? this : null;
+        }
+
+        private static AccessibleObject? GetAccessibleChild(AccessibleObject accessibleObject)
+        {
+            AccessibleObject? parent = accessibleObject.Parent;
+            return parent is not null && !ReferenceEquals(parent, accessibleObject)
+                ? parent
+                : accessibleObject;
         }
 
         private protected override bool IsInternal => true;

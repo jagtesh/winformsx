@@ -87,10 +87,13 @@ Ordered by observed frequency across components and blocker blast radius:
     - Latest unfiltered broad snapshot after OpenForms lifecycle cleanup:
       `Failed: 1, Passed: 190, Skipped: 3, Total: 194`. The remaining active
       failure is `NumericUpDownAccessibleObject_Focused_ReturnsCorrectValueAsync`.
+    - Latest unfiltered broad snapshot after UpDown accessibility/focus cleanup:
+      `Failed: 0, Passed: 191, Skipped: 1, Total: 192`. The active
+      UIIntegration slice is currently green.
   - Priority order moves to highest-volume remaining failure clusters:
-    NumericUpDown accessibility focus, ListView tile accessibility,
-    PropertyGrid broad-suite provider state, RichTextBox link-range behavior,
-    dialog/print fallbacks, and remaining lower-volume provider gaps.
+    ListView tile accessibility, PropertyGrid provider breadth, RichTextBox
+    link-range behavior, dialog/print fallbacks, and remaining lower-volume
+    provider gaps.
   - Active lane update: focused PropertyGrid UIIntegration coverage is now
     green: `Passed: 38, Failed: 0, Skipped: 0, Total: 38`.
   - Active lane update: focused anchor/MDI resize coverage is now green:
@@ -153,10 +156,18 @@ Ordered by observed frequency across components and blocker blast radius:
       are removed during `Form.Dispose`, closing the broad-suite
       `Application_OpenForms_RecreateHandle` over-count and the downstream
       order-dependent drag/drop failures.
-  - Priority order now moves to NumericUpDown accessibility focus, ListView tile
-    accessibility, PropertyGrid broad-suite provider state, RichTextBox
-    link-range behavior, dialog/print fallbacks, and remaining lower-volume
-    provider gaps.
+    - `FormCollection.Add` prunes disposed forms before registering new visible
+      forms, removing the last stale-form leak that survived across broad-suite
+      ordering.
+    - `UpDownBase.Focus()` now routes to the embedded edit child on the managed
+      WinFormsX path, and `UpDownBaseAccessibleObject` falls back to managed
+      child accessibility objects when native OLEACC parent wrappers are absent.
+    - Focused `NumericUpDownAccessibleObject_Focused_ReturnsCorrectValueAsync`
+      now passes, and the latest broad UIIntegration active slice reports
+      `Failed: 0, Passed: 191, Skipped: 1, Total: 192`.
+  - Priority order now moves to ListView tile accessibility, PropertyGrid
+    provider breadth, RichTextBox link-range behavior, dialog/print fallbacks,
+    and remaining lower-volume provider gaps.
 
 - Landed:
   - Closed the focused MonthCalendar input lane:

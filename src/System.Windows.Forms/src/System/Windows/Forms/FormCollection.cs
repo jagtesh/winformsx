@@ -69,6 +69,8 @@ public class FormCollection : ReadOnlyCollectionBase
     {
         lock (CollectionSyncRoot)
         {
+            PruneDisposedForms();
+
             if (InnerList.Contains(form))
             {
                 return;
@@ -103,6 +105,17 @@ public class FormCollection : ReadOnlyCollectionBase
             while (InnerList.Contains(form))
             {
                 InnerList.Remove(form);
+            }
+        }
+    }
+
+    private void PruneDisposedForms()
+    {
+        for (int i = InnerList.Count - 1; i >= 0; i--)
+        {
+            if (InnerList[i] is Form { IsDisposed: true })
+            {
+                InnerList.RemoveAt(i);
             }
         }
     }
