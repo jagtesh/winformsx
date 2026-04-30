@@ -82,7 +82,7 @@ internal static class ManagedDragDrop
                     primedTarget.OnDragOver(primedEvent);
                     if (verbose)
                     {
-                        Console.WriteLine($"[ManagedDragDrop] primed target={(primedTarget as Control)?.Name ?? primedTarget.GetType().Name} effect={primedEvent.Effect} hasButton={primedEvent.Data?.GetDataPresent(typeof(Button))}");
+                        Console.WriteLine($"[ManagedDragDrop] primed target={(primedTarget as Control)?.Name ?? primedTarget.GetType().Name} type={(primedTarget as Control)?.GetType().Name ?? primedTarget.GetType().Name} effect={primedEvent.Effect} hasButton={primedEvent.Data?.GetDataPresent(typeof(Button))} hasFileDrop={primedEvent.Data?.GetDataPresent(DataFormats.FileDrop)}");
                     }
 
                     currentTarget = primedTarget;
@@ -106,7 +106,7 @@ internal static class ManagedDragDrop
                     currentTarget.OnDragDrop(dragEvent);
                     if (verbose)
                     {
-                        Console.WriteLine($"[ManagedDragDrop] drop target={(currentTarget as Control)?.Name ?? currentTarget.GetType().Name} effect={dragEvent.Effect} hasButton={dragEvent.Data?.GetDataPresent(typeof(Button))}");
+                        Console.WriteLine($"[ManagedDragDrop] drop target={(currentTarget as Control)?.Name ?? currentTarget.GetType().Name} type={(currentTarget as Control)?.GetType().Name ?? currentTarget.GetType().Name} effect={dragEvent.Effect} hasButton={dragEvent.Data?.GetDataPresent(typeof(Button))} hasFileDrop={dragEvent.Data?.GetDataPresent(DataFormats.FileDrop)}");
                     }
 
                     currentEffect = dragEvent.Effect;
@@ -183,12 +183,15 @@ internal static class ManagedDragDrop
 
     private static IDropTarget? FindDropTarget(Point screenPoint, Control? sourceControl)
     {
-        Control? root = sourceControl?.FindForm() ?? sourceControl?.TopLevelControl as Control ?? sourceControl;
         IDropTarget? pointedTarget = null;
-        if (root is not null)
+        foreach (Control root in EnumerateSearchRoots(sourceControl))
         {
             Control? pointedControl = FindDeepestControlAtScreenPoint(root, screenPoint);
             pointedTarget = FindAllowDropTarget(pointedControl);
+            if (pointedTarget is not null)
+            {
+                break;
+            }
         }
 
         if (pointedTarget is not null)
@@ -198,12 +201,14 @@ internal static class ManagedDragDrop
                 return pointedTarget;
             }
 
+            Control? root = GetSourceSearchRoot(sourceControl);
             IDropTarget? alternate = FindNearestAllowDropTarget(root, screenPoint, sourceControl, excludeSource: true);
             return alternate ?? pointedTarget;
         }
 
         if (sourceControl is not null)
         {
+            Control? root = GetSourceSearchRoot(sourceControl);
             IDropTarget? alternate = FindNearestAllowDropTarget(root, screenPoint, sourceControl, excludeSource: true);
             if (alternate is not null)
             {
@@ -218,6 +223,29 @@ internal static class ManagedDragDrop
 
         return null;
     }
+
+    private static IEnumerable<Control> EnumerateSearchRoots(Control? sourceControl)
+    {
+        Control? sourceRoot = GetSourceSearchRoot(sourceControl);
+        if (sourceRoot is not null)
+        {
+            yield return sourceRoot;
+            yield break;
+        }
+
+        foreach (Form form in Application.OpenForms)
+        {
+            if (form.Visible && !form.IsDisposed)
+            {
+                yield return form;
+            }
+        }
+    }
+
+    private static Control? GetSourceSearchRoot(Control? sourceControl)
+        => sourceControl is ToolStripDropDown
+            ? null
+            : sourceControl?.FindForm() ?? sourceControl?.TopLevelControl as Control ?? sourceControl;
 
     private static IDropTarget? FindAllowDropTarget(Control? control)
     {
@@ -309,6 +337,27 @@ internal static class ManagedDragDrop
 
     private static Rectangle GetScreenBounds(Control control)
     {
+        if (control is Form form)
+        {
+            return form.DesktopBounds;
+        }
+
+        int x = 0;
+        int y = 0;
+        Control? current = control;
+        while (current is not null and not Form)
+        {
+            x += current.Left;
+            y += current.Top;
+            current = current.ParentInternal;
+        }
+
+        if (current is Form parentForm)
+        {
+            Rectangle formBounds = parentForm.DesktopBounds;
+            return new Rectangle(formBounds.Left + x, formBounds.Top + y, control.Width, control.Height);
+        }
+
         Point topLeft = control.PointToScreen(Point.Empty);
         return new Rectangle(topLeft, control.Size);
     }

@@ -100,11 +100,22 @@ Ordered by observed frequency across components and blocker blast radius:
       `PictureBox_SetData_DoDragDrop_RichTextBox_ReturnsExpected_Async` ->
       `Passed: 1`; `DragEnter_Set_DropImageType_Message_MessageReplacementToken_ReturnsExpected_Async` ->
       `Passed: 1`.
+    - ToolStrip dropdown drag-source routing now works in focused coverage:
+      `ToolStripItem_SetData_DoDragDrop_RichTextBox_ReturnsExpected_Async` ->
+      `Passed: 1`.
+    - The ToolStrip fix routes unresolved synthetic dropdown handles through
+      the active managed dropdown item, preserves dropdown-button state through
+      the matching mouse-up, and lets managed drag/drop search open forms when
+      the source is a dropdown item rather than a form control.
+    - Focused verification:
+      `PictureBox_SetData_DoDragDrop_RichTextBox_ReturnsExpected_Async` plus
+      `DragEnter_Set_DropImageType_Message_MessageReplacementToken_ReturnsExpected_Async` ->
+      `Passed: 2`.
     - Remaining drag/drop blocker:
-      `FullyQualifiedName~DragDropTests` still reports
-      `Passed: 3, Failed: 3, Skipped: 7`; the remaining failures are
-      order-dependent after the ToolStrip source path and need cleanup of
-      ToolStrip/menu capture and managed drag state.
+      `FullyQualifiedName~DragDropTests` now reports
+      `Passed: 4, Failed: 2, Skipped: 5`; the remaining failures are
+      order-dependent state cleanup in the PictureBox and DropImageType cases
+      when the entire class runs together.
   - Priority order now moves to ListView tile accessibility, PropertyGrid
     broad-suite provider state, drag/drop polish, RichTextBox link-range
     behavior, DataGridView tooltip state, TabControl hover/input state,

@@ -486,7 +486,7 @@ internal sealed unsafe class ImpellerInputInterop : IInputInterop
             System.Drawing.Point clientPoint = cursorPos;
             PlatformApi.Window.ScreenToClient(target, ref clientPoint);
             LPARAM lParam = MakePointLParam(clientPoint);
-            string targetType = Control.FromHandle(target)?.GetType().Name ?? "<none>";
+            string targetType = (Control.FromHandle(target) ?? Control.FromChildHandle(target))?.GetType().Name ?? "<none>";
             if (PlatformApi.Window is ImpellerWindowInterop impellerWindow
                 && impellerWindow.TryDispatchInputMessage(target, _activeWindow, message, wParam, lParam))
             {

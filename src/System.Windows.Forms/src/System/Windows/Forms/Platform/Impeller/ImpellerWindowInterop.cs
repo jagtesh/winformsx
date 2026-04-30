@@ -94,6 +94,8 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
     private static readonly Dictionary<DataGridView, int> s_managedDataGridViewTopRow = [];
     private static readonly Dictionary<ToolStrip, ToolStripItem> s_managedActiveMenuItems = [];
     private static readonly HashSet<Control> s_pressedControls = [];
+    private static readonly HashSet<ToolStripDropDownButton> s_syntheticDropDownButtonMouseDowns = [];
+    private static ToolStripDropDown? s_syntheticActiveToolStripDropDown;
     private static readonly object s_pendingMouseMoveLock = new();
     private static readonly HashSet<(nint Handle, nuint KeyState)> s_pendingMouseMoveTargets = [];
     private HWND _activeWindow;
@@ -4722,11 +4724,25 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
 
     private void PostMessageToControl(HWND targetWindow, HWND fallbackTopLevel, uint msg, WPARAM wParam, LPARAM lParam, bool updateInputMouseKeyState = false)
     {
-        var ctrl = Control.FromHandle(targetWindow) ?? Control.FromHandle(fallbackTopLevel) ?? ResolveTopLevelControl(fallbackTopLevel);
+        Control? targetControl = Control.FromHandle(targetWindow) ?? Control.FromChildHandle(targetWindow);
+        if (targetControl is null
+            && IsMouseInputMessage(msg)
+            && TryResolveActiveToolStripDropDownInput(out ToolStripDropDown? dropDown, out LPARAM dropDownLParam))
+        {
+            targetControl = dropDown;
+            targetWindow = (HWND)(nint)dropDown!.Handle;
+            lParam = dropDownLParam;
+            if (msg == WM_LBUTTONDOWN)
+            {
+                s_syntheticActiveToolStripDropDown = null;
+            }
+        }
+
+        var ctrl = targetControl ?? Control.FromHandle(fallbackTopLevel) ?? Control.FromChildHandle(fallbackTopLevel) ?? ResolveTopLevelControl(fallbackTopLevel);
 
         if (ctrl is object)
         {
-            HWND dispatchTarget = Control.FromHandle(targetWindow) is null
+            HWND dispatchTarget = targetControl is null
                 ? (HWND)(nint)ctrl.Handle
                 : targetWindow;
             bool isMouseMove = msg == WM_MOUSEMOVE;
@@ -4736,6 +4752,12 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
             if (canCoalesceMouseMove && !TryQueueMouseMove(dispatchHandle, keyState))
             {
                 return;
+            }
+
+            System.Drawing.Point? inputScreenPoint = null;
+            if (IsMouseInputMessage(msg) && PlatformApi.Input.GetCursorPos(out System.Drawing.Point currentCursor))
+            {
+                inputScreenPoint = currentCursor;
             }
 
             void Dispatch()
@@ -4773,6 +4795,20 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                         }
                     }
 
+                    if (msg == WM_LBUTTONDOWN
+                        && targetControl is ToolStrip toolStrip
+                        && TryHandleManagedToolStripDropDownButtonMouseDown(fallbackTopLevel, toolStrip, dispatchLParam, inputScreenPoint))
+                    {
+                        return;
+                    }
+
+                    if (msg == WM_LBUTTONUP
+                        && targetControl is ToolStrip mouseUpToolStrip
+                        && TrySuppressManagedToolStripDropDownButtonMouseUp(mouseUpToolStrip, dispatchLParam))
+                    {
+                        return;
+                    }
+
                     NativeWindow.DispatchMessageDirect(dispatchTarget, msg, dispatchWParam, dispatchLParam, out _);
                 }
                 finally
@@ -4794,7 +4830,11 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
             ? fallbackTopLevel
             : (_activeWindow != HWND.Null ? _activeWindow : targetWindow);
 
-        Control? ctrl = Control.FromHandle(targetWindow) ?? Control.FromHandle(fallback) ?? ResolveTopLevelControl(fallback);
+        Control? ctrl = Control.FromHandle(targetWindow)
+            ?? Control.FromChildHandle(targetWindow)
+            ?? Control.FromHandle(fallback)
+            ?? Control.FromChildHandle(fallback)
+            ?? ResolveTopLevelControl(fallback);
         if (ctrl is null)
         {
             return false;
@@ -4812,6 +4852,124 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
             or WM_RBUTTONUP
             or WM_MBUTTONDOWN
             or WM_MBUTTONUP;
+
+    private bool TryHandleManagedToolStripDropDownButtonMouseDown(
+        HWND rootHandle,
+        ToolStrip toolStrip,
+        LPARAM lParam,
+        System.Drawing.Point? inputScreenPoint)
+    {
+        System.Drawing.Point toolStripPoint = new(PARAM.SignedLOWORD((nint)lParam), PARAM.SignedHIWORD((nint)lParam));
+        if (toolStrip.GetItemAt(toolStripPoint) is not ToolStripDropDownButton { Enabled: true } dropDownButton)
+        {
+            return false;
+        }
+
+        System.Drawing.Point itemPoint = dropDownButton.TranslatePoint(
+            toolStripPoint,
+            ToolStripPointType.ToolStripCoords,
+            ToolStripPointType.ToolStripItemCoords);
+
+        MouseEventArgs args = new(MouseButtons.Left, clicks: 1, itemPoint.X, itemPoint.Y, delta: 0);
+        dropDownButton.FireEvent(args, ToolStripItemEventType.MouseDown);
+        if (dropDownButton.DropDown.Visible)
+        {
+            System.Drawing.Point toolStripOrigin;
+            if (inputScreenPoint.HasValue)
+            {
+                toolStripOrigin = new(inputScreenPoint.Value.X - toolStripPoint.X, inputScreenPoint.Value.Y - toolStripPoint.Y);
+            }
+            else
+            {
+                GetWindowRect((HWND)(nint)toolStrip.Handle, out RECT toolStripBounds);
+                toolStripOrigin = new(toolStripBounds.left, toolStripBounds.top);
+            }
+
+            System.Drawing.Point dropDownLocation = new(
+                toolStripOrigin.X + dropDownButton.Bounds.Left,
+                toolStripOrigin.Y + toolStrip.Height);
+            dropDownButton.DropDown.Location = dropDownLocation;
+            SetWindowPos(
+                (HWND)(nint)dropDownButton.DropDown.Handle,
+                HWND.Null,
+                dropDownLocation.X,
+                dropDownLocation.Y,
+                0,
+                0,
+                SET_WINDOW_POS_FLAGS.SWP_NOSIZE
+                    | SET_WINDOW_POS_FLAGS.SWP_NOZORDER
+                    | SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE);
+        }
+
+        s_syntheticDropDownButtonMouseDowns.Add(dropDownButton);
+        s_syntheticActiveToolStripDropDown = dropDownButton.DropDown.Visible
+            ? dropDownButton.DropDown
+            : null;
+        TraceInput(
+            $"[ToolStripDropDownButtonMouseDown] text={dropDownButton.Text} point={toolStripPoint} itemPoint={itemPoint} visible={dropDownButton.DropDown.Visible} items={dropDownButton.DropDown.Items.Count} location={dropDownButton.DropDown.Location} active={ToolStripManager.ModalMenuFilter.GetActiveToolStrip()?.GetType().Name ?? "<none>"}");
+        MarkDirty(rootHandle);
+        return true;
+    }
+
+    private bool TrySuppressManagedToolStripDropDownButtonMouseUp(ToolStrip toolStrip, LPARAM lParam)
+    {
+        System.Drawing.Point toolStripPoint = new(PARAM.SignedLOWORD((nint)lParam), PARAM.SignedHIWORD((nint)lParam));
+        ToolStripDropDownButton? dropDownButton = toolStrip.GetItemAt(toolStripPoint) as ToolStripDropDownButton;
+        if (dropDownButton is null || !s_syntheticDropDownButtonMouseDowns.Remove(dropDownButton))
+        {
+            return false;
+        }
+
+        TraceInput($"[ToolStripDropDownButtonMouseUpSuppress] text={dropDownButton.Text} point={toolStripPoint}");
+        return true;
+    }
+
+    private bool TryResolveActiveToolStripDropDownInput(out ToolStripDropDown? dropDown, out LPARAM lParam)
+    {
+        ToolStrip? activeToolStrip = ToolStripManager.ModalMenuFilter.GetActiveToolStrip() ?? s_syntheticActiveToolStripDropDown;
+        dropDown = activeToolStrip as ToolStripDropDown;
+        lParam = default;
+
+        if (dropDown is null || !dropDown.Visible || !dropDown.IsHandleCreated)
+        {
+            if (ReferenceEquals(dropDown, s_syntheticActiveToolStripDropDown))
+            {
+                s_syntheticActiveToolStripDropDown = null;
+            }
+
+            TraceInput(
+                $"[ToolStripDropDownInputMiss] active={activeToolStrip?.GetType().Name ?? "<none>"} visible={dropDown?.Visible.ToString() ?? "<null>"} handle={dropDown?.IsHandleCreated.ToString() ?? "<null>"}");
+            return false;
+        }
+
+        if (!PlatformApi.Input.GetCursorPos(out System.Drawing.Point screenPoint))
+        {
+            TraceInput("[ToolStripDropDownInputMiss] reason=no-cursor");
+            return false;
+        }
+
+        if (!TryGetControlScreenBounds(dropDown, out System.Drawing.Rectangle bounds)
+            || !bounds.Contains(screenPoint))
+        {
+            if (ReferenceEquals(dropDown, s_syntheticActiveToolStripDropDown))
+            {
+                System.Drawing.Point syntheticClientPoint = new(5, 5);
+                lParam = PackMouseLParam(syntheticClientPoint);
+                TraceInput(
+                    $"[ToolStripDropDownInputSynthetic] cursor={screenPoint} bounds={bounds} client={syntheticClientPoint}");
+                return true;
+            }
+
+            TraceInput($"[ToolStripDropDownInputMiss] cursor={screenPoint} bounds={bounds}");
+            return false;
+        }
+
+        System.Drawing.Point clientPoint = new(screenPoint.X - bounds.Left, screenPoint.Y - bounds.Top);
+        lParam = PackMouseLParam(clientPoint);
+        TraceInput(
+            $"[ToolStripDropDownInput] hwnd=0x{(nint)dropDown.Handle:X} cursor={screenPoint} client={clientPoint}");
+        return true;
+    }
 
     private static Control? ResolveTopLevelControl(HWND preferredHandle)
     {

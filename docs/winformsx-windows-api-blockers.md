@@ -56,15 +56,17 @@ compatibility-facade coverage.
     click, double-click, keyboard, and mouse SetDate flows no longer depend on
     native common-control hit testing.
   - Focused drag/drop input has partial green coverage:
+    `ToolStripItem_SetData_DoDragDrop_RichTextBox_ReturnsExpected_Async`,
     `PictureBox_SetData_DoDragDrop_RichTextBox_ReturnsExpected_Async` and
     `DragEnter_Set_DropImageType_Message_MessageReplacementToken_ReturnsExpected_Async`
-    pass individually. The latest pass routes `Control.DoDragDrop` and
-    `ToolStripItem.DoDragDrop` through the managed WinFormsX drag loop, carries
-    synthetic mouse-button state into dispatched input messages, resolves child
-    mouse targets through the managed control tree, and fixes top-level
-    `DesktopBounds` height by reconciling PAL window origin with managed
-    control size. The full `DragDropTests` class still has order-dependent
-    failures after the ToolStrip source path runs.
+    pass individually. The latest pass routes real ToolStrip dropdown-button
+    mouse-down input into the managed dropdown/item path, preserves the opened
+    dropdown through the matching synthetic mouse-up, routes the dropdown item
+    mouse-down back into `ToolStripItem.DoDragDrop`, and lets managed
+    drag/drop search open forms when the drag source is a dropdown item instead
+    of a control on the target form. The full `DragDropTests` class still has
+    order-dependent failures in the PictureBox and DropImageType cases when the
+    entire class is run together.
   - Highest-volume remaining failures are accessibility/provider and layout
     clusters: ListView tile accessibility, PropertyGrid fragment navigation in
     broad-suite state, drag/drop polish, RichTextBox link-range behavior,
@@ -86,8 +88,8 @@ implementations.
 - OLE drag/drop:
   - `RegisterDragDrop` returns success without OS registration.
   - `DoDragDrop` now has a managed WinFormsX event-flow implementation, but
-    ToolStrip source flow, order-dependent drag state cleanup, drag images, and
-    richer effect negotiation still need parity work.
+    order-dependent drag state cleanup, drag images, and richer effect
+    negotiation still need parity work.
   - `RevokeDragDrop` is only useful once registration has real state.
 - Win32 dialog lifetime and child lookup:
   - `EndDialog` is acknowledged without closing a native dialog.
