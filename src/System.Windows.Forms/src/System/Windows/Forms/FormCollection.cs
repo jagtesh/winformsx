@@ -113,7 +113,8 @@ public class FormCollection : ReadOnlyCollectionBase
     {
         for (int i = InnerList.Count - 1; i >= 0; i--)
         {
-            if (InnerList[i] is Form { IsDisposed: true })
+            if (InnerList[i] is Form { IsDisposed: true }
+                or Form { IsHandleCreated: false, Visible: false })
             {
                 InnerList.RemoveAt(i);
             }

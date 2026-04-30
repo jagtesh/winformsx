@@ -38,8 +38,12 @@ compatibility-facade coverage.
   metrics, work area, high contrast, non-client metrics, menu fonts, caret
   blink, and system-parameter values now use PAL-backed wrappers everywhere,
   with direct `SystemParametersInfoW` overload resolution fixed to avoid the
-  generated native import. Larger provider and dialog/print gaps remain tracked
-  below.
+  generated native import. The latest NativeWindow pass routes class
+  registration and module-handle lookup through the WinFormsX PAL everywhere,
+  avoids native `GetClassInfo`/`RegisterClass`/`GetStockObject` calls during
+  managed window-class setup, and prunes stale unloaded forms from
+  `Application.OpenForms` before registering new visible forms. Larger provider
+  and dialog/print gaps remain tracked below.
 - First UIIntegration blockers observed:
   - `OLE32.dll` missing through `Application.ThreadContext.OleRequired()`,
     `InputLanguage.CurrentInputLanguage`, IME, clipboard, and drag/drop paths.
@@ -90,7 +94,11 @@ compatibility-facade coverage.
   - Broad-suite `Application.OpenForms` and drag/drop state is now green. The
     latest pass makes `Application.OpenForms` membership idempotent and removes
     disposed forms during `Form.Dispose`, closing the recreate-handle over-count
-    and the downstream order-dependent drag/drop failures in the full run.
+    and the downstream order-dependent drag/drop failures in the full run. A
+    later NativeWindow/class-registration sweep also prunes stale unloaded forms
+    before adding newly visible forms, so the recreate-handle count remains
+    stable when the full UIIntegration order exercises unmanaged-class setup
+    paths first.
   - Focused `NumericUpDownAccessibleObject_Focused_ReturnsCorrectValueAsync`
     is now green. `UpDownBase.Focus()` routes to the embedded edit child, and
     `UpDownBaseAccessibleObject` can return managed child accessibility objects

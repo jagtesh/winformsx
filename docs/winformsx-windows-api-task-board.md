@@ -187,6 +187,21 @@ Ordered by observed frequency across components and blocker blast radius:
       build succeeded; `WinformsControlsTest --control-smoke-test` ->
       `total=42 passed=41 failed=0 skipped=1`; full UIIntegration ->
       `Failed: 0, Passed: 191, Skipped: 1, Total: 192`.
+    - `NativeWindow` class registration now uses the WinFormsX PAL path
+      everywhere: module-handle lookup goes through the managed wrapper,
+      window-class registration goes through `PlatformApi.Window`, and managed
+      system-class setup no longer calls native `GetClassInfo`, `RegisterClass`,
+      or `GetStockObject`.
+    - `FormCollection.Add` now also prunes stale unloaded forms before
+      registering new visible forms, closing the broad-order
+      `Application_OpenForms_RecreateHandle` recurrence that surfaced after
+      class registration moved to the PAL path.
+    - Verification after the NativeWindow sweep:
+      `dotnet build ...System.Windows.Forms.UI.IntegrationTests.csproj -c Debug -v:q` ->
+      build succeeded; `dotnet test ...System.Windows.Forms.UI.IntegrationTests.csproj -c Debug --no-build -v:n` ->
+      `Failed: 0, Passed: 191, Skipped: 1, Total: 192`;
+      `WinformsControlsTest --control-smoke-test` ->
+      `total=42 passed=41 failed=0 skipped=1`.
   - Priority order now moves to ListView tile accessibility, PropertyGrid
     provider breadth, RichTextBox link-range behavior, dialog/print fallbacks,
     and remaining lower-volume provider gaps.

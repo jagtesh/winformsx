@@ -127,9 +127,7 @@ public partial class NativeWindow
                 // creates a little bit if flicker.  This happens even though we are overriding wm_erasebackgnd.
                 // Make this hollow to avoid all flicker.
 
-                windowClass.hbrBackground = OperatingSystem.IsWindows()
-                    ? (HBRUSH)PInvoke.GetStockObject(GET_STOCK_OBJECT_FLAGS.NULL_BRUSH)
-                    : (HBRUSH)(nint)1;
+                windowClass.hbrBackground = (HBRUSH)(nint)1;
                 windowClass.style = _classStyle;
 
                 _defaultWindProc = DefaultWindowProc;
@@ -138,23 +136,7 @@ public partial class NativeWindow
             else
             {
                 // A system defined Window class was specified, get its info.
-                if (!OperatingSystem.IsWindows())
-                {
-                    _defaultWindProc = DefaultWindowProc;
-                }
-                else
-                {
-                    fixed (char* n = localClassName)
-                    {
-                        if (!PInvoke.GetClassInfo((HINSTANCE)0, n, &windowClass))
-                        {
-                            throw new Win32Exception(Marshal.GetLastWin32Error(), SR.InvalidWndClsName);
-                        }
-                    }
-
-                    _defaultWindProc = (nint)windowClass.lpfnWndProc;
-                }
-
+                _defaultWindProc = DefaultWindowProc;
                 localClassName = _className;
             }
 
@@ -162,17 +144,13 @@ public partial class NativeWindow
             _windProc = new WNDPROC(Callback);
             nint callback = Marshal.GetFunctionPointerForDelegate(_windProc);
             windowClass.lpfnWndProc = (delegate* unmanaged[Stdcall]<HWND, uint, WPARAM, LPARAM, LRESULT>)callback;
-            windowClass.hInstance = OperatingSystem.IsWindows()
-                ? PInvoke.GetModuleHandle((PCWSTR)null)
-                : Platform.PlatformApi.System.GetModuleHandle(null);
+            windowClass.hInstance = PInvoke.GetModuleHandle((PCWSTR)null);
 
             fixed (char* c = _windowClassName)
             {
                 windowClass.lpszClassName = c;
 
-                ushort atom = OperatingSystem.IsWindows()
-                    ? PInvoke.RegisterClass(&windowClass)
-                    : Platform.PlatformApi.Window.RegisterClass(in windowClass);
+                ushort atom = Platform.PlatformApi.Window.RegisterClass(in windowClass);
 
                 if (atom == 0)
                 {
