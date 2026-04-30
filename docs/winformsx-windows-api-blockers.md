@@ -130,7 +130,10 @@ compatibility-facade coverage.
   `StringCollectionEditor` and `DataGridViewColumnCollectionDialog`
   owner-close/OK coverage, bringing `InternalModalDialogUITests` to
   `14 passed, 0 failed`; no new PAL/runtime gap was exposed by those editor
-  paths.
+  paths. The latest add-column pass gives `DataGridViewAddColumnDialog` a
+  built-in DataGridView column type fallback when no design-time discovery
+  service is available, adds close/add coverage, and brings
+  `InternalModalDialogUITests` to `16 passed, 0 failed`.
 - First UIIntegration blockers observed:
   - `OLE32.dll` missing through `Application.ThreadContext.OleRequired()`,
     clipboard, and drag/drop paths. `InputLanguage.CurrentInputLanguage`,
@@ -346,9 +349,9 @@ Impacted APIs and controls:
   `GridErrorDialog`, `MdiWindowDialog`, `PrintPreviewDialog`,
   `PrintControllerWithStatusDialog`, `MaskDesignerDialog`,
   `FormatStringDialog`, `StringCollectionEditor`,
-  `DataGridViewColumnCollectionDialog`, PropertyGrid error/editor dialogs,
-  file-dialog overwrite/create prompts, and remaining component-specific editor
-  dialogs.
+  `DataGridViewColumnCollectionDialog`, `DataGridViewAddColumnDialog`,
+  PropertyGrid error/editor dialogs, file-dialog overwrite/create prompts, and
+  remaining component-specific editor dialogs.
 - Native surfaces: `COMDLG32.dll` (`GetOpenFileName`, `GetSaveFileName`,
   `ChooseColor`, `ChooseFont`, `PrintDlg`, `PrintDlgEx`, `PageSetupDlg`,
   `CommDlgExtendedError`), shell item dialogs, `GetDlgItem`, and `EndDialog`.
@@ -361,11 +364,13 @@ Impacted APIs and controls:
   modal forms now synthesize `WM_ENTERIDLE` for their owner on `Shown`, and
   focused `ThreadExceptionDialog` / `GridErrorDialog` / `MdiWindowDialog` /
   `MaskDesignerDialog` / `FormatStringDialog` / `StringCollectionEditor` /
-  `DataGridViewColumnCollectionDialog` coverage passes. Managed ListView column
-  updates now acknowledge `LVM_SETCOLUMNW`, which keeps ListView-backed design
-  editors from failing during resource initialization. OS-native picker
-  integration and broader component-specific editor/status modal breadth remain
-  incomplete.
+  `DataGridViewColumnCollectionDialog` / `DataGridViewAddColumnDialog`
+  coverage passes. Managed ListView column updates now acknowledge
+  `LVM_SETCOLUMNW`, which keeps ListView-backed design editors from failing
+  during resource initialization. `DataGridViewAddColumnDialog` now has a
+  built-in column-type fallback for runtime contexts without design-time type
+  discovery. OS-native picker integration and broader component-specific
+  editor/status modal breadth remain incomplete.
 
 Plan:
 
@@ -379,8 +384,8 @@ Plan:
   internal WinForms dialogs are plain forms rather than `CommonDialog`
   subclasses.
 - Continue expanding component-specific editor modal coverage, starting with
-  add-column, tree-node/style, and ToolStrip collection editors, before moving
-  to richer service parity.
+  tree-node/style and ToolStrip collection editors, before moving to richer
+  service parity.
 - Keep native common-dialog exports as facades over those services where the ABI
   is simple enough.
 - For `TaskDialog`, cover command links, verification checkbox, radio buttons,

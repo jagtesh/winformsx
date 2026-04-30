@@ -220,11 +220,16 @@ Ordered by observed frequency across components and blocker blast radius:
       `Passed: 14, Failed: 0`. These paths did not expose a new PAL/runtime
       blocker, so the larger-editor lane now narrows to remaining
       component-specific editors.
+    - Latest add-column editor pass:
+      `DataGridViewAddColumnDialog` now falls back to the built-in
+      DataGridView column types when no design-time type-discovery service is
+      available. Focused close/add coverage is green, bringing
+      `InternalModalDialogUITests` to `Passed: 16, Failed: 0`.
   - Priority order moves to remaining high-impact infrastructure gaps:
-    remaining component-specific editor modals such as add-column,
-    tree-node/style, and ToolStrip collection editors, real print provider/PDF
-    output design, OS-native picker integration, then lower-volume
-    accessibility/provider breadth and resource polish.
+    remaining component-specific editor modals such as tree-node/style and
+    ToolStrip collection editors, real print provider/PDF output design,
+    OS-native picker integration, then lower-volume accessibility/provider
+    breadth and resource polish.
   - Active lane update: focused PropertyGrid UIIntegration coverage is now
     green: `Passed: 38, Failed: 0, Skipped: 0, Total: 38`.
   - Active lane update: focused anchor/MDI resize coverage is now green:

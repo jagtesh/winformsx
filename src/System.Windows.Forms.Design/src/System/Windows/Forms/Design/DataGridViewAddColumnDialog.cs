@@ -11,6 +11,16 @@ namespace System.Windows.Forms.Design;
 
 internal class DataGridViewAddColumnDialog : Form
 {
+    private static readonly Type[] s_defaultColumnTypes =
+    [
+        typeof(DataGridViewButtonColumn),
+        typeof(DataGridViewCheckBoxColumn),
+        typeof(DataGridViewComboBoxColumn),
+        typeof(DataGridViewImageColumn),
+        typeof(DataGridViewLinkColumn),
+        typeof(DataGridViewTextBoxColumn)
+    ];
+
     private RadioButton _dataBoundColumnRadioButton;
     private Label _columnInDataSourceLabel;
 
@@ -658,19 +668,7 @@ internal class DataGridViewAddColumnDialog : Form
     {
         _columnTypesCombo.Items.Clear();
 
-        if (!_liveDataGridView.Site.TryGetService(out IDesignerHost? host))
-        {
-            return;
-        }
-
-        ITypeDiscoveryService? discoveryService = host.GetService<ITypeDiscoveryService>();
-
-        if (discoveryService is null)
-        {
-            return;
-        }
-
-        ICollection columnTypes = DesignerUtils.FilterGenericTypes(discoveryService.GetTypes(typeof(DataGridViewColumn), excludeGlobalTypes: false));
+        ICollection columnTypes = GetColumnTypes();
 
         foreach (Type type in columnTypes)
         {
@@ -699,6 +697,17 @@ internal class DataGridViewAddColumnDialog : Form
 
         // make the textBoxColumn type the selected type
         _columnTypesCombo.SelectedIndex = TypeToSelectedIndex(typeof(DataGridViewTextBoxColumn));
+    }
+
+    private ICollection GetColumnTypes()
+    {
+        if (_liveDataGridView.Site.TryGetService(out IDesignerHost? host)
+            && host.GetService<ITypeDiscoveryService>() is ITypeDiscoveryService discoveryService)
+        {
+            return DesignerUtils.FilterGenericTypes(discoveryService.GetTypes(typeof(DataGridViewColumn), excludeGlobalTypes: false));
+        }
+
+        return s_defaultColumnTypes;
     }
 
     private void PopulateDataColumns()

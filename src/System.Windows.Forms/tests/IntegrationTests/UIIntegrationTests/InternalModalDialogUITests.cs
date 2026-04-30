@@ -226,6 +226,41 @@ public class InternalModalDialogUITests : ControlTestBase
         Assert.Single(liveDataGridView.Columns);
     }
 
+    [UIFact]
+    public void DataGridViewAddColumnDialog_ShowDialog_CloseFromOwner_Completes()
+    {
+        using DialogHostForm dialogOwnerForm = new();
+        using DataGridView liveDataGridView = CreateLiveDataGridViewForColumnDialog();
+        using DataGridViewAddColumnDialog dialog = CreateDataGridViewAddColumnDialog(liveDataGridView);
+
+        Assert.Equal(DialogResult.OK, dialog.ShowDialog(dialogOwnerForm));
+    }
+
+    [UIFact]
+    public void DataGridViewAddColumnDialog_ShowDialog_AddButton_AddsColumn()
+    {
+        using DataGridView liveDataGridView = CreateLiveDataGridViewForColumnDialog();
+        using DataGridViewAddColumnDialog dialog = CreateDataGridViewAddColumnDialog(liveDataGridView);
+
+        dialog.Shown += (sender, e) =>
+        {
+            TextBox nameTextBox = GetPrivateField<TextBox>(dialog, "_nameTextBox");
+            TextBox headerTextBox = GetPrivateField<TextBox>(dialog, "_headerTextBox");
+            Button addButton = GetPrivateField<Button>(dialog, "_addButton");
+            Button cancelButton = GetPrivateField<Button>(dialog, "_cancelButton");
+
+            nameTextBox.Text = "addedColumn";
+            headerTextBox.Text = "Added Column";
+            addButton.PerformClick();
+            cancelButton.PerformClick();
+        };
+
+        Assert.Equal(DialogResult.OK, dialog.ShowDialog());
+        Assert.Equal(2, liveDataGridView.Columns.Count);
+        Assert.Equal("addedColumn", liveDataGridView.Columns[1].Name);
+        Assert.Equal("Added Column", liveDataGridView.Columns[1].HeaderText);
+    }
+
     private static MdiWindowDialog CreateMdiWindowDialog(Form first, Form second)
     {
         MdiWindowDialog dialog = new();
@@ -256,6 +291,13 @@ public class InternalModalDialogUITests : ControlTestBase
     {
         DataGridViewColumnCollectionDialog dialog = new();
         dialog.SetLiveDataGridView(liveDataGridView);
+        return dialog;
+    }
+
+    private static DataGridViewAddColumnDialog CreateDataGridViewAddColumnDialog(DataGridView liveDataGridView)
+    {
+        DataGridViewAddColumnDialog dialog = new(liveDataGridView.Columns, liveDataGridView);
+        dialog.Start(liveDataGridView.Columns.Count, persistChangesToDesigner: false);
         return dialog;
     }
 
