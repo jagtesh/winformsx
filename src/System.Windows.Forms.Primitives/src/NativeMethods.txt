@@ -4,7 +4,6 @@ ActivateKeyboardLayout
 AdjustWindowRectEx
 AdjustWindowRectExForDpi
 ADVF
-AreDpiAwarenessContextsEqual
 ARW_*
 AUTOCOMPLETEOPTIONS
 BeginPaint
@@ -97,7 +96,9 @@ DOCHOSTUIINFO
 DocumentProperties
 DoDragDrop
 DPI_AWARENESS_CONTEXT_*
+DPI_AWARENESS
 DPI_HOSTING_BEHAVIOR
+PROCESS_DPI_AWARENESS
 DragQueryFile
 DRAW_EDGE_FLAGS
 DRAW_TEXT_FORMAT
@@ -161,7 +162,6 @@ GET_ANCESTOR_FLAGS
 GET_CLASS_LONG_INDEX
 GET_MODULE_HANDLE_EX_FLAG*
 GET_WINDOW_CMD
-GetAwarenessFromDpiAwarenessContext
 GetBitmapBits
 GetBkColor
 GetBkMode
@@ -184,7 +184,6 @@ GetDeviceCaps
 GetDIBits
 GetDlgItemInt
 GetDoubleClickTime
-GetDpiForSystem
 GetErrorInfo
 GetExitCodeThread
 GetHGlobalFromILockBytes
@@ -203,7 +202,6 @@ GetObject
 GetObjectType
 GetOpenFileName
 GetPaletteEntries
-GetProcessDpiAwareness
 GetProcessWindowStation
 GETPROPERTYSTOREFLAGS
 GetRgnBox
@@ -242,7 +240,6 @@ GetThemeSysBool
 GetThemeSysInt
 GetThemeTextExtent
 GetThemeTextMetrics
-GetThreadDpiHostingBehavior
 GetThreadLocale
 GetTickCount
 GetUpdateRect
@@ -387,11 +384,9 @@ IServiceProvider
 IShellItem
 ISimpleFrameSite
 ISpecifyPropertyPages
-IsProcessDPIAware
 IsThemeBackgroundPartiallyTransparent
 IsThemePartDefined
 ISupportErrorInfo
-IsValidDpiAwarenessContext
 IsWindowUnicode
 IsZoomed
 ITableItemProvider
@@ -601,15 +596,11 @@ SetCursor
 SetKeyboardState
 SetLayeredWindowAttributes
 SetMapMode
-SetProcessDPIAware
-SetProcessDpiAwareness
-SetProcessDpiAwarenessContext
 SetROP2
 SetScrollInfo
 SetSuspendState
 SetTextAlign
 SetThemeAppProperties
-SetThreadDpiHostingBehavior
 SetViewportExtEx
 SetViewportOrgEx
 SetWindowExtEx
@@ -703,14 +694,12 @@ TYPEKIND
 UIA_CONTROLTYPE_ID
 UIA_EVENT_ID
 UiaAppendRuntimeId
-UiaDisconnectProvider
 UiaGetReservedNotSupportedValue
-UiaHostProviderFromHwnd
+NotificationKind
+NotificationProcessing
 UiaRaiseAutomationEvent
 UiaRaiseAutomationPropertyChangedEvent
-UiaRaiseNotificationEvent
 UiaRaiseStructureChangedEvent
-UiaReturnRawElementProvider
 UiaRootObjectId
 UIS_*
 UISF_*

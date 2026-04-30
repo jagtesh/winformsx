@@ -65,9 +65,16 @@ compatibility-facade coverage.
   dummy MDI menu create/destroy through `PlatformApi.Control`. PAL window
   placement now seeds state from `WS_MINIMIZE` / `WS_MAXIMIZE`, preserves
   managed min/max state on `SW_SHOW`, and lets MDI minimized-child anchor-bottom
-  layout update through managed placement state. Full UIIntegration and
-  controls smoke remain stable after this pass. Larger provider and dialog/print
-  gaps remain tracked below.
+  layout update through managed placement state. The latest DPI/UIA/layout pass
+  treats OS-version helpers as WinFormsX compatibility-level probes, routes
+  process/thread DPI awareness and UIAutomationCore calls through PAL-backed
+  wrappers, emulates the Windows snap-layout keyboard path through managed input
+  state, and marks FlowLayoutPanel/ToolStrip as self-sizing default-layout
+  controls so autosized smoke forms no longer trip docking assertions. It also
+  removes closed PropertyGrid dropdown holders from `Application.OpenForms`,
+  preserving broad-suite OpenForms counts without changing the public collection
+  surface. Full UIIntegration and controls smoke remain stable after this pass.
+  Larger provider and dialog/print gaps remain tracked below.
 - First UIIntegration blockers observed:
   - `OLE32.dll` missing through `Application.ThreadContext.OleRequired()`,
     `InputLanguage.CurrentInputLanguage`, IME, clipboard, and drag/drop paths.
@@ -155,6 +162,11 @@ compatibility-facade coverage.
     OS checks.
   - Latest broad UIIntegration active slice is green:
     `191 passed, 0 failed, 1 skipped`.
+  - DPI awareness, UIAutomationCore wrapper, snap-layout keyboard, and
+    autosized layout smoke paths now run through the same WinFormsX/PAL pathway
+    everywhere. `Application.OpenForms` also stays stable after PropertyGrid
+    dropdown editor tests because hidden internal dropdown holder forms are
+    removed when closed.
   - Highest-volume remaining failures are accessibility/provider and layout
     clusters outside the current active slice: ListView tile accessibility,
     PropertyGrid provider breadth, RichTextBox link-range behavior,

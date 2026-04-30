@@ -420,7 +420,15 @@ public sealed partial class Application
     /// <summary>
     ///  Gets the forms collection associated with this application.
     /// </summary>
-    public static FormCollection OpenForms => s_forms ??= [];
+    public static FormCollection OpenForms
+    {
+        get
+        {
+            FormCollection forms = s_forms ??= [];
+            forms.PruneInactiveForms();
+            return forms;
+        }
+    }
 
     /// <summary>
     ///  Gets

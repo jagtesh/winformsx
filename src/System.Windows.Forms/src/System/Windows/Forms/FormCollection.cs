@@ -30,6 +30,8 @@ public class FormCollection : ReadOnlyCollectionBase
             {
                 lock (CollectionSyncRoot)
                 {
+                    PruneInactiveForms();
+
                     foreach (Form form in InnerList)
                     {
                         if (string.Equals(form.Name, name, StringComparison.OrdinalIgnoreCase))
@@ -55,6 +57,7 @@ public class FormCollection : ReadOnlyCollectionBase
 
             lock (CollectionSyncRoot)
             {
+                PruneInactiveForms();
                 f = (Form?)InnerList[index];
             }
 
@@ -69,7 +72,7 @@ public class FormCollection : ReadOnlyCollectionBase
     {
         lock (CollectionSyncRoot)
         {
-            PruneDisposedForms();
+            PruneInactiveForms();
 
             if (InnerList.Contains(form))
             {
@@ -89,6 +92,7 @@ public class FormCollection : ReadOnlyCollectionBase
         bool inCollection = false;
         lock (CollectionSyncRoot)
         {
+            PruneInactiveForms();
             inCollection = InnerList.Contains(form);
         }
 
@@ -109,14 +113,17 @@ public class FormCollection : ReadOnlyCollectionBase
         }
     }
 
-    private void PruneDisposedForms()
+    internal void PruneInactiveForms()
     {
-        for (int i = InnerList.Count - 1; i >= 0; i--)
+        lock (CollectionSyncRoot)
         {
-            if (InnerList[i] is Form { IsDisposed: true }
-                or Form { IsHandleCreated: false, Visible: false })
+            for (int i = InnerList.Count - 1; i >= 0; i--)
             {
-                InnerList.RemoveAt(i);
+                if (InnerList[i] is Form { IsDisposed: true }
+                    or Form { IsHandleCreated: false })
+                {
+                    InnerList.RemoveAt(i);
+                }
             }
         }
     }

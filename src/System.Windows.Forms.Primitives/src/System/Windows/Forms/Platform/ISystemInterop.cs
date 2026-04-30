@@ -29,8 +29,17 @@ internal unsafe interface ISystemInterop
 
     uint GetDpiForWindow(HWND hwnd);
     uint GetDpiForSystem();
+    bool AreDpiAwarenessContextsEqual(DPI_AWARENESS_CONTEXT dpiContextA, DPI_AWARENESS_CONTEXT dpiContextB);
+    DPI_AWARENESS GetAwarenessFromDpiAwarenessContext(DPI_AWARENESS_CONTEXT dpiContext);
+    HRESULT GetProcessDpiAwareness(HANDLE process, out PROCESS_DPI_AWARENESS dpiAwareness);
     DPI_AWARENESS_CONTEXT GetThreadDpiAwarenessContext();
     DPI_AWARENESS_CONTEXT SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT dpiContext);
+    DPI_HOSTING_BEHAVIOR GetThreadDpiHostingBehavior();
+    DPI_HOSTING_BEHAVIOR SetThreadDpiHostingBehavior(DPI_HOSTING_BEHAVIOR value);
+    bool IsValidDpiAwarenessContext(DPI_AWARENESS_CONTEXT dpiContext);
+    bool SetProcessDPIAware();
+    HRESULT SetProcessDpiAwareness(PROCESS_DPI_AWARENESS dpiAwareness);
+    bool SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT dpiContext);
     bool AdjustWindowRectExForDpi(ref RECT lpRect, WINDOW_STYLE dwStyle, bool bMenu, WINDOW_EX_STYLE dwExStyle, uint dpi);
     DPI_AWARENESS_CONTEXT GetWindowDpiAwarenessContext(HWND hwnd);
 

@@ -151,6 +151,7 @@ public partial class ToolStrip : ScrollableControl, IArrangedElement, ISupportTo
         CausesValidation = false;
         Size defaultSize = DefaultSize;
         SetAutoSizeMode(AutoSizeMode.GrowAndShrink);
+        CommonProperties.SetSelfAutoSizeInDefaultLayout(this, true);
         ShowItemToolTips = DefaultShowItemToolTips;
         ResumeLayout(true);
     }

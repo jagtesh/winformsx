@@ -17,6 +17,9 @@ internal sealed unsafe class ImpellerSystemInterop : ISystemInterop
     private long _nextTimerId = 1;
     private readonly Dictionary<nint, System.Threading.Timer> _timers = [];
     private readonly Dictionary<string, uint> _clipboardFormats = [];
+    private DPI_AWARENESS_CONTEXT _processDpiAwarenessContext = DPI_AWARENESS_CONTEXT.DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2;
+    private DPI_AWARENESS_CONTEXT _threadDpiAwarenessContext = DPI_AWARENESS_CONTEXT.DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2;
+    private DPI_HOSTING_BEHAVIOR _threadDpiHostingBehavior = DPI_HOSTING_BEHAVIOR.DPI_HOSTING_BEHAVIOR_MIXED;
     private uint _nextClipboardFormat = 0xC000;
     private bool _clientAreaAnimation = true;
     private bool _dragFullWindows = true;
@@ -441,10 +444,97 @@ internal sealed unsafe class ImpellerSystemInterop : ISystemInterop
         return 96;
     }
 
-    public DPI_AWARENESS_CONTEXT GetThreadDpiAwarenessContext() => DPI_AWARENESS_CONTEXT.DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2;
-    public DPI_AWARENESS_CONTEXT SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT ctx) => ctx;
+    public bool AreDpiAwarenessContextsEqual(DPI_AWARENESS_CONTEXT dpiContextA, DPI_AWARENESS_CONTEXT dpiContextB)
+        => dpiContextA.IsEquivalent(dpiContextB);
+
+    public DPI_AWARENESS GetAwarenessFromDpiAwarenessContext(DPI_AWARENESS_CONTEXT dpiContext)
+    {
+        if (dpiContext.IsEquivalent(DPI_AWARENESS_CONTEXT.DPI_AWARENESS_CONTEXT_UNAWARE)
+            || dpiContext.IsEquivalent(DPI_AWARENESS_CONTEXT.DPI_AWARENESS_CONTEXT_UNAWARE_GDISCALED))
+        {
+            return DPI_AWARENESS.DPI_AWARENESS_UNAWARE;
+        }
+
+        if (dpiContext.IsEquivalent(DPI_AWARENESS_CONTEXT.DPI_AWARENESS_CONTEXT_SYSTEM_AWARE))
+        {
+            return DPI_AWARENESS.DPI_AWARENESS_SYSTEM_AWARE;
+        }
+
+        if (dpiContext.IsEquivalent(DPI_AWARENESS_CONTEXT.DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE)
+            || dpiContext.IsEquivalent(DPI_AWARENESS_CONTEXT.DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2))
+        {
+            return DPI_AWARENESS.DPI_AWARENESS_PER_MONITOR_AWARE;
+        }
+
+        return DPI_AWARENESS.DPI_AWARENESS_INVALID;
+    }
+
+    public HRESULT GetProcessDpiAwareness(HANDLE process, out PROCESS_DPI_AWARENESS dpiAwareness)
+    {
+        dpiAwareness = GetAwarenessFromDpiAwarenessContext(_processDpiAwarenessContext) switch
+        {
+            DPI_AWARENESS.DPI_AWARENESS_UNAWARE => PROCESS_DPI_AWARENESS.PROCESS_DPI_UNAWARE,
+            DPI_AWARENESS.DPI_AWARENESS_SYSTEM_AWARE => PROCESS_DPI_AWARENESS.PROCESS_SYSTEM_DPI_AWARE,
+            DPI_AWARENESS.DPI_AWARENESS_PER_MONITOR_AWARE => PROCESS_DPI_AWARENESS.PROCESS_PER_MONITOR_DPI_AWARE,
+            _ => PROCESS_DPI_AWARENESS.PROCESS_DPI_UNAWARE
+        };
+
+        return HRESULT.S_OK;
+    }
+
+    public DPI_AWARENESS_CONTEXT GetThreadDpiAwarenessContext() => _threadDpiAwarenessContext;
+
+    public DPI_AWARENESS_CONTEXT SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT ctx)
+    {
+        DPI_AWARENESS_CONTEXT previous = _threadDpiAwarenessContext;
+        _threadDpiAwarenessContext = ctx;
+        return previous;
+    }
+
+    public DPI_HOSTING_BEHAVIOR GetThreadDpiHostingBehavior() => _threadDpiHostingBehavior;
+
+    public DPI_HOSTING_BEHAVIOR SetThreadDpiHostingBehavior(DPI_HOSTING_BEHAVIOR value)
+    {
+        DPI_HOSTING_BEHAVIOR previous = _threadDpiHostingBehavior;
+        _threadDpiHostingBehavior = value;
+        return previous;
+    }
+
+    public bool IsValidDpiAwarenessContext(DPI_AWARENESS_CONTEXT dpiContext)
+        => dpiContext.IsEquivalent(DPI_AWARENESS_CONTEXT.DPI_AWARENESS_CONTEXT_UNAWARE)
+            || dpiContext.IsEquivalent(DPI_AWARENESS_CONTEXT.DPI_AWARENESS_CONTEXT_SYSTEM_AWARE)
+            || dpiContext.IsEquivalent(DPI_AWARENESS_CONTEXT.DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE)
+            || dpiContext.IsEquivalent(DPI_AWARENESS_CONTEXT.DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2)
+            || dpiContext.IsEquivalent(DPI_AWARENESS_CONTEXT.DPI_AWARENESS_CONTEXT_UNAWARE_GDISCALED);
+
+    public bool SetProcessDPIAware()
+    {
+        _processDpiAwarenessContext = DPI_AWARENESS_CONTEXT.DPI_AWARENESS_CONTEXT_SYSTEM_AWARE;
+        return true;
+    }
+
+    public HRESULT SetProcessDpiAwareness(PROCESS_DPI_AWARENESS dpiAwareness)
+    {
+        _processDpiAwarenessContext = dpiAwareness switch
+        {
+            PROCESS_DPI_AWARENESS.PROCESS_DPI_UNAWARE => DPI_AWARENESS_CONTEXT.DPI_AWARENESS_CONTEXT_UNAWARE,
+            PROCESS_DPI_AWARENESS.PROCESS_SYSTEM_DPI_AWARE => DPI_AWARENESS_CONTEXT.DPI_AWARENESS_CONTEXT_SYSTEM_AWARE,
+            PROCESS_DPI_AWARENESS.PROCESS_PER_MONITOR_DPI_AWARE => DPI_AWARENESS_CONTEXT.DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE,
+            _ => _processDpiAwarenessContext
+        };
+
+        return HRESULT.S_OK;
+    }
+
+    public bool SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT dpiContext)
+    {
+        _processDpiAwarenessContext = dpiContext;
+        _threadDpiAwarenessContext = dpiContext;
+        return true;
+    }
+
     public bool AdjustWindowRectExForDpi(ref RECT rect, WINDOW_STYLE style, bool menu, WINDOW_EX_STYLE exStyle, uint dpi) => true;
-    public DPI_AWARENESS_CONTEXT GetWindowDpiAwarenessContext(HWND hwnd) => DPI_AWARENESS_CONTEXT.DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2;
+    public DPI_AWARENESS_CONTEXT GetWindowDpiAwarenessContext(HWND hwnd) => _threadDpiAwarenessContext;
 
     // --- Module / Process -----------------------------------------------
 

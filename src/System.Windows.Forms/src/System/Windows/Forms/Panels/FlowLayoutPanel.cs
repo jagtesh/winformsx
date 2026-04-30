@@ -18,6 +18,7 @@ public class FlowLayoutPanel : Panel, IExtenderProvider
     public FlowLayoutPanel()
     {
         _flowLayoutSettings = new FlowLayoutSettings(this);
+        CommonProperties.SetSelfAutoSizeInDefaultLayout(this, true);
     }
 
     public override LayoutEngine LayoutEngine => FlowLayout.Instance;

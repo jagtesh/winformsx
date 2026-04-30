@@ -764,6 +764,7 @@ internal sealed partial class PropertyGridView :
             // Disable the drop down holder so it won't steal the focus back.
             _dropDownHolder.SetDropDownControl(control: null, resizable: false);
             _dropDownHolder.Visible = false;
+            Application.OpenForms.Remove(_dropDownHolder);
 
             // When we disable the dropdown holder focus will be lost, so put it onto one of our children.
             if (resetFocus)

@@ -244,9 +244,6 @@ internal static partial class ScaleHelper
         catch
         {
             // Failed to read the registry for whatever reason.
-#if DEBUG
-            throw;
-#endif
         }
 
         return null;
@@ -458,11 +455,6 @@ internal static partial class ScaleHelper
     /// <returns><see langword="true"/> if the mode was successfully set.</returns>
     internal static bool SetProcessHighDpiMode(HighDpiMode highDpiMode)
     {
-        if (!OperatingSystem.IsWindows())
-        {
-            return true;
-        }
-
         bool success = false;
 
         if (OsVersion.IsWindows10_1703OrGreater())

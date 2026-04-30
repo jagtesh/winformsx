@@ -2,11 +2,22 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using Windows.Win32.UI.Accessibility;
+using System.Windows.Forms.Platform;
 
 namespace Windows.Win32;
 
 internal static partial class PInvoke
 {
+    public static unsafe LRESULT UiaReturnRawElementProvider(
+        HWND hwnd,
+        WPARAM wParam,
+        LPARAM lParam,
+        IRawElementProviderSimple* el)
+    {
+        PlatformApi.Accessibility.UiaReturnRawElementProvider(hwnd, wParam, lParam, (nint)el);
+        return (LRESULT)0;
+    }
+
     /// <inheritdoc cref="UiaReturnRawElementProvider(HWND, WPARAM, LPARAM, IRawElementProviderSimple*)"/>
     public static unsafe LRESULT UiaReturnRawElementProvider<T>(
         T hwnd,

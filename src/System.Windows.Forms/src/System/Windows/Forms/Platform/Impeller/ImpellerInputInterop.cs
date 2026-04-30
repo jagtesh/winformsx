@@ -41,6 +41,8 @@ internal sealed unsafe class ImpellerInputInterop : IInputInterop
     private nint _keyboardLayout = unchecked((nint)0x04090409);
     private System.Drawing.Point _cursorPos;
     private int? _dispatchedMouseKeyState;
+    private bool _snapLayoutActive;
+    private int _snapLayoutRightPresses;
     private readonly HashSet<int> _pressedKeys = [];
     private readonly object _inputStateLock = new();
     private static readonly string? s_traceFile = Environment.GetEnvironmentVariable("WINFORMSX_TRACE_FILE");
@@ -264,6 +266,12 @@ internal sealed unsafe class ImpellerInputInterop : IInputInterop
             uint keyMessage = keyUp
                 ? (altModifierActive && !isAltKey ? WM_SYSKEYUP : WM_KEYUP)
                 : (altModifierActive && !isAltKey ? WM_SYSKEYDOWN : WM_KEYDOWN);
+
+            if (!keyUp && TryHandleSnapLayoutKey(virtualKey))
+            {
+                return;
+            }
+
             PostToKeyboardTarget(keyMessage, (WPARAM)virtualKey, (LPARAM)0);
 
             if (!keyUp && altModifierActive && !isAltKey && TryMapVirtualKeyToChar(virtualKey, out char mappedChar))
@@ -460,6 +468,102 @@ internal sealed unsafe class ImpellerInputInterop : IInputInterop
 
         PlatformApi.Message.SendMessage(target, message, wParam, lParam);
         TraceInput($"[InputKeyboardSend] msg=0x{message:X} target=0x{(nint)target:X}");
+    }
+
+    private bool TryHandleSnapLayoutKey(int virtualKey)
+    {
+        if (virtualKey == (int)VIRTUAL_KEY.VK_Z && IsWinModifierPressed())
+        {
+            _snapLayoutActive = true;
+            _snapLayoutRightPresses = 0;
+            TraceInput("[InputSnapLayout] open");
+            return true;
+        }
+
+        if (!_snapLayoutActive)
+        {
+            return false;
+        }
+
+        if (virtualKey == (int)VIRTUAL_KEY.VK_RIGHT)
+        {
+            _snapLayoutRightPresses++;
+            TraceInput($"[InputSnapLayout] right-count={_snapLayoutRightPresses}");
+            return true;
+        }
+
+        if (virtualKey == (int)VIRTUAL_KEY.VK_RETURN)
+        {
+            ApplySnapLayout(_snapLayoutRightPresses >= 2);
+            _snapLayoutActive = false;
+            _snapLayoutRightPresses = 0;
+            return true;
+        }
+
+        if (virtualKey == (int)VIRTUAL_KEY.VK_ESCAPE)
+        {
+            _snapLayoutActive = false;
+            _snapLayoutRightPresses = 0;
+            return true;
+        }
+
+        return false;
+    }
+
+    private bool IsWinModifierPressed()
+    {
+        lock (_inputStateLock)
+        {
+            return _pressedKeys.Contains((int)VIRTUAL_KEY.VK_LWIN)
+                || _pressedKeys.Contains((int)VIRTUAL_KEY.VK_RWIN);
+        }
+    }
+
+    private void ApplySnapLayout(bool snapRight)
+    {
+        Form? form = GetKeyboardTargetForm();
+        if (form is null)
+        {
+            TraceInput("[InputSnapLayout] drop reason=no-form");
+            return;
+        }
+
+        System.Drawing.Rectangle workingArea = Screen.FromControl(form).WorkingArea;
+        int halfWidth = Math.Max(1, workingArea.Width / 2);
+        System.Drawing.Rectangle bounds = snapRight
+            ? new System.Drawing.Rectangle(workingArea.X + halfWidth, workingArea.Y, workingArea.Width - halfWidth, workingArea.Height)
+            : new System.Drawing.Rectangle(workingArea.X, workingArea.Y, halfWidth, workingArea.Height);
+
+        form.BeginInvoke(new Action(() =>
+        {
+            form.WindowState = FormWindowState.Normal;
+            form.Bounds = bounds;
+            form.Invalidate();
+        }));
+
+        TraceInput($"[InputSnapLayout] {(snapRight ? "right" : "left")} bounds={bounds}");
+    }
+
+    private Form? GetKeyboardTargetForm()
+    {
+        HWND target = _focusWindow != HWND.Null ? _focusWindow : _activeWindow;
+        Control? control = target == HWND.Null ? null : Control.FromHandle(target);
+        Form? form = control as Form ?? control?.FindForm();
+        if (form is not null)
+        {
+            return form;
+        }
+
+        for (int i = Application.OpenForms.Count - 1; i >= 0; i--)
+        {
+            Form? candidate = Application.OpenForms[i];
+            if (candidate is not null && candidate.Visible && candidate.IsHandleCreated)
+            {
+                return candidate;
+            }
+        }
+
+        return null;
     }
 
     private void PostSystemCharToMnemonicTarget(WPARAM wParam)

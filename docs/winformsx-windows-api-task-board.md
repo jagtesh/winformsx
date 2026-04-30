@@ -26,6 +26,30 @@ Ordered by observed frequency across components and blocker blast radius:
   - The latest committed work adds the ListView/common-control reduction, the
     wrapped Win32 style fix that removed PropertyGrid dropdown-holder
     construction overflows, and the PropertyGrid/USER32 wait closure below.
+  - Current pass:
+    - OS-version helpers now advertise the WinFormsX compatibility surface
+      instead of branching on the host OS, keeping modern WinForms code paths
+      active everywhere.
+    - Process/thread DPI awareness APIs now route through `PlatformApi.System`
+      with managed DPI state for process context, thread context, and DPI
+      hosting behavior.
+    - Direct UIAutomationCore calls used by active UIIntegration coverage
+      (`UiaDisconnectProvider`, `UiaHostProviderFromHwnd`,
+      `UiaRaiseNotificationEvent`, and `UiaReturnRawElementProvider`) now route
+      through the accessibility PAL instead of generated native imports.
+    - Synthetic `Win+Z`, arrow, enter, and escape input now drives a managed
+      snap-layout path for the UIIntegration snap tests.
+    - `FlowLayoutPanel` and `ToolStrip` are marked as self-sizing controls in
+      default layout, closing the Task Dialog, Menus, and ToolStrips docking
+      asserts in controls smoke.
+    - `Application.OpenForms` pruning stays internal, and closed PropertyGrid
+      dropdown holders explicitly leave the collection so broad-suite
+      `Application_OpenForms_RecreateHandle` remains stable without adding a
+      public `FormCollection.Count` shadow.
+    - Verification:
+      `WinformsControlsTest --control-smoke-test` ->
+      `total=42 passed=41 failed=0 skipped=1`; full UIIntegration ->
+      `Failed: 0, Passed: 191, Skipped: 1, Total: 192`.
   - Added WinFormsX virtual-window handling for ToolStrip dropdown overlays and
     hidden dropdown owner windows so they no longer create nested Silk/GLFW
     windows during UIIntegration runs.

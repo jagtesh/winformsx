@@ -3,11 +3,22 @@
 
 using System.Windows.Forms.Automation;
 using Windows.Win32.UI.Accessibility;
+using System.Windows.Forms.Platform;
 
 namespace Windows.Win32;
 
 internal static partial class PInvoke
 {
+    public static unsafe HRESULT UiaRaiseNotificationEvent(
+        IRawElementProviderSimple* provider,
+        NotificationKind notificationKind,
+        NotificationProcessing notificationProcessing,
+        BSTR displayString,
+        BSTR activityId)
+    {
+        return PlatformApi.Accessibility.UiaClientsAreListening() ? HRESULT.S_OK : HRESULT.E_FAIL;
+    }
+
     /// <inheritdoc cref="UiaRaiseNotificationEvent(IRawElementProviderSimple*, NotificationKind, NotificationProcessing, BSTR, BSTR)"/>
     public static unsafe HRESULT UiaRaiseNotificationEvent(
         IRawElementProviderSimple.Interface provider,
