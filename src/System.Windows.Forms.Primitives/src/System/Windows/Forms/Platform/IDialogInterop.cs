@@ -23,7 +23,7 @@ internal interface IDialogInterop
     string? ShowSaveFileDialog(nint owner, string? title, string? filter, int filterIndex, string? initialDir, string? fileName);
 
     /// <summary>Show a color picker. Returns true if a color was selected.</summary>
-    bool ShowColorDialog(nint owner, ref System.Drawing.Color color);
+    bool ShowColorDialog(nint owner, ref System.Drawing.Color color, int[] customColors, bool allowFullOpen, bool fullOpen);
 
     /// <summary>Show a font picker. Returns true if a font was selected.</summary>
     bool ShowFontDialog(nint owner, ref System.Drawing.Font font, bool showEffects);

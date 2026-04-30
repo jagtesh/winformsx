@@ -112,6 +112,21 @@ public class ManagedCommonDialogTests : ControlTestBase
     }
 
     [UIFact]
+    public void ColorDialog_ShowDialog_SelectCustomColor_Success()
+    {
+        Color customColor = Color.FromArgb(12, 34, 56);
+        using ColorSelectionDialogForm dialogOwnerForm = new(customColor);
+        using ColorDialog dialog = new()
+        {
+            CustomColors = [ColorTranslator.ToWin32(customColor)],
+            FullOpen = true
+        };
+
+        Assert.Equal(DialogResult.OK, dialog.ShowDialog(dialogOwnerForm));
+        Assert.Equal(customColor.ToArgb(), dialog.Color.ToArgb());
+    }
+
+    [UIFact]
     public void FontDialog_ShowDialog_Accept_Success()
     {
         using AcceptDialogForm dialogOwnerForm = new();
@@ -176,6 +191,47 @@ public class ManagedCommonDialogTests : ControlTestBase
                     if (checkBox.Text is "Bold" or "Underline")
                     {
                         checkBox.Checked = true;
+                    }
+                }
+            }
+
+            Accept(dialogHandle);
+        }
+
+        private static IEnumerable<T> FindControls<T>(Control parent)
+            where T : Control
+        {
+            foreach (Control child in parent.Controls)
+            {
+                if (child is T match)
+                {
+                    yield return match;
+                }
+
+                foreach (T nested in FindControls<T>(child))
+                {
+                    yield return nested;
+                }
+            }
+        }
+    }
+
+    private class ColorSelectionDialogForm(Color color) : DialogHostForm
+    {
+        protected override void OnDialogIdle(HWND dialogHandle)
+        {
+            if (Control.FromHandle(dialogHandle) is Form dialog)
+            {
+                foreach (ListBox listBox in FindControls<ListBox>(dialog))
+                {
+                    for (int i = 0; i < listBox.Items.Count; i++)
+                    {
+                        if (listBox.Items[i] is Color itemColor && itemColor.ToArgb() == color.ToArgb())
+                        {
+                            listBox.SelectedIndex = i;
+                            Accept(dialogHandle);
+                            return;
+                        }
                     }
                 }
             }

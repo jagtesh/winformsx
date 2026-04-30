@@ -30,9 +30,9 @@ internal sealed class ImpellerDialogInterop : IDialogInterop
         return dialog.ShowDialog(new WindowWrapper(owner)) == DialogResult.OK ? dialog.SelectedPath : null;
     }
 
-    public bool ShowColorDialog(nint owner, ref Color color)
+    public bool ShowColorDialog(nint owner, ref Color color, int[] customColors, bool allowFullOpen, bool fullOpen)
     {
-        using ColorPickerDialog dialog = new(owner, color);
+        using ColorPickerDialog dialog = new(owner, color, customColors, allowFullOpen, fullOpen);
         if (dialog.ShowDialog(new WindowWrapper(owner)) != DialogResult.OK)
         {
             return false;
@@ -555,11 +555,15 @@ internal sealed class ImpellerDialogInterop : IDialogInterop
         ];
 
         private readonly ListBox _items = new() { Dock = DockStyle.Fill };
+        private readonly int[] _customColors;
+        private readonly bool _showCustomColors;
 
-        public ColorPickerDialog(nint owner, Color color)
+        public ColorPickerDialog(nint owner, Color color, int[] customColors, bool allowFullOpen, bool fullOpen)
             : base(owner)
         {
             SelectedColor = color.IsEmpty ? Color.Black : color;
+            _customColors = customColors;
+            _showCustomColors = allowFullOpen || fullOpen;
             Text = "Select Color";
             ClientSize = new Size(360, 360);
             Controls.Add(CreateContent());
@@ -584,7 +588,7 @@ internal sealed class ImpellerDialogInterop : IDialogInterop
             _items.DrawMode = DrawMode.OwnerDrawFixed;
             _items.ItemHeight = 28;
             _items.DrawItem += DrawColorItem;
-            foreach (Color color in _colors)
+            foreach (Color color in GetColors())
             {
                 int index = _items.Items.Add(color);
                 if (color.ToArgb() == SelectedColor.ToArgb())
@@ -610,9 +614,38 @@ internal sealed class ImpellerDialogInterop : IDialogInterop
             using SolidBrush swatchBrush = new(color);
             e.Graphics.FillRectangle(swatchBrush, swatch);
             e.Graphics.DrawRectangle(SystemPens.ControlDark, swatch);
-            TextRenderer.DrawText(e.Graphics, color.Name, e.Font, new Point(e.Bounds.Left + 48, e.Bounds.Top + 5), e.ForeColor);
+            TextRenderer.DrawText(e.Graphics, GetColorDisplayName(color), e.Font, new Point(e.Bounds.Left + 48, e.Bounds.Top + 5), e.ForeColor);
             e.DrawFocusRectangle();
         }
+
+        private IEnumerable<Color> GetColors()
+        {
+            HashSet<int> seen = [];
+            foreach (Color color in _colors)
+            {
+                if (seen.Add(color.ToArgb()))
+                {
+                    yield return color;
+                }
+            }
+
+            if (!_showCustomColors)
+            {
+                yield break;
+            }
+
+            foreach (int customColor in _customColors)
+            {
+                Color color = ColorTranslator.FromWin32(customColor & 0x00FFFFFF);
+                if (seen.Add(color.ToArgb()))
+                {
+                    yield return color;
+                }
+            }
+        }
+
+        private static string GetColorDisplayName(Color color)
+            => color.IsNamedColor ? color.Name : $"#{color.R:X2}{color.G:X2}{color.B:X2}";
     }
 
     private sealed class FontPickerDialog : ManagedDialogForm
