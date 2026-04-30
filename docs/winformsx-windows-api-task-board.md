@@ -88,6 +88,9 @@ Ordered by observed frequency across components and blocker blast radius:
       accept/cancel automation to close modal dialogs without hanging. Managed
       file, save, folder, color, and font dialogs now have visible WinFormsX
       form baselines; richer OS-native picker parity remains separate work.
+      Focused `ManagedCommonDialogTests` now reports
+      `Passed: 4, Failed: 0`, covering save-file cancel/accept plus color/font
+      accept flow.
   - Focused ToolStrip/User32 coverage is now green:
     - `ToolStrip_Hiding_ToolStripMenuItem_OnDropDownClosed_ShouldNotThrow`.
     - `ToolStrip_shared_imagelist_should_not_get_disposed_when_toolstrip_does`.
@@ -785,7 +788,7 @@ Ordered by observed frequency across components and blocker blast radius:
 
 ## Dialog and Common Controls
 
-- [~] WXA-1201: Implement managed fallbacks for `OpenFileDialog`, `SaveFileDialog`, `FolderBrowserDialog`, `ColorDialog`, `FontDialog`. Visible WinFormsX form baselines and owner-driven accept/cancel automation are covered; richer filtering, multi-select UI, overwrite/create prompts, font effects/scripts, custom-color state, and OS-native picker integration remain.
+- [~] WXA-1201: Implement managed fallbacks for `OpenFileDialog`, `SaveFileDialog`, `FolderBrowserDialog`, `ColorDialog`, `FontDialog`. Visible WinFormsX form baselines and focused owner-driven accept/cancel automation are covered; richer filtering, multi-select UI, overwrite/create prompts, font effects/scripts, custom-color state, and OS-native picker integration remain.
 - [~] WXA-1202: Implement managed `PrintDialog` and `PageSetupDialog` with no-spooler fallback path. Focused `PrintDialog` coverage and `PrintDlgEx(PD_RETURNDEFAULT)` default-printer state are covered; visible `PageSetupDialog` parity remains.
 - [ ] WXA-1203: Implement WinFormsX fallback for internal modal dialogs (`PrintPreviewDialog`, `TaskDialog`, `GridErrorDialog`, `ThreadExceptionDialog`).
 - [~] WXA-1204: Route native `COMDLG32.dll` symbols used by `PInvoke` (`GetOpenFileName`, `GetSaveFileName`, `ChooseColor`, `ChooseFont`, `PrintDlg`, `PrintDlgEx`, `PageSetupDlg`, `CommDlgExtendedError`) to WinFormsX-managed dialog services. First-tier safe-cancel facade is covered; richer visible dialog behavior remains under WXA-1201/WXA-1202.
