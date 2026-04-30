@@ -155,7 +155,14 @@ internal sealed unsafe class ImpellerInputInterop : IInputInterop
                 i = lastMoveIndex;
             }
 
-            DispatchInput(input);
+            try
+            {
+                DispatchInput(input);
+            }
+            catch (Exception ex)
+            {
+                TraceInput($"[InputDispatchDrop] type={input.type} error={ex.GetType().Name}: {ex.Message}");
+            }
         }
 
         return (uint)inputs.Length;

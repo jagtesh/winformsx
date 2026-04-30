@@ -18,11 +18,12 @@ compatibility-facade coverage.
 - UIIntegrationTests are no longer globally skipped by OS-gated attributes. The
   suite now exposes real WinFormsX behavior gaps. The latest unfiltered broad
   run completes without a hang/abort and reports
-  `115 passed, 76 failed, 151 skipped`. This run activates a wider provider
-  surface than the earlier post-placement snapshot, and its remaining failures
-  cluster around ListView/PropertyGrid accessibility, drag/drop, dialogs,
-  DataGridView tooltips, TabControl hover/input state, NumericUpDown
-  accessibility focus, and application handle recreation.
+  `178 passed, 13 failed, 27 skipped`. The latest pass removes the
+  cross-suite `VK_RETURN` stuck-key cascade by making PAL `SendInput` accept
+  packets even when a synthetic/stale target cannot be dispatched. Remaining
+  top failures now cluster around TabControl hover/input state and resize/button
+  layout behavior, with the larger provider and dialog/print gaps still tracked
+  below.
 - First UIIntegration blockers observed:
   - `OLE32.dll` missing through `Application.ThreadContext.OleRequired()`,
     `InputLanguage.CurrentInputLanguage`, IME, clipboard, and drag/drop paths.

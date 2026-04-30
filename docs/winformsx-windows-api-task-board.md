@@ -69,12 +69,17 @@ Ordered by observed frequency across components and blocker blast radius:
       a wider provider surface than the prior snapshot; the new high-volume
       clusters are ListView tile accessibility and PropertyGrid fragment
       navigation in broad-suite state.
+    - Latest unfiltered broad snapshot after input-queue cleanup:
+      `Failed: 13, Passed: 178, Skipped: 27, Total: 218`. This closes the
+      `VK_RETURN` stuck-key cascade that previously made later tests fail at
+      startup after a direct USER32 `SendInput` dispatch encountered stale or
+      synthetic targets.
   - Priority order moves to highest-volume remaining failure clusters:
-    ListView tile accessibility, PropertyGrid broad-suite provider state,
-    RichTextBox link-range behavior, DataGridView tooltip state, TabControl
-    hover/input state, NumericUpDown accessibility focus, application handle
-    recreation, dialog/print fallbacks, and remaining lower-volume provider
-    gaps.
+    TabControl hover/input state, resize/button layout behavior, ListView tile
+    accessibility, PropertyGrid broad-suite provider state, RichTextBox
+    link-range behavior, DataGridView tooltip state, NumericUpDown
+    accessibility focus, application handle recreation, dialog/print fallbacks,
+    and remaining lower-volume provider gaps.
   - Active lane update: focused PropertyGrid UIIntegration coverage is now
     green: `Passed: 38, Failed: 0, Skipped: 0, Total: 38`.
   - Active lane update: focused anchor/MDI resize coverage is now green:
@@ -121,11 +126,15 @@ Ordered by observed frequency across components and blocker blast radius:
       virtual window is destroyed, so full-class drag/drop runs no longer route
       PictureBox or DropImageType input into stale form handles from previous
       tests.
-  - Priority order now moves to ListView tile accessibility, PropertyGrid
-    broad-suite provider state, RichTextBox link-range behavior, DataGridView
-    tooltip state, TabControl hover/input state, NumericUpDown accessibility
-    focus, application handle recreation, dialog/print fallbacks, and remaining
-    lower-volume provider gaps.
+    - Direct USER32 `SendInput` now follows input-queue semantics: accepted
+      input packets return as accepted even if the current managed dispatch
+      target is stale, and later key-up packets still cleanly release PAL key
+      state. This removes the broad-suite `VK_RETURN` stuck-key cascade.
+  - Priority order now moves to TabControl hover/input state, resize/button
+    layout behavior, ListView tile accessibility, PropertyGrid broad-suite
+    provider state, RichTextBox link-range behavior, DataGridView tooltip
+    state, NumericUpDown accessibility focus, application handle recreation,
+    dialog/print fallbacks, and remaining lower-volume provider gaps.
 
 - Landed:
   - Closed the focused MonthCalendar input lane:
