@@ -235,10 +235,11 @@ compatibility-facade coverage.
   synthetic bitmap handles cannot be materialized by GDI+, preserving shared
   `ToolStrip.ImageList` enumeration after form disposal. The latest DWM pass
   removes generated `DwmGetWindowAttribute` / `DwmSetWindowAttribute` imports
-  from internal WinForms calls and stores window attributes in managed state, so
-  dark-mode and form-corner probes do not load `DWMAPI.dll` directly. The
-  latest broad UIIntegration snapshot is now green at
-  `Failed: 0, Passed: 251, Skipped: 1, Total: 252`.
+  from internal WinForms calls, stores window attributes in managed state, and
+  adds a native `DWMAPI.dll` facade for direct source-compatible DllImport
+  callers. Dark-mode and form-corner probes no longer depend on host DWMAPI
+  resolution. The latest broad UIIntegration snapshot is now green at
+  `Failed: 0, Passed: 252, Skipped: 1, Total: 253`.
 - First UIIntegration blockers observed:
   - `OLE32.dll` missing through `Application.ThreadContext.OleRequired()`,
     clipboard, and drag/drop paths. `InputLanguage.CurrentInputLanguage`,
@@ -806,7 +807,9 @@ Impacted APIs:
 
 - `UXTHEME.dll`: theme open/close, theme fonts, colors, drawing, app
   properties, documentation properties, and parent background drawing.
-- `DWMAPI.dll`: window corner preference and other DWM window attributes.
+- `DWMAPI.dll`: first-tier window attribute get/set coverage for corner
+  preference, dark-mode, caption-color, and similar stored values; broader
+  composition behavior remains out of scope until a real control/test needs it.
 - `SHCore.dll`: process/window DPI awareness.
 - `Powrprof.dll`: power status.
 - `Propsys.dll`: property-store helpers.
@@ -955,6 +958,9 @@ cases were previously blockers and should remain regression targets:
 - [x] Managed DWM attribute wrappers now route `DwmSetWindowAttribute` /
   `DwmGetWindowAttribute` through deterministic WinFormsX state for internal
   Form/Control dark-mode, corner, and caption-color probes.
+- [x] Native `DWMAPI.dll` facade now resolves direct source-compatible
+  `DwmSetWindowAttribute` / `DwmGetWindowAttribute` imports through the same
+  deterministic WinFormsX-style attribute state.
 
 ## Acceptance Bar
 

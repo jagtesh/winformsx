@@ -696,6 +696,27 @@ public class User32CompatibilityFacadeTests
         Assert.Equal(cornerPreference, actualCornerPreference);
     }
 
+    [Fact]
+    public unsafe void DirectDwmApiDllImports_ResolveToWinFormsXFacade()
+    {
+        nint hwnd = 0x654321;
+        BOOL darkMode = true;
+
+        Assert.Equal(0, NativeDwmApi.DwmSetWindowAttribute(
+            hwnd,
+            (uint)DWMWINDOWATTRIBUTE.DWMWA_USE_IMMERSIVE_DARK_MODE,
+            &darkMode,
+            (uint)sizeof(BOOL)));
+
+        BOOL actualDarkMode;
+        Assert.Equal(0, NativeDwmApi.DwmGetWindowAttribute(
+            hwnd,
+            (uint)DWMWINDOWATTRIBUTE.DWMWA_USE_IMMERSIVE_DARK_MODE,
+            &actualDarkMode,
+            (uint)sizeof(BOOL)));
+        Assert.True(actualDarkMode);
+    }
+
     private sealed class EnvironmentOverride : IDisposable
     {
         private readonly string _name;
@@ -1266,5 +1287,16 @@ public class User32CompatibilityFacadeTests
             public nint hStdOutput;
             public nint hStdError;
         }
+    }
+
+    private static unsafe partial class NativeDwmApi
+    {
+        private const string DwmApi = "DWMAPI.dll";
+
+        [DllImport(DwmApi, ExactSpelling = true)]
+        internal static extern int DwmSetWindowAttribute(nint hwnd, uint dwAttribute, void* pvAttribute, uint cbAttribute);
+
+        [DllImport(DwmApi, ExactSpelling = true)]
+        internal static extern int DwmGetWindowAttribute(nint hwnd, uint dwAttribute, void* pvAttribute, uint cbAttribute);
     }
 }

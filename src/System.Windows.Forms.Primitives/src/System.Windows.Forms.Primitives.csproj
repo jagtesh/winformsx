@@ -78,6 +78,9 @@
     <WinFormsXWinSpoolShimSource>$(MSBuildProjectDirectory)/Native/WinSpoolShim/winformsx_winspool.c</WinFormsXWinSpoolShimSource>
     <WinFormsXWinSpoolShimOutputDirectory>$(IntermediateOutputPath)winformsx-winspool/</WinFormsXWinSpoolShimOutputDirectory>
     <WinFormsXWinSpoolShimBinary>$(WinFormsXWinSpoolShimOutputDirectory)winspool.drv</WinFormsXWinSpoolShimBinary>
+    <WinFormsXDwmApiShimSource>$(MSBuildProjectDirectory)/Native/DwmApiShim/winformsx_dwmapi.c</WinFormsXDwmApiShimSource>
+    <WinFormsXDwmApiShimOutputDirectory>$(IntermediateOutputPath)winformsx-dwmapi/</WinFormsXDwmApiShimOutputDirectory>
+    <WinFormsXDwmApiShimBinary>$(WinFormsXDwmApiShimOutputDirectory)DWMAPI.dll</WinFormsXDwmApiShimBinary>
   </PropertyGroup>
 
   <ItemGroup Condition="'$(OS)' != 'Windows_NT'">
@@ -134,6 +137,15 @@
     <None Include="$(WinFormsXWinSpoolShimOutputDirectory)libwinspool.drv.so" TargetPath="libwinspool.drv.so" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
     <None Include="$(WinFormsXWinSpoolShimOutputDirectory)winspool.drv.so" TargetPath="winspool.drv.so" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
     <None Include="$(WinFormsXWinSpoolShimOutputDirectory)libwinspool.so" TargetPath="libwinspool.so" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+    <None Include="$(WinFormsXDwmApiShimOutputDirectory)DWMAPI.dll" TargetPath="DWMAPI.dll" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" />
+    <None Include="$(WinFormsXDwmApiShimOutputDirectory)dwmapi.dll" TargetPath="dwmapi.dll" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" />
+    <None Include="$(WinFormsXDwmApiShimOutputDirectory)dwmapi" TargetPath="dwmapi" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" />
+    <None Include="$(WinFormsXDwmApiShimOutputDirectory)DWMAPI.dll.dylib" TargetPath="DWMAPI.dll.dylib" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+    <None Include="$(WinFormsXDwmApiShimOutputDirectory)libDWMAPI.dll.dylib" TargetPath="libDWMAPI.dll.dylib" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+    <None Include="$(WinFormsXDwmApiShimOutputDirectory)libdwmapi.dylib" TargetPath="libdwmapi.dylib" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+    <None Include="$(WinFormsXDwmApiShimOutputDirectory)libDWMAPI.dll.so" TargetPath="libDWMAPI.dll.so" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+    <None Include="$(WinFormsXDwmApiShimOutputDirectory)DWMAPI.dll.so" TargetPath="DWMAPI.dll.so" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+    <None Include="$(WinFormsXDwmApiShimOutputDirectory)libdwmapi.so" TargetPath="libdwmapi.so" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
   </ItemGroup>
 
   <Target Name="BuildWinFormsXKernel32Shim"
@@ -253,6 +265,26 @@
     <Copy SourceFiles="$(WinFormsXWinSpoolShimBinary)" DestinationFiles="$(WinFormsXWinSpoolShimOutputDirectory)libwinspool.drv.so" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
     <Copy SourceFiles="$(WinFormsXWinSpoolShimBinary)" DestinationFiles="$(WinFormsXWinSpoolShimOutputDirectory)winspool.drv.so" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
     <Copy SourceFiles="$(WinFormsXWinSpoolShimBinary)" DestinationFiles="$(WinFormsXWinSpoolShimOutputDirectory)libwinspool.so" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+  </Target>
+
+  <Target Name="BuildWinFormsXDwmApiShim"
+          BeforeTargets="PrepareForBuild;GetCopyToOutputDirectoryItems"
+          Inputs="$(WinFormsXDwmApiShimSource)"
+          Outputs="$(WinFormsXDwmApiShimBinary)"
+          Condition="'$(OS)' != 'Windows_NT'">
+    <MakeDir Directories="$(WinFormsXDwmApiShimOutputDirectory)" />
+    <Exec Condition="$([MSBuild]::IsOSPlatform('OSX'))"
+          Command="cc -dynamiclib -fvisibility=hidden &quot;$(WinFormsXDwmApiShimSource)&quot; -o &quot;$(WinFormsXDwmApiShimBinary)&quot;" />
+    <Exec Condition="$([MSBuild]::IsOSPlatform('Linux'))"
+          Command="cc -shared -fPIC -fvisibility=hidden &quot;$(WinFormsXDwmApiShimSource)&quot; -o &quot;$(WinFormsXDwmApiShimBinary)&quot;" />
+    <Copy SourceFiles="$(WinFormsXDwmApiShimBinary)" DestinationFiles="$(WinFormsXDwmApiShimOutputDirectory)dwmapi.dll" />
+    <Copy SourceFiles="$(WinFormsXDwmApiShimBinary)" DestinationFiles="$(WinFormsXDwmApiShimOutputDirectory)dwmapi" />
+    <Copy SourceFiles="$(WinFormsXDwmApiShimBinary)" DestinationFiles="$(WinFormsXDwmApiShimOutputDirectory)DWMAPI.dll.dylib" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+    <Copy SourceFiles="$(WinFormsXDwmApiShimBinary)" DestinationFiles="$(WinFormsXDwmApiShimOutputDirectory)libDWMAPI.dll.dylib" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+    <Copy SourceFiles="$(WinFormsXDwmApiShimBinary)" DestinationFiles="$(WinFormsXDwmApiShimOutputDirectory)libdwmapi.dylib" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+    <Copy SourceFiles="$(WinFormsXDwmApiShimBinary)" DestinationFiles="$(WinFormsXDwmApiShimOutputDirectory)libDWMAPI.dll.so" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+    <Copy SourceFiles="$(WinFormsXDwmApiShimBinary)" DestinationFiles="$(WinFormsXDwmApiShimOutputDirectory)DWMAPI.dll.so" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+    <Copy SourceFiles="$(WinFormsXDwmApiShimBinary)" DestinationFiles="$(WinFormsXDwmApiShimOutputDirectory)libdwmapi.so" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
   </Target>
 
 </Project>
