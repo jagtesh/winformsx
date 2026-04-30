@@ -68,6 +68,23 @@ public class ManagedCommonDialogTests : ControlTestBase
     }
 
     [UIFact]
+    public void SaveFileDialog_ShowDialog_CreatePromptAccepts_Success()
+    {
+        string fileName = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.txt");
+        using PromptAcceptDialogForm dialogOwnerForm = new();
+        using SaveFileDialog dialog = new()
+        {
+            CreatePrompt = true,
+            InitialDirectory = Path.GetDirectoryName(fileName),
+            FileName = fileName,
+            OverwritePrompt = false
+        };
+
+        Assert.Equal(DialogResult.OK, dialog.ShowDialog(dialogOwnerForm));
+        Assert.Equal(fileName, dialog.FileName);
+    }
+
+    [UIFact]
     public void OpenFileDialog_ShowDialog_MissingFilePromptCancels_Success()
     {
         string fileName = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.txt");

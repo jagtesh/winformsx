@@ -104,10 +104,10 @@ compatibility-facade coverage.
   into the managed picker and covers Bold/Underline effect selection through
   owner-driven modal automation. The latest file-prompt pass keeps
   `SaveFileDialog.OverwritePrompt` active on the managed WinFormsX path,
-  routes prompt message boxes to the same owner handle, and covers both
-  overwrite acceptance and missing-open-file cancellation. Direct COMDLG32
-  exports still return deterministic cancel/default state until ABI-safe
-  visible services are wired through. The
+  routes prompt message boxes to the same owner handle, and covers overwrite,
+  create, and missing-open-file prompt behavior. Direct COMDLG32 exports still
+  return deterministic cancel/default state until ABI-safe visible services are
+  wired through. The
   latest printing pass removes generated
   `winspool.drv` imports from the first managed print paths, adds deterministic
   no-printer defaults for `EnumPrinters`, `DeviceCapabilities`, and
@@ -380,8 +380,8 @@ Impacted APIs and controls:
   `PrintControllerWithStatusDialog`, `MaskDesignerDialog`,
   `FormatStringDialog`, `StringCollectionEditor`,
   `DataGridViewColumnCollectionDialog`, `DataGridViewAddColumnDialog`,
-  PropertyGrid error/editor dialogs, file-dialog create prompts, and remaining
-  component-specific editor dialogs.
+  PropertyGrid error/editor dialogs, and remaining component-specific editor
+  dialogs.
 - Native surfaces: `COMDLG32.dll` (`GetOpenFileName`, `GetSaveFileName`,
   `ChooseColor`, `ChooseFont`, `PrintDlg`, `PrintDlgEx`, `PageSetupDlg`,
   `CommDlgExtendedError`), shell item dialogs, `GetDlgItem`, and `EndDialog`.
@@ -392,8 +392,8 @@ Impacted APIs and controls:
   and honor owner accept/cancel or public-API automation; FontDialog now covers
   managed Bold/Italic/Underline/Strikeout effect controls when `ShowEffects`
   is enabled, and file-dialog prompts now have owner-driven automation for
-  overwrite acceptance and missing-open-file cancellation. Native common-dialog
-  facade coverage exists for the first
+  overwrite acceptance, create acceptance, and missing-open-file cancellation.
+  Native common-dialog facade coverage exists for the first
   safe-cancel tier. Ordinary managed modal forms now synthesize `WM_ENTERIDLE`
   for their owner on `Shown`, and
   focused `ThreadExceptionDialog` / `GridErrorDialog` / `MdiWindowDialog` /
