@@ -242,6 +242,13 @@ WF_EXPORT INT GetSystemMetrics(INT index)
     return g_dispatch.get_system_metrics != 0 ? g_dispatch.get_system_metrics(index) : 0;
 }
 
+WF_EXPORT UINT GetGuiResources(intptr_t h_process, UINT ui_flags)
+{
+    (void)h_process;
+    (void)ui_flags;
+    return 0;
+}
+
 WF_EXPORT BOOL IsWindow(HWND hwnd)
 {
     return g_dispatch.is_window != 0 ? g_dispatch.is_window(hwnd) : 0;

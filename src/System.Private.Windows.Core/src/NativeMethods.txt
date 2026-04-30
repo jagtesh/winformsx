@@ -82,7 +82,6 @@ GetDC
 GetDCEx
 GetDesktopWindow
 GetDeviceCaps
-GetGuiResources
 GetIconInfo
 GetMonitorInfo
 GetObject

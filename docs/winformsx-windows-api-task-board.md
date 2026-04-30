@@ -19,6 +19,16 @@ Ordered by observed frequency across components and blocker blast radius:
 ## Latest Progress (2026-04-29)
 
 - Landed:
+  - Added native USER32 compatibility export `GetGuiResources` in `winformsx_user32.c` so direct USER32 DllImports can resolve this entrypoint on WinFormsX.
+  - Added managed `PInvokeCore.GetGuiResources` compatibility facade and local `GET_GUI_RESOURCES_FLAGS` enum in `System.Private.Windows.Core` for deterministic fallback (`0`).
+  - Added `PInvoke.GetProcAddress(HMODULE, string)` compatibility overload and updated COM test utility invocation to use `nint` function pointers instead of `FARPROC` typedef assumptions.
+  - Verification:
+    - `dotnet build src/System.Windows.Forms.Primitives/tests/TestUtilities/System.Windows.Forms.Primitives.TestUtilities.csproj -c Debug` -> `Build succeeded`.
+    - `dotnet build src/System.Windows.Forms.Primitives/src/System.Windows.Forms.Primitives.csproj -c Debug -p:BuildProjectReferences=false` -> `Build succeeded`.
+    - `dotnet test src/System.Windows.Forms/tests/IntegrationTests/UIIntegrationTests/System.Windows.Forms.UI.IntegrationTests.csproj -c Debug --no-build --filter "FullyQualifiedName~User32CompatibilityFacadeTests"` -> `Passed: 2, Failed: 0`.
+  - Current follow-up blocker:
+    - `ImageList_FinalizerReleasesNativeHandle_ReturnsExpected` no longer hard-fails at compile-time for test utility compatibility, but currently hangs after startup when run in this workspace and needs focused lifecycle/finalizer diagnostics.
+- Landed:
   - Extended `WXA-1101` COM/OLE facade routing with managed `PInvoke.CoGetClassObject` wrappers in `System.Windows.Forms.Primitives`.
   - Removed generated direct `CoGetClassObject` import from `System.Windows.Forms.Primitives` `NativeMethods.txt`.
   - Behavior is deterministic and source-compatible for current coverage: outputs are nulled and `REGDB_E_CLASSNOTREG` is returned until class-factory activation is implemented.

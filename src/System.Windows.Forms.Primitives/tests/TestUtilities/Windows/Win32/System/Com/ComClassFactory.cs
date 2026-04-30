@@ -38,9 +38,14 @@ internal unsafe class ComClassFactory : IDisposable
         //   [out] LPVOID* ppv
         // );
 
-        FARPROC proc = PInvoke.GetProcAddress(_instance, ExportMethodName);
+        nint proc = PInvoke.GetProcAddress(_instance, ExportMethodName);
+        if (proc == 0)
+        {
+            throw new Win32Exception();
+        }
+
         IClassFactory* classFactory;
-        ((delegate* unmanaged<Guid*, Guid*, void**, HRESULT>)proc.Value)(
+        ((delegate* unmanaged<Guid*, Guid*, void**, HRESULT>)proc)(
             &classId, IID.Get<IClassFactory>(),
             (void**)&classFactory).ThrowOnFailure();
         _classFactory = classFactory;
