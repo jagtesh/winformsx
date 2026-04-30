@@ -158,6 +158,22 @@ public class ManagedCommonDialogTests : ControlTestBase
     }
 
     [UIFact]
+    public void FontDialog_ShowDialog_SelectColor_Success()
+    {
+        Color selectedColor = Color.Magenta;
+        using FontColorDialogForm dialogOwnerForm = new(selectedColor);
+        using Font selectedFont = new(FontFamily.GenericSansSerif, 14.0f);
+        using FontDialog dialog = new()
+        {
+            Font = selectedFont,
+            ShowColor = true
+        };
+
+        Assert.Equal(DialogResult.OK, dialog.ShowDialog(dialogOwnerForm));
+        Assert.Equal(selectedColor.ToArgb(), dialog.Color.ToArgb());
+    }
+
+    [UIFact]
     public void FileDialog_FilterPatterns_SelectsRequestedFilterIndex()
     {
         Assert.Equal(["*.png", "*.jpg"], ImpellerDialogInterop.GetFilterPatterns("Images|*.png;*.jpg|Text|*.txt", 1));
@@ -229,6 +245,47 @@ public class ManagedCommonDialogTests : ControlTestBase
                         if (listBox.Items[i] is Color itemColor && itemColor.ToArgb() == color.ToArgb())
                         {
                             listBox.SelectedIndex = i;
+                            Accept(dialogHandle);
+                            return;
+                        }
+                    }
+                }
+            }
+
+            Accept(dialogHandle);
+        }
+
+        private static IEnumerable<T> FindControls<T>(Control parent)
+            where T : Control
+        {
+            foreach (Control child in parent.Controls)
+            {
+                if (child is T match)
+                {
+                    yield return match;
+                }
+
+                foreach (T nested in FindControls<T>(child))
+                {
+                    yield return nested;
+                }
+            }
+        }
+    }
+
+    private class FontColorDialogForm(Color color) : DialogHostForm
+    {
+        protected override void OnDialogIdle(HWND dialogHandle)
+        {
+            if (Control.FromHandle(dialogHandle) is Form dialog)
+            {
+                foreach (ComboBox comboBox in FindControls<ComboBox>(dialog))
+                {
+                    for (int i = 0; i < comboBox.Items.Count; i++)
+                    {
+                        if (comboBox.Items[i] is Color itemColor && itemColor.ToArgb() == color.ToArgb())
+                        {
+                            comboBox.SelectedIndex = i;
                             Accept(dialogHandle);
                             return;
                         }

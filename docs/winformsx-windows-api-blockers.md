@@ -100,9 +100,10 @@ compatibility-facade coverage.
   through the dialog PAL and applies wildcard filter patterns when populating
   managed Open/Save file lists. The latest OpenFileDialog pass extends the
   dialog PAL to return multiple selected paths and covers visible filtered
-  multi-select selection. The latest FontDialog pass threads `ShowEffects`
-  into the managed picker and covers Bold/Underline effect selection through
-  owner-driven modal automation. The latest file-prompt pass keeps
+  multi-select selection. The latest FontDialog passes thread `ShowEffects`,
+  `ShowColor`, and `Color` into the managed picker and cover Bold/Underline
+  effect selection plus color selection through owner-driven modal automation.
+  The latest file-prompt pass keeps
   `SaveFileDialog.OverwritePrompt` active on the managed WinFormsX path,
   routes prompt message boxes to the same owner handle, and covers overwrite,
   create, and missing-open-file prompt behavior. The latest ColorDialog pass
@@ -393,7 +394,8 @@ Impacted APIs and controls:
   task-dialog, and page-setup dialog services now have visible form baselines
   and honor owner accept/cancel or public-API automation; FontDialog now covers
   managed Bold/Italic/Underline/Strikeout effect controls when `ShowEffects`
-  is enabled, and file-dialog prompts now have owner-driven automation for
+  is enabled plus managed color selection when `ShowColor` is enabled, and
+  file-dialog prompts now have owner-driven automation for
   overwrite acceptance, create acceptance, and missing-open-file cancellation.
   ColorDialog now covers seeded `CustomColors` selection on the managed path.
   Native common-dialog facade coverage exists for the first
@@ -780,7 +782,7 @@ cases were previously blockers and should remain regression targets:
 - [~] Dialog baseline: focused open-file and folder-browser tests are green;
   managed file/save/folder/color/font dialogs now have visible WinFormsX
   baselines and focused owner-driven accept/cancel automation, including
-  FontDialog effect selection, ColorDialog custom-color selection, and
+  FontDialog effect/color selection, ColorDialog custom-color selection, and
   file-dialog prompt handling; `MessageBox` now has a visible managed modal
   baseline; first-tier `COMDLG32.dll`
   safe-cancel facade is covered; `PageSetupDialog` now has a visible managed

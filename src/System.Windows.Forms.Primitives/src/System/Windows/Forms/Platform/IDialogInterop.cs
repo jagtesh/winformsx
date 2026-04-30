@@ -26,7 +26,7 @@ internal interface IDialogInterop
     bool ShowColorDialog(nint owner, ref System.Drawing.Color color, int[] customColors, bool allowFullOpen, bool fullOpen);
 
     /// <summary>Show a font picker. Returns true if a font was selected.</summary>
-    bool ShowFontDialog(nint owner, ref System.Drawing.Font font, bool showEffects);
+    bool ShowFontDialog(nint owner, ref System.Drawing.Font font, ref System.Drawing.Color color, bool showEffects, bool showColor);
 
     /// <summary>Show a folder browser. Returns the selected path, or null if cancelled.</summary>
     string? ShowFolderBrowserDialog(nint owner, string? description, string? initialDirectory, string? selectedPath);

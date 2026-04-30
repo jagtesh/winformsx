@@ -42,15 +42,16 @@ internal sealed class ImpellerDialogInterop : IDialogInterop
         return true;
     }
 
-    public bool ShowFontDialog(nint owner, ref Font font, bool showEffects)
+    public bool ShowFontDialog(nint owner, ref Font font, ref Color color, bool showEffects, bool showColor)
     {
-        using FontPickerDialog dialog = new(owner, font, showEffects);
+        using FontPickerDialog dialog = new(owner, font, color, showEffects, showColor);
         if (dialog.ShowDialog(new WindowWrapper(owner)) != DialogResult.OK)
         {
             return false;
         }
 
         font = dialog.SelectedFont;
+        color = dialog.SelectedColor;
         return true;
     }
 
@@ -663,13 +664,17 @@ internal sealed class ImpellerDialogInterop : IDialogInterop
         private readonly CheckBox _italic = new() { Text = "Italic", AutoSize = true };
         private readonly CheckBox _underline = new() { Text = "Underline", AutoSize = true };
         private readonly CheckBox _strikeout = new() { Text = "Strikeout", AutoSize = true };
+        private readonly ComboBox _color = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 140 };
         private readonly bool _showEffects;
+        private readonly bool _showColor;
 
-        public FontPickerDialog(nint owner, Font font, bool showEffects)
+        public FontPickerDialog(nint owner, Font font, Color color, bool showEffects, bool showColor)
             : base(owner)
         {
             SelectedFont = font;
+            SelectedColor = color.IsEmpty ? Color.Black : color;
             _showEffects = showEffects;
+            _showColor = showColor || showEffects;
             Text = "Select Font";
             ClientSize = new Size(460, 430);
             Controls.Add(CreateContent());
@@ -677,11 +682,18 @@ internal sealed class ImpellerDialogInterop : IDialogInterop
 
         public Font SelectedFont { get; private set; }
 
+        public Color SelectedColor { get; private set; }
+
         internal override void AcceptDialog()
         {
             if (_items.SelectedItem is string family)
             {
                 SelectedFont = new Font(family, (float)_size.Value, _showEffects ? SelectedStyle : SelectedFont.Style, SelectedFont.Unit);
+            }
+
+            if (_showColor && _color.SelectedItem is Color color)
+            {
+                SelectedColor = color;
             }
 
             DialogResult = DialogResult.OK;
@@ -724,12 +736,12 @@ internal sealed class ImpellerDialogInterop : IDialogInterop
                 Dock = DockStyle.Fill,
                 Padding = new Padding(10),
                 ColumnCount = 1,
-                RowCount = _showEffects ? 4 : 3
+                RowCount = _showEffects || _showColor ? 4 : 3
             };
             root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
             root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-            if (_showEffects)
+            if (_showEffects || _showColor)
             {
                 root.RowStyles.Insert(1, new RowStyle(SizeType.AutoSize));
             }
@@ -741,17 +753,28 @@ internal sealed class ImpellerDialogInterop : IDialogInterop
             root.Controls.Add(sizeRow, 0, 0);
 
             int listRow = 1;
-            if (_showEffects)
+            if (_showEffects || _showColor)
             {
                 FlowLayoutPanel styleRow = new() { AutoSize = true, Dock = DockStyle.Top };
-                _bold.Checked = SelectedFont.Bold;
-                _italic.Checked = SelectedFont.Italic;
-                _underline.Checked = SelectedFont.Underline;
-                _strikeout.Checked = SelectedFont.Strikeout;
-                styleRow.Controls.Add(_bold);
-                styleRow.Controls.Add(_italic);
-                styleRow.Controls.Add(_underline);
-                styleRow.Controls.Add(_strikeout);
+                if (_showEffects)
+                {
+                    _bold.Checked = SelectedFont.Bold;
+                    _italic.Checked = SelectedFont.Italic;
+                    _underline.Checked = SelectedFont.Underline;
+                    _strikeout.Checked = SelectedFont.Strikeout;
+                    styleRow.Controls.Add(_bold);
+                    styleRow.Controls.Add(_italic);
+                    styleRow.Controls.Add(_underline);
+                    styleRow.Controls.Add(_strikeout);
+                }
+
+                if (_showColor)
+                {
+                    styleRow.Controls.Add(new Label { Text = "Color:", AutoSize = true, Padding = new Padding(12, 4, 4, 0) });
+                    InitializeColorSelector();
+                    styleRow.Controls.Add(_color);
+                }
+
                 root.Controls.Add(styleRow, 0, listRow++);
             }
 
@@ -773,6 +796,69 @@ internal sealed class ImpellerDialogInterop : IDialogInterop
             root.Controls.Add(CreateOkCancelButtons("OK"), 0, listRow + 1);
             return root;
         }
+
+        private void InitializeColorSelector()
+        {
+            _color.DrawMode = DrawMode.OwnerDrawFixed;
+            _color.DrawItem += DrawFontColorItem;
+
+            foreach (Color color in GetFontColors())
+            {
+                int index = _color.Items.Add(color);
+                if (color.ToArgb() == SelectedColor.ToArgb())
+                {
+                    _color.SelectedIndex = index;
+                }
+            }
+
+            if (_color.SelectedIndex < 0 && _color.Items.Count > 0)
+            {
+                _color.SelectedIndex = 0;
+            }
+        }
+
+        private static void DrawFontColorItem(object? sender, DrawItemEventArgs e)
+        {
+            if (sender is not ComboBox comboBox || e.Index < 0 || comboBox.Items[e.Index] is not Color color)
+            {
+                return;
+            }
+
+            e.DrawBackground();
+            Rectangle swatch = new(e.Bounds.Left + 4, e.Bounds.Top + 4, 22, e.Bounds.Height - 8);
+            using SolidBrush swatchBrush = new(color);
+            e.Graphics.FillRectangle(swatchBrush, swatch);
+            e.Graphics.DrawRectangle(SystemPens.ControlDark, swatch);
+            TextRenderer.DrawText(e.Graphics, GetFontColorDisplayName(color), e.Font, new Point(e.Bounds.Left + 32, e.Bounds.Top + 3), e.ForeColor);
+            e.DrawFocusRectangle();
+        }
+
+        private IEnumerable<Color> GetFontColors()
+        {
+            Color[] colors =
+            [
+                Color.Black, Color.DimGray, Color.Gray, Color.White,
+                Color.Red, Color.Orange, Color.Gold, Color.Green,
+                Color.Teal, Color.Blue, Color.Purple, Color.Magenta
+            ];
+
+            HashSet<int> seen = [];
+            foreach (Color color in colors)
+            {
+                if (seen.Add(color.ToArgb()))
+                {
+                    yield return color;
+                }
+            }
+
+            if (seen.Add(SelectedColor.ToArgb()))
+            {
+                yield return SelectedColor;
+            }
+        }
+
+        private static string GetFontColorDisplayName(Color color)
+            => color.IsNamedColor ? color.Name : $"#{color.R:X2}{color.G:X2}{color.B:X2}";
     }
 
     private sealed class FileSystemEntry(string fullPath, bool isDirectory)
