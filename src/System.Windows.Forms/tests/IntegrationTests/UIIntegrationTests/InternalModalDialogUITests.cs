@@ -369,6 +369,32 @@ public class InternalModalDialogUITests : ControlTestBase
         Assert.Single(panel.ColumnStyles);
     }
 
+    [UIFact]
+    public void ToolStripCollectionEditor_EditValue_AddButton_CommitsToolStripItem()
+    {
+        using ToolStrip toolStrip = new();
+        ToolStripCollectionEditor editor = new(toolStrip.Items.GetType());
+        TestTypeDescriptorContext context = new(toolStrip);
+        ModalEditorService editorService = CreateAddAndOkCollectionEditorService();
+
+        Assert.Same(toolStrip.Items, editor.EditValue(context, editorService, toolStrip.Items));
+        ToolStripItem item = Assert.IsAssignableFrom<ToolStripItem>(Assert.Single(toolStrip.Items));
+        Assert.IsType<ToolStripButton>(item);
+    }
+
+    [UIFact]
+    public void ToolStripCollectionEditor_EditValue_AddButton_CommitsDropDownItem()
+    {
+        using ToolStripDropDownButton ownerItem = new();
+        ToolStripCollectionEditor editor = new(ownerItem.DropDownItems.GetType());
+        TestTypeDescriptorContext context = new(ownerItem);
+        ModalEditorService editorService = CreateAddAndOkCollectionEditorService();
+
+        Assert.Same(ownerItem.DropDownItems, editor.EditValue(context, editorService, ownerItem.DropDownItems));
+        ToolStripItem item = Assert.IsAssignableFrom<ToolStripItem>(Assert.Single(ownerItem.DropDownItems));
+        Assert.IsType<ToolStripButton>(item);
+    }
+
     private static MdiWindowDialog CreateMdiWindowDialog(Form first, Form second)
     {
         MdiWindowDialog dialog = new();

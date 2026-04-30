@@ -241,10 +241,17 @@ Ordered by observed frequency across components and blocker blast radius:
       child-layout fixup in runtime contexts without designer services.
       Focused `InternalModalDialogUITests` now reports
       `Passed: 24, Failed: 0`.
+    - Latest ToolStrip editor pass:
+      `ToolStripCollectionEditor` is now implemented and type-forwarded
+      through `System.Design`. Top-level `ToolStrip.Items` and
+      `ToolStripDropDownItem.DropDownItems` add/commit coverage is green.
+      Focused `InternalModalDialogUITests` now reports
+      `Passed: 26, Failed: 0`.
   - Priority order moves to remaining high-impact infrastructure gaps:
-    remaining ToolStrip collection/editor surfaces, real print provider/PDF
-    output design, OS-native picker integration, then lower-volume
-    accessibility/provider breadth and resource polish.
+    richer design-time service parity around ToolStrip designer verbs and
+    in-situ editing, real print provider/PDF output design, OS-native picker
+    integration, then lower-volume accessibility/provider breadth and resource
+    polish.
   - Active lane update: focused PropertyGrid UIIntegration coverage is now
     green: `Passed: 38, Failed: 0, Skipped: 0, Total: 38`.
   - Active lane update: focused anchor/MDI resize coverage is now green:

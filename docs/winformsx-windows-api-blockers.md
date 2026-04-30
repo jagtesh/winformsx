@@ -146,7 +146,10 @@ compatibility-facade coverage.
   now preserves the designer-backed `TableLayoutPanelDesigner` path when
   present, but can insert/delete/fix up row and column state directly when a
   runtime context has no designer service. Focused `InternalModalDialogUITests`
-  now reports `24 passed, 0 failed`.
+  now reports `24 passed, 0 failed`. The latest ToolStrip editor pass fills
+  the missing `ToolStripCollectionEditor` implementation, forwards it through
+  `System.Design`, and adds top-level/dropdown item add/commit coverage.
+  Focused `InternalModalDialogUITests` now reports `26 passed, 0 failed`.
 - First UIIntegration blockers observed:
   - `OLE32.dll` missing through `Application.ThreadContext.OleRequired()`,
     clipboard, and drag/drop paths. `InputLanguage.CurrentInputLanguage`,
@@ -380,7 +383,8 @@ Impacted APIs and controls:
   `DataGridViewColumnCollectionDialog` / `DataGridViewAddColumnDialog`, plus
   collection editor commit flows for tree nodes, list-view items, list-view
   groups, column headers, list-view subitems, tab pages, and table-layout row
-  and column styles. Managed ListView column updates now acknowledge
+  and column styles, plus ToolStrip top-level and dropdown item collections.
+  Managed ListView column updates now acknowledge
   `LVM_SETCOLUMNW`, which keeps ListView-backed design editors from failing
   during resource initialization. `DataGridViewAddColumnDialog` now has a
   built-in column-type fallback for runtime contexts without design-time type
