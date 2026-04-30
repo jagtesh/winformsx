@@ -534,6 +534,42 @@ public class User32CompatibilityFacadeTests
 
             PInvoke.SetLastError(0x33u);
             Assert.Equal(0x33u, NativeKernel32.GetLastError());
+
+            const uint ZeroInit = 0x40;
+            nint globalMemory = NativeKernel32.GlobalAlloc(ZeroInit, 8);
+            Assert.NotEqual(nint.Zero, globalMemory);
+            Assert.Equal((nuint)8, NativeKernel32.GlobalSize(globalMemory));
+
+            byte* globalBytes = (byte*)NativeKernel32.GlobalLock(globalMemory);
+            Assert.NotEqual(nint.Zero, (nint)globalBytes);
+            Assert.True(globalBytes[0] == 0 && globalBytes[7] == 0);
+            globalBytes[0] = 0x12;
+            Assert.False(NativeKernel32.GlobalUnlock(globalMemory));
+
+            globalMemory = NativeKernel32.GlobalReAlloc(globalMemory, 12, ZeroInit);
+            Assert.NotEqual(nint.Zero, globalMemory);
+            Assert.Equal((nuint)12, NativeKernel32.GlobalSize(globalMemory));
+            globalBytes = (byte*)NativeKernel32.GlobalLock(globalMemory);
+            Assert.Equal(0x12, globalBytes[0]);
+            Assert.Equal(0, globalBytes[11]);
+            Assert.Equal(nint.Zero, NativeKernel32.GlobalFree(globalMemory));
+
+            nint localMemory = NativeKernel32.LocalAlloc(ZeroInit, 4);
+            Assert.NotEqual(nint.Zero, localMemory);
+            Assert.Equal((nuint)4, NativeKernel32.LocalSize(localMemory));
+
+            byte* localBytes = (byte*)NativeKernel32.LocalLock(localMemory);
+            Assert.NotEqual(nint.Zero, (nint)localBytes);
+            localBytes[0] = 0x34;
+            Assert.False(NativeKernel32.LocalUnlock(localMemory));
+
+            localMemory = NativeKernel32.LocalReAlloc(localMemory, 6, ZeroInit);
+            Assert.NotEqual(nint.Zero, localMemory);
+            Assert.Equal((nuint)6, NativeKernel32.LocalSize(localMemory));
+            localBytes = (byte*)NativeKernel32.LocalLock(localMemory);
+            Assert.Equal(0x34, localBytes[0]);
+            Assert.Equal(0, localBytes[5]);
+            Assert.Equal(nint.Zero, NativeKernel32.LocalFree(localMemory));
         }
     }
 
@@ -959,5 +995,41 @@ public class User32CompatibilityFacadeTests
 
         [DllImport(Kernel32, ExactSpelling = true)]
         internal static extern void SetLastError(uint dwErrCode);
+
+        [DllImport(Kernel32, ExactSpelling = true)]
+        internal static extern nint GlobalAlloc(uint uFlags, nuint dwBytes);
+
+        [DllImport(Kernel32, ExactSpelling = true)]
+        internal static extern nint GlobalReAlloc(nint hMem, nuint dwBytes, uint uFlags);
+
+        [DllImport(Kernel32, ExactSpelling = true)]
+        internal static extern nint GlobalLock(nint hMem);
+
+        [DllImport(Kernel32, ExactSpelling = true)]
+        internal static extern bool GlobalUnlock(nint hMem);
+
+        [DllImport(Kernel32, ExactSpelling = true)]
+        internal static extern nuint GlobalSize(nint hMem);
+
+        [DllImport(Kernel32, ExactSpelling = true)]
+        internal static extern nint GlobalFree(nint hMem);
+
+        [DllImport(Kernel32, ExactSpelling = true)]
+        internal static extern nint LocalAlloc(uint uFlags, nuint uBytes);
+
+        [DllImport(Kernel32, ExactSpelling = true)]
+        internal static extern nint LocalReAlloc(nint hMem, nuint uBytes, uint uFlags);
+
+        [DllImport(Kernel32, ExactSpelling = true)]
+        internal static extern nint LocalLock(nint hMem);
+
+        [DllImport(Kernel32, ExactSpelling = true)]
+        internal static extern bool LocalUnlock(nint hMem);
+
+        [DllImport(Kernel32, ExactSpelling = true)]
+        internal static extern nuint LocalSize(nint hMem);
+
+        [DllImport(Kernel32, ExactSpelling = true)]
+        internal static extern nint LocalFree(nint hMem);
     }
 }

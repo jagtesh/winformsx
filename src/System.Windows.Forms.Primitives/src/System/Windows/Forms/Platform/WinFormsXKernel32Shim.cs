@@ -42,6 +42,18 @@ internal static unsafe class WinFormsXKernel32Shim
             GetModuleFileName = &GetModuleFileName,
             GetLastError = &GetLastError,
             SetLastError = &SetLastError,
+            GlobalAlloc = &GlobalAlloc,
+            GlobalReAlloc = &GlobalReAlloc,
+            GlobalLock = &GlobalLock,
+            GlobalUnlock = &GlobalUnlock,
+            GlobalSize = &GlobalSize,
+            GlobalFree = &GlobalFree,
+            LocalAlloc = &LocalAlloc,
+            LocalReAlloc = &LocalReAlloc,
+            LocalLock = &LocalLock,
+            LocalUnlock = &LocalUnlock,
+            LocalSize = &LocalSize,
+            LocalFree = &LocalFree,
         };
 
         delegate* unmanaged<DispatchTable*, int> register = (delegate* unmanaged<DispatchTable*, int>)registerExport;
@@ -171,6 +183,162 @@ internal static unsafe class WinFormsXKernel32Shim
         }
     }
 
+    [UnmanagedCallersOnly]
+    private static nint GlobalAlloc(uint flags, nuint bytes)
+    {
+        try
+        {
+            return (nint)PlatformApi.System.GlobalAlloc(flags, bytes).Value;
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    [UnmanagedCallersOnly]
+    private static nint GlobalReAlloc(nint handle, nuint bytes, uint flags)
+    {
+        try
+        {
+            return (nint)PlatformApi.System.GlobalReAlloc((HGLOBAL)handle, bytes, flags).Value;
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    [UnmanagedCallersOnly]
+    private static void* GlobalLock(nint handle)
+    {
+        try
+        {
+            return PlatformApi.System.GlobalLock((HGLOBAL)handle);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    [UnmanagedCallersOnly]
+    private static int GlobalUnlock(nint handle)
+    {
+        try
+        {
+            return PlatformApi.System.GlobalUnlock((HGLOBAL)handle) ? 1 : 0;
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    [UnmanagedCallersOnly]
+    private static nuint GlobalSize(nint handle)
+    {
+        try
+        {
+            return PlatformApi.System.GlobalSize((HGLOBAL)handle);
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    [UnmanagedCallersOnly]
+    private static nint GlobalFree(nint handle)
+    {
+        try
+        {
+            return (nint)PlatformApi.System.GlobalFree((HGLOBAL)handle).Value;
+        }
+        catch
+        {
+            return handle;
+        }
+    }
+
+    [UnmanagedCallersOnly]
+    private static nint LocalAlloc(uint flags, nuint bytes)
+    {
+        try
+        {
+            return PlatformApi.System.LocalAlloc(flags, bytes);
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    [UnmanagedCallersOnly]
+    private static nint LocalReAlloc(nint handle, nuint bytes, uint flags)
+    {
+        try
+        {
+            return PlatformApi.System.LocalReAlloc(handle, bytes, flags);
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    [UnmanagedCallersOnly]
+    private static void* LocalLock(nint handle)
+    {
+        try
+        {
+            return PlatformApi.System.LocalLock(handle);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    [UnmanagedCallersOnly]
+    private static int LocalUnlock(nint handle)
+    {
+        try
+        {
+            return PlatformApi.System.LocalUnlock(handle) ? 1 : 0;
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    [UnmanagedCallersOnly]
+    private static nuint LocalSize(nint handle)
+    {
+        try
+        {
+            return PlatformApi.System.LocalSize(handle);
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    [UnmanagedCallersOnly]
+    private static nint LocalFree(nint handle)
+    {
+        try
+        {
+            return PlatformApi.System.LocalFree(handle);
+        }
+        catch
+        {
+            return handle;
+        }
+    }
+
     private struct DispatchTable
     {
         public uint Version;
@@ -182,5 +350,17 @@ internal static unsafe class WinFormsXKernel32Shim
         public delegate* unmanaged<nint, char*, uint, uint> GetModuleFileName;
         public delegate* unmanaged<uint> GetLastError;
         public delegate* unmanaged<uint, void> SetLastError;
+        public delegate* unmanaged<uint, nuint, nint> GlobalAlloc;
+        public delegate* unmanaged<nint, nuint, uint, nint> GlobalReAlloc;
+        public delegate* unmanaged<nint, void*> GlobalLock;
+        public delegate* unmanaged<nint, int> GlobalUnlock;
+        public delegate* unmanaged<nint, nuint> GlobalSize;
+        public delegate* unmanaged<nint, nint> GlobalFree;
+        public delegate* unmanaged<uint, nuint, nint> LocalAlloc;
+        public delegate* unmanaged<nint, nuint, uint, nint> LocalReAlloc;
+        public delegate* unmanaged<nint, void*> LocalLock;
+        public delegate* unmanaged<nint, int> LocalUnlock;
+        public delegate* unmanaged<nint, nuint> LocalSize;
+        public delegate* unmanaged<nint, nint> LocalFree;
     }
 }

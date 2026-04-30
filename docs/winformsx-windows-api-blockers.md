@@ -18,7 +18,7 @@ compatibility-facade coverage.
 - UIIntegrationTests are no longer globally skipped by OS-gated attributes. The
   suite now exposes real WinFormsX behavior gaps. The latest unfiltered broad
   run completes without a hang/abort and reports
-  `194 passed, 0 failed, 1 skipped`. Recent passes removed the cross-suite
+  `250 passed, 0 failed, 1 skipped`. Recent passes removed the cross-suite
   `VK_RETURN` stuck-key cascade by making PAL `SendInput` accept packets even
   when a synthetic/stale target cannot be dispatched, then closed focused
   `TabControlTests` by aligning backend tab-rectangle minimum width with Win32
@@ -208,6 +208,10 @@ compatibility-facade coverage.
   `GetModuleFileNameW/A`. The follow-up last-error pass moves managed
   `GetLastError` / `SetLastError` to the system PAL and forwards direct
   KERNEL32 imports through the same thread-local WinFormsX state. The latest
+  KERNEL32 memory pass adds PAL-backed `GlobalAlloc` / `GlobalReAlloc` /
+  `GlobalLock` / `GlobalUnlock` / `GlobalSize` / `GlobalFree` and matching
+  `Local*` facade exports for source-compatible direct DllImport consumers,
+  with deterministic zero-init, resize, size, lock, and free behavior. The latest
   ImageList follow-up keeps `ImageList.GetBitmap` stable when WinFormsX
   synthetic bitmap handles cannot be materialized by GDI+, preserving shared
   `ToolStrip.ImageList` enumeration after form disposal. The latest broad
@@ -320,7 +324,7 @@ compatibility-facade coverage.
     formatting/click handling reads managed selection and mapping state without
     OS checks.
   - Latest broad UIIntegration active slice is green:
-    `194 passed, 0 failed, 1 skipped`.
+    `250 passed, 0 failed, 1 skipped`.
   - DPI awareness, UIAutomationCore wrapper, snap-layout keyboard, and
     autosized layout smoke paths now run through the same WinFormsX/PAL pathway
     everywhere. `Application.OpenForms` also stays stable after PropertyGrid
@@ -577,8 +581,9 @@ Impacted APIs and areas:
 
 Plan:
 
-- Keep memory handles and resource lookup deterministic, with PAL owning any
-  shared state that native compatibility facades expose.
+- Keep resource lookup deterministic, with PAL owning any shared state that
+  native compatibility facades expose. First-tier `Global*` and `Local*` memory
+  handle behavior is now PAL-backed and covered by direct KERNEL32 facade tests.
 - Keep the first-tier `KERNEL32.dll` facade limited to ABI-simple process,
   thread, and module-path APIs until tests justify broader loader/resource
   semantics.
@@ -875,8 +880,8 @@ cases were previously blockers and should remain regression targets:
   dialog UI and real print/file/PDF output remain.
 - [ ] USER32 tier expansion: geometry/menu/message APIs used by UI tests.
 - [~] KERNEL32 tier expansion: process/thread/module-path facade is covered;
-  direct last-error state is covered; module resources, activation context, and
-  loader edge cases remain.
+  direct last-error and first-tier `Global*` / `Local*` memory state are
+  covered; module resources, activation context, and loader edge cases remain.
 - [~] COMCTL32/ImageList tier: first-tier image-list state, synthetic bitmap
   metadata, and managed enumeration fallback are covered; richer draw/mask and
   stream payload fidelity remain.
@@ -888,10 +893,10 @@ cases were previously blockers and should remain regression targets:
 
 ### In Progress (current pass)
 
-- [x] Input key-state fidelity for mouse move messages on WinFormsX backend.
-- [x] Managed WinFormsX `DoDragDrop` fallback path wired for Control/ToolStripItem.
-- [ ] ToolStrip dropdown close/hide lifecycle parity for UIIntegration full-suite progress.
-- [ ] Drag/drop target resolution and event ordering parity for remaining UIIntegration tests.
+- [x] KERNEL32 `Global*` / `Local*` direct facade coverage now routes through
+  PAL memory state and passes focused UIIntegration regression coverage.
+- [ ] Next KERNEL32 breadth: module resource lookup, activation context, and
+  loader edge-case compatibility.
 
 ## Acceptance Bar
 

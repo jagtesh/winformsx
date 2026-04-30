@@ -14,6 +14,7 @@
 typedef int32_t BOOL;
 typedef uint32_t DWORD;
 typedef uint16_t WCHAR;
+typedef uintptr_t SIZE_T;
 
 typedef struct WinFormsXKernel32Dispatch
 {
@@ -26,10 +27,106 @@ typedef struct WinFormsXKernel32Dispatch
     DWORD (*get_module_file_name)(void* module, WCHAR* filename, DWORD size);
     DWORD (*get_last_error)(void);
     void (*set_last_error)(DWORD error);
+    void* (*global_alloc)(DWORD flags, SIZE_T size);
+    void* (*global_realloc)(void* handle, SIZE_T size, DWORD flags);
+    void* (*global_lock)(void* handle);
+    BOOL (*global_unlock)(void* handle);
+    SIZE_T (*global_size)(void* handle);
+    void* (*global_free)(void* handle);
+    void* (*local_alloc)(DWORD flags, SIZE_T size);
+    void* (*local_realloc)(void* handle, SIZE_T size, DWORD flags);
+    void* (*local_lock)(void* handle);
+    BOOL (*local_unlock)(void* handle);
+    SIZE_T (*local_size)(void* handle);
+    void* (*local_free)(void* handle);
 } WinFormsXKernel32Dispatch;
 
 static WinFormsXKernel32Dispatch g_dispatch;
 static DWORD g_last_error;
+
+static void* fallback_memory_base(void* handle)
+{
+    if (handle == 0)
+    {
+        return 0;
+    }
+
+    return (void*)((uint8_t*)handle - sizeof(SIZE_T));
+}
+
+static void* fallback_memory_alloc(DWORD flags, SIZE_T size)
+{
+    if (size == 0)
+    {
+        return 0;
+    }
+
+    uint8_t* base = (uint8_t*)malloc(sizeof(SIZE_T) + size);
+    if (base == 0)
+    {
+        return 0;
+    }
+
+    *((SIZE_T*)base) = size;
+    void* handle = base + sizeof(SIZE_T);
+    if ((flags & 0x40u) != 0)
+    {
+        memset(handle, 0, size);
+    }
+
+    return handle;
+}
+
+static void* fallback_memory_realloc(void* handle, SIZE_T size, DWORD flags)
+{
+    if (handle == 0)
+    {
+        return fallback_memory_alloc(flags, size);
+    }
+
+    if (size == 0)
+    {
+        free(fallback_memory_base(handle));
+        return 0;
+    }
+
+    void* old_base = fallback_memory_base(handle);
+    SIZE_T old_size = *((SIZE_T*)old_base);
+    uint8_t* new_base = (uint8_t*)realloc(old_base, sizeof(SIZE_T) + size);
+    if (new_base == 0)
+    {
+        return 0;
+    }
+
+    *((SIZE_T*)new_base) = size;
+    void* new_handle = new_base + sizeof(SIZE_T);
+    if ((flags & 0x40u) != 0 && size > old_size)
+    {
+        memset((uint8_t*)new_handle + old_size, 0, size - old_size);
+    }
+
+    return new_handle;
+}
+
+static SIZE_T fallback_memory_size(void* handle)
+{
+    if (handle == 0)
+    {
+        return 0;
+    }
+
+    return *((SIZE_T*)fallback_memory_base(handle));
+}
+
+static void* fallback_memory_free(void* handle)
+{
+    if (handle != 0)
+    {
+        free(fallback_memory_base(handle));
+    }
+
+    return 0;
+}
 
 static DWORD copy_ascii_path(char* buffer, DWORD size)
 {
@@ -169,4 +266,126 @@ WF_EXPORT void SetLastError(DWORD error)
     {
         g_dispatch.set_last_error(error);
     }
+}
+
+WF_EXPORT void* GlobalAlloc(DWORD flags, SIZE_T size)
+{
+    if (g_dispatch.global_alloc != 0)
+    {
+        return g_dispatch.global_alloc(flags, size);
+    }
+
+    return fallback_memory_alloc(flags, size);
+}
+
+WF_EXPORT void* GlobalReAlloc(void* handle, SIZE_T size, DWORD flags)
+{
+    if (g_dispatch.global_realloc != 0)
+    {
+        return g_dispatch.global_realloc(handle, size, flags);
+    }
+
+    return fallback_memory_realloc(handle, size, flags);
+}
+
+WF_EXPORT void* GlobalLock(void* handle)
+{
+    if (g_dispatch.global_lock != 0)
+    {
+        return g_dispatch.global_lock(handle);
+    }
+
+    return handle;
+}
+
+WF_EXPORT BOOL GlobalUnlock(void* handle)
+{
+    if (g_dispatch.global_unlock != 0)
+    {
+        return g_dispatch.global_unlock(handle);
+    }
+
+    (void)handle;
+    return 0;
+}
+
+WF_EXPORT SIZE_T GlobalSize(void* handle)
+{
+    if (g_dispatch.global_size != 0)
+    {
+        return g_dispatch.global_size(handle);
+    }
+
+    return fallback_memory_size(handle);
+}
+
+WF_EXPORT void* GlobalFree(void* handle)
+{
+    if (g_dispatch.global_free != 0)
+    {
+        return g_dispatch.global_free(handle);
+    }
+
+    return fallback_memory_free(handle);
+}
+
+WF_EXPORT void* LocalAlloc(DWORD flags, SIZE_T size)
+{
+    if (g_dispatch.local_alloc != 0)
+    {
+        return g_dispatch.local_alloc(flags, size);
+    }
+
+    return fallback_memory_alloc(flags, size);
+}
+
+WF_EXPORT void* LocalReAlloc(void* handle, SIZE_T size, DWORD flags)
+{
+    if (g_dispatch.local_realloc != 0)
+    {
+        return g_dispatch.local_realloc(handle, size, flags);
+    }
+
+    return fallback_memory_realloc(handle, size, flags);
+}
+
+WF_EXPORT void* LocalLock(void* handle)
+{
+    if (g_dispatch.local_lock != 0)
+    {
+        return g_dispatch.local_lock(handle);
+    }
+
+    return handle;
+}
+
+WF_EXPORT BOOL LocalUnlock(void* handle)
+{
+    if (g_dispatch.local_unlock != 0)
+    {
+        return g_dispatch.local_unlock(handle);
+    }
+
+    (void)handle;
+    return 0;
+}
+
+WF_EXPORT SIZE_T LocalSize(void* handle)
+{
+    if (g_dispatch.local_size != 0)
+    {
+        return g_dispatch.local_size(handle);
+    }
+
+    return fallback_memory_size(handle);
+}
+
+WF_EXPORT void* LocalFree(void* handle)
+{
+    if (g_dispatch.local_free != 0)
+    {
+        return g_dispatch.local_free(handle);
+    }
+
+    return fallback_memory_free(handle);
 }

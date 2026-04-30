@@ -75,7 +75,15 @@ internal unsafe interface ISystemInterop
     // ─── Memory ─────────────────────────────────────────────────────────
 
     HGLOBAL GlobalAlloc(uint uFlags, nuint dwBytes);
+    HGLOBAL GlobalReAlloc(HGLOBAL hMem, nuint dwBytes, uint uFlags);
     HGLOBAL GlobalFree(HGLOBAL hMem);
     void* GlobalLock(HGLOBAL hMem);
     bool GlobalUnlock(HGLOBAL hMem);
+    nuint GlobalSize(HGLOBAL hMem);
+    nint LocalAlloc(uint uFlags, nuint uBytes);
+    nint LocalReAlloc(nint hMem, nuint uBytes, uint uFlags);
+    nint LocalFree(nint hMem);
+    void* LocalLock(nint hMem);
+    bool LocalUnlock(nint hMem);
+    nuint LocalSize(nint hMem);
 }

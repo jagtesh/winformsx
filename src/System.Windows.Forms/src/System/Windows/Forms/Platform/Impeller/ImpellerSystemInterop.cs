@@ -22,6 +22,7 @@ internal sealed unsafe class ImpellerSystemInterop : ISystemInterop
     private readonly Dictionary<string, uint> _clipboardFormats = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<uint, string> _clipboardFormatNames = [];
     private readonly Dictionary<uint, HANDLE> _clipboardData = [];
+    private readonly Dictionary<nint, nuint> _globalMemorySizes = [];
     private DPI_AWARENESS_CONTEXT _processDpiAwarenessContext = DPI_AWARENESS_CONTEXT.DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2;
     private DPI_AWARENESS_CONTEXT _threadDpiAwarenessContext = DPI_AWARENESS_CONTEXT.DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2;
     private DPI_HOSTING_BEHAVIOR _threadDpiHostingBehavior = DPI_HOSTING_BEHAVIOR.DPI_HOSTING_BEHAVIOR_MIXED;
@@ -656,13 +657,122 @@ internal sealed unsafe class ImpellerSystemInterop : ISystemInterop
     // --- Memory ---------------------------------------------------------
 
     public HGLOBAL GlobalAlloc(uint flags, nuint bytes)
-        => (HGLOBAL)Runtime.InteropServices.Marshal.AllocHGlobal((int)bytes);
+    {
+        nint handle = AllocateMemory(flags, bytes);
+        return handle == 0 ? HGLOBAL.Null : (HGLOBAL)handle;
+    }
+
+    public HGLOBAL GlobalReAlloc(HGLOBAL hMem, nuint bytes, uint flags)
+    {
+        nint handle = ReAllocMemory((nint)hMem.Value, bytes, flags);
+        return handle == 0 ? HGLOBAL.Null : (HGLOBAL)handle;
+    }
+
     public HGLOBAL GlobalFree(HGLOBAL hMem)
     {
-        Runtime.InteropServices.Marshal.FreeHGlobal(hMem);
+        FreeMemory((nint)hMem.Value);
         return HGLOBAL.Null;
     }
 
     public void* GlobalLock(HGLOBAL hMem) => (void*)(nint)hMem;
-    public bool GlobalUnlock(HGLOBAL hMem) => true;
+    public bool GlobalUnlock(HGLOBAL hMem)
+    {
+        _ = hMem;
+        return false;
+    }
+
+    public nuint GlobalSize(HGLOBAL hMem) => SizeOfMemory((nint)hMem.Value);
+
+    public nint LocalAlloc(uint flags, nuint bytes) => AllocateMemory(flags, bytes);
+
+    public nint LocalReAlloc(nint hMem, nuint bytes, uint flags) => ReAllocMemory(hMem, bytes, flags);
+
+    public nint LocalFree(nint hMem)
+    {
+        FreeMemory(hMem);
+        return 0;
+    }
+
+    public void* LocalLock(nint hMem) => (void*)hMem;
+
+    public bool LocalUnlock(nint hMem)
+    {
+        _ = hMem;
+        return false;
+    }
+
+    public nuint LocalSize(nint hMem) => SizeOfMemory(hMem);
+
+    private nint AllocateMemory(uint flags, nuint bytes)
+    {
+        if (bytes == 0)
+        {
+            return 0;
+        }
+
+        nint handle = Runtime.InteropServices.Marshal.AllocHGlobal(checked((nint)bytes));
+        if (handle == 0)
+        {
+            return 0;
+        }
+
+        _globalMemorySizes[handle] = bytes;
+
+        const uint ZeroInit = 0x40;
+        if ((flags & ZeroInit) != 0)
+        {
+            new Span<byte>((void*)handle, checked((int)bytes)).Clear();
+        }
+
+        return handle;
+    }
+
+    private nint ReAllocMemory(nint hMem, nuint bytes, uint flags)
+    {
+        if (hMem == 0)
+        {
+            return AllocateMemory(flags, bytes);
+        }
+
+        if (bytes == 0)
+        {
+            FreeMemory(hMem);
+            return 0;
+        }
+
+        _globalMemorySizes.TryGetValue(hMem, out nuint oldSize);
+        nint handle = Runtime.InteropServices.Marshal.ReAllocHGlobal(hMem, checked((nint)bytes));
+        if (handle == 0)
+        {
+            return 0;
+        }
+
+        _globalMemorySizes.Remove(hMem);
+        _globalMemorySizes[handle] = bytes;
+
+        const uint ZeroInit = 0x40;
+        if ((flags & ZeroInit) != 0 && bytes > oldSize)
+        {
+            byte* start = (byte*)handle + checked((nint)oldSize);
+            new Span<byte>(start, checked((int)(bytes - oldSize))).Clear();
+        }
+
+        return handle;
+    }
+
+    private void FreeMemory(nint hMem)
+    {
+        if (hMem == 0)
+        {
+            return;
+        }
+
+        _globalMemorySizes.Remove(hMem);
+        Runtime.InteropServices.Marshal.FreeHGlobal(hMem);
+    }
+
+    private nuint SizeOfMemory(nint hMem)
+    {
+        return hMem != 0 && _globalMemorySizes.TryGetValue(hMem, out nuint size) ? size : 0;
+    }
 }
