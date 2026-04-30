@@ -19,6 +19,20 @@ Ordered by observed frequency across components and blocker blast radius:
 ## Latest Progress (2026-04-29)
 
 - In-progress local changes (next commit):
+  - Continued single-pathway cleanup by removing newly introduced Windows-only branches in high-impact flows:
+    - `Button.OnClick` dialog-result close behavior now uses one path (no OS guard).
+    - `Button.OnMouseUp` capture-based click eligibility now uses one path (no OS guard).
+    - `Control.DoDragDrop` and `ToolStripItem.DoDragDrop` now gate on backend capability instead of OS checks.
+    - `UIIntegrationTests` foreground/focus prep (`Infra/SendInput.SetForegroundWindow`) now uses one path.
+    - `WinFormsXSystemEventsCompatibility.Initialize` no longer skips registration on Windows.
+  - Added hosted message-pump fallback in `ToolStripManager.ModalMenuFilter.HostedWindowsFormsMessageHook`:
+    - while hooked, a timer now pumps pending messages, runs `PreTranslateMessage`, and dispatches remaining messages.
+  - Verification:
+    - `UIIntegrationTests` filter `FullyQualifiedName~ButtonTests`: `Failed: 0, Passed: 22, Skipped: 0`.
+    - `WinformsControlsTest --control-smoke-test`: `total=42 passed=41 failed=0 skipped=1`.
+    - `ToolStrip_Hiding_ToolStripMenuItem_OnDropDownClosed_ShouldNotThrow` remains a deterministic hang/crash blocker.
+    - Latest artifacts: `src/System.Windows.Forms/tests/IntegrationTests/UIIntegrationTests/TestResults/5a4b93af-cc59-49f5-b119-310412a2da2f/`
+- In-progress local changes (next commit):
   - Removed Windows-only guard branches introduced in recent ToolStrip/OLE paths to keep one WinFormsX pathway:
     - `ToolStripManager.ModalMenuFilter` now always activates message-hook flow when no owned message loop is present.
     - `PInvoke.RevokeDragDrop<T>` now follows the same managed compatibility path as `RegisterDragDrop<T>` across all platforms.

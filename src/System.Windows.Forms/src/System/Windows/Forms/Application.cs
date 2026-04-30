@@ -26,8 +26,10 @@ public sealed partial class Application
     {
         Platform.PlatformApi.Initialize(new Platform.ImpellerPlatformProvider());
         Platform.WinFormsXUser32Shim.Register();
-        Platform.WinFormsXSystemEventsCompatibility.Initialize();
     }
+
+    private static void InitializeMessageLoopPlatform()
+        => Platform.WinFormsXSystemEventsCompatibility.Initialize();
 
     /// <summary>
     ///  Hash table for our event list
@@ -884,10 +886,16 @@ public sealed partial class Application
     ///  Processes all Windows messages currently in the message queue.
     /// </summary>
     public static void DoEvents()
-        => ThreadContext.FromCurrent().RunMessageLoop(msoloop.DoEvents, null);
+    {
+        InitializeMessageLoopPlatform();
+        ThreadContext.FromCurrent().RunMessageLoop(msoloop.DoEvents, null);
+    }
 
     internal static void DoEventsModal()
-        => ThreadContext.FromCurrent().RunMessageLoop(msoloop.DoEventsModal, null);
+    {
+        InitializeMessageLoopPlatform();
+        ThreadContext.FromCurrent().RunMessageLoop(msoloop.DoEventsModal, null);
+    }
 
     /// <summary>
     ///  Enables visual styles for all subsequent <see cref="Run()"/> and <see cref="Control.CreateHandle"/> calls.
@@ -1258,21 +1266,30 @@ public sealed partial class Application
     ///  without a form.
     /// </summary>
     public static void Run()
-        => ThreadContext.FromCurrent().RunMessageLoop(msoloop.Main, new ApplicationContext());
+    {
+        InitializeMessageLoopPlatform();
+        ThreadContext.FromCurrent().RunMessageLoop(msoloop.Main, new ApplicationContext());
+    }
 
     /// <summary>
     ///  Begins running a standard application message loop on the current
     ///  thread, and makes the specified form visible.
     /// </summary>
     public static void Run(Form mainForm)
-        => ThreadContext.FromCurrent().RunMessageLoop(msoloop.Main, new ApplicationContext(mainForm));
+    {
+        InitializeMessageLoopPlatform();
+        ThreadContext.FromCurrent().RunMessageLoop(msoloop.Main, new ApplicationContext(mainForm));
+    }
 
     /// <summary>
     ///  Begins running a standard application message loop on the current thread,
     ///  without a form.
     /// </summary>
     public static void Run(ApplicationContext context)
-        => ThreadContext.FromCurrent().RunMessageLoop(msoloop.Main, context);
+    {
+        InitializeMessageLoopPlatform();
+        ThreadContext.FromCurrent().RunMessageLoop(msoloop.Main, context);
+    }
 
     /// <summary>
     ///  Runs a modal dialog.  This starts a special type of message loop that runs until
@@ -1280,7 +1297,10 @@ public sealed partial class Application
     ///  when an application calls System.Windows.Forms.Form.ShowDialog().
     /// </summary>
     internal static void RunDialog(Form form)
-        => ThreadContext.FromCurrent().RunMessageLoop(msoloop.ModalForm, new ModalApplicationContext(form));
+    {
+        InitializeMessageLoopPlatform();
+        ThreadContext.FromCurrent().RunMessageLoop(msoloop.ModalForm, new ModalApplicationContext(form));
+    }
 
     /// <summary>
     ///  Sets the static UseCompatibleTextRenderingDefault field on Control to the value passed in.

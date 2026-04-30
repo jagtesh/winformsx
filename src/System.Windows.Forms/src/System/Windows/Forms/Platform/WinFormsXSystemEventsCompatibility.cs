@@ -18,7 +18,7 @@ internal static class WinFormsXSystemEventsCompatibility
 
     public static void Initialize()
     {
-        if (OperatingSystem.IsWindows() || s_window is not null)
+        if (s_window is not null)
         {
             return;
         }

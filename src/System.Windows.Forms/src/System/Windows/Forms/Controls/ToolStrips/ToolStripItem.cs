@@ -2241,7 +2241,7 @@ public abstract partial class ToolStripItem :
             dataObject = iwdata;
         }
 
-        if (!OperatingSystem.IsWindows() || Graphics.IsBackendActive)
+        if (Graphics.IsBackendActive)
         {
             managedDataObject = dataObject as IDataObject ?? new DataObject(dataObject);
             return ManagedDragDrop.DoDragDrop(this, ParentInternal, managedDataObject, allowedEffects, dragImage, cursorOffset, useDefaultDragImage);

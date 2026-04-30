@@ -4998,7 +4998,7 @@ public unsafe partial class Control :
     {
         DataObject dataObject = CreateRuntimeDataObjectForDrag(data);
 
-        if (!OperatingSystem.IsWindows() || Graphics.IsBackendActive)
+        if (Graphics.IsBackendActive)
         {
             return ManagedDragDrop.DoDragDrop((ISupportOleDropSource)this, this, dataObject, allowedEffects, dragImage, cursorOffset, useDefaultDragImage);
         }

@@ -14,6 +14,9 @@ public static partial class ToolStripManager
             private HHOOK _messageHookHandle;
             private bool _isHooked;
             private HOOKPROC? _callBack;
+            private Timer? _hostedMessagePumpTimer;
+            private const int HostedPumpIntervalMs = 15;
+            private const int MaxPumpBatchSize = 128;
 
             public HostedWindowsFormsMessageHook()
             {
@@ -73,6 +76,7 @@ public static partial class ToolStripManager
                         _isHooked = true;
                     }
 
+                    EnsureHostedMessagePump(enabled: true);
                     Debug.Assert(_messageHookHandle != IntPtr.Zero, "Failed to install mouse hook");
                 }
             }
@@ -101,12 +105,73 @@ public static partial class ToolStripManager
             {
                 lock (this)
                 {
+                    EnsureHostedMessagePump(enabled: false);
+
                     if (!_messageHookHandle.IsNull)
                     {
                         PInvoke.UnhookWindowsHookEx(_messageHookHandle);
                         _messageHookHandle = default;
-                        _isHooked = false;
                     }
+
+                    _isHooked = false;
+                }
+            }
+
+            private void EnsureHostedMessagePump(bool enabled)
+            {
+                if (enabled)
+                {
+                    _hostedMessagePumpTimer ??= CreateHostedMessagePumpTimer();
+                    _hostedMessagePumpTimer.Enabled = true;
+                    return;
+                }
+
+                if (_hostedMessagePumpTimer is not null)
+                {
+                    _hostedMessagePumpTimer.Enabled = false;
+                    _hostedMessagePumpTimer.Dispose();
+                    _hostedMessagePumpTimer = null;
+                }
+            }
+
+            private Timer CreateHostedMessagePumpTimer()
+            {
+                Timer timer = new()
+                {
+                    Interval = HostedPumpIntervalMs
+                };
+
+                timer.Tick += (_, _) => PumpHostedMessages();
+                return timer;
+            }
+
+            private unsafe void PumpHostedMessages()
+            {
+                if (!_isHooked)
+                {
+                    return;
+                }
+
+                for (int i = 0; i < MaxPumpBatchSize; i++)
+                {
+                    MSG msg = default;
+                    if (!PInvoke.PeekMessage(&msg, HWND.Null, 0, 0, PEEK_MESSAGE_REMOVE_TYPE.PM_REMOVE))
+                    {
+                        break;
+                    }
+
+                    if (msg.message == PInvoke.WM_NULL)
+                    {
+                        continue;
+                    }
+
+                    if (Application.ThreadContext.FromCurrent().PreTranslateMessage(ref msg))
+                    {
+                        continue;
+                    }
+
+                    PInvoke.TranslateMessage(&msg);
+                    PInvoke.DispatchMessage(&msg);
                 }
             }
         }

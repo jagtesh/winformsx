@@ -79,39 +79,27 @@ public class SendInput
 
     private static void SetForegroundWindow(Form window)
     {
-        if (!OperatingSystem.IsWindows())
-        {
-            HWND existingFocus = PInvoke.GetFocus();
-            PInvoke.SetActiveWindow(window);
-            PInvoke.SetForegroundWindow(window);
-
-            if (existingFocus.IsNull || (existingFocus != (HWND)window.Handle && !PInvoke.IsChild(window, existingFocus)))
-            {
-                PInvoke.SetFocus(window);
-            }
-
-            return;
-        }
-
+        HWND existingFocus = PInvoke.GetFocus();
         // Make the window a top-most window so it will appear above any existing top-most windows
         PInvoke.SetWindowPos(window, HWND.HWND_TOPMOST, 0, 0, 0, 0, SET_WINDOW_POS_FLAGS.SWP_NOSIZE | SET_WINDOW_POS_FLAGS.SWP_NOMOVE);
 
         // Move the window into the foreground as it may not have been achieved by the 'SetWindowPos' call
-        if (!PInvoke.SetForegroundWindow(window))
+        PInvoke.SetForegroundWindow(window);
+        if (PInvoke.GetWindowThreadProcessId(window, out uint processId) != 0 && processId != Environment.ProcessId)
         {
             string windowTitle = PInvoke.GetWindowText(window);
-            if (PInvoke.GetWindowThreadProcessId(window, out uint processId) == 0 || processId != Environment.ProcessId)
-            {
-                string message = $"ForegroundWindow doesn't belong the test process! The current window HWND: {window}, title:{windowTitle}.";
-                throw new InvalidOperationException(message);
-            }
+            string message = $"ForegroundWindow doesn't belong the test process! The current window HWND: {window}, title:{windowTitle}.";
+            throw new InvalidOperationException(message);
         }
 
         // Ensure the window is 'Active' as it may not have been achieved by 'SetForegroundWindow'
         PInvoke.SetActiveWindow(window);
 
         // Give the window the keyboard focus as it may not have been achieved by 'SetActiveWindow'
-        PInvoke.SetFocus(window);
+        if (existingFocus.IsNull || (existingFocus != (HWND)window.Handle && !PInvoke.IsChild(window, existingFocus)))
+        {
+            PInvoke.SetFocus(window);
+        }
 
         // Remove the 'Top-Most' qualification from the window
         PInvoke.SetWindowPos(window, HWND.HWND_NOTOPMOST, 0, 0, 0, 0, SET_WINDOW_POS_FLAGS.SWP_NOSIZE | SET_WINDOW_POS_FLAGS.SWP_NOMOVE);

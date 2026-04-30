@@ -194,11 +194,10 @@ public partial class Button : ButtonBase, IButtonControl
         {
             form.DialogResult = _dialogResult;
 
-            // Non-Windows test and app paths can run dialogs in modeless mode while still
-            // relying on dialog-result semantics. Mirror WinForms modal behavior by hiding
-            // the form when a non-None dialog result is committed.
-            if (!OperatingSystem.IsWindows()
-                && _dialogResult != DialogResult.None
+            // Some app and test paths run form interaction without ShowDialog but still rely
+            // on dialog-result semantics. Mirror modal close behavior when a non-None result
+            // is committed.
+            if (_dialogResult != DialogResult.None
                 && !form.Modal
                 && form.Visible)
             {
@@ -241,8 +240,7 @@ public partial class Button : ButtonBase, IButtonControl
             if (isMouseDown)
             {
                 bool canClickFromCapture =
-                    !OperatingSystem.IsWindows()
-                    && PInvoke.GetCapture() == HWND
+                    PInvoke.GetCapture() == HWND
                     && ClientRectangle.Contains(mevent.Location);
 
                 bool canClickFromHitTest = PInvoke.WindowFromPoint(PointToScreen(mevent.Location)) == HWND;
