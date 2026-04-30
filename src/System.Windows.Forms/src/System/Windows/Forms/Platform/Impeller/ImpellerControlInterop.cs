@@ -65,5 +65,5 @@ internal sealed unsafe class ImpellerControlInterop : IControlInterop
 
     // --- Common Controls Init -------------------------------------------
 
-    public bool InitCommonControlsEx(in INITCOMMONCONTROLSEX icc) => true; // No-op — no comctl32
+    public bool InitCommonControlsEx(in INITCOMMONCONTROLSEX icc) => PInvoke.InitCommonControlsEx(icc);
 }

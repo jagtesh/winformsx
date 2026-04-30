@@ -68,6 +68,9 @@ Ordered by observed frequency across components and blocker blast radius:
       previous/current values, `GetImageInfo`, stream write/write-ex success,
       handle cleanup, and synthetic bitmap metadata surfaced through
       `GetObject(BITMAP)`.
+    - `InitCommonControls` / `InitCommonControlsEx` now record deterministic
+      requested-class feature state, reject malformed init struct sizes, and
+      route the Impeller control provider through the same managed wrapper.
     - UIIntegration test setup/teardown now closes leftover open forms before
       each test boundary, keeping `Application.OpenForms` deterministic in the
       shared-process suite.
@@ -957,7 +960,7 @@ Ordered by observed frequency across components and blocker blast radius:
 ## COMCTL32 and Common Control Helpers
 
 - [~] WXA-1601: Expand `COMCTL32` shim for image list primitives used by `ListView`, `TreeView`, and image-backed controls (`Create/Read/Draw/Destroy` semantics). First-tier managed state covers icon size, count, replace/remove bounds, background color, `GetImageInfo`, write/write-ex success, handle cleanup, and `GetObject(BITMAP)` metadata; draw composition, mask/overlay behavior, stream payload fidelity, and native facade exports remain.
-- [ ] WXA-1602: Keep `InitCommonControls` / `InitCommonControlsEx` as deterministic no-op with explicit supported-control feature flags.
+- [~] WXA-1602: Keep `InitCommonControls` / `InitCommonControlsEx` as deterministic no-op with explicit supported-control feature flags. Managed wrapper state now records requested classes and rejects malformed struct sizes; direct native `COMCTL32.dll` facade exports remain.
 
 ## Shell / Resources / Icons / Cursors
 
