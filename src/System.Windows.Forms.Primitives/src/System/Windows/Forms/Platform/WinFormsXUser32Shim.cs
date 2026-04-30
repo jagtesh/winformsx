@@ -88,6 +88,7 @@ internal static unsafe class WinFormsXUser32Shim
             UpdateWindow = &UpdateWindow,
             InvalidateRect = &InvalidateRect,
             ValidateRect = &ValidateRect,
+            MsgWaitForMultipleObjectsEx = &MsgWaitForMultipleObjectsEx,
         };
 
         delegate* unmanaged<DispatchTable*, int> register = (delegate* unmanaged<DispatchTable*, int>)registerExport;
@@ -890,6 +891,29 @@ internal static unsafe class WinFormsXUser32Shim
         }
     }
 
+    [UnmanagedCallersOnly]
+    private static uint MsgWaitForMultipleObjectsEx(
+        uint nCount,
+        nint* handles,
+        uint milliseconds,
+        uint wakeMask,
+        uint flags)
+    {
+        try
+        {
+            return PlatformApi.Message.MsgWaitForMultipleObjectsEx(
+                nCount,
+                (HANDLE*)handles,
+                milliseconds,
+                (QUEUE_STATUS_FLAGS)wakeMask,
+                (MSG_WAIT_FOR_MULTIPLE_OBJECTS_EX_FLAGS)flags);
+        }
+        catch
+        {
+            return 0x00000102;
+        }
+    }
+
     private struct DispatchTable
     {
         public uint Version;
@@ -944,6 +968,7 @@ internal static unsafe class WinFormsXUser32Shim
         public delegate* unmanaged<nint, int> UpdateWindow;
         public delegate* unmanaged<nint, WinFormsXRect*, int, int> InvalidateRect;
         public delegate* unmanaged<nint, WinFormsXRect*, int> ValidateRect;
+        public delegate* unmanaged<uint, nint*, uint, uint, uint, uint> MsgWaitForMultipleObjectsEx;
     }
 
     [StructLayout(LayoutKind.Sequential)]

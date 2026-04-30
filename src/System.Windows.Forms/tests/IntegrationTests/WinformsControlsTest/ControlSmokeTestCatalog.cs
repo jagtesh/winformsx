@@ -45,11 +45,7 @@ internal static class ControlSmokeTestCatalog
         new(MainFormControlsTabOrder.DockLayoutButton, "DockLayout", () => new DockLayoutTests()),
         new(MainFormControlsTabOrder.DragAndDrop, "Drag and Drop", () => new DragDrop()),
         new(MainFormControlsTabOrder.TextBoxesButton, "TextBoxes", () => new TextBoxes()),
-#if WINDOWS
-        new(MainFormControlsTabOrder.MediaPlayerButton, "MediaPlayer", () => new MediaPlayer()),
-#else
-        ControlSmokeTestCase.Skip(MainFormControlsTabOrder.MediaPlayerButton, "MediaPlayer", "Windows Media Player ActiveX is Windows-only."),
-#endif
+        ControlSmokeTestCase.Skip(MainFormControlsTabOrder.MediaPlayerButton, "MediaPlayer", "Windows Media Player ActiveX remains out of scope."),
         new(MainFormControlsTabOrder.FormOwnerTestButton, "FormOwnerTest", () => new FormOwnerTestForm()),
         new(MainFormControlsTabOrder.ListBoxTestButton, "ListBoxes", () => new ListBoxes()),
         new(MainFormControlsTabOrder.PasswordButton, "Password", () => new Password()),

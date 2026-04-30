@@ -56,22 +56,22 @@ internal partial class PropertyDescriptorGridEntry
                     index--;
                 }
 
-                if (propertyGridView.DropDownButton is { Visible: true } dropDownButton)
+                if (ShouldExposeDropDownButton(propertyGridView, owner))
                 {
-                    // DropDownButton exists in the tree if the drop-down button is visible.
+                    // DropDownButton exists in the tree when the selected entry can use it.
                     if (index == 0)
                     {
-                        return dropDownButton.AccessibilityObject;
+                        return propertyGridView.DropDownButton.AccessibilityObject;
                     }
 
                     index--;
                 }
-                else if (propertyGridView.DialogButton is { Visible: true } dialogButton)
+                else if (ShouldExposeDialogButton(propertyGridView, owner))
                 {
-                    // DialogButton exists in the tree if the ellipsis button is visible.
+                    // DialogButton exists in the tree when the selected entry can use it.
                     if (index == 0)
                     {
-                        return dialogButton.AccessibilityObject;
+                        return propertyGridView.DialogButton.AccessibilityObject;
                     }
 
                     index--;
@@ -117,7 +117,7 @@ internal partial class PropertyDescriptorGridEntry
                     count++;
                 }
 
-                if (propertyGridView.DropDownButton.Visible || propertyGridView.DialogButton.Visible)
+                if (ShouldExposeDropDownButton(propertyGridView, owner) || ShouldExposeDialogButton(propertyGridView, owner))
                 {
                     count++;
                 }
@@ -194,20 +194,20 @@ internal partial class PropertyDescriptorGridEntry
                     index++;
                 }
 
-                if (propertyGridView.DropDownButton is { Visible: true } dropDownButton)
+                if (ShouldExposeDropDownButton(propertyGridView, owner))
                 {
-                    // DropDownButton exists in the tree if the drop-down button is visible.
-                    if (child == dropDownButton.AccessibilityObject)
+                    // DropDownButton exists in the tree when the selected entry can use it.
+                    if (child == propertyGridView.DropDownButton.AccessibilityObject)
                     {
                         return index;
                     }
 
                     index++;
                 }
-                else if (propertyGridView.DialogButton is { Visible: true } dialogButton)
+                else if (ShouldExposeDialogButton(propertyGridView, owner))
                 {
-                    // DialogButton exists in the tree if the ellipsis button is visible.
-                    if (child == dialogButton.AccessibilityObject)
+                    // DialogButton exists in the tree when the selected entry can use it.
+                    if (child == propertyGridView.DialogButton.AccessibilityObject)
                     {
                         return index;
                     }
@@ -232,6 +232,14 @@ internal partial class PropertyDescriptorGridEntry
 
             return -1;
         }
+
+        private static bool ShouldExposeDropDownButton(PropertyGridView propertyGridView, PropertyDescriptorGridEntry owner)
+            => propertyGridView.DropDownButton.Visible
+                || ((owner.NeedsDropDownButton || owner.Enumerable) && !owner.ShouldRenderReadOnly);
+
+        private static bool ShouldExposeDialogButton(PropertyGridView propertyGridView, PropertyDescriptorGridEntry owner)
+            => propertyGridView.DialogButton.Visible
+                || (owner.NeedsModalEditorButton && !owner.ShouldRenderReadOnly && !ShouldExposeDropDownButton(propertyGridView, owner));
 
         internal AccessibleObject? GetNextChild(AccessibleObject child)
         {

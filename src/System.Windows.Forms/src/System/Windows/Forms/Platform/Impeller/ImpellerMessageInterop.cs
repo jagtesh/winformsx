@@ -16,6 +16,8 @@ internal sealed class ImpellerMessageInterop : IMessageInterop
     private const uint WM_QUIT = 0x0012;
     private const uint WM_PAINT = 0x000F;
     private const uint WM_ERASEBKGND = 0x0014;
+    private const uint WAIT_OBJECT_0 = 0x00000000;
+    private const uint WAIT_TIMEOUT = 0x00000102;
     private const uint EM_GETSEL = 0x00B0;
     private const uint EM_SETSEL = 0x00B1;
     private const uint EM_SETMODIFY = 0x00B9;
@@ -121,6 +123,39 @@ internal sealed class ImpellerMessageInterop : IMessageInterop
 
     public bool TranslateMessage(in MSG lpMsg) => true; // No-op in Impeller
     public LRESULT DispatchMessage(in MSG lpMsg) => SendMessage(lpMsg.hwnd, lpMsg.message, lpMsg.wParam, lpMsg.lParam);
+
+    public unsafe uint MsgWaitForMultipleObjectsEx(
+        uint nCount,
+        HANDLE* pHandles,
+        uint dwMilliseconds,
+        QUEUE_STATUS_FLAGS dwWakeMask,
+        MSG_WAIT_FOR_MULTIPLE_OBJECTS_EX_FLAGS dwFlags)
+    {
+        _ = pHandles;
+        _ = dwWakeMask;
+        _ = dwFlags;
+
+        if (PlatformApi.Window is ImpellerWindowInterop windowInterop)
+        {
+            windowInterop.PumpEvents();
+        }
+
+        if (nCount == 0 && _messageQueue.TryPeek(out _))
+        {
+            return WAIT_OBJECT_0;
+        }
+
+        if (dwMilliseconds != 0)
+        {
+            int sleepMilliseconds = dwMilliseconds == uint.MaxValue
+                ? 15
+                : Math.Min(15, checked((int)Math.Min(dwMilliseconds, int.MaxValue)));
+
+            Thread.Sleep(sleepMilliseconds);
+        }
+
+        return WAIT_TIMEOUT;
+    }
 
     public unsafe bool SendMessageTimeout(HWND hWnd, uint msg, WPARAM wParam, LPARAM lParam,
         SEND_MESSAGE_TIMEOUT_FLAGS flags, uint timeout, nuint* result)

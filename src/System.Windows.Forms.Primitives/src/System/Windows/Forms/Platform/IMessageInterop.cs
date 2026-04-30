@@ -20,6 +20,12 @@ internal unsafe interface IMessageInterop
     bool GetMessage(out MSG lpMsg, HWND hWnd, uint wMsgFilterMin, uint wMsgFilterMax);
     bool TranslateMessage(in MSG lpMsg);
     LRESULT DispatchMessage(in MSG lpMsg);
+    uint MsgWaitForMultipleObjectsEx(
+        uint nCount,
+        HANDLE* pHandles,
+        uint dwMilliseconds,
+        QUEUE_STATUS_FLAGS dwWakeMask,
+        MSG_WAIT_FOR_MULTIPLE_OBJECTS_EX_FLAGS dwFlags);
 
     // ─── Timed / Async ──────────────────────────────────────────────────
 

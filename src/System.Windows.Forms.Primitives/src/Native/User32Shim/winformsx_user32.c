@@ -90,6 +90,7 @@ typedef struct WinFormsXUser32Dispatch
     BOOL (*update_window)(HWND hwnd);
     BOOL (*invalidate_rect)(HWND hwnd, const WinFormsXRect* rect, INT erase);
     BOOL (*validate_rect)(HWND hwnd, const WinFormsXRect* rect);
+    UINT (*msg_wait_for_multiple_objects_ex)(UINT n_count, const intptr_t* handles, UINT milliseconds, UINT wake_mask, UINT flags);
 } WinFormsXUser32Dispatch;
 
 static WinFormsXUser32Dispatch g_dispatch;
@@ -400,6 +401,13 @@ WF_EXPORT BOOL InvalidateRect(HWND hwnd, const WinFormsXRect* rect, BOOL erase)
 WF_EXPORT BOOL ValidateRect(HWND hwnd, const WinFormsXRect* rect)
 {
     return g_dispatch.validate_rect != 0 ? g_dispatch.validate_rect(hwnd, rect) : 0;
+}
+
+WF_EXPORT UINT MsgWaitForMultipleObjectsEx(UINT n_count, const intptr_t* handles, UINT milliseconds, UINT wake_mask, UINT flags)
+{
+    return g_dispatch.msg_wait_for_multiple_objects_ex != 0
+        ? g_dispatch.msg_wait_for_multiple_objects_ex(n_count, handles, milliseconds, wake_mask, flags)
+        : 0x00000102;
 }
 
 WF_EXPORT HHOOK SetWindowsHookEx(INT id_hook, intptr_t hook_proc, intptr_t hmod, UINT thread_id)

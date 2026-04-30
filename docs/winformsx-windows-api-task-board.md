@@ -19,8 +19,12 @@ Ordered by observed frequency across components and blocker blast radius:
 ## Latest Progress (2026-04-30)
 
 - Current snapshot:
-  - Pushed `codex/winformsx-stability` through `a3906a694`; this update adds
-    the ListView/common-control reduction.
+  - `codex/winformsx-stability` was pushed and verified up to date before this
+    pass; this update layers the PropertyGrid/USER32 wait closure on top of the
+    ListView/common-control reduction and wrapped-style fixes.
+  - The latest committed work adds the ListView/common-control reduction, the
+    wrapped Win32 style fix that removed PropertyGrid dropdown-holder
+    construction overflows, and the PropertyGrid/USER32 wait closure below.
   - Added WinFormsX virtual-window handling for ToolStrip dropdown overlays and
     hidden dropdown owner windows so they no longer create nested Silk/GLFW
     windows during UIIntegration runs.
@@ -54,10 +58,43 @@ Ordered by observed frequency across components and blocker blast radius:
     - `ButtonTests`, focused ToolStrip cases, and `User32CompatibilityFacadeTests`:
       `Passed: 26, Failed: 0`.
   - Full UIIntegration now completes without a hang/abort:
-    - `Failed: 166, Passed: 25, Skipped: 331, Total: 522`.
+    - Previous broad snapshot: `Failed: 166, Passed: 25, Skipped: 331, Total: 522`.
+    - Latest broad snapshot after PropertyGrid/USER32 wait work:
+      `Failed: 112, Passed: 79, Skipped: 223, Total: 414`.
   - Priority order moves to highest-volume remaining failure clusters:
-    PropertyGrid accessibility fragments, Anchor/Layout resize state,
-    MonthCalendar input, drag/drop polish, and dialog/print fallbacks.
+    Anchor/Layout resize state, MonthCalendar input, drag/drop polish,
+    dialog/print fallbacks, and remaining lower-volume provider gaps.
+  - Active lane update: focused PropertyGrid UIIntegration coverage is now
+    green: `Passed: 38, Failed: 0, Skipped: 0, Total: 38`.
+  - Priority order now moves to Anchor/Layout resize state, MonthCalendar
+    input, drag/drop polish, dialog/print fallbacks, and remaining
+    lower-volume provider gaps.
+
+- Landed:
+  - Added a PAL-backed `MsgWaitForMultipleObjectsEx` path:
+    - managed `Windows.Win32.PInvoke.MsgWaitForMultipleObjectsEx` now routes to
+      `PlatformApi.Message`;
+    - native `USER32.dll` shim export forwards the same call through the
+      registered dispatch table;
+    - `ImpellerMessageInterop` returns deterministic wait results and pumps the
+      backend event source before reporting timeout/input.
+  - Closed the remaining focused PropertyGrid UIIntegration failures:
+    - selected-entry dropdown/dialog button accessibility children are exposed
+      from editor capability state, so `PropertyDescriptorGridEntry` and
+      `GridViewTextBox` fragment navigation reaches the expected button nodes;
+    - `PropertyGridViewAccessibleObject.Bounds` now reports screen-space bounds
+      directly from the PropertyGridView client area.
+  - Cleaned the controls smoke `MediaPlayer` skip reason to describe the
+    ActiveX scope decision without platform-gating language.
+  - Verification:
+    - `dotnet test ... --filter "FullyQualifiedName~PropertyGrid" -v:q` ->
+      `Passed: 38, Failed: 0, Skipped: 0`.
+    - `dotnet test ... --filter "FullyQualifiedName~DropDownButtonAccessibleObjectTests" -v:n` ->
+      `Passed: 4, Failed: 0, Skipped: 0`.
+    - `dotnet test ... --filter "FullyQualifiedName~User32CompatibilityFacadeTests" -v:q` ->
+      `Passed: 2, Failed: 0`.
+    - `WinformsControlsTest --control-smoke-test` ->
+      `total=42 passed=41 failed=0 skipped=1`.
 
 - Landed:
   - Started the PropertyGrid accessibility/provider lane:
@@ -436,7 +473,7 @@ Ordered by observed frequency across components and blocker blast radius:
 - [x] WXA-1403 (tier-1): Implement additional window-state/geometry APIs not yet shimmed (`SetCapture`, `ReleaseCapture`, `GetWindowRect`, `GetClientRect`, `MapWindowPoints`, `WindowFromPoint`, `ChildWindowFromPointEx`, `GetParent`, `GetWindow`, `GetAncestor`, `IsChild`).
 - [x] WXA-1404 (tier-1): Implement invalidation/render queue APIs in USER32 facade (`UpdateWindow`, `InvalidateRect`, `ValidateRect`) with deterministic no-op/safe behavior.
 - [~] WXA-1405 (tier-2): Implement common system metric/accessibility queries with stable defaults (`SystemParametersInfo`, `GetDpiForWindow`, `GetDpiForSystem`, theme/system metrics).
-- [ ] WXA-1406 (tier-3, cautious): Implement message-loop callbacks (`SendMessage`, `PostMessage`, `PeekMessage`, `GetMessage`, `DispatchMessage`, `TranslateMessage`) once PAL message pump can guarantee contract fidelity.
+- [~] WXA-1406 (tier-3, cautious): Implement message-loop callbacks (`SendMessage`, `PostMessage`, `PeekMessage`, `GetMessage`, `DispatchMessage`, `TranslateMessage`, `MsgWaitForMultipleObjectsEx`) once PAL message pump can guarantee contract fidelity. `MsgWaitForMultipleObjectsEx` is now covered for PropertyGrid modal waits and direct USER32 source compatibility.
 
 ## GDI / GDI+ and Resource Handles
 

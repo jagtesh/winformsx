@@ -12,10 +12,12 @@ compatibility-facade coverage.
   pass.
 - USER32 direct-DllImport facade exists for the first source-compatibility tier:
   cursor/message position, keyboard state, focus/active/foreground window,
-  desktop window, system metrics, visibility, and enabled state.
+  desktop window, system metrics, visibility, enabled state, and the
+  `MsgWaitForMultipleObjectsEx` modal-wait path used by PropertyGrid.
 - UIIntegrationTests are no longer globally skipped by OS-gated attributes. The
-  suite now exposes real WinFormsX behavior gaps. The current full run completes
-  without a hang/abort and reports `25 passed, 166 failed, 331 skipped`.
+  suite now exposes real WinFormsX behavior gaps. The current broad run
+  completes without a hang/abort and reports
+  `79 passed, 112 failed, 223 skipped`.
 - First UIIntegration blockers observed:
   - `OLE32.dll` missing through `Application.ThreadContext.OleRequired()`,
     `InputLanguage.CurrentInputLanguage`, IME, clipboard, and drag/drop paths.
@@ -35,9 +37,15 @@ compatibility-facade coverage.
   - Focused Button UIIntegration coverage is green. Any future button failures
     should be treated as regressions or newly exposed shared infrastructure
     gaps.
+  - Focused `PropertyGrid` coverage is now green:
+    `38 passed, 0 failed, 0 skipped`. The latest pass closes the
+    `MsgWaitForMultipleObjectsEx` modal-loop blocker, selected-entry
+    dropdown/dialog button fragment navigation, and PropertyGridView bounds
+    reporting.
   - Highest-volume remaining failures are accessibility/provider and layout
-    clusters: PropertyGrid fragments, Anchor/Layout resize state,
-    MonthCalendar input, drag/drop polish, and dialog/print fallbacks.
+    clusters: Anchor/Layout resize state, MonthCalendar input, drag/drop
+    polish, dialog/print fallbacks, and the remaining lower-volume provider
+    gaps.
 
 ## Confirmed Managed Stub Blockers
 

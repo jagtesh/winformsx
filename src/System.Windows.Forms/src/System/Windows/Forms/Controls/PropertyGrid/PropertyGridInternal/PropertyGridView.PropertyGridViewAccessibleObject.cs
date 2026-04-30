@@ -99,6 +99,21 @@ internal partial class PropertyGridView
 
         public override AccessibleRole Role => this.GetOwnerAccessibleRole(AccessibleRole.Table);
 
+        public override Rectangle Bounds
+        {
+            get
+            {
+                if (!this.TryGetOwnerAs(out PropertyGridView? owner) || !owner.IsHandleCreated)
+                {
+                    return base.Bounds;
+                }
+
+                Point location = Point.Empty;
+                PInvoke.ClientToScreen(owner, ref location);
+                return new Rectangle(location, owner.ClientSize);
+            }
+        }
+
         public AccessibleObject? Next(GridEntry current)
         {
             if (!this.TryGetOwnerAs(out PropertyGridView? owner))

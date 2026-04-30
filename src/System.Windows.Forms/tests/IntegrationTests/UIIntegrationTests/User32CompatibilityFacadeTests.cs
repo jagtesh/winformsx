@@ -52,6 +52,22 @@ public class User32CompatibilityFacadeTests
             Assert.True(NativeUser32.GetCursorPos(out Point cursor));
             Assert.Equal(new Point(321, 654), cursor);
             Assert.Equal(PInvoke.GetMessagePos(), NativeUser32.GetMessagePos());
+            unsafe
+            {
+                uint managedWait = PInvoke.MsgWaitForMultipleObjectsEx(
+                    0,
+                    null,
+                    0,
+                    QUEUE_STATUS_FLAGS.QS_ALLINPUT,
+                    MSG_WAIT_FOR_MULTIPLE_OBJECTS_EX_FLAGS.MWMO_INPUTAVAILABLE);
+                uint nativeWait = NativeUser32.MsgWaitForMultipleObjectsEx(
+                    0,
+                    null,
+                    0,
+                    (uint)QUEUE_STATUS_FLAGS.QS_ALLINPUT,
+                    (uint)MSG_WAIT_FOR_MULTIPLE_OBJECTS_EX_FLAGS.MWMO_INPUTAVAILABLE);
+                Assert.Equal(managedWait, nativeWait);
+            }
 
             uint virtualKey = (uint)VIRTUAL_KEY.VK_RETURN;
             uint nativeScan = NativeUser32.MapVirtualKey(virtualKey, (uint)MAP_VIRTUAL_KEY_TYPE.MAPVK_VK_TO_VSC);
@@ -281,6 +297,14 @@ public class User32CompatibilityFacadeTests
 
         [DllImport(User32, ExactSpelling = true)]
         internal static extern uint GetMessagePos();
+
+        [DllImport(User32, ExactSpelling = true)]
+        internal static extern unsafe uint MsgWaitForMultipleObjectsEx(
+            uint nCount,
+            nint* pHandles,
+            uint dwMilliseconds,
+            uint dwWakeMask,
+            uint dwFlags);
 
         [DllImport(User32, ExactSpelling = true)]
         internal static extern short GetAsyncKeyState(int vkey);

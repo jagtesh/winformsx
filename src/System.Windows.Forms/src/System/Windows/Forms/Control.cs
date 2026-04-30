@@ -11219,15 +11219,18 @@ public unsafe partial class Control :
             cp.Style |= (int)WINDOW_STYLE.WS_VISIBLE;
         }
 
-        if (currentStyle != (WINDOW_STYLE)cp.Style)
+        WINDOW_STYLE requestedStyle = (WINDOW_STYLE)unchecked((uint)cp.Style);
+        WINDOW_EX_STYLE requestedExtendedStyle = (WINDOW_EX_STYLE)unchecked((uint)cp.ExStyle);
+
+        if (currentStyle != requestedStyle)
         {
-            WindowStyle = (WINDOW_STYLE)cp.Style;
+            WindowStyle = requestedStyle;
         }
 
-        if (currentExtendedStyle != (WINDOW_EX_STYLE)cp.ExStyle)
+        if (currentExtendedStyle != requestedExtendedStyle)
         {
-            ExtendedWindowStyle = (WINDOW_EX_STYLE)cp.ExStyle;
-            SetState(States.Mirrored, ((WINDOW_EX_STYLE)cp.ExStyle).HasFlag(WINDOW_EX_STYLE.WS_EX_LAYOUTRTL));
+            ExtendedWindowStyle = requestedExtendedStyle;
+            SetState(States.Mirrored, requestedExtendedStyle.HasFlag(WINDOW_EX_STYLE.WS_EX_LAYOUTRTL));
         }
 
         PInvoke.SetWindowPos(
