@@ -100,8 +100,11 @@ compatibility-facade coverage.
   through the dialog PAL and applies wildcard filter patterns when populating
   managed Open/Save file lists. The latest OpenFileDialog pass extends the
   dialog PAL to return multiple selected paths and covers visible filtered
-  multi-select selection. Direct COMDLG32 exports still return deterministic
-  cancel/default state until ABI-safe visible services are wired through. The
+  multi-select selection. The latest FontDialog pass threads `ShowEffects`
+  into the managed picker and covers Bold/Underline effect selection through
+  owner-driven modal automation. Direct COMDLG32 exports still return
+  deterministic cancel/default state until ABI-safe visible services are wired
+  through. The
   latest printing pass removes generated
   `winspool.drv` imports from the first managed print paths, adds deterministic
   no-printer defaults for `EnumPrinters`, `DeviceCapabilities`, and
@@ -383,9 +386,11 @@ Impacted APIs and controls:
   color, font, message-box, task-dialog, print-dialog, and page-setup tests
   pass. Managed WinFormsX file, save, folder, color, font, message-box,
   task-dialog, and page-setup dialog services now have visible form baselines
-  and honor owner accept/cancel or public-API automation. Native common-dialog
-  facade coverage exists for the first safe-cancel tier. Ordinary managed
-  modal forms now synthesize `WM_ENTERIDLE` for their owner on `Shown`, and
+  and honor owner accept/cancel or public-API automation; FontDialog now covers
+  managed Bold/Italic/Underline/Strikeout effect controls when `ShowEffects`
+  is enabled. Native common-dialog facade coverage exists for the first
+  safe-cancel tier. Ordinary managed modal forms now synthesize `WM_ENTERIDLE`
+  for their owner on `Shown`, and
   focused `ThreadExceptionDialog` / `GridErrorDialog` / `MdiWindowDialog` /
   `MaskDesignerDialog` / `FormatStringDialog` / `StringCollectionEditor` /
   `DataGridViewColumnCollectionDialog` / `DataGridViewAddColumnDialog`, plus
@@ -766,8 +771,9 @@ cases were previously blockers and should remain regression targets:
   calls use PAL-backed managed state plus USER32/IMM32 facades.
 - [~] Dialog baseline: focused open-file and folder-browser tests are green;
   managed file/save/folder/color/font dialogs now have visible WinFormsX
-  baselines and focused owner-driven accept/cancel automation; `MessageBox`
-  now has a visible managed modal baseline; first-tier `COMDLG32.dll`
+  baselines and focused owner-driven accept/cancel automation, including
+  FontDialog effect selection; `MessageBox` now has a visible managed modal
+  baseline; first-tier `COMDLG32.dll`
   safe-cancel facade is covered; `PageSetupDialog` now has a visible managed
   baseline; `TaskDialog` now has a visible managed baseline; ordinary managed
   modal forms now notify their owner on idle and focused `ThreadExceptionDialog`

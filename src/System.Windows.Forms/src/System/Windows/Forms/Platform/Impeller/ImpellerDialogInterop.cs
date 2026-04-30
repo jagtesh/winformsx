@@ -42,9 +42,9 @@ internal sealed class ImpellerDialogInterop : IDialogInterop
         return true;
     }
 
-    public bool ShowFontDialog(nint owner, ref Font font)
+    public bool ShowFontDialog(nint owner, ref Font font, bool showEffects)
     {
-        using FontPickerDialog dialog = new(owner, font);
+        using FontPickerDialog dialog = new(owner, font, showEffects);
         if (dialog.ShowDialog(new WindowWrapper(owner)) != DialogResult.OK)
         {
             return false;
@@ -626,11 +626,17 @@ internal sealed class ImpellerDialogInterop : IDialogInterop
             Increment = 1,
             Width = 80
         };
+        private readonly CheckBox _bold = new() { Text = "Bold", AutoSize = true };
+        private readonly CheckBox _italic = new() { Text = "Italic", AutoSize = true };
+        private readonly CheckBox _underline = new() { Text = "Underline", AutoSize = true };
+        private readonly CheckBox _strikeout = new() { Text = "Strikeout", AutoSize = true };
+        private readonly bool _showEffects;
 
-        public FontPickerDialog(nint owner, Font font)
+        public FontPickerDialog(nint owner, Font font, bool showEffects)
             : base(owner)
         {
             SelectedFont = font;
+            _showEffects = showEffects;
             Text = "Select Font";
             ClientSize = new Size(460, 430);
             Controls.Add(CreateContent());
@@ -642,11 +648,40 @@ internal sealed class ImpellerDialogInterop : IDialogInterop
         {
             if (_items.SelectedItem is string family)
             {
-                SelectedFont = new Font(family, (float)_size.Value, SelectedFont.Style, SelectedFont.Unit);
+                SelectedFont = new Font(family, (float)_size.Value, _showEffects ? SelectedStyle : SelectedFont.Style, SelectedFont.Unit);
             }
 
             DialogResult = DialogResult.OK;
             Close();
+        }
+
+        private FontStyle SelectedStyle
+        {
+            get
+            {
+                FontStyle style = FontStyle.Regular;
+                if (_bold.Checked)
+                {
+                    style |= FontStyle.Bold;
+                }
+
+                if (_italic.Checked)
+                {
+                    style |= FontStyle.Italic;
+                }
+
+                if (_underline.Checked)
+                {
+                    style |= FontStyle.Underline;
+                }
+
+                if (_strikeout.Checked)
+                {
+                    style |= FontStyle.Strikeout;
+                }
+
+                return style;
+            }
         }
 
         private TableLayoutPanel CreateContent()
@@ -656,17 +691,36 @@ internal sealed class ImpellerDialogInterop : IDialogInterop
                 Dock = DockStyle.Fill,
                 Padding = new Padding(10),
                 ColumnCount = 1,
-                RowCount = 3
+                RowCount = _showEffects ? 4 : 3
             };
             root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
             root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            if (_showEffects)
+            {
+                root.RowStyles.Insert(1, new RowStyle(SizeType.AutoSize));
+            }
 
             FlowLayoutPanel sizeRow = new() { AutoSize = true, Dock = DockStyle.Top };
             sizeRow.Controls.Add(new Label { Text = "Size:", AutoSize = true, Padding = new Padding(0, 6, 6, 0) });
             _size.Value = (decimal)Math.Clamp(SelectedFont.SizeInPoints, 1, 256);
             sizeRow.Controls.Add(_size);
             root.Controls.Add(sizeRow, 0, 0);
+
+            int listRow = 1;
+            if (_showEffects)
+            {
+                FlowLayoutPanel styleRow = new() { AutoSize = true, Dock = DockStyle.Top };
+                _bold.Checked = SelectedFont.Bold;
+                _italic.Checked = SelectedFont.Italic;
+                _underline.Checked = SelectedFont.Underline;
+                _strikeout.Checked = SelectedFont.Strikeout;
+                styleRow.Controls.Add(_bold);
+                styleRow.Controls.Add(_italic);
+                styleRow.Controls.Add(_underline);
+                styleRow.Controls.Add(_strikeout);
+                root.Controls.Add(styleRow, 0, listRow++);
+            }
 
             foreach (FontFamily family in FontFamily.Families.OrderBy(family => family.Name, StringComparer.OrdinalIgnoreCase))
             {
@@ -682,8 +736,8 @@ internal sealed class ImpellerDialogInterop : IDialogInterop
                 _items.SelectedIndex = 0;
             }
 
-            root.Controls.Add(_items, 0, 1);
-            root.Controls.Add(CreateOkCancelButtons("OK"), 0, 2);
+            root.Controls.Add(_items, 0, listRow);
+            root.Controls.Add(CreateOkCancelButtons("OK"), 0, listRow + 1);
             return root;
         }
     }

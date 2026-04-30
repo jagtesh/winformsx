@@ -382,7 +382,7 @@ public class FontDialog : CommonDialog
         if (Graphics.IsBackendActive)
         {
             Font font = Font;
-            if (!Platform.PlatformApi.Dialog.ShowFontDialog(hWndOwner, ref font))
+            if (!Platform.PlatformApi.Dialog.ShowFontDialog(hWndOwner, ref font, ShowEffects))
             {
                 return false;
             }

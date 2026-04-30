@@ -71,6 +71,22 @@ public class ManagedCommonDialogTests : ControlTestBase
     }
 
     [UIFact]
+    public void FontDialog_ShowDialog_SelectEffects_Success()
+    {
+        using FontEffectsDialogForm dialogOwnerForm = new();
+        using Font selectedFont = new(FontFamily.GenericSansSerif, 14.0f);
+        using FontDialog dialog = new()
+        {
+            Font = selectedFont,
+            ShowEffects = true
+        };
+
+        Assert.Equal(DialogResult.OK, dialog.ShowDialog(dialogOwnerForm));
+        Assert.True(dialog.Font.Bold);
+        Assert.True(dialog.Font.Underline);
+    }
+
+    [UIFact]
     public void FileDialog_FilterPatterns_SelectsRequestedFilterIndex()
     {
         Assert.Equal(["*.png", "*.jpg"], ImpellerDialogInterop.GetFilterPatterns("Images|*.png;*.jpg|Text|*.txt", 1));
@@ -90,6 +106,42 @@ public class ManagedCommonDialogTests : ControlTestBase
         protected override void OnDialogIdle(HWND dialogHandle)
         {
             Accept(dialogHandle);
+        }
+    }
+
+    private class FontEffectsDialogForm : DialogHostForm
+    {
+        protected override void OnDialogIdle(HWND dialogHandle)
+        {
+            if (Control.FromHandle(dialogHandle) is Form dialog)
+            {
+                foreach (CheckBox checkBox in FindControls<CheckBox>(dialog))
+                {
+                    if (checkBox.Text is "Bold" or "Underline")
+                    {
+                        checkBox.Checked = true;
+                    }
+                }
+            }
+
+            Accept(dialogHandle);
+        }
+
+        private static IEnumerable<T> FindControls<T>(Control parent)
+            where T : Control
+        {
+            foreach (Control child in parent.Controls)
+            {
+                if (child is T match)
+                {
+                    yield return match;
+                }
+
+                foreach (T nested in FindControls<T>(child))
+                {
+                    yield return nested;
+                }
+            }
         }
     }
 }
