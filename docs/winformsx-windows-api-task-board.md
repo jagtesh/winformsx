@@ -60,6 +60,23 @@ Ordered by observed frequency across components and blocker blast radius:
     MonthCalendar input, drag/drop polish, and dialog/print fallbacks.
 
 - Landed:
+  - Started the PropertyGrid accessibility/provider lane:
+    - Focused `FullyQualifiedName~PropertyGrid` baseline: `Passed: 22,
+      Failed: 16, Skipped: 32, Total: 70`.
+    - Removed another high-bit Win32 style overflow by treating
+      `CreateParams.Style`, `CreateParams.ExStyle`, `GWL_STYLE`, and
+      `GWL_EXSTYLE` as wrapped unsigned style values before converting to
+      `WINDOW_STYLE` / `WINDOW_EX_STYLE`.
+    - The remaining focused failures are now accessibility fragment/navigation
+      relationships around `PropertyDescriptorGridEntry`,
+      `GridViewTextBox`, `GridViewListBox`, and `DropDownHolder`, rather than
+      dropdown-holder form construction overflows.
+  - Verification:
+    - `dotnet build src/System.Windows.Forms/tests/IntegrationTests/UIIntegrationTests/System.Windows.Forms.UI.IntegrationTests.csproj -c Debug -v:q` -> `Build succeeded`.
+    - `dotnet test ... --filter "FullyQualifiedName~PropertyGrid" -v:q` -> `Passed: 22, Failed: 16, Skipped: 32`.
+    - `WinformsControlsTest --control-smoke-test` -> `total=42 passed=41 failed=0 skipped=1`.
+
+- Landed:
   - Restored visible Impeller rendering for `WinFormsX.Samples` and the controls smoke harness by initializing GLFW's Vulkan loader with the Homebrew `vulkan-loader` entrypoint before creating the Silk/GLFW Vulkan window.
   - Hardened Impeller native asset selection so stale Windows `impeller.dll` output is removed from macOS/Linux build output and the runtime resolver loads only the platform-correct `libimpeller.dylib` / `libimpeller.so` / `impeller.dll` asset.
   - Runtime guard now reports a direct `BadImageFormatException` if only an incompatible Impeller native binary is present, instead of silently falling through to renderer failure.

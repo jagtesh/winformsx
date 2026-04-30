@@ -364,7 +364,11 @@ public unsafe partial class Control :
 
             CreateParams cp = CreateParams;
 
-            AdjustWindowRectExForControlDpi(ref rect, (WINDOW_STYLE)cp.Style, false, (WINDOW_EX_STYLE)cp.ExStyle);
+            AdjustWindowRectExForControlDpi(
+                ref rect,
+                (WINDOW_STYLE)unchecked((uint)cp.Style),
+                false,
+                (WINDOW_EX_STYLE)unchecked((uint)cp.ExStyle));
             _clientWidth = _width - rect.Width;
             _clientHeight = _height - rect.Height;
         }
@@ -3699,7 +3703,7 @@ public unsafe partial class Control :
     /// </summary>
     private protected WINDOW_EX_STYLE ExtendedWindowStyle
     {
-        get => (WINDOW_EX_STYLE)PInvoke.GetWindowLong(this, WINDOW_LONG_PTR_INDEX.GWL_EXSTYLE);
+        get => (WINDOW_EX_STYLE)unchecked((uint)(nint)PInvoke.GetWindowLong(this, WINDOW_LONG_PTR_INDEX.GWL_EXSTYLE));
         set => PInvoke.SetWindowLong(this, WINDOW_LONG_PTR_INDEX.GWL_EXSTYLE, (nint)value);
     }
 
@@ -3708,7 +3712,7 @@ public unsafe partial class Control :
     /// </summary>
     internal WINDOW_STYLE WindowStyle
     {
-        get => (WINDOW_STYLE)PInvoke.GetWindowLong(this, WINDOW_LONG_PTR_INDEX.GWL_STYLE);
+        get => (WINDOW_STYLE)unchecked((uint)(nint)PInvoke.GetWindowLong(this, WINDOW_LONG_PTR_INDEX.GWL_STYLE));
         set => PInvoke.SetWindowLong(this, WINDOW_LONG_PTR_INDEX.GWL_STYLE, (nint)value);
     }
 
