@@ -18,6 +18,12 @@ Ordered by observed frequency across components and blocker blast radius:
 
 ## Latest Progress (2026-04-29)
 
+- Landed:
+  - Extended `WXA-1101` COM/OLE facade routing with managed `PInvoke.CoGetClassObject` wrappers in `System.Windows.Forms.Primitives`.
+  - Removed generated direct `CoGetClassObject` import from `System.Windows.Forms.Primitives` `NativeMethods.txt`.
+  - Behavior is deterministic and source-compatible for current coverage: outputs are nulled and `REGDB_E_CLASSNOTREG` is returned until class-factory activation is implemented.
+  - Verification:
+    - `dotnet build src/System.Windows.Forms/src/System.Windows.Forms.csproj -c Debug -p:BuildProjectReferences=false` -> `Build succeeded`.
 - In-progress local changes (next commit):
   - Moved `System.Windows.Forms.Clipboard` to a single managed WinFormsX path:
     - Removed Windows-only/OLE branching in `SetDataObject`, `GetDataObject`, and `Clear`.

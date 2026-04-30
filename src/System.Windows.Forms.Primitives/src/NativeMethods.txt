@@ -43,7 +43,6 @@ CloseThemeData
 CLR_*
 CLSCTX
 cmb4
-CoGetClassObject
 COLOR_*
 COLORREF
 CombineRgn
