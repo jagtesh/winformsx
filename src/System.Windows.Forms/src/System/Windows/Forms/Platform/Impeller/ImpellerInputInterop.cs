@@ -35,7 +35,7 @@ internal sealed unsafe class ImpellerInputInterop : IInputInterop
     private HWND _captureWindow;
     private Form? _resizeForm;
     private System.Drawing.Point _resizeStartCursor;
-    private System.Drawing.Size _resizeStartSize;
+    private System.Drawing.Size _resizeStartClientSize;
     private bool _resizeRightEdge;
     private bool _resizeBottomEdge;
     private nint _keyboardLayout = unchecked((nint)0x04090409);
@@ -371,7 +371,7 @@ internal sealed unsafe class ImpellerInputInterop : IInputInterop
 
         _resizeForm = form;
         _resizeStartCursor = cursorPos;
-        _resizeStartSize = form.Size;
+        _resizeStartClientSize = form.DisplayRectangle.Size;
         _resizeRightEdge = rightEdge;
         _resizeBottomEdge = bottomEdge;
     }
@@ -391,26 +391,26 @@ internal sealed unsafe class ImpellerInputInterop : IInputInterop
 
         int deltaX = cursorPos.X - _resizeStartCursor.X;
         int deltaY = cursorPos.Y - _resizeStartCursor.Y;
-        int width = _resizeStartSize.Width;
-        int height = _resizeStartSize.Height;
+        int width = _resizeStartClientSize.Width;
+        int height = _resizeStartClientSize.Height;
         if (_resizeRightEdge)
         {
-            width = Math.Max(1, _resizeStartSize.Width + deltaX);
+            width = Math.Max(1, _resizeStartClientSize.Width + deltaX);
         }
 
         if (_resizeBottomEdge)
         {
-            height = Math.Max(1, _resizeStartSize.Height + deltaY);
+            height = Math.Max(1, _resizeStartClientSize.Height + deltaY);
         }
 
-        _resizeForm.Size = new System.Drawing.Size(width, height);
+        _resizeForm.ClientSize = new System.Drawing.Size(width, height);
     }
 
     private void EndFormResize()
     {
         _resizeForm = null;
         _resizeStartCursor = default;
-        _resizeStartSize = default;
+        _resizeStartClientSize = default;
         _resizeRightEdge = false;
         _resizeBottomEdge = false;
     }

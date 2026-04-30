@@ -18,16 +18,17 @@ compatibility-facade coverage.
 - UIIntegrationTests are no longer globally skipped by OS-gated attributes. The
   suite now exposes real WinFormsX behavior gaps. The latest unfiltered broad
   run completes without a hang/abort and reports
-  `183 passed, 8 failed, 17 skipped`. Recent passes removed the cross-suite
+  `185 passed, 6 failed, 13 skipped`. Recent passes removed the cross-suite
   `VK_RETURN` stuck-key cascade by making PAL `SendInput` accept packets even
   when a synthetic/stale target cannot be dispatched, then closed focused
   `TabControlTests` by aligning backend tab-rectangle minimum width with Win32
   default tab geometry, and then acknowledged common-control tooltip messages
   through the message PAL so DataGridView tooltip activation no longer depends
-  on native tooltip registration. Remaining top failures now cluster around
-  resize/button layout behavior, broad-suite drag/drop state, NumericUpDown
-  accessibility focus, and application handle recreation, with the larger
-  provider and dialog/print gaps still tracked below.
+  on native tooltip registration. The latest pass also keeps synthetic form
+  resize anchored to managed client size, closing focused Button resize
+  coverage. Remaining top failures now cluster around broad-suite drag/drop
+  state, NumericUpDown accessibility focus, and application handle recreation,
+  with the larger provider and dialog/print gaps still tracked below.
 - First UIIntegration blockers observed:
   - `OLE32.dll` missing through `Application.ThreadContext.OleRequired()`,
     `InputLanguage.CurrentInputLanguage`, IME, clipboard, and drag/drop paths.
@@ -71,12 +72,15 @@ compatibility-facade coverage.
     `3 passed, 0 failed`. The latest pass handles tooltip common-control
     messages in PAL, so `ToolTip.Show` can maintain managed activation state
     without native tooltip-control registration.
+  - Focused `ButtonTests` coverage is green again:
+    `22 passed, 0 failed`. Synthetic form resize now tracks `ClientSize`
+    instead of outer `Form.Size`, so horizontal drags preserve the managed
+    display height observed by anchor/layout assertions.
   - Highest-volume remaining failures are accessibility/provider and layout
-    clusters: resize/button layout behavior, broad-suite drag/drop state,
-    NumericUpDown accessibility focus, application handle recreation, ListView
-    tile accessibility, PropertyGrid fragment navigation in broad-suite state,
-    RichTextBox link-range behavior, dialog/print fallbacks, and remaining
-    lower-volume provider gaps.
+    clusters: broad-suite drag/drop state, NumericUpDown accessibility focus,
+    application handle recreation, ListView tile accessibility, PropertyGrid
+    fragment navigation in broad-suite state, RichTextBox link-range behavior,
+    dialog/print fallbacks, and remaining lower-volume provider gaps.
 
 ## Confirmed Managed Stub Blockers
 

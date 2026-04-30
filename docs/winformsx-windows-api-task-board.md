@@ -81,12 +81,14 @@ Ordered by observed frequency across components and blocker blast radius:
     - Latest unfiltered broad snapshot after tooltip PAL coverage:
       `Failed: 8, Passed: 183, Skipped: 17, Total: 208`. Focused
       `DataGridViewTests` is now green: `Passed: 3, Failed: 0`.
+    - Latest unfiltered broad snapshot after synthetic client-resize work:
+      `Failed: 6, Passed: 185, Skipped: 13, Total: 204`. Focused
+      `ButtonTests` is now green again: `Passed: 22, Failed: 0`.
   - Priority order moves to highest-volume remaining failure clusters:
-    resize/button layout behavior, broad-suite drag/drop state, NumericUpDown
-    accessibility focus, application handle recreation, ListView tile
-    accessibility, PropertyGrid broad-suite provider state, RichTextBox
-    link-range behavior, dialog/print fallbacks, and remaining lower-volume
-    provider gaps.
+    broad-suite drag/drop state, NumericUpDown accessibility focus, application
+    handle recreation, ListView tile accessibility, PropertyGrid broad-suite
+    provider state, RichTextBox link-range behavior, dialog/print fallbacks, and
+    remaining lower-volume provider gaps.
   - Active lane update: focused PropertyGrid UIIntegration coverage is now
     green: `Passed: 38, Failed: 0, Skipped: 0, Total: 38`.
   - Active lane update: focused anchor/MDI resize coverage is now green:
@@ -142,11 +144,14 @@ Ordered by observed frequency across components and blocker blast radius:
     - Common-control tooltip messages now return deterministic managed results
       through `ImpellerMessageInterop`, closing focused DataGridView tooltip
       activation and keeping the controls smoke harness stable.
-  - Priority order now moves to resize/button layout behavior, broad-suite
-    drag/drop state, NumericUpDown accessibility focus, application handle
-    recreation, ListView tile accessibility, PropertyGrid broad-suite provider
-    state, RichTextBox link-range behavior, dialog/print fallbacks, and
-    remaining lower-volume provider gaps.
+    - Synthetic form resize now tracks and sets managed `ClientSize` instead of
+      outer `Form.Size`, closing the focused Button anchor/resize failures that
+      were re-inflating height during width-only drags.
+  - Priority order now moves to broad-suite drag/drop state, NumericUpDown
+    accessibility focus, application handle recreation, ListView tile
+    accessibility, PropertyGrid broad-suite provider state, RichTextBox
+    link-range behavior, dialog/print fallbacks, and remaining lower-volume
+    provider gaps.
 
 - Landed:
   - Closed the focused MonthCalendar input lane:
