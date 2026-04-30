@@ -8,6 +8,10 @@ namespace Windows.Win32;
 
 internal static partial class PInvoke
 {
+    /// <summary>Retrieves a system-color brush from the WinFormsX GDI PAL.</summary>
+    public static HBRUSH GetSysColorBrush(SYS_COLOR_INDEX nIndex)
+        => PlatformApi.Gdi.GetSysColorBrush(nIndex);
+
     /// <inheritdoc cref="GetSysColorBrush(SYS_COLOR_INDEX)"/>
     public static HBRUSH GetSysColorBrush(Color systemColor)
     {

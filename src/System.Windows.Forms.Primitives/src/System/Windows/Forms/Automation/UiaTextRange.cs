@@ -870,7 +870,8 @@ internal sealed unsafe class UiaTextRange : ITextRangeProvider.Interface, IManag
         }
     }
 
-    private static int GetBackgroundColor() => (int)PInvoke.GetSysColor(SYS_COLOR_INDEX.COLOR_WINDOW);
+    private static int GetBackgroundColor()
+        => unchecked((int)PInvoke.GetSysColor(SYS_COLOR_INDEX.COLOR_WINDOW).Value);
 
     private static int GetCapStyle(WINDOW_STYLE windowStyle)
         => (int)(((int)windowStyle & PInvoke.ES_UPPERCASE) != 0 ? CapStyle.AllCap : CapStyle.None);
@@ -888,7 +889,8 @@ internal sealed unsafe class UiaTextRange : ITextRangeProvider.Interface, IManag
 
     private static int GetFontWeight(LOGFONTW logfont) => logfont.lfWeight;
 
-    private static int GetForegroundColor() => (int)PInvoke.GetSysColor(SYS_COLOR_INDEX.COLOR_WINDOWTEXT);
+    private static int GetForegroundColor()
+        => unchecked((int)PInvoke.GetSysColor(SYS_COLOR_INDEX.COLOR_WINDOWTEXT).Value);
 
     private static int GetHorizontalTextAlignment(WINDOW_STYLE windowStyle)
         => (int)(((int)windowStyle & PInvoke.ES_CENTER) != 0

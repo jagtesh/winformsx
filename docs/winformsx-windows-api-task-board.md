@@ -944,8 +944,8 @@ Ordered by observed frequency across components and blocker blast radius:
 
 ## GDI / GDI+ and Resource Handles
 
-- [ ] WXA-1501: Keep device-context and handle methods routed to managed drawing backend; add no-op-safe wrappers for missing legacy queries.
-- [ ] WXA-1502: Implement `GetSystemColor`, `SetTextColor`, `SetBkColor`, `GetDeviceCaps` fallback paths for controls that query these frequently.
+- [~] WXA-1501: Keep device-context and handle methods routed to managed drawing backend; add no-op-safe wrappers for missing legacy queries. `CreateCompatibleDC` and `DeleteDC` now route through the WinFormsX PAL/manual compatibility layer; broader legacy handle queries remain.
+- [~] WXA-1502: Implement `GetSystemColor`, `SetTextColor`, `SetBkColor`, `GetDeviceCaps` fallback paths for controls that query these frequently. First-tier `GetSysColor`, `GetSysColorBrush`, `GetDeviceCaps`, `GetTextColor`, `GetBkColor`, `SetTextColor`, and `SetBkColor` paths now avoid generated native imports and have focused wrapper coverage; broader GDI color/mode and direct native facade breadth remain.
 - [ ] WXA-1503: Add curated GDI+ and cursor/font fallback handling for common property surfaces.
 - [ ] WXA-1504: Add resource and image compatibility shims for icon/cursor extraction and `Bitmap` conversion (`LoadImage`, `CreateIconFromResourceEx`, `ImageList` interoperability).
 

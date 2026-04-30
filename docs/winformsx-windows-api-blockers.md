@@ -175,6 +175,12 @@ compatibility-facade coverage.
   stock-icon pass also routes `SHGetStockIconInfo` through the managed
   `SystemIcons` fallback set, returning deterministic icon indices, synthetic
   resource paths, and small/large icon handles without shell DLL dependence.
+  The latest GDI color/metric pass removes generated native imports for
+  `CreateCompatibleDC`, `DeleteDC`, `GetDeviceCaps`, `GetSysColor`,
+  `GetSysColorBrush`, `GetTextColor`, and `GetBkColor` from the first managed
+  wrapper paths, routes them through WinFormsX PAL/manual compatibility state,
+  and makes synthetic text/background DC colors return Win32-style
+  previous/current values deterministically.
 - First UIIntegration blockers observed:
   - `OLE32.dll` missing through `Application.ThreadContext.OleRequired()`,
     clipboard, and drag/drop paths. `InputLanguage.CurrentInputLanguage`,
@@ -566,6 +572,10 @@ Plan:
 
 - Continue routing public `System.Drawing` behavior through managed/Impeller
   backends.
+- First-tier color and device-cap probes now have PAL/manual wrappers:
+  `GetDeviceCaps` returns deterministic display defaults for DPI and color
+  depth, `GetSysColor`/`GetSysColorBrush` use the managed system palette, and
+  synthetic DC text/background colors preserve per-DC state.
 - Add native GDI facade coverage only for lightweight handles, metrics, icon
   conversion, and compatibility probes.
 - Treat full GDI drawing emulation as out of scope unless a WinForms control or

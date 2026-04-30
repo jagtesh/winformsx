@@ -58,7 +58,6 @@ CreateActCtx
 CreateBitmap
 CreateBrushIndirect
 CreateCompatibleBitmap
-CreateCompatibleDC
 CreateDCW
 CreateDIBSection
 CreateEnhMetaFileW
@@ -76,7 +75,6 @@ CWP_FLAGS
 DATETIMEPICK_CLASS
 DeactivateActCtx
 DefWindowProc
-DeleteDC
 DeleteEnhMetaFile
 DeleteObject
 DESKTOP_ACCESS_FLAGS
@@ -162,7 +160,6 @@ GET_CLASS_LONG_INDEX
 GET_MODULE_HANDLE_EX_FLAG*
 GET_WINDOW_CMD
 GetBitmapBits
-GetBkColor
 GetBkMode
 GetBrushOrgEx
 GetCaretBlinkTime
@@ -179,7 +176,6 @@ GetCurrentObject
 GetCurrentThemeName
 GetCursor
 GetDesktopWindow
-GetDeviceCaps
 GetDIBits
 GetDlgItemInt
 GetDoubleClickTime
@@ -210,12 +206,9 @@ GetScrollInfo
 GetShortPathName
 GetStartupInfo
 GetStockObject
-GetSysColor
-GetSysColorBrush
 GetSystemPaletteEntries
 GetSystemPowerStatus
 GetTextAlign
-GetTextColor
 GETTEXTEX_FLAGS
 GetTextExtentPoint32W
 GETTEXTLENGTHEX_FLAGS

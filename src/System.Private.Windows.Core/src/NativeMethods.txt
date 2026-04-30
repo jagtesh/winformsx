@@ -13,7 +13,6 @@ CreateDIBSection
 CreateFontIndirect
 CreateICW
 CreateRectRgn
-DeleteDC
 DeleteObject
 DestroyIcon
 DEVMODEW
@@ -81,7 +80,6 @@ GetClipRgn
 GetDC
 GetDCEx
 GetDesktopWindow
-GetDeviceCaps
 GetIconInfo
 GetMonitorInfo
 GetObject

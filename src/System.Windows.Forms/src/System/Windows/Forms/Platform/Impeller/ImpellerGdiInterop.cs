@@ -84,10 +84,24 @@ internal sealed unsafe class ImpellerGdiInterop : IGdiInterop
 
     // --- Color / Mode ---------------------------------------------------
 
-    public COLORREF SetBkColor(HDC hdc, COLORREF c) => c;
-    public COLORREF SetTextColor(HDC hdc, COLORREF c) => c;
-    public COLORREF GetBkColor(HDC hdc) => default;
-    public COLORREF GetTextColor(HDC hdc) => default;
+    public COLORREF SetBkColor(HDC hdc, COLORREF c)
+    {
+        ImpellerDCState state = GetOrCreateDCState(hdc);
+        COLORREF previous = state.BackColor;
+        state.BackColor = c;
+        return previous;
+    }
+
+    public COLORREF SetTextColor(HDC hdc, COLORREF c)
+    {
+        ImpellerDCState state = GetOrCreateDCState(hdc);
+        COLORREF previous = state.TextColor;
+        state.TextColor = c;
+        return previous;
+    }
+
+    public COLORREF GetBkColor(HDC hdc) => GetOrCreateDCState(hdc).BackColor;
+    public COLORREF GetTextColor(HDC hdc) => GetOrCreateDCState(hdc).TextColor;
     public int SetBkMode(HDC hdc, BACKGROUND_MODE m) => (int)m;
     public int SetROP2(HDC hdc, R2_MODE m) => (int)m;
 
@@ -134,13 +148,22 @@ internal sealed unsafe class ImpellerGdiInterop : IGdiInterop
         _dcs[handle] = new ImpellerDCState { Window = hWnd };
         return handle;
     }
+
+    private ImpellerDCState GetOrCreateDCState(HDC hdc)
+    {
+        if (!_dcs.TryGetValue(hdc, out ImpellerDCState? state))
+        {
+            state = new ImpellerDCState { Window = HWND.Null };
+            _dcs[hdc] = state;
+        }
+
+        return state;
+    }
 }
 
 internal sealed class ImpellerDCState
 {
     public HWND Window;
+    public COLORREF BackColor = new(0x00FFFFFF);
+    public COLORREF TextColor = new(0x00000000);
 }
-
-
-
-
