@@ -74,6 +74,9 @@ Ordered by observed frequency across components and blocker blast radius:
     - Direct source-compatible `COMCTL32.dll` imports now resolve for
       `InitCommonControls` / `InitCommonControlsEx` through packaged native
       shim assets, with focused UIIntegration coverage.
+    - The same native `COMCTL32.dll` shim now covers first-tier ImageList
+      exports for create/destroy, add/replace/remove, count, icon-size,
+      `GetImageInfo`, background color, and write/write-ex state.
     - UIIntegration test setup/teardown now closes leftover open forms before
       each test boundary, keeping `Application.OpenForms` deterministic in the
       shared-process suite.
@@ -962,7 +965,7 @@ Ordered by observed frequency across components and blocker blast radius:
 
 ## COMCTL32 and Common Control Helpers
 
-- [~] WXA-1601: Expand `COMCTL32` shim for image list primitives used by `ListView`, `TreeView`, and image-backed controls (`Create/Read/Draw/Destroy` semantics). First-tier managed state covers icon size, count, replace/remove bounds, background color, `GetImageInfo`, write/write-ex success, handle cleanup, and `GetObject(BITMAP)` metadata; draw composition, mask/overlay behavior, stream payload fidelity, and native facade exports remain.
+- [~] WXA-1601: Expand `COMCTL32` shim for image list primitives used by `ListView`, `TreeView`, and image-backed controls (`Create/Read/Draw/Destroy` semantics). First-tier managed and direct native facade state covers icon size, count, replace/remove bounds, background color, `GetImageInfo`, write/write-ex success, handle cleanup, and `GetObject(BITMAP)` metadata; draw composition, mask/overlay behavior, stream payload fidelity, and broader native parity remain.
 - [x] WXA-1602: Keep `InitCommonControls` / `InitCommonControlsEx` as deterministic no-op with explicit supported-control feature flags. Managed wrapper state records requested classes and rejects malformed struct sizes; direct native `COMCTL32.dll` facade exports are packaged and covered.
 
 ## Shell / Resources / Icons / Cursors

@@ -197,7 +197,10 @@ compatibility-facade coverage.
   uses the same wrapper path. The follow-up native COMCTL32 facade pass adds
   packaged `COMCTL32.dll` shim assets for direct source-compatible DllImports,
   exports `InitCommonControls` / `InitCommonControlsEx`, and verifies direct
-  import resolution with focused UIIntegration coverage.
+  import resolution with focused UIIntegration coverage. The latest native
+  ImageList facade pass adds first-tier `ImageList_Create`, destroy,
+  add/replace/remove, count, icon-size, `GetImageInfo`, background-color, and
+  write/write-ex exports with deterministic native shim state.
 - First UIIntegration blockers observed:
   - `OLE32.dll` missing through `Application.ThreadContext.OleRequired()`,
     clipboard, and drag/drop paths. `InputLanguage.CurrentInputLanguage`,
@@ -616,17 +619,18 @@ Impacted APIs and controls:
   `InitCommonControls` / `InitCommonControlsEx` now preserve deterministic
   requested-class state for managed feature probes, and direct
   source-compatible `COMCTL32.dll` imports for those init APIs now resolve
-  through a packaged facade.
+  through a packaged facade. Direct source-compatible ImageList imports now
+  resolve for first-tier stateful create/count/size/info/write operations.
 
 Plan:
 
 - Keep ListView/TreeView/TrackBar logic managed and PAL-backed.
 - Continue filling ImageList state beyond the first tier: image payload storage,
   draw composition, mask/overlay semantics, stream read/write payload fidelity,
-  and native facade exports.
+  and broader native facade parity.
 - Add direct COMCTL32 facade exports only for ImageList and init APIs that are
-  common in source-compatible WinForms apps; init exports are covered, while
-  ImageList exports remain.
+  common in source-compatible WinForms apps; init and first-tier ImageList
+  exports are covered.
 
 ### 8. SHELL32, SHLWAPI, Stock Icons, Tray, And Shell Resources
 

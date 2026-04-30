@@ -434,6 +434,56 @@ public class User32CompatibilityFacadeTests
     }
 
     [Fact]
+    public void DirectComCtl32DllImports_ResolveImageListState()
+    {
+        using (new EnvironmentOverride("WINFORMSX_SUPPRESS_HIDDEN_BACKEND", "1"))
+        {
+            Application.EnableVisualStyles();
+
+            nint imageList = NativeComCtl32.ImageList_Create(16, 20, 0x00000020u, 0, 4);
+            Assert.NotEqual(nint.Zero, imageList);
+            try
+            {
+                Assert.True(NativeComCtl32.ImageList_GetIconSize(imageList, out int width, out int height));
+                Assert.Equal(16, width);
+                Assert.Equal(20, height);
+                Assert.Equal(0, NativeComCtl32.ImageList_GetImageCount(imageList));
+
+                Assert.Equal(0, NativeComCtl32.ImageList_Add(imageList, nint.Zero, nint.Zero));
+                Assert.Equal(1, NativeComCtl32.ImageList_ReplaceIcon(imageList, -1, nint.Zero));
+                Assert.Equal(2, NativeComCtl32.ImageList_GetImageCount(imageList));
+
+                Assert.True(NativeComCtl32.ImageList_GetImageInfo(imageList, 0, out NativeComCtl32.IMAGEINFO imageInfo));
+                Assert.NotEqual(nint.Zero, imageInfo._hbmImage);
+                Assert.Equal(16, imageInfo._rcImage._right);
+                Assert.Equal(20, imageInfo._rcImage._bottom);
+
+                Assert.Equal(0xFFFFFFFFu, NativeComCtl32.ImageList_SetBkColor(imageList, 0x000000FFu));
+                Assert.Equal(0x000000FFu, NativeComCtl32.ImageList_SetBkColor(imageList, 0xFFFFFFFFu));
+
+                Assert.True(NativeComCtl32.ImageList_Write(imageList, nint.Zero));
+                Assert.Equal(0, NativeComCtl32.ImageList_WriteEx(imageList, 0, nint.Zero));
+
+                Assert.True(NativeComCtl32.ImageList_SetIconSize(imageList, 24, 28));
+                Assert.Equal(0, NativeComCtl32.ImageList_GetImageCount(imageList));
+                Assert.False(NativeComCtl32.ImageList_GetImageInfo(imageList, 0, out _));
+                Assert.Equal(0, NativeComCtl32.ImageList_Add(imageList, nint.Zero, nint.Zero));
+                Assert.True(NativeComCtl32.ImageList_GetImageInfo(imageList, 0, out imageInfo));
+                Assert.Equal(24, imageInfo._rcImage._right);
+                Assert.Equal(28, imageInfo._rcImage._bottom);
+
+                Assert.False(NativeComCtl32.ImageList_Remove(imageList, 3));
+                Assert.True(NativeComCtl32.ImageList_Remove(imageList, -1));
+                Assert.Equal(0, NativeComCtl32.ImageList_GetImageCount(imageList));
+            }
+            finally
+            {
+                Assert.True(NativeComCtl32.ImageList_Destroy(imageList));
+            }
+        }
+    }
+
+    [Fact]
     public void DirectWinSpoolDllImports_RouteToWinFormsXPal()
     {
         using (new EnvironmentOverride("WINFORMSX_SUPPRESS_HIDDEN_BACKEND", "1"))
@@ -752,6 +802,25 @@ public class User32CompatibilityFacadeTests
             internal uint _dwICC;
         }
 
+        [StructLayout(LayoutKind.Sequential)]
+        internal struct RECT
+        {
+            internal int _left;
+            internal int _top;
+            internal int _right;
+            internal int _bottom;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        internal struct IMAGEINFO
+        {
+            internal nint _hbmImage;
+            internal nint _hbmMask;
+            internal int _unused1;
+            internal int _unused2;
+            internal RECT _rcImage;
+        }
+
         [DllImport(ComCtl32, ExactSpelling = true)]
         internal static extern void InitCommonControls();
 
@@ -761,6 +830,48 @@ public class User32CompatibilityFacadeTests
 
         [DllImport(ComCtl32, EntryPoint = "WinFormsXComCtl32GetInitializedClasses", ExactSpelling = true)]
         internal static extern uint GetInitializedClasses();
+
+        [DllImport(ComCtl32, ExactSpelling = true)]
+        internal static extern nint ImageList_Create(int cx, int cy, uint flags, int cInitial, int cGrow);
+
+        [DllImport(ComCtl32, ExactSpelling = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool ImageList_Destroy(nint himl);
+
+        [DllImport(ComCtl32, ExactSpelling = true)]
+        internal static extern int ImageList_Add(nint himl, nint hbmImage, nint hbmMask);
+
+        [DllImport(ComCtl32, ExactSpelling = true)]
+        internal static extern int ImageList_ReplaceIcon(nint himl, int i, nint hicon);
+
+        [DllImport(ComCtl32, ExactSpelling = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool ImageList_Remove(nint himl, int i);
+
+        [DllImport(ComCtl32, ExactSpelling = true)]
+        internal static extern int ImageList_GetImageCount(nint himl);
+
+        [DllImport(ComCtl32, ExactSpelling = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool ImageList_GetIconSize(nint himl, out int cx, out int cy);
+
+        [DllImport(ComCtl32, ExactSpelling = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool ImageList_SetIconSize(nint himl, int cx, int cy);
+
+        [DllImport(ComCtl32, ExactSpelling = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool ImageList_GetImageInfo(nint himl, int i, out IMAGEINFO imageInfo);
+
+        [DllImport(ComCtl32, ExactSpelling = true)]
+        internal static extern uint ImageList_SetBkColor(nint himl, uint clrBk);
+
+        [DllImport(ComCtl32, ExactSpelling = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool ImageList_Write(nint himl, nint pstm);
+
+        [DllImport(ComCtl32, ExactSpelling = true)]
+        internal static extern int ImageList_WriteEx(nint himl, uint flags, nint pstm);
     }
 
     private static partial class NativeWinSpool
