@@ -16,6 +16,19 @@ typedef uint32_t DWORD;
 typedef uint16_t WCHAR;
 typedef uintptr_t SIZE_T;
 
+typedef struct ACTCTXW
+{
+    DWORD cb_size;
+    DWORD flags;
+    const WCHAR* source;
+    uint16_t processor_architecture;
+    uint16_t language_id;
+    const WCHAR* assembly_directory;
+    const WCHAR* resource_name;
+    const WCHAR* application_name;
+    void* module;
+} ACTCTXW;
+
 typedef struct WinFormsXKernel32Dispatch
 {
     uint32_t version;
@@ -39,10 +52,16 @@ typedef struct WinFormsXKernel32Dispatch
     BOOL (*local_unlock)(void* handle);
     SIZE_T (*local_size)(void* handle);
     void* (*local_free)(void* handle);
+    void* (*create_actctx)(const ACTCTXW* actctx);
+    BOOL (*activate_actctx)(void* actctx, SIZE_T* cookie);
+    BOOL (*deactivate_actctx)(DWORD flags, SIZE_T cookie);
+    BOOL (*get_current_actctx)(void** actctx);
 } WinFormsXKernel32Dispatch;
 
 static WinFormsXKernel32Dispatch g_dispatch;
 static DWORD g_last_error;
+static intptr_t g_next_activation_context = 0x610000;
+static void* g_current_activation_context;
 
 static void* fallback_memory_base(void* handle)
 {
@@ -388,4 +407,75 @@ WF_EXPORT void* LocalFree(void* handle)
     }
 
     return fallback_memory_free(handle);
+}
+
+WF_EXPORT void* CreateActCtxW(const ACTCTXW* actctx)
+{
+    if (g_dispatch.create_actctx != 0)
+    {
+        return g_dispatch.create_actctx(actctx);
+    }
+
+    if (actctx == 0 || actctx->cb_size < sizeof(ACTCTXW))
+    {
+        return (void*)(intptr_t)-1;
+    }
+
+    g_next_activation_context++;
+    return (void*)g_next_activation_context;
+}
+
+WF_EXPORT void* CreateActCtx(const ACTCTXW* actctx)
+{
+    return CreateActCtxW(actctx);
+}
+
+WF_EXPORT BOOL ActivateActCtx(void* actctx, SIZE_T* cookie)
+{
+    if (g_dispatch.activate_actctx != 0)
+    {
+        return g_dispatch.activate_actctx(actctx, cookie);
+    }
+
+    if (actctx == 0 || actctx == (void*)(intptr_t)-1 || cookie == 0)
+    {
+        return 0;
+    }
+
+    g_current_activation_context = actctx;
+    *cookie = (SIZE_T)actctx;
+    return 1;
+}
+
+WF_EXPORT BOOL DeactivateActCtx(DWORD flags, SIZE_T cookie)
+{
+    if (g_dispatch.deactivate_actctx != 0)
+    {
+        return g_dispatch.deactivate_actctx(flags, cookie);
+    }
+
+    (void)flags;
+    if (cookie == 0)
+    {
+        return 0;
+    }
+
+    g_current_activation_context = 0;
+    return 1;
+}
+
+WF_EXPORT BOOL GetCurrentActCtx(void** actctx)
+{
+    if (g_dispatch.get_current_actctx != 0)
+    {
+        return g_dispatch.get_current_actctx(actctx);
+    }
+
+    if (actctx == 0)
+    {
+        return 0;
+    }
+
+    *actctx = g_current_activation_context;
+    return g_current_activation_context != 0;
 }

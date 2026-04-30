@@ -1,6 +1,8 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using Windows.Win32.System.ApplicationInstallationAndServicing;
+
 namespace System.Windows.Forms.Platform;
 
 /// <summary>
@@ -53,6 +55,10 @@ internal unsafe interface ISystemInterop
     uint GetWindowThreadProcessId(HWND hWnd, out uint lpdwProcessId);
     uint GetLastError();
     void SetLastError(uint dwErrCode);
+    HANDLE CreateActCtx(ACTCTXW* pActCtx);
+    bool ActivateActCtx(HANDLE hActCtx, nuint* lpCookie);
+    bool DeactivateActCtx(uint dwFlags, nuint ulCookie);
+    bool GetCurrentActCtx(HANDLE* lphActCtx);
 
     // ─── Clipboard ──────────────────────────────────────────────────────
 

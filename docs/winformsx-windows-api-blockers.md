@@ -211,8 +211,11 @@ compatibility-facade coverage.
   KERNEL32 memory pass adds PAL-backed `GlobalAlloc` / `GlobalReAlloc` /
   `GlobalLock` / `GlobalUnlock` / `GlobalSize` / `GlobalFree` and matching
   `Local*` facade exports for source-compatible direct DllImport consumers,
-  with deterministic zero-init, resize, size, lock, and free behavior. The latest
-  ImageList follow-up keeps `ImageList.GetBitmap` stable when WinFormsX
+  with deterministic zero-init, resize, size, lock, and free behavior. The
+  activation-context pass routes `CreateActCtx`, `ActivateActCtx`,
+  `DeactivateActCtx`, and `GetCurrentActCtx` through PAL-owned thread-local
+  state and direct `KERNEL32.dll` facade exports. The latest ImageList
+  follow-up keeps `ImageList.GetBitmap` stable when WinFormsX
   synthetic bitmap handles cannot be materialized by GDI+, preserving shared
   `ToolStrip.ImageList` enumeration after form disposal. The latest broad
   UIIntegration snapshot is now green at
@@ -568,8 +571,8 @@ Plan:
 Impacted APIs and areas:
 
 - Module/resource loading: `GetModuleHandle`, `LoadLibrary`, `FreeLibrary`,
-  `GetProcAddress`, `GetModuleFileName`, activation context APIs, resource
-  lookup, and manifest-like behavior.
+  `GetProcAddress`, `GetModuleFileName`, first-tier activation context APIs,
+  resource lookup, and manifest-like behavior.
 - Memory/handles: `GlobalAlloc`, `GlobalReAlloc`, `GlobalLock`,
   `GlobalUnlock`, `GlobalSize`, `GlobalFree`, `LocalAlloc`, `LocalFree`,
   `CloseHandle`, `DuplicateHandle`.
@@ -584,6 +587,9 @@ Plan:
 - Keep resource lookup deterministic, with PAL owning any shared state that
   native compatibility facades expose. First-tier `Global*` and `Local*` memory
   handle behavior is now PAL-backed and covered by direct KERNEL32 facade tests.
+- Keep activation-context support conservative: WinFormsX records synthetic
+  activation context handles and thread-local activation cookies, without
+  pretending to parse or apply Windows manifests yet.
 - Keep the first-tier `KERNEL32.dll` facade limited to ABI-simple process,
   thread, and module-path APIs until tests justify broader loader/resource
   semantics.
@@ -881,7 +887,8 @@ cases were previously blockers and should remain regression targets:
 - [ ] USER32 tier expansion: geometry/menu/message APIs used by UI tests.
 - [~] KERNEL32 tier expansion: process/thread/module-path facade is covered;
   direct last-error and first-tier `Global*` / `Local*` memory state are
-  covered; module resources, activation context, and loader edge cases remain.
+  covered; first-tier activation context state is covered; module resources and
+  loader edge cases remain.
 - [~] COMCTL32/ImageList tier: first-tier image-list state, synthetic bitmap
   metadata, and managed enumeration fallback are covered; richer draw/mask and
   stream payload fidelity remain.
@@ -895,8 +902,11 @@ cases were previously blockers and should remain regression targets:
 
 - [x] KERNEL32 `Global*` / `Local*` direct facade coverage now routes through
   PAL memory state and passes focused UIIntegration regression coverage.
-- [ ] Next KERNEL32 breadth: module resource lookup, activation context, and
-  loader edge-case compatibility.
+- [x] KERNEL32 activation-context basics now route through PAL and direct
+  facade exports for `CreateActCtx`, `ActivateActCtx`, `DeactivateActCtx`, and
+  `GetCurrentActCtx`.
+- [ ] Next KERNEL32 breadth: module resource lookup and loader edge-case
+  compatibility.
 
 ## Acceptance Bar
 

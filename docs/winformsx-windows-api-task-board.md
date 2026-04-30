@@ -92,6 +92,10 @@ Ordered by observed frequency across components and blocker blast radius:
       `GlobalUnlock` / `GlobalSize` / `GlobalFree` and matching `Local*`
       imports share deterministic WinFormsX zero-init, resize, size, lock, and
       free behavior.
+    - KERNEL32 first-tier activation context state now belongs to the system
+      PAL as well: managed wrappers and direct `KERNEL32.dll` imports for
+      `CreateActCtx`, `ActivateActCtx`, `DeactivateActCtx`, and
+      `GetCurrentActCtx` share synthetic handle/cookie state.
     - `ImageList.GetBitmap` now tolerates WinFormsX synthetic bitmap handles
       returned by managed/common-control image-list state and falls back to the
       existing draw path instead of failing through `Image.FromHbitmap`.
@@ -304,7 +308,7 @@ Ordered by observed frequency across components and blocker blast radius:
       `Passed: 27, Failed: 0`.
   - Priority order moves to remaining high-impact infrastructure gaps:
     richer ToolStrip in-situ editing/service parity, real print provider/PDF
-    output design, OS-native picker integration, KERNEL32 resource/activation
+    output design, OS-native picker integration, KERNEL32 resource/loader
     breadth, then lower-volume accessibility/provider breadth and resource
     polish.
   - Active lane update: focused PropertyGrid UIIntegration coverage is now
@@ -947,7 +951,7 @@ Ordered by observed frequency across components and blocker blast radius:
 
 ## KERNEL32 Surface
 
-- [~] WXA-1100: Add KERNEL32 compatibility for process/thread/module/memory primitives used by WinForms (`GetModuleHandle`, `LoadLibrary`, `FreeLibrary`, `GetProcAddress`, `GetCurrentProcessId`, `GetCurrentThreadId`, `GetCurrentThread`, `Global*/Local*`, `GetLastError`, `SetLastError`). Managed wrappers cover the current process/thread/module-handle loader subset; a direct `KERNEL32.dll` facade now covers `GetCurrentProcess`, `GetCurrentProcessId`, `GetCurrentThreadId`, `GetModuleHandleW/A`, `GetModuleFileNameW/A`, `GetLastError`, `SetLastError`, `GlobalAlloc`, `GlobalReAlloc`, `GlobalLock`, `GlobalUnlock`, `GlobalSize`, `GlobalFree`, and matching `Local*` memory APIs. Resource, activation-context, and broader loader breadth remain.
+- [~] WXA-1100: Add KERNEL32 compatibility for process/thread/module/memory primitives used by WinForms (`GetModuleHandle`, `LoadLibrary`, `FreeLibrary`, `GetProcAddress`, `GetCurrentProcessId`, `GetCurrentThreadId`, `GetCurrentThread`, `Global*/Local*`, `GetLastError`, `SetLastError`). Managed wrappers cover the current process/thread/module-handle loader subset; a direct `KERNEL32.dll` facade now covers `GetCurrentProcess`, `GetCurrentProcessId`, `GetCurrentThreadId`, `GetModuleHandleW/A`, `GetModuleFileNameW/A`, `GetLastError`, `SetLastError`, `GlobalAlloc`, `GlobalReAlloc`, `GlobalLock`, `GlobalUnlock`, `GlobalSize`, `GlobalFree`, matching `Local*` memory APIs, and first-tier activation context APIs. Resource and broader loader breadth remain.
 
 ## OLE, COM, Clipboard, IME, Drag/Drop
 
@@ -1006,7 +1010,7 @@ Ordered by observed frequency across components and blocker blast radius:
 
 ## KERNEL32 / Process / Loader
 
-- [~] WXA-1304: Implement process/module query compatibility stubs where PAL cannot supply native handles (`GetModuleFileName`, `GetWindowThreadProcessId`, `GetCurrentProcess`, activation context basics). `GetModuleFileName`, `GetCurrentProcess`, process/thread ids, direct source-compatible KERNEL32 module-handle imports, and first-tier `Global*` / `Local*` memory state are covered; activation context basics remain.
+- [~] WXA-1304: Implement process/module query compatibility stubs where PAL cannot supply native handles (`GetModuleFileName`, `GetWindowThreadProcessId`, `GetCurrentProcess`, activation context basics). `GetModuleFileName`, `GetCurrentProcess`, process/thread ids, direct source-compatible KERNEL32 module-handle imports, first-tier `Global*` / `Local*` memory state, and first-tier activation context basics are covered; module resources and broader loader edge cases remain.
 - [x] WXA-1305: Implement error reporting compatibility (`GetLastError`/`SetLastError`) for direct-PInvoke consumers. Managed wrappers and the direct `KERNEL32.dll` facade now share PAL-backed thread-local state.
 
 ## Accessibility / UI Automation

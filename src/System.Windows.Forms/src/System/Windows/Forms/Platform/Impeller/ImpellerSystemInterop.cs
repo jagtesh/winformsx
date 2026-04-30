@@ -3,6 +3,7 @@
 
 using Windows.Win32.UI.Accessibility;
 using System.Runtime.CompilerServices;
+using Windows.Win32.System.ApplicationInstallationAndServicing;
 
 namespace System.Windows.Forms.Platform;
 
@@ -17,8 +18,17 @@ internal sealed unsafe class ImpellerSystemInterop : ISystemInterop
     [ThreadStatic]
     private static uint s_lastError;
 
+    [ThreadStatic]
+    private static nint s_currentActivationContext;
+
+    [ThreadStatic]
+    private static Dictionary<nuint, nint>? s_activationCookiePrevious;
+
     private long _nextTimerId = 1;
+    private long _nextActivationContextHandle = 0x600000;
+    private long _nextActivationCookie;
     private readonly Dictionary<nint, System.Threading.Timer> _timers = [];
+    private readonly HashSet<nint> _activationContexts = [];
     private readonly Dictionary<string, uint> _clipboardFormats = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<uint, string> _clipboardFormatNames = [];
     private readonly Dictionary<uint, HANDLE> _clipboardData = [];
@@ -589,6 +599,57 @@ internal sealed unsafe class ImpellerSystemInterop : ISystemInterop
     public uint GetLastError() => s_lastError;
 
     public void SetLastError(uint dwErrCode) => s_lastError = dwErrCode;
+
+    public HANDLE CreateActCtx(ACTCTXW* pActCtx)
+    {
+        if (pActCtx is null || pActCtx->cbSize < sizeof(ACTCTXW))
+        {
+            return (HANDLE)(-1);
+        }
+
+        nint handle = (nint)Interlocked.Increment(ref _nextActivationContextHandle);
+        _activationContexts.Add(handle);
+        return (HANDLE)handle;
+    }
+
+    public bool ActivateActCtx(HANDLE hActCtx, nuint* lpCookie)
+    {
+        nint handle = (nint)hActCtx;
+        if (handle == 0 || !_activationContexts.Contains(handle) || lpCookie is null)
+        {
+            return false;
+        }
+
+        nuint cookie = (nuint)Interlocked.Increment(ref _nextActivationCookie);
+        s_activationCookiePrevious ??= [];
+        s_activationCookiePrevious[cookie] = s_currentActivationContext;
+        s_currentActivationContext = handle;
+        *lpCookie = cookie;
+        return true;
+    }
+
+    public bool DeactivateActCtx(uint dwFlags, nuint ulCookie)
+    {
+        _ = dwFlags;
+        if (ulCookie == 0 || s_activationCookiePrevious is null || !s_activationCookiePrevious.Remove(ulCookie, out nint previous))
+        {
+            return false;
+        }
+
+        s_currentActivationContext = previous;
+        return true;
+    }
+
+    public bool GetCurrentActCtx(HANDLE* lphActCtx)
+    {
+        if (lphActCtx is null)
+        {
+            return false;
+        }
+
+        *lphActCtx = (HANDLE)s_currentActivationContext;
+        return s_currentActivationContext != 0;
+    }
 
     // --- Clipboard ------------------------------------------------------
 

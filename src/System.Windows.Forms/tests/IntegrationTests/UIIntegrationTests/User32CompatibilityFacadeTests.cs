@@ -570,6 +570,26 @@ public class User32CompatibilityFacadeTests
             Assert.Equal(0x34, localBytes[0]);
             Assert.Equal(0, localBytes[5]);
             Assert.Equal(nint.Zero, NativeKernel32.LocalFree(localMemory));
+
+            NativeKernel32.ACTCTXW actCtx = new()
+            {
+                cbSize = (uint)sizeof(NativeKernel32.ACTCTXW)
+            };
+
+            nint activationContext = NativeKernel32.CreateActCtx(&actCtx);
+            Assert.NotEqual((nint)(-1), activationContext);
+            Assert.NotEqual(nint.Zero, activationContext);
+
+            nint currentActivationContext;
+            Assert.False(NativeKernel32.GetCurrentActCtx(&currentActivationContext));
+
+            nuint activationCookie;
+            Assert.True(NativeKernel32.ActivateActCtx(activationContext, &activationCookie));
+            Assert.NotEqual((nuint)0, activationCookie);
+            Assert.True(NativeKernel32.GetCurrentActCtx(&currentActivationContext));
+            Assert.Equal(activationContext, currentActivationContext);
+
+            Assert.True(NativeKernel32.DeactivateActCtx(0, activationCookie));
         }
     }
 
@@ -1031,5 +1051,30 @@ public class User32CompatibilityFacadeTests
 
         [DllImport(Kernel32, ExactSpelling = true)]
         internal static extern nint LocalFree(nint hMem);
+
+        [DllImport(Kernel32, EntryPoint = "CreateActCtxW", ExactSpelling = true)]
+        internal static extern nint CreateActCtx(ACTCTXW* pActCtx);
+
+        [DllImport(Kernel32, ExactSpelling = true)]
+        internal static extern bool ActivateActCtx(nint hActCtx, nuint* lpCookie);
+
+        [DllImport(Kernel32, ExactSpelling = true)]
+        internal static extern bool DeactivateActCtx(uint dwFlags, nuint ulCookie);
+
+        [DllImport(Kernel32, ExactSpelling = true)]
+        internal static extern bool GetCurrentActCtx(nint* lphActCtx);
+
+        internal struct ACTCTXW
+        {
+            public uint cbSize;
+            public uint dwFlags;
+            public char* lpSource;
+            public ushort wProcessorArchitecture;
+            public ushort wLangId;
+            public char* lpAssemblyDirectory;
+            public char* lpResourceName;
+            public char* lpApplicationName;
+            public nint hModule;
+        }
     }
 }

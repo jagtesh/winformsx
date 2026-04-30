@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Runtime.InteropServices;
+using Windows.Win32.System.ApplicationInstallationAndServicing;
 
 namespace System.Windows.Forms.Platform;
 
@@ -54,6 +55,10 @@ internal static unsafe class WinFormsXKernel32Shim
             LocalUnlock = &LocalUnlock,
             LocalSize = &LocalSize,
             LocalFree = &LocalFree,
+            CreateActCtx = &CreateActCtx,
+            ActivateActCtx = &ActivateActCtx,
+            DeactivateActCtx = &DeactivateActCtx,
+            GetCurrentActCtx = &GetCurrentActCtx,
         };
 
         delegate* unmanaged<DispatchTable*, int> register = (delegate* unmanaged<DispatchTable*, int>)registerExport;
@@ -339,6 +344,58 @@ internal static unsafe class WinFormsXKernel32Shim
         }
     }
 
+    [UnmanagedCallersOnly]
+    private static nint CreateActCtx(ACTCTXW* actCtx)
+    {
+        try
+        {
+            return (nint)PlatformApi.System.CreateActCtx(actCtx);
+        }
+        catch
+        {
+            return -1;
+        }
+    }
+
+    [UnmanagedCallersOnly]
+    private static int ActivateActCtx(nint actCtx, nuint* cookie)
+    {
+        try
+        {
+            return PlatformApi.System.ActivateActCtx((HANDLE)actCtx, cookie) ? 1 : 0;
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    [UnmanagedCallersOnly]
+    private static int DeactivateActCtx(uint flags, nuint cookie)
+    {
+        try
+        {
+            return PlatformApi.System.DeactivateActCtx(flags, cookie) ? 1 : 0;
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    [UnmanagedCallersOnly]
+    private static int GetCurrentActCtx(nint* actCtx)
+    {
+        try
+        {
+            return PlatformApi.System.GetCurrentActCtx((HANDLE*)actCtx) ? 1 : 0;
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
     private struct DispatchTable
     {
         public uint Version;
@@ -362,5 +419,9 @@ internal static unsafe class WinFormsXKernel32Shim
         public delegate* unmanaged<nint, int> LocalUnlock;
         public delegate* unmanaged<nint, nuint> LocalSize;
         public delegate* unmanaged<nint, nint> LocalFree;
+        public delegate* unmanaged<ACTCTXW*, nint> CreateActCtx;
+        public delegate* unmanaged<nint, nuint*, int> ActivateActCtx;
+        public delegate* unmanaged<uint, nuint, int> DeactivateActCtx;
+        public delegate* unmanaged<nint*, int> GetCurrentActCtx;
     }
 }
