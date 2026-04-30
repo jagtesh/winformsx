@@ -165,6 +165,14 @@ Ordered by observed frequency across components and blocker blast radius:
     - Focused `NumericUpDownAccessibleObject_Focused_ReturnsCorrectValueAsync`
       now passes, and the latest broad UIIntegration active slice reports
       `Failed: 0, Passed: 191, Skipped: 1, Total: 192`.
+    - `Control.AdjustWindowRectExForDpi` and `Control.SetAcceptDrops` now run
+      through the same WinFormsX path everywhere: window/DPI bounds go through
+      `PlatformApi`, while drop-target registration goes through the managed
+      OLE path instead of a separate OS fallback branch.
+    - Verification after the Control single-path change:
+      `WinformsControlsTest --control-smoke-test` ->
+      `total=42 passed=41 failed=0 skipped=1`; full UIIntegration ->
+      `Failed: 0, Passed: 191, Skipped: 1, Total: 192`.
   - Priority order now moves to ListView tile accessibility, PropertyGrid
     provider breadth, RichTextBox link-range behavior, dialog/print fallbacks,
     and remaining lower-volume provider gaps.

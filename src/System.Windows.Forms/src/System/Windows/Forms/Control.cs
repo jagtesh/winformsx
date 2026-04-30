@@ -6524,19 +6524,13 @@ public unsafe partial class Control :
 
     private static void AdjustWindowRectExForDpi(ref RECT rect, WINDOW_STYLE style, bool bMenu, WINDOW_EX_STYLE exStyle, int dpi)
     {
-        if (!OperatingSystem.IsWindows())
-        {
-            Platform.PlatformApi.Window.AdjustWindowRectEx(ref rect, style, bMenu, exStyle);
-            return;
-        }
-
         if ((ScaleHelper.IsThreadPerMonitorV2Aware || ScaleHelper.IsScalingRequired) && OsVersion.IsWindows10_1703OrGreater())
         {
-            PInvoke.AdjustWindowRectExForDpi(ref rect, style, bMenu, exStyle, (uint)dpi);
+            Platform.PlatformApi.System.AdjustWindowRectExForDpi(ref rect, style, bMenu, exStyle, (uint)dpi);
         }
         else
         {
-            PInvoke.AdjustWindowRectEx(ref rect, style, bMenu, exStyle);
+            Platform.PlatformApi.Window.AdjustWindowRectEx(ref rect, style, bMenu, exStyle);
         }
     }
 
@@ -9621,12 +9615,6 @@ public unsafe partial class Control :
     {
         if (accept == GetState(States.DropTarget) || !IsHandleCreated)
         {
-            return;
-        }
-
-        if (!OperatingSystem.IsWindows())
-        {
-            SetState(States.DropTarget, accept);
             return;
         }
 

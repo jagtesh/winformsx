@@ -30,8 +30,11 @@ compatibility-facade coverage.
   paths so stale forms no longer poison later drag/drop runs. The latest pass
   also routes `UpDownBase` focus to its embedded edit child and supplies a
   managed accessibility child fallback, closing the remaining NumericUpDown
-  focus failure in the broad UIIntegration slice. Larger provider and
-  dialog/print gaps remain tracked below.
+  focus failure in the broad UIIntegration slice. The current Control pass
+  removes the remaining OS split from `Control.AdjustWindowRectExForDpi` and
+  `Control.SetAcceptDrops`; both now route through the same PAL-backed
+  window/DPI and managed OLE registration paths everywhere. Larger provider
+  and dialog/print gaps remain tracked below.
 - First UIIntegration blockers observed:
   - `OLE32.dll` missing through `Application.ThreadContext.OleRequired()`,
     `InputLanguage.CurrentInputLanguage`, IME, clipboard, and drag/drop paths.
