@@ -86,6 +86,7 @@ internal static unsafe class WinFormsXUser32Shim
             GetKeyState = &GetKeyState,
             GetKeyboardState = &GetKeyboardState,
             GetKeyboardLayout = &GetKeyboardLayout,
+            GetKeyboardLayoutList = &GetKeyboardLayoutList,
             ActivateKeyboardLayout = &ActivateKeyboardLayout,
             UpdateWindow = &UpdateWindow,
             InvalidateRect = &InvalidateRect,
@@ -319,6 +320,19 @@ internal static unsafe class WinFormsXUser32Shim
         try
         {
             return PlatformApi.Input.GetKeyboardLayout(idThread);
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    [UnmanagedCallersOnly]
+    private static int GetKeyboardLayoutList(int nBuff, nint* lpList)
+    {
+        try
+        {
+            return PlatformApi.Input.GetKeyboardLayoutList(nBuff, lpList);
         }
         catch
         {
@@ -1001,6 +1015,7 @@ internal static unsafe class WinFormsXUser32Shim
         public delegate* unmanaged<int, short> GetKeyState;
         public delegate* unmanaged<byte*, int> GetKeyboardState;
         public delegate* unmanaged<uint, nint> GetKeyboardLayout;
+        public delegate* unmanaged<int, nint*, int> GetKeyboardLayoutList;
         public delegate* unmanaged<nint, uint, nint> ActivateKeyboardLayout;
         public delegate* unmanaged<uint, uint, void*, uint, int> SystemParametersInfo;
         public delegate* unmanaged<uint, uint, void*, uint, uint, int> SystemParametersInfoForDpi;

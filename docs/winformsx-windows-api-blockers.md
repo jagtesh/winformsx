@@ -42,8 +42,12 @@ compatibility-facade coverage.
   registration and module-handle lookup through the WinFormsX PAL everywhere,
   avoids native `GetClassInfo`/`RegisterClass`/`GetStockObject` calls during
   managed window-class setup, and prunes stale unloaded forms from
-  `Application.OpenForms` before registering new visible forms. Larger provider
-  and dialog/print gaps remain tracked below.
+  `Application.OpenForms` before registering new visible forms. The latest
+  input-language pass routes WinFormsX `InputLanguage` keyboard layout
+  get/list/activate calls through PAL, keeps registry layout names as an
+  optional data source with managed fallback names, and adds
+  `GetKeyboardLayoutList` to the USER32 facade. Larger provider and
+  dialog/print gaps remain tracked below.
 - First UIIntegration blockers observed:
   - `OLE32.dll` missing through `Application.ThreadContext.OleRequired()`,
     `InputLanguage.CurrentInputLanguage`, IME, clipboard, and drag/drop paths.
@@ -103,6 +107,10 @@ compatibility-facade coverage.
     is now green. `UpDownBase.Focus()` routes to the embedded edit child, and
     `UpDownBaseAccessibleObject` can return managed child accessibility objects
     when no native OLEACC parent wrapper exists.
+  - Input-language keyboard layout state now uses the PAL as its source of
+    truth. Direct USER32 facade coverage includes `GetKeyboardLayout` and
+    `GetKeyboardLayoutList`, while managed `InputLanguage` calls no longer need
+    generated direct USER32 imports for current/default layout enumeration.
   - Latest broad UIIntegration active slice is green:
     `191 passed, 0 failed, 1 skipped`.
   - Highest-volume remaining failures are accessibility/provider and layout

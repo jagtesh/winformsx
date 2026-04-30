@@ -178,6 +178,20 @@ internal sealed unsafe class ImpellerInputInterop : IInputInterop
         }
     }
 
+    public int GetKeyboardLayoutList(int nBuff, nint* lpList)
+    {
+        lock (_inputStateLock)
+        {
+            if (nBuff <= 0 || lpList is null)
+            {
+                return 1;
+            }
+
+            lpList[0] = _keyboardLayout;
+            return 1;
+        }
+    }
+
     public nint ActivateKeyboardLayout(nint hkl, uint flags)
     {
         lock (_inputStateLock)

@@ -202,6 +202,20 @@ Ordered by observed frequency across components and blocker blast radius:
       `Failed: 0, Passed: 191, Skipped: 1, Total: 192`;
       `WinformsControlsTest --control-smoke-test` ->
       `total=42 passed=41 failed=0 skipped=1`.
+    - `InputLanguage` now gets, lists, and activates keyboard layouts through
+      `PlatformApi.Input`; layout display names use the registry when present
+      and fall back to managed culture/layout names on the same runtime path.
+    - `EnumCurrentThreadWindows` now enumerates PAL virtual windows instead of
+      retaining a platform split around native `EnumThreadWindows`.
+    - The native USER32 facade now exports `GetKeyboardLayoutList`, forwarding
+      to the same PAL keyboard-layout state as `GetKeyboardLayout`.
+    - Verification after the input-language/window-enumeration sweep:
+      `dotnet build ...System.Windows.Forms.UI.IntegrationTests.csproj -c Debug -v:q` ->
+      build succeeded; `dotnet test ... --filter "FullyQualifiedName~User32CompatibilityFacadeTests" -v:n` ->
+      `Passed: 2, Failed: 0`; full UIIntegration ->
+      `Failed: 0, Passed: 191, Skipped: 1, Total: 192`;
+      `WinformsControlsTest --control-smoke-test` ->
+      `total=42 passed=41 failed=0 skipped=1`.
   - Priority order now moves to ListView tile accessibility, PropertyGrid
     provider breadth, RichTextBox link-range behavior, dialog/print fallbacks,
     and remaining lower-volume provider gaps.

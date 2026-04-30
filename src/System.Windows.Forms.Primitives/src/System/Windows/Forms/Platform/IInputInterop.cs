@@ -45,6 +45,7 @@ internal unsafe interface IInputInterop
     uint MapVirtualKey(uint uCode, uint uMapType);
     int ToUnicode(uint wVirtKey, uint wScanCode, byte* lpKeyState, char* pwszBuff, int cchBuff, uint wFlags);
     nint GetKeyboardLayout(uint idThread);
+    int GetKeyboardLayoutList(int nBuff, nint* lpList);
     nint ActivateKeyboardLayout(nint hkl, uint flags);
 
     // ─── Mouse ──────────────────────────────────────────────────────────

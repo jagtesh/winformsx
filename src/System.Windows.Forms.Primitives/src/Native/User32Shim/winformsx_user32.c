@@ -94,6 +94,7 @@ typedef struct WinFormsXUser32Dispatch
     SHORT (*get_key_state)(INT vkey);
     BOOL (*get_keyboard_state)(UINT8* lp_key_state);
     HKL (*get_keyboard_layout)(UINT idThread);
+    INT (*get_keyboard_layout_list)(INT nBuff, HKL* lpList);
     HKL (*activate_keyboard_layout)(HKL hkl, UINT flags);
     BOOL (*system_parameters_info)(UINT ui_action, UINT ui_param, void* pv_param, UINT flags);
     BOOL (*system_parameters_info_for_dpi)(UINT ui_action, UINT ui_param, void* pv_param, UINT flags, UINT dpi);
@@ -230,6 +231,11 @@ WF_EXPORT BOOL GetKeyboardState(UINT8* lp_key_state)
 WF_EXPORT HKL GetKeyboardLayout(UINT idThread)
 {
     return g_dispatch.get_keyboard_layout != 0 ? g_dispatch.get_keyboard_layout(idThread) : 0;
+}
+
+WF_EXPORT INT GetKeyboardLayoutList(INT nBuff, HKL* lpList)
+{
+    return g_dispatch.get_keyboard_layout_list != 0 ? g_dispatch.get_keyboard_layout_list(nBuff, lpList) : 0;
 }
 
 WF_EXPORT HKL ActivateKeyboardLayout(HKL hkl, UINT flags)

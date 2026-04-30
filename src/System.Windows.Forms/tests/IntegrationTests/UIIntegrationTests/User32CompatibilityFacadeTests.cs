@@ -117,6 +117,19 @@ public class User32CompatibilityFacadeTests
                     Assert.Equal((bool)PInvoke.GetKeyboardState(managed), NativeUser32.GetKeyboardState(native));
                     Assert.Equal(managedKeyState, nativeKeyState);
                 }
+
+                nint managedLayout = (nint)PInvoke.GetKeyboardLayout(0);
+                nint nativeLayout = NativeUser32.GetKeyboardLayout(0);
+                Assert.Equal(managedLayout, nativeLayout);
+                Assert.NotEqual(nint.Zero, nativeLayout);
+
+                HKL* managedLayouts = stackalloc HKL[4];
+                nint* nativeLayouts = stackalloc nint[4];
+                int managedLayoutCount = PInvoke.GetKeyboardLayoutList(4, managedLayouts);
+                int nativeLayoutCount = NativeUser32.GetKeyboardLayoutList(4, nativeLayouts);
+                Assert.Equal(managedLayoutCount, nativeLayoutCount);
+                Assert.True(nativeLayoutCount > 0);
+                Assert.Equal((nint)managedLayouts[0], nativeLayouts[0]);
             }
 
             using Form form = new();
@@ -346,6 +359,12 @@ public class User32CompatibilityFacadeTests
         [DllImport(User32, ExactSpelling = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
         internal static extern unsafe bool GetKeyboardState(byte* lpKeyState);
+
+        [DllImport(User32, ExactSpelling = true)]
+        internal static extern nint GetKeyboardLayout(uint idThread);
+
+        [DllImport(User32, ExactSpelling = true)]
+        internal static extern unsafe int GetKeyboardLayoutList(int nBuff, nint* lpList);
 
         [DllImport(User32, ExactSpelling = true)]
         internal static extern nint GetCapture();

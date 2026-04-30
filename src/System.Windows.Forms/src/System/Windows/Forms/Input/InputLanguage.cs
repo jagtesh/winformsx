@@ -2,8 +2,8 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Globalization;
+using System.Windows.Forms.Platform;
 using Microsoft.Win32;
-using Windows.Win32.UI.Input.KeyboardAndMouse;
 
 namespace System.Windows.Forms;
 
@@ -36,7 +36,7 @@ public sealed class InputLanguage
         get
         {
             Application.OleRequired();
-            return new InputLanguage(PInvoke.GetKeyboardLayout(0));
+            return new InputLanguage(PlatformApi.Input.GetKeyboardLayout(0));
         }
         set
         {
@@ -44,7 +44,7 @@ public sealed class InputLanguage
             Application.OleRequired();
             value ??= DefaultInputLanguage;
 
-            HKL handleOld = PInvoke.ActivateKeyboardLayout(new HKL(value.Handle), 0);
+            nint handleOld = PlatformApi.Input.ActivateKeyboardLayout(value.Handle, 0);
             if (handleOld == default)
             {
                 throw new ArgumentException(SR.ErrorBadInputLanguage, nameof(value));
@@ -77,13 +77,13 @@ public sealed class InputLanguage
     {
         get
         {
-            int size = PInvoke.GetKeyboardLayoutList(0, null);
+            int size = PlatformApi.Input.GetKeyboardLayoutList(0, null);
 
-            var handles = new HKL[size];
+            var handles = new nint[size];
 
-            fixed (HKL* h = handles)
+            fixed (nint* h = handles)
             {
-                PInvoke.GetKeyboardLayoutList(size, h);
+                PlatformApi.Input.GetKeyboardLayoutList(size, h);
             }
 
             InputLanguage[] ils = new InputLanguage[size];
@@ -106,26 +106,21 @@ public sealed class InputLanguage
     {
         get
         {
-            if (!OperatingSystem.IsWindows())
-            {
-                int langId = PARAM.LOWORD(_handle);
-                if (langId == 0x0409)
-                {
-                    return "US";
-                }
-
-                return Culture.EnglishName;
-            }
-
             // https://learn.microsoft.com/windows/win32/intl/using-registry-string-redirection#create-resources-for-keyboard-layout-strings
-            RegistryKey? localMachine = Registry.LocalMachine;
-            if (localMachine is null)
+            using RegistryKey? key = Registry.LocalMachine?.OpenSubKey($@"{KeyboardLayoutsRegistryPath}\{LayoutId}");
+            string? layoutName = key?.GetMUIString("Layout Display Name", "Layout Text");
+            if (!string.IsNullOrEmpty(layoutName))
             {
-                return SR.UnknownInputLanguageLayout;
+                return layoutName;
             }
 
-            using RegistryKey? key = localMachine.OpenSubKey($@"{KeyboardLayoutsRegistryPath}\{LayoutId}");
-            return key?.GetMUIString("Layout Display Name", "Layout Text") ?? SR.UnknownInputLanguageLayout;
+            int langId = PARAM.LOWORD(_handle);
+            if (langId == 0x0409)
+            {
+                return "US";
+            }
+
+            return Culture.EnglishName;
         }
     }
 
