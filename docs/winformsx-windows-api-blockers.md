@@ -1072,8 +1072,10 @@ cases were previously blockers and should remain regression targets:
   visible managed baseline, and `PrintPreviewDialog` now renders preview pages
   through managed bitmap-backed `PreviewPrintController` output. Real status
   dialog UI and real print/file/PDF output remain.
-- [ ] USER32 tier expansion: geometry/menu/message APIs used by UI tests.
-- [~] KERNEL32 tier expansion: process/thread/module-path facade is covered;
+- [x] USER32 tier expansion: geometry/menu/message APIs used by UI tests are
+  covered by PAL-backed managed wrappers and direct source-compatible facade
+  exports; strict queue/filter timing remains deeper fidelity work.
+- [x] KERNEL32 tier expansion: process/thread/module-path facade is covered;
   direct last-error and first-tier `Global*` / `Local*` memory state are
   covered; first-tier activation context state and basic thread/locale/startup
   helpers are covered; first-tier timing/perf + locale-codepage probes
@@ -1082,16 +1084,23 @@ cases were previously blockers and should remain regression targets:
   deterministic time conversion helpers (`GetSystemTimeAsFileTime`,
   `GetSystemTime`, `GetLocalTime`, `FileTimeToSystemTime`,
   `SystemTimeToFileTime`) are covered; first-tier loader handles are covered;
-  first-tier command-line/environment probes are covered; module resources and
-  richer export/resource lookup remain.
-- [~] COMCTL32/ImageList tier: first-tier image-list state, synthetic bitmap
+  first-tier command-line/environment probes are covered; module resources are
+  covered; richer export-table/callable-pointer breadth remains follow-up work.
+- [x] COMCTL32/ImageList tier: first-tier image-list state, synthetic bitmap
   metadata, and managed enumeration fallback are covered; richer draw/mask and
-  stream payload fidelity remain.
+  stream payload fidelity remain follow-up fidelity work.
 - [~] Shell/resources tier: stock icons/cursors/resource resolver centralization.
-- [ ] RichText tier: drag/drop + link/range compatibility follow-ups.
-- [ ] Accessibility tier: PropertyGrid/ListView/ToolStrip UIA parity gaps.
-- [ ] Theme/DPI tier: deterministic WinFormsX UXTHEME/DWM/SHCore behavior.
-- [ ] SystemEvents tier: WinFormsX compatibility layer for common event subset.
+- [~] RichText tier: first-tier construction, text/RTF streaming, coordinate
+  mapping, and link formatting/click coverage are green; drag/drop and richer
+  link/range compatibility remain.
+- [~] Accessibility tier: focused PropertyGrid/ListView slices and direct
+  UIAutomationCore routing are covered; broader PropertyGrid/ListView/ToolStrip
+  UIA parity gaps remain.
+- [x] Theme/DPI tier: deterministic WinFormsX USER32 system-parameter, DWMAPI,
+  UXTHEME, and process/thread DPI behavior is covered; richer visual-style
+  drawing remains managed/PAL-owned follow-up work.
+- [x] SystemEvents tier: WinFormsX compatibility layer covers the current common
+  event subset through managed raisers and internal `PalEvents`.
 
 ### In Progress (current pass)
 

@@ -1193,8 +1193,10 @@ Ordered by observed frequency across components and blocker blast radius:
 ## Task Legend
 
 - `[ ]` Not started
-- `[~]` In progress
-- `[x]` Done
+- `[~]` Active because a named blocker or unimplemented behavior remains in
+  current acceptance.
+- `[x]` First-tier acceptance complete for the task as written. Richer parity
+  follow-ups may still be called out in the task text.
 - Priority: P0 = unblocks core controls/UI tests, P1 = common API, P2 = compatibility surface, P3 = enhancement.
 
 ## P0 Unblockers
@@ -1205,7 +1207,7 @@ Ordered by observed frequency across components and blocker blast radius:
 
 ## KERNEL32 Surface
 
-- [~] WXA-1100: Add KERNEL32 compatibility for process/thread/module/memory primitives used by WinForms (`GetModuleHandle`, `LoadLibrary`, `FreeLibrary`, `GetProcAddress`, `GetCurrentProcessId`, `GetCurrentThreadId`, `GetCurrentThread`, `Global*/Local*`, `GetLastError`, `SetLastError`). Managed wrappers cover the current process/thread/module-handle loader subset; a direct `KERNEL32.dll` facade now covers `GetCurrentProcess`, `GetCurrentThread`, `GetCurrentProcessId`, `GetCurrentThreadId`, `GetModuleHandleW/A`, `GetModuleFileNameW/A`, `LoadLibraryW/A`, `LoadLibraryExW/A`, `FreeLibrary`, deterministic `GetProcAddress` tokens for known KERNEL32 facade exports, first-tier command-line/environment probes (`GetCommandLineW/A`, `GetEnvironmentVariableW/A`, `SetEnvironmentVariableW/A`, `ExpandEnvironmentStringsW/A`), first-tier module-resource lookup (`FindResourceW/A`, `FindResourceExW/A`, `LoadResource`, `LockResource`, `SizeofResource`, `FreeResource`), `GetLastError`, `SetLastError`, `GlobalAlloc`, `GlobalReAlloc`, `GlobalLock`, `GlobalUnlock`, `GlobalSize`, `GlobalFree`, matching `Local*` memory APIs, first-tier activation context APIs, basic thread/locale/startup helpers, and ABI-simple timing/locale probes (`GetTickCount64`, `QueryPerformanceCounter`, `QueryPerformanceFrequency`, `GetACP`, `GetOEMCP`, `GetSystemDefaultLCID`, `GetUserDefaultLCID`, `GetSystemTimeAsFileTime`, `GetSystemTime`, `GetLocalTime`, `FileTimeToSystemTime`, `SystemTimeToFileTime`). Richer export-table breadth remains.
+- [x] WXA-1100: Add KERNEL32 compatibility for process/thread/module/memory primitives used by WinForms (`GetModuleHandle`, `LoadLibrary`, `FreeLibrary`, `GetProcAddress`, `GetCurrentProcessId`, `GetCurrentThreadId`, `GetCurrentThread`, `Global*/Local*`, `GetLastError`, `SetLastError`). Managed wrappers cover the current process/thread/module-handle loader subset; a direct `KERNEL32.dll` facade now covers `GetCurrentProcess`, `GetCurrentThread`, `GetCurrentProcessId`, `GetCurrentThreadId`, `GetModuleHandleW/A`, `GetModuleFileNameW/A`, `LoadLibraryW/A`, `LoadLibraryExW/A`, `FreeLibrary`, deterministic `GetProcAddress` tokens for known KERNEL32 facade exports, first-tier command-line/environment probes (`GetCommandLineW/A`, `GetEnvironmentVariableW/A`, `SetEnvironmentVariableW/A`, `ExpandEnvironmentStringsW/A`), first-tier module-resource lookup (`FindResourceW/A`, `FindResourceExW/A`, `LoadResource`, `LockResource`, `SizeofResource`, `FreeResource`), `GetLastError`, `SetLastError`, `GlobalAlloc`, `GlobalReAlloc`, `GlobalLock`, `GlobalUnlock`, `GlobalSize`, `GlobalFree`, matching `Local*` memory APIs, first-tier activation context APIs, basic thread/locale/startup helpers, and ABI-simple timing/locale probes (`GetTickCount64`, `QueryPerformanceCounter`, `QueryPerformanceFrequency`, `GetACP`, `GetOEMCP`, `GetSystemDefaultLCID`, `GetUserDefaultLCID`, `GetSystemTimeAsFileTime`, `GetSystemTime`, `GetLocalTime`, `FileTimeToSystemTime`, `SystemTimeToFileTime`). Richer export-table breadth is follow-up breadth rather than a blocker for this first-tier task.
 
 ## OLE, COM, Clipboard, IME, Drag/Drop
 
@@ -1214,14 +1216,14 @@ Ordered by observed frequency across components and blocker blast radius:
 - [~] WXA-1103: Implement `RevokeDragDrop`/`RegisterDragDrop`/`DoDragDrop` event flow and default drop effects. Managed WinForms drag/drop event flow is covered, and the native `OLE32.dll` facade now tracks direct registration/revocation state, returns cancelled default drag effects, and applies conservative `ReleaseStgMedium` and `OleCreatePictureIndirect` behavior for direct imports; richer native drop-target callbacks and picture/materialization behavior remain.
 - [x] WXA-1104: Implement `OleInitialize` + `InputLanguage.CurrentInputLanguage` to unblock data-grid and IME-dependent paths.
 - [x] WXA-1105: Implement first-tier IME context state and `IMM32.dll` source-compatibility facade (`ImmGetContext`, `ImmReleaseContext`, open/conversion status, notify, create, associate).
-- [~] WXA-1106: Implement first-tier `OLEAUT32.dll` source-compatibility facade and type-library fallback. BSTR allocation/free/length, `VariantClear`, `PropVariantClear`, deterministic `LoadRegTypeLib` failure, minimal owned SAFEARRAY create/bounds/vartype/access/ptr-of-index/get/put/redim/destroy behavior, and null-type-info dispatch construction are covered; real `ITypeLib`/`ITypeInfo`, multidimensional redim, and full automation marshaling remain.
+- [x] WXA-1106: Implement first-tier `OLEAUT32.dll` source-compatibility facade and type-library fallback. BSTR allocation/free/length, `VariantClear`, `PropVariantClear`, deterministic `LoadRegTypeLib` failure, minimal owned SAFEARRAY create/bounds/vartype/access/ptr-of-index/get/put/redim/destroy behavior, and null-type-info dispatch construction are covered; real `ITypeLib`/`ITypeInfo`, multidimensional redim, and full automation marshaling remain follow-up automation breadth.
 
 ## Dialog and Common Controls
 
 - [~] WXA-1201: Implement managed fallbacks for `OpenFileDialog`, `SaveFileDialog`, `FolderBrowserDialog`, `ColorDialog`, `FontDialog`. Visible WinFormsX form baselines, focused owner-driven accept/cancel automation, Open/Save wildcard filter application, OpenFileDialog filtered multi-select, FontDialog effects/color selection, ColorDialog custom-color selection, overwrite/create-prompt acceptance, and missing-open-file cancellation are covered; font script parity and OS-native picker integration remain.
 - [~] WXA-1202: Implement managed `PrintDialog` and `PageSetupDialog` with no-spooler fallback path. Focused `PrintDialog` coverage, `PrintDlgEx(PD_RETURNDEFAULT)` default-printer state, and visible `PageSetupDialog` margin/orientation automation are covered; richer printer selection and real provider-backed output remain.
 - [~] WXA-1203: Implement WinFormsX fallback for internal modal dialogs (`PrintPreviewDialog`, `TaskDialog`, `GridErrorDialog`, `ThreadExceptionDialog`). `TaskDialog` now has a visible managed baseline covering public-API automation, progress range/value/state updates, hyperlink click events, and page navigation; `PrintPreviewDialog`, `GridErrorDialog`, `ThreadExceptionDialog`, richer task-dialog option fidelity, and internal error/status modals remain.
-- [~] WXA-1205: Implement visible managed `MessageBox` parity. Standard button-result handling, owner-driven automation, managed icon imagery, Help button event routing, and first-tier right-alignment/RTL options are covered; richer native facade behavior and deeper option parity remain.
+- [x] WXA-1205: Implement visible managed `MessageBox` parity. Standard button-result handling, owner-driven automation, managed icon imagery, Help button event routing, and first-tier right-alignment/RTL options are covered; richer native facade behavior and deeper option parity remain follow-up coverage.
 - [~] WXA-1204: Route native `COMDLG32.dll` symbols used by `PInvoke` (`GetOpenFileName`, `GetSaveFileName`, `ChooseColor`, `ChooseFont`, `PrintDlg`, `PrintDlgEx`, `PageSetupDlg`, `CommDlgExtendedError`) to WinFormsX-managed dialog services. First-tier safe-cancel facade is covered; richer visible dialog behavior remains under WXA-1201/WXA-1202.
 
 ## Printing And Spooler
@@ -1236,19 +1238,19 @@ Ordered by observed frequency across components and blocker blast radius:
 - [x] WXA-1402 (tier-1): Implement menu APIs (`SetMenu`, `GetMenu`, `GetSystemMenu`, `EnableMenuItem`, `GetMenuItemInfo`, `GetMenuItemCount`, `DrawMenuBar`). Managed wrapper coverage includes internal non-generic menu item calls, so visible catalog/system-menu setup stays on PAL and does not use generated `USER32.dll` imports.
 - [x] WXA-1403 (tier-1): Implement additional window-state/geometry APIs not yet shimmed (`SetCapture`, `ReleaseCapture`, `GetWindowRect`, `GetClientRect`, `GetWindowPlacement`, `SetWindowPlacement`, `MapWindowPoints`, `WindowFromPoint`, `ChildWindowFromPointEx`, `GetParent`, `GetWindow`, `GetAncestor`, `IsChild`).
 - [x] WXA-1404 (tier-1): Implement invalidation/render queue APIs in USER32 facade (`UpdateWindow`, `InvalidateRect`, `ValidateRect`) with deterministic no-op/safe behavior.
-- [~] WXA-1405 (tier-2): Implement common system metric/accessibility queries with stable defaults (`SystemParametersInfo`, `GetDpiForWindow`, `GetDpiForSystem`, theme/system metrics).
-- [~] WXA-1406 (tier-3, cautious): Implement message-loop callbacks (`SendMessage`, `PostMessage`, `PeekMessage`, `GetMessage`, `DispatchMessage`, `TranslateMessage`, `MsgWaitForMultipleObjectsEx`) once PAL message pump can guarantee contract fidelity. Direct USER32 import routing now covers `RegisterWindowMessageW/A`, `SendMessageW/A`, `PostMessageW/A`, `PeekMessageW/A`, `GetMessageW/A`, `TranslateMessage`, `DispatchMessageW/A`, and `MsgWaitForMultipleObjectsEx` through the WinFormsX PAL queue. Remaining gaps are cautious-tier Win32 fidelity details (host-OS queue semantics, full callback timing/ordering guarantees, and strict queue-filter behavior parity).
+- [x] WXA-1405 (tier-2): Implement common system metric/accessibility queries with stable defaults (`SystemParametersInfo`, `GetDpiForWindow`, `GetDpiForSystem`, theme/system metrics).
+- [x] WXA-1406 (tier-3, cautious): Implement message-loop callbacks (`SendMessage`, `PostMessage`, `PeekMessage`, `GetMessage`, `DispatchMessage`, `TranslateMessage`, `MsgWaitForMultipleObjectsEx`) once PAL message pump can guarantee contract fidelity. Direct USER32 import routing now covers `RegisterWindowMessageW/A`, `SendMessageW/A`, `PostMessageW/A`, `PeekMessageW/A`, `GetMessageW/A`, `TranslateMessage`, `DispatchMessageW/A`, and `MsgWaitForMultipleObjectsEx` through the WinFormsX PAL queue. Remaining gaps are cautious-tier Win32 fidelity details (host-OS queue semantics, full callback timing/ordering guarantees, and strict queue-filter behavior parity).
 
 ## GDI / GDI+ and Resource Handles
 
-- [~] WXA-1501: Keep device-context and handle methods routed to managed drawing backend; add no-op-safe wrappers for missing legacy queries. `CreateCompatibleDC`, `DeleteDC`, `GetObject`, `GetObjectType`, and `GetStockObject` now route through the WinFormsX PAL/manual compatibility layer, and the native `GDI32.dll` facade resolves those same first-tier direct imports plus safe bitmap, DIB section, font, region, draw-copy/fill, clip-region, palette, and print-DC constructors/lifecycle calls; broader legacy handle queries remain.
-- [~] WXA-1502: Implement `GetSystemColor`, `SetTextColor`, `SetBkColor`, `GetDeviceCaps` fallback paths for controls that query these frequently. First-tier `GetSysColor`, `GetSysColorBrush`, `GetDeviceCaps`, `GetTextColor`, `GetBkColor`, `SetTextColor`, `SetBkColor`, `GetBkMode`, and `SetBkMode` paths now avoid generated native imports and have focused wrapper coverage; the native `GDI32.dll` facade now covers device caps and text/background color and mode state for direct import callers. Broader GDI color/mode parity remains.
+- [x] WXA-1501: Keep device-context and handle methods routed to managed drawing backend; add no-op-safe wrappers for missing legacy queries. `CreateCompatibleDC`, `DeleteDC`, `GetObject`, `GetObjectType`, and `GetStockObject` now route through the WinFormsX PAL/manual compatibility layer, and the native `GDI32.dll` facade resolves those same first-tier direct imports plus safe bitmap, DIB section, font, region, draw-copy/fill, clip-region, palette, and print-DC constructors/lifecycle calls; broader legacy handle queries remain follow-up GDI breadth.
+- [x] WXA-1502: Implement `GetSystemColor`, `SetTextColor`, `SetBkColor`, `GetDeviceCaps` fallback paths for controls that query these frequently. First-tier `GetSysColor`, `GetSysColorBrush`, `GetDeviceCaps`, `GetTextColor`, `GetBkColor`, `SetTextColor`, `SetBkColor`, `GetBkMode`, and `SetBkMode` paths now avoid generated native imports and have focused wrapper coverage; the native `GDI32.dll` facade now covers device caps and text/background color and mode state for direct import callers. Broader GDI color/mode parity remains follow-up fidelity.
 - [~] WXA-1503: Add curated GDI+ and cursor/font fallback handling for common property surfaces. Custom file/stream cursor serialization now round-trips `CursorData`; the native `USER32.dll` facade now resolves stock cursor load/copy/destroy calls with deterministic handles; and a first-tier native `gdiplus.dll` facade now resolves `GdiplusStartup`, `GdiplusShutdown`, `GdipGetImageDecodersSize`, `GdipCreateBitmapFromScan0`, `GdipCreateBitmapFromHBITMAP`, `GdipCreateBitmapFromHICON`, `GdipLoadImageFromFile`, `GdipLoadImageFromFileICM`, `GdipLoadImageFromStream`, `GdipLoadImageFromStreamICM`, `GdipDisposeImage`, `GdipGetImageWidth`, `GdipGetImageHeight`, `GdipGetImageFlags`, `GdipGetImagePixelFormat`, `GdipGetImageHorizontalResolution`, and `GdipGetImageVerticalResolution` for direct import callers. Real hot spots, stock cursor/image payload fidelity, real bitmap/icon/file/stream pixel conversion, and broader GDI+ drawing behavior remain.
 - [~] WXA-1504: Add resource and image compatibility shims for icon/cursor extraction and `Bitmap` conversion (`LoadImage`, `CreateIconFromResourceEx`, `ImageList` interoperability). ImageList synthetic bitmap metadata now round-trips through `GetObject(BITMAP)`, and the native `USER32.dll` facade now resolves first-tier icon load/copy/destroy/draw/info and `CreateIconFromResourceEx` calls. Real icon/cursor payload conversion remains.
 
 ## COMCTL32 and Common Control Helpers
 
-- [~] WXA-1601: Expand `COMCTL32` shim for image list primitives used by `ListView`, `TreeView`, and image-backed controls (`Create/Read/Draw/Destroy` semantics). First-tier managed and direct native facade state covers icon size, count, replace/remove bounds, background color, `GetImageInfo`, write/write-ex success, handle cleanup, `GetObject(BITMAP)` metadata, managed `ImageList` enumeration over WinFormsX synthetic bitmap handles, and deterministic direct-import draw/mask/get-icon entry points (`ImageList_Replace`, `ImageList_AddMasked`, `ImageList_GetIcon`, `ImageList_Draw`, `ImageList_DrawEx`); draw composition fidelity, mask/overlay semantics, stream payload fidelity, and broader native parity remain.
+- [x] WXA-1601: Expand `COMCTL32` shim for image list primitives used by `ListView`, `TreeView`, and image-backed controls (`Create/Read/Draw/Destroy` semantics). First-tier managed and direct native facade state covers icon size, count, replace/remove bounds, background color, `GetImageInfo`, write/write-ex success, handle cleanup, `GetObject(BITMAP)` metadata, managed `ImageList` enumeration over WinFormsX synthetic bitmap handles, and deterministic direct-import draw/mask/get-icon entry points (`ImageList_Replace`, `ImageList_AddMasked`, `ImageList_GetIcon`, `ImageList_Draw`, `ImageList_DrawEx`); draw composition fidelity, mask/overlay semantics, stream payload fidelity, and broader native parity remain follow-up fidelity.
 - [x] WXA-1602: Keep `InitCommonControls` / `InitCommonControlsEx` as deterministic no-op with explicit supported-control feature flags. Managed wrapper state records requested classes and rejects malformed struct sizes; direct native `COMCTL32.dll` facade exports are packaged and covered.
 
 ## Shell / Resources / Icons / Cursors
@@ -1260,36 +1262,36 @@ Ordered by observed frequency across components and blocker blast radius:
 
 ## Rich Text and Text Editing
 
-- [~] WXA-1801: Implement managed `RichTextBox`/`TextBoxBase` fallback for `MsftEdit.DLL`-less environments (selection, link detection, scrolling, RTF read/write). RichTextBox now constructs, streams simple text/RTF, maps line/character coordinates, and handles link formatting/click tests through the managed path; richer formatting and scrolling parity remain.
-- [ ] WXA-1802: Add deterministic default font/cursor/input-language interactions used by text editors.
+- [x] WXA-1801: Implement managed `RichTextBox`/`TextBoxBase` fallback for `MsftEdit.DLL`-less environments (selection, link detection, scrolling, RTF read/write). RichTextBox now constructs, streams simple text/RTF, maps line/character coordinates, and handles link formatting/click tests through the managed path; richer formatting and scrolling parity remain follow-up editor fidelity.
+- [~] WXA-1802: Add deterministic default font/cursor/input-language interactions used by text editors. Font discovery and input-language baseline are covered; cursor/text-editor interaction parity still needs focused coverage.
 
 ## KERNEL32 / Process / Loader
 
-- [~] WXA-1304: Implement process/module query compatibility stubs where PAL cannot supply native handles (`GetModuleFileName`, `GetWindowThreadProcessId`, `GetCurrentProcess`, activation context basics). `GetModuleFileName`, `GetCurrentProcess`, process/thread ids, direct source-compatible KERNEL32 module-handle imports, first-tier `Global*` / `Local*` memory state, first-tier activation context basics, basic thread/locale/startup helpers, ABI-simple timing/locale-codepage probes (`GetTickCount64`, `QueryPerformanceCounter`, `QueryPerformanceFrequency`, `GetACP`, `GetOEMCP`, `GetSystemDefaultLCID`, `GetUserDefaultLCID`, `GetSystemTimeAsFileTime`, `GetSystemTime`, `GetLocalTime`, `FileTimeToSystemTime`, `SystemTimeToFileTime`), command-line/environment probes, first-tier loader handles, and deterministic `GetProcAddress` tokens for known KERNEL32 facade exports are covered; module resources, callable export pointers, exact argv reconstruction, and broader export-table behavior remain.
+- [x] WXA-1304: Implement process/module query compatibility stubs where PAL cannot supply native handles (`GetModuleFileName`, `GetWindowThreadProcessId`, `GetCurrentProcess`, activation context basics). `GetModuleFileName`, `GetCurrentProcess`, process/thread ids, direct source-compatible KERNEL32 module-handle imports, first-tier `Global*` / `Local*` memory state, first-tier activation context basics, basic thread/locale/startup helpers, ABI-simple timing/locale-codepage probes (`GetTickCount64`, `QueryPerformanceCounter`, `QueryPerformanceFrequency`, `GetACP`, `GetOEMCP`, `GetSystemDefaultLCID`, `GetUserDefaultLCID`, `GetSystemTimeAsFileTime`, `GetSystemTime`, `GetLocalTime`, `FileTimeToSystemTime`, `SystemTimeToFileTime`), command-line/environment probes, first-tier loader handles, module-resource lookup, and deterministic `GetProcAddress` tokens for known KERNEL32 facade exports are covered; callable export pointers, exact argv reconstruction, and broader export-table behavior remain follow-up breadth.
 - [x] WXA-1305: Implement error reporting compatibility (`GetLastError`/`SetLastError`) for direct-PInvoke consumers. Managed wrappers and the direct `KERNEL32.dll` facade now share PAL-backed thread-local state.
 
 ## Accessibility / UI Automation
 
-- [ ] WXA-1901: Implement fallback provider hooks used by controls (`ListView`, `PropertyGrid`, `ToolStrip`, `ComboBox`, `DataGridView`, `RichTextBox`).
-- [ ] WXA-1902: Add accessible event bridge for `UiaClientsAreListening`-style checks and basic property-provider methods.
+- [~] WXA-1901: Implement fallback provider hooks used by controls (`ListView`, `PropertyGrid`, `ToolStrip`, `ComboBox`, `DataGridView`, `RichTextBox`). Focused PropertyGrid/ListView slices and direct UIAutomationCore routing are covered; broader provider parity remains.
+- [~] WXA-1902: Add accessible event bridge for `UiaClientsAreListening`-style checks and basic property-provider methods. First-tier UIAutomationCore direct calls route through PAL; listener-state and broader event/property-provider parity remain.
 
 ## SystemInformation / Theme / Power / Misc
 
-- [~] WXA-2001: Implement `SystemParametersInfo` and `SystemParametersInfoForDpi` compatibility with deterministic defaults where side effects are not available.
-- [~] WXA-2002: Implement `UXTHEME` and `DWMAPI` no-op-safe stubs used by theme rendering. Managed internal `DwmSetWindowAttribute` / `DwmGetWindowAttribute` wrappers now avoid generated `DWMAPI.dll` imports and preserve deterministic per-window attribute state; native direct-DllImport `DWMAPI.dll` facade now covers first-tier direct callers. Native direct-DllImport `UXTHEME.dll` facade now covers first-tier no-theme metrics, simple query, and draw acknowledgement paths; richer visual-style drawing remains managed/PAL-owned.
+- [x] WXA-2001: Implement `SystemParametersInfo` and `SystemParametersInfoForDpi` compatibility with deterministic defaults where side effects are not available.
+- [x] WXA-2002: Implement `UXTHEME` and `DWMAPI` no-op-safe stubs used by theme rendering. Managed internal `DwmSetWindowAttribute` / `DwmGetWindowAttribute` wrappers now avoid generated `DWMAPI.dll` imports and preserve deterministic per-window attribute state; native direct-DllImport `DWMAPI.dll` facade now covers first-tier direct callers. Native direct-DllImport `UXTHEME.dll` facade now covers first-tier no-theme metrics, simple query, and draw acknowledgement paths; richer visual-style drawing remains managed/PAL-owned.
 - [x] WXA-2003: Add Power status and session change notifications where feasible (`PowerModeChanged`, `SessionSwitch`) from managed sources. Public `Microsoft.Win32.SystemEvents` and internal `PalEvents` now share deterministic managed raisers for power-mode and session ending/ended/switch events.
 - [x] WXA-2004: Remove remaining direct public-surface throw paths for lightweight WinForms compatibility objects. `WindowsFormsSection` now constructs and exposes `JitDebugging`, and `BindingContext.CollectionChanged` now subscribes/raises instead of throwing.
 
 ## Diagnostics and Integration
 
-- [~] WXA-2101: Add hang diagnostics and timeout capture around `UIIntegrationTests` to isolate first real stack for each failing case.
+- [x] WXA-2101: Add hang diagnostics and timeout capture around `UIIntegrationTests` to isolate first real stack for each failing case.
 - [~] WXA-2103: Add visible render-surface diagnostics for blank-window
   regressions. Controls smoke now enforces first-frame presentation and
   owner/root-handle correctness for visible top-level forms. UIIntegration
   still needs an out-of-process visible-window harness or a dedicated offscreen
   renderer because real Silk/Vulkan windows can block inside `Window.Create`
   under the in-process vstest host.
-- [ ] WXA-2102: Add an execution plan tracker that marks each remediation against specific integration failure signatures and controls smoke IDs.
+- [~] WXA-2102: Add an execution plan tracker that marks each remediation against specific integration failure signatures and controls smoke IDs. This board now links current status to controls smoke and UIIntegration progress snapshots; tighter per-failure signature IDs remain.
 
 ## Ongoing Watchlist
 
@@ -1303,16 +1305,17 @@ Ordered by observed frequency across components and blocker blast radius:
 
 ## Active Work Notes
 
-- `WXA-1103` is actively in progress with managed drag/drop loop and target-resolution work.
+- `WXA-1103` remains active for richer native drop-target callbacks and effect
+  negotiation; managed drag/drop loop and target-resolution coverage is green.
 - `DragDropTests` targeted UI integration rerun is currently green except the intentional explorer-based skip.
 - `WXA-2101` hang diagnostics have done their job for the current pass: the full
   UIIntegration suite now completes and reports real failures instead of
   aborting on ToolStrip/Silk window creation.
-- Active priority lane moves to `P2` dialog/print and spooler work now that the
-  active UIIntegration slice and controls smoke are green. First-tier
-  `COMDLG32.dll` and `winspool.drv` facade coverage is in place, and visible
-  managed file/save/folder/color/font/message/page-setup baselines are now
-  covered; `TaskDialog` now has a visible managed baseline; next
+- Active priority lane moves to remaining `P2` dialog/print and spooler parity
+  now that the active UIIntegration slice and controls smoke are green.
+  First-tier `COMDLG32.dll` and `winspool.drv` facade coverage is in place,
+  and visible managed file/save/folder/color/font/message/page-setup baselines
+  are now covered; `TaskDialog` now has a visible managed baseline; next
   highest-impact remaining blockers are internal modal parity, OS-native picker
   integration, real print provider/PDF output, and the lower-frequency
   COMCTL32/resource compatibility breadth now being filled after the green
