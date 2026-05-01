@@ -2066,6 +2066,8 @@ public partial class TaskDialog : IWin32Window
                 body.Controls.Add(_progressBar);
             }
 
+            bool hasCommandLinks = AddCommandLinks(body, customButtonElements, defaultButtonID);
+
             foreach (TaskDialogRadioButton radioButton in _page.RadioButtons)
             {
                 if (!radioButton.IsCreated)
@@ -2115,12 +2117,53 @@ public partial class TaskDialog : IWin32Window
                 FlowDirection = FlowDirection.RightToLeft
             };
 
-            AddButtons(buttons, customButtonElements, defaultButtonID);
+            AddButtons(buttons, customButtonElements, defaultButtonID, hasCommandLinks);
             root.Controls.Add(buttons, 0, 1);
             return root;
         }
 
-        private void AddButtons(FlowLayoutPanel buttons, IReadOnlyList<(int buttonID, string text)> customButtonElements, int defaultButtonID)
+        private bool AddCommandLinks(FlowLayoutPanel body, IReadOnlyList<(int buttonID, string text)> customButtonElements, int defaultButtonID)
+        {
+            bool hasCommandLinks = false;
+
+            foreach ((int buttonID, string text) in customButtonElements)
+            {
+                TaskDialogButton? taskDialogButton = _page.GetBoundButtonByID(buttonID);
+                if (taskDialogButton is not TaskDialogCommandLinkButton)
+                {
+                    continue;
+                }
+
+                Button button = new()
+                {
+                    Anchor = AnchorStyles.Left | AnchorStyles.Right,
+                    AutoSize = false,
+                    Enabled = taskDialogButton.Enabled,
+                    Height = text.Contains('\n') ? 58 : 42,
+                    Text = text,
+                    TextAlign = ContentAlignment.MiddleLeft,
+                    Width = 390
+                };
+
+                button.Click += (sender, e) => _ownerDialog.ClickButton(buttonID);
+                body.Controls.Add(button);
+                _buttons[buttonID] = button;
+                hasCommandLinks = true;
+
+                if (buttonID == defaultButtonID || AcceptButton is null)
+                {
+                    AcceptButton = button;
+                }
+            }
+
+            return hasCommandLinks;
+        }
+
+        private void AddButtons(
+            FlowLayoutPanel buttons,
+            IReadOnlyList<(int buttonID, string text)> customButtonElements,
+            int defaultButtonID,
+            bool hasCommandLinks)
         {
             bool hasVisibleButton = false;
             foreach (TaskDialogButton taskDialogButton in _page.Buttons)
@@ -2137,11 +2180,16 @@ public partial class TaskDialog : IWin32Window
             foreach ((int buttonID, string text) in customButtonElements)
             {
                 TaskDialogButton? taskDialogButton = _page.GetBoundButtonByID(buttonID);
+                if (taskDialogButton is TaskDialogCommandLinkButton)
+                {
+                    continue;
+                }
+
                 AddButton(buttons, buttonID, text, taskDialogButton?.Enabled != false, defaultButtonID);
                 hasVisibleButton = true;
             }
 
-            if (!hasVisibleButton)
+            if (!hasVisibleButton && !hasCommandLinks)
             {
                 AddButton(buttons, (int)TaskDialogResult.OK, TaskDialogResult.OK.ToString(), enabled: true, defaultButtonID: 0);
             }

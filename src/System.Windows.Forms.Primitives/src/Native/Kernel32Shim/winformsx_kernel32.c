@@ -51,6 +51,24 @@ typedef struct ACTCTXW
     void* module;
 } ACTCTXW;
 
+typedef struct FILETIME
+{
+    DWORD dw_low_date_time;
+    DWORD dw_high_date_time;
+} FILETIME;
+
+typedef struct SYSTEMTIME
+{
+    uint16_t w_year;
+    uint16_t w_month;
+    uint16_t w_day_of_week;
+    uint16_t w_day;
+    uint16_t w_hour;
+    uint16_t w_minute;
+    uint16_t w_second;
+    uint16_t w_milliseconds;
+} SYSTEMTIME;
+
 typedef struct WinFormsXKernel32Dispatch
 {
     uint32_t version;
@@ -101,9 +119,150 @@ static WinFormsXKernel32Dispatch g_dispatch;
 static DWORD g_last_error;
 static uint64_t g_tick_count;
 static uint64_t g_performance_counter;
+static uint64_t g_system_time_filetime = 132223104000000000ull;
 static intptr_t g_next_module_handle = 0x710000;
 static intptr_t g_next_activation_context = 0x610000;
 static void* g_current_activation_context;
+static const int64_t g_local_time_offset_ticks = -(4ll * 60ll * 60ll * 10000000ll);
+
+static int is_leap_year(int year)
+{
+    return (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0);
+}
+
+static int days_in_month(int year, int month)
+{
+    static const int month_lengths[12] =
+    {
+        31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31
+    };
+
+    if (month < 1 || month > 12)
+    {
+        return 0;
+    }
+
+    if (month == 2 && is_leap_year(year))
+    {
+        return 29;
+    }
+
+    return month_lengths[month - 1];
+}
+
+static uint64_t combine_file_time(const FILETIME* file_time)
+{
+    return ((uint64_t)file_time->dw_high_date_time << 32) | file_time->dw_low_date_time;
+}
+
+static FILETIME split_file_time(uint64_t value)
+{
+    FILETIME file_time;
+    file_time.dw_low_date_time = (DWORD)(value & 0xffffffffu);
+    file_time.dw_high_date_time = (DWORD)(value >> 32);
+    return file_time;
+}
+
+static BOOL system_time_to_file_time_value(const SYSTEMTIME* system_time, uint64_t* value)
+{
+    if (system_time == 0 || value == 0)
+    {
+        return 0;
+    }
+
+    if (system_time->w_year < 1601
+        || system_time->w_month < 1
+        || system_time->w_month > 12
+        || system_time->w_hour > 23
+        || system_time->w_minute > 59
+        || system_time->w_second > 59
+        || system_time->w_milliseconds > 999)
+    {
+        return 0;
+    }
+
+    int month_days = days_in_month((int)system_time->w_year, (int)system_time->w_month);
+    if (system_time->w_day < 1 || system_time->w_day > month_days)
+    {
+        return 0;
+    }
+
+    uint64_t days = 0;
+    for (int year = 1601; year < (int)system_time->w_year; year++)
+    {
+        days += is_leap_year(year) ? 366u : 365u;
+    }
+
+    for (int month = 1; month < (int)system_time->w_month; month++)
+    {
+        days += (uint64_t)days_in_month((int)system_time->w_year, month);
+    }
+
+    days += (uint64_t)(system_time->w_day - 1);
+    uint64_t seconds =
+        days * 86400u
+        + (uint64_t)system_time->w_hour * 3600u
+        + (uint64_t)system_time->w_minute * 60u
+        + (uint64_t)system_time->w_second;
+
+    *value = seconds * 10000000u + (uint64_t)system_time->w_milliseconds * 10000u;
+    return 1;
+}
+
+static BOOL file_time_value_to_system_time(uint64_t value, SYSTEMTIME* system_time)
+{
+    if (system_time == 0)
+    {
+        return 0;
+    }
+
+    uint64_t total_days = value / 864000000000ull;
+    uint64_t day_remainder = value % 864000000000ull;
+    int year = 1601;
+    while (1)
+    {
+        int year_days = is_leap_year(year) ? 366 : 365;
+        if (total_days < (uint64_t)year_days)
+        {
+            break;
+        }
+
+        total_days -= (uint64_t)year_days;
+        year++;
+    }
+
+    int month = 1;
+    while (1)
+    {
+        int month_len = days_in_month(year, month);
+        if (total_days < (uint64_t)month_len)
+        {
+            break;
+        }
+
+        total_days -= (uint64_t)month_len;
+        month++;
+    }
+
+    system_time->w_year = (uint16_t)year;
+    system_time->w_month = (uint16_t)month;
+    system_time->w_day = (uint16_t)(total_days + 1);
+    system_time->w_day_of_week = (uint16_t)((((value / 864000000000ull) + 1ull) % 7ull));
+    system_time->w_hour = (uint16_t)(day_remainder / 36000000000ull);
+    day_remainder %= 36000000000ull;
+    system_time->w_minute = (uint16_t)(day_remainder / 600000000ull);
+    day_remainder %= 600000000ull;
+    system_time->w_second = (uint16_t)(day_remainder / 10000000ull);
+    day_remainder %= 10000000ull;
+    system_time->w_milliseconds = (uint16_t)(day_remainder / 10000ull);
+    return 1;
+}
+
+static uint64_t next_system_time_filetime(void)
+{
+    g_system_time_filetime += 100000ull;
+    return g_system_time_filetime;
+}
 
 static void* fallback_memory_base(void* handle)
 {
@@ -651,6 +810,70 @@ WF_EXPORT DWORD GetTickCount(void)
 
     g_tick_count += 16;
     return (DWORD)g_tick_count;
+}
+
+WF_EXPORT void GetSystemTimeAsFileTime(FILETIME* file_time)
+{
+    if (file_time == 0)
+    {
+        return;
+    }
+
+    *file_time = split_file_time(next_system_time_filetime());
+}
+
+WF_EXPORT void GetSystemTime(SYSTEMTIME* system_time)
+{
+    if (system_time == 0)
+    {
+        return;
+    }
+
+    if (!file_time_value_to_system_time(next_system_time_filetime(), system_time))
+    {
+        memset(system_time, 0, sizeof(SYSTEMTIME));
+    }
+}
+
+WF_EXPORT void GetLocalTime(SYSTEMTIME* system_time)
+{
+    if (system_time == 0)
+    {
+        return;
+    }
+
+    int64_t local_value = (int64_t)next_system_time_filetime() + g_local_time_offset_ticks;
+    if (local_value < 0)
+    {
+        local_value = 0;
+    }
+
+    if (!file_time_value_to_system_time((uint64_t)local_value, system_time))
+    {
+        memset(system_time, 0, sizeof(SYSTEMTIME));
+    }
+}
+
+WF_EXPORT BOOL FileTimeToSystemTime(const FILETIME* file_time, SYSTEMTIME* system_time)
+{
+    if (file_time == 0 || system_time == 0)
+    {
+        return 0;
+    }
+
+    return file_time_value_to_system_time(combine_file_time(file_time), system_time);
+}
+
+WF_EXPORT BOOL SystemTimeToFileTime(const SYSTEMTIME* system_time, FILETIME* file_time)
+{
+    uint64_t value;
+    if (file_time == 0 || !system_time_to_file_time_value(system_time, &value))
+    {
+        return 0;
+    }
+
+    *file_time = split_file_time(value);
+    return 1;
 }
 
 WF_EXPORT uint64_t GetTickCount64(void)

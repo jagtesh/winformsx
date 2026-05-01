@@ -102,8 +102,10 @@ Ordered by observed frequency across components and blocker blast radius:
       `GetLocaleInfoEx`, `GetStartupInfo`, `GetThreadLocale`, `GetTickCount`,
       `GetTickCount64`, `QueryPerformanceCounter`,
       `QueryPerformanceFrequency`, `GetACP`, `GetOEMCP`,
-      `GetSystemDefaultLCID`, and `GetUserDefaultLCID` now share deterministic
-      WinFormsX behavior.
+      `GetSystemDefaultLCID`, `GetUserDefaultLCID`,
+      `GetSystemTimeAsFileTime`, `GetSystemTime`, `GetLocalTime`,
+      `FileTimeToSystemTime`, and `SystemTimeToFileTime` now share
+      deterministic WinFormsX behavior.
     - KERNEL32 first-tier loader state now belongs to the system PAL as well:
       managed wrappers and direct `KERNEL32.dll` imports for `LoadLibraryW/A`,
       `LoadLibraryExW/A`, `FreeLibrary`, and `GetProcAddress` now share stable
@@ -138,7 +140,9 @@ Ordered by observed frequency across components and blocker blast radius:
       packaged native facade for first-tier initialization, class-activation
       failure, message-filter registration, OLE clipboard pointer storage,
       clipboard identity checks (`OleIsCurrentClipboard`), drag/drop
-      registration state, lock-bytes/stream helper creation
+      registration state, advise-holder creation
+      (`CreateOleAdviseHolder`, `CreateDataAdviseHolder`), and
+      lock-bytes/stream helper creation
       (`CreateILockBytesOnHGlobal`, `CreateStreamOnHGlobal`,
       `GetHGlobalFromStream`), conservative `ReleaseStgMedium` cleanup, and
       conservative `OleCreatePictureIndirect` failure defaults.
@@ -286,10 +290,10 @@ Ordered by observed frequency across components and blocker blast radius:
       the backend is active, while keeping PAL/native `TaskDialogIndirect` out
       of the internal public-API path. It covers created/destroyed lifetime,
       close, standard/custom button click, verification checkbox state, radio
-      button state, progress-bar range/value/state updates, and text/caption
-      updates through the existing
+      button state, progress-bar range/value/state updates, command-link click
+      flow, and text/caption updates through the existing
       `TaskDialogPage` model. Focused `TaskDialogUITests` reports
-      `Passed: 5, Failed: 0`; the focused dialog group reports
+      `Passed: 6, Failed: 0`; the focused dialog group reports
       `Passed: 21, Failed: 0`; controls smoke remains
       `total=42 passed=41 failed=0 skipped=1`.
     - Latest print-preview pass:
@@ -1043,6 +1047,14 @@ Ordered by observed frequency across components and blocker blast radius:
   - Scope note: this is deterministic source-compatibility behavior only; it
     does not switch WinFormsX to host-native GDI+ drawing.
 - In-progress local changes (next commit):
+  - Expanded the native `COMCTL32.dll` ImageList facade with deterministic
+    first-tier direct-import coverage for
+    `ImageList_Replace`, `ImageList_AddMasked`, `ImageList_GetIcon`,
+    `ImageList_Draw`, and `ImageList_DrawEx`.
+  - Extended focused UIIntegration direct-import coverage in
+    `DirectComCtl32DllImports_ResolveImageListState` for draw/mask/get-icon
+    and replace bounds behavior.
+- In-progress local changes (next commit):
   - Expanded the native `GDI32.dll` facade with safe first-tier bitmap, DIB
     section, font, and region constructors: `CreateBitmap`,
     `CreateCompatibleBitmap`, `CreateDIBSection`, `CreateFontIndirectW`,
@@ -1125,11 +1137,11 @@ Ordered by observed frequency across components and blocker blast radius:
 
 ## KERNEL32 Surface
 
-- [~] WXA-1100: Add KERNEL32 compatibility for process/thread/module/memory primitives used by WinForms (`GetModuleHandle`, `LoadLibrary`, `FreeLibrary`, `GetProcAddress`, `GetCurrentProcessId`, `GetCurrentThreadId`, `GetCurrentThread`, `Global*/Local*`, `GetLastError`, `SetLastError`). Managed wrappers cover the current process/thread/module-handle loader subset; a direct `KERNEL32.dll` facade now covers `GetCurrentProcess`, `GetCurrentThread`, `GetCurrentProcessId`, `GetCurrentThreadId`, `GetModuleHandleW/A`, `GetModuleFileNameW/A`, `LoadLibraryW/A`, `LoadLibraryExW/A`, `FreeLibrary`, `GetProcAddress`, first-tier module-resource lookup (`FindResourceW/A`, `FindResourceExW/A`, `LoadResource`, `LockResource`, `SizeofResource`, `FreeResource`), `GetLastError`, `SetLastError`, `GlobalAlloc`, `GlobalReAlloc`, `GlobalLock`, `GlobalUnlock`, `GlobalSize`, `GlobalFree`, matching `Local*` memory APIs, first-tier activation context APIs, basic thread/locale/startup helpers, and ABI-simple timing/locale probes (`GetTickCount64`, `QueryPerformanceCounter`, `QueryPerformanceFrequency`, `GetACP`, `GetOEMCP`, `GetSystemDefaultLCID`, `GetUserDefaultLCID`). Richer export-table breadth remains.
+- [~] WXA-1100: Add KERNEL32 compatibility for process/thread/module/memory primitives used by WinForms (`GetModuleHandle`, `LoadLibrary`, `FreeLibrary`, `GetProcAddress`, `GetCurrentProcessId`, `GetCurrentThreadId`, `GetCurrentThread`, `Global*/Local*`, `GetLastError`, `SetLastError`). Managed wrappers cover the current process/thread/module-handle loader subset; a direct `KERNEL32.dll` facade now covers `GetCurrentProcess`, `GetCurrentThread`, `GetCurrentProcessId`, `GetCurrentThreadId`, `GetModuleHandleW/A`, `GetModuleFileNameW/A`, `LoadLibraryW/A`, `LoadLibraryExW/A`, `FreeLibrary`, `GetProcAddress`, first-tier module-resource lookup (`FindResourceW/A`, `FindResourceExW/A`, `LoadResource`, `LockResource`, `SizeofResource`, `FreeResource`), `GetLastError`, `SetLastError`, `GlobalAlloc`, `GlobalReAlloc`, `GlobalLock`, `GlobalUnlock`, `GlobalSize`, `GlobalFree`, matching `Local*` memory APIs, first-tier activation context APIs, basic thread/locale/startup helpers, and ABI-simple timing/locale probes (`GetTickCount64`, `QueryPerformanceCounter`, `QueryPerformanceFrequency`, `GetACP`, `GetOEMCP`, `GetSystemDefaultLCID`, `GetUserDefaultLCID`, `GetSystemTimeAsFileTime`, `GetSystemTime`, `GetLocalTime`, `FileTimeToSystemTime`, `SystemTimeToFileTime`). Richer export-table breadth remains.
 
 ## OLE, COM, Clipboard, IME, Drag/Drop
 
-- [~] WXA-1101: Implement PAL-backed `OleInitialize`, `CoInitialize`, `CoCreateInstance` and core `OLE32.dll` facade contracts. Managed wrappers cover current WinForms paths, and the native `OLE32.dll` facade now resolves first-tier direct imports for initialization/uninitialization, deterministic class-activation failure, `CoRegisterMessageFilter`, `CreateILockBytesOnHGlobal`, `CreateStreamOnHGlobal`, and `GetHGlobalFromStream`; richer COM activation and broader COM object lifetime semantics remain.
+- [~] WXA-1101: Implement PAL-backed `OleInitialize`, `CoInitialize`, `CoCreateInstance` and core `OLE32.dll` facade contracts. Managed wrappers cover current WinForms paths, and the native `OLE32.dll` facade now resolves first-tier direct imports for initialization/uninitialization, deterministic class-activation failure, `CoRegisterMessageFilter`, `CreateOleAdviseHolder`, `CreateDataAdviseHolder`, `CreateILockBytesOnHGlobal`, `CreateStreamOnHGlobal`, and `GetHGlobalFromStream`; richer COM activation and broader COM object lifetime semantics remain.
 - [~] WXA-1102: Implement clipboard helpers (`OleGetClipboard`, `OleSetClipboard`, `OleFlushClipboard`) with managed storage and format metadata. Managed wrappers cover safe defaults, and the native `OLE32.dll` facade now stores/retrieves the current OLE clipboard pointer and `OleIsCurrentClipboard` identity checks for direct import callers; richer data-object ownership/format metadata remains.
 - [~] WXA-1103: Implement `RevokeDragDrop`/`RegisterDragDrop`/`DoDragDrop` event flow and default drop effects. Managed WinForms drag/drop event flow is covered, and the native `OLE32.dll` facade now tracks direct registration/revocation state, returns cancelled default drag effects, and applies conservative `ReleaseStgMedium` and `OleCreatePictureIndirect` behavior for direct imports; richer native drop-target callbacks and picture/materialization behavior remain.
 - [x] WXA-1104: Implement `OleInitialize` + `InputLanguage.CurrentInputLanguage` to unblock data-grid and IME-dependent paths.
@@ -1168,7 +1180,7 @@ Ordered by observed frequency across components and blocker blast radius:
 
 ## COMCTL32 and Common Control Helpers
 
-- [~] WXA-1601: Expand `COMCTL32` shim for image list primitives used by `ListView`, `TreeView`, and image-backed controls (`Create/Read/Draw/Destroy` semantics). First-tier managed and direct native facade state covers icon size, count, replace/remove bounds, background color, `GetImageInfo`, write/write-ex success, handle cleanup, `GetObject(BITMAP)` metadata, and managed `ImageList` enumeration over WinFormsX synthetic bitmap handles; draw composition, mask/overlay behavior, stream payload fidelity, and broader native parity remain.
+- [~] WXA-1601: Expand `COMCTL32` shim for image list primitives used by `ListView`, `TreeView`, and image-backed controls (`Create/Read/Draw/Destroy` semantics). First-tier managed and direct native facade state covers icon size, count, replace/remove bounds, background color, `GetImageInfo`, write/write-ex success, handle cleanup, `GetObject(BITMAP)` metadata, managed `ImageList` enumeration over WinFormsX synthetic bitmap handles, and deterministic direct-import draw/mask/get-icon entry points (`ImageList_Replace`, `ImageList_AddMasked`, `ImageList_GetIcon`, `ImageList_Draw`, `ImageList_DrawEx`); draw composition fidelity, mask/overlay semantics, stream payload fidelity, and broader native parity remain.
 - [x] WXA-1602: Keep `InitCommonControls` / `InitCommonControlsEx` as deterministic no-op with explicit supported-control feature flags. Managed wrapper state records requested classes and rejects malformed struct sizes; direct native `COMCTL32.dll` facade exports are packaged and covered.
 
 ## Shell / Resources / Icons / Cursors
@@ -1185,7 +1197,7 @@ Ordered by observed frequency across components and blocker blast radius:
 
 ## KERNEL32 / Process / Loader
 
-- [~] WXA-1304: Implement process/module query compatibility stubs where PAL cannot supply native handles (`GetModuleFileName`, `GetWindowThreadProcessId`, `GetCurrentProcess`, activation context basics). `GetModuleFileName`, `GetCurrentProcess`, process/thread ids, direct source-compatible KERNEL32 module-handle imports, first-tier `Global*` / `Local*` memory state, first-tier activation context basics, basic thread/locale/startup helpers, ABI-simple timing/locale-codepage probes (`GetTickCount64`, `QueryPerformanceCounter`, `QueryPerformanceFrequency`, `GetACP`, `GetOEMCP`, `GetSystemDefaultLCID`, `GetUserDefaultLCID`), and first-tier loader handles are covered; module resources and richer export-table behavior remain.
+- [~] WXA-1304: Implement process/module query compatibility stubs where PAL cannot supply native handles (`GetModuleFileName`, `GetWindowThreadProcessId`, `GetCurrentProcess`, activation context basics). `GetModuleFileName`, `GetCurrentProcess`, process/thread ids, direct source-compatible KERNEL32 module-handle imports, first-tier `Global*` / `Local*` memory state, first-tier activation context basics, basic thread/locale/startup helpers, ABI-simple timing/locale-codepage probes (`GetTickCount64`, `QueryPerformanceCounter`, `QueryPerformanceFrequency`, `GetACP`, `GetOEMCP`, `GetSystemDefaultLCID`, `GetUserDefaultLCID`, `GetSystemTimeAsFileTime`, `GetSystemTime`, `GetLocalTime`, `FileTimeToSystemTime`, `SystemTimeToFileTime`), and first-tier loader handles are covered; module resources and richer export-table behavior remain.
 - [x] WXA-1305: Implement error reporting compatibility (`GetLastError`/`SetLastError`) for direct-PInvoke consumers. Managed wrappers and the direct `KERNEL32.dll` facade now share PAL-backed thread-local state.
 
 ## Accessibility / UI Automation

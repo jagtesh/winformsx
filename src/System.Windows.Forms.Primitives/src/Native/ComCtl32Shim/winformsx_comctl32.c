@@ -50,6 +50,7 @@ typedef struct WinFormsXImageList
 } WinFormsXImageList;
 
 static uintptr_t g_next_bitmap = 0x510000u;
+static uintptr_t g_next_icon = 0x520000u;
 
 WF_EXPORT void InitCommonControls(void)
 {
@@ -127,6 +128,41 @@ WF_EXPORT int32_t ImageList_ReplaceIcon(void* himl, int32_t i, void* hicon)
     }
 
     return i >= 0 && i < image_list->count ? i : -1;
+}
+
+WF_EXPORT BOOL ImageList_Replace(void* himl, int32_t i, void* hbmImage, void* hbmMask)
+{
+    (void)hbmImage;
+    (void)hbmMask;
+
+    WinFormsXImageList* image_list = (WinFormsXImageList*)himl;
+    if (image_list == 0 || i < 0 || i >= image_list->count)
+    {
+        return 0;
+    }
+
+    image_list->bitmap = ++g_next_bitmap;
+    return 1;
+}
+
+WF_EXPORT int32_t ImageList_AddMasked(void* himl, void* hbmImage, COLORREF crMask)
+{
+    (void)hbmImage;
+    (void)crMask;
+    return ImageList_Add(himl, 0, 0);
+}
+
+WF_EXPORT void* ImageList_GetIcon(void* himl, int32_t i, uint32_t flags)
+{
+    (void)flags;
+
+    WinFormsXImageList* image_list = (WinFormsXImageList*)himl;
+    if (image_list == 0 || i < 0 || i >= image_list->count)
+    {
+        return 0;
+    }
+
+    return (void*)(++g_next_icon);
 }
 
 WF_EXPORT BOOL ImageList_Remove(void* himl, int32_t i)
@@ -229,4 +265,50 @@ WF_EXPORT HRESULT ImageList_WriteEx(void* himl, uint32_t dwFlags, void* pstm)
     (void)dwFlags;
     (void)pstm;
     return himl != 0 ? 0 : (HRESULT)0x80070057u;
+}
+
+WF_EXPORT BOOL ImageList_Draw(void* himl, int32_t i, void* hdcDst, int32_t x, int32_t y, uint32_t fStyle)
+{
+    (void)hdcDst;
+    (void)x;
+    (void)y;
+    (void)fStyle;
+
+    WinFormsXImageList* image_list = (WinFormsXImageList*)himl;
+    if (image_list == 0 || i < 0 || i >= image_list->count)
+    {
+        return 0;
+    }
+
+    return 1;
+}
+
+WF_EXPORT BOOL ImageList_DrawEx(
+    void* himl,
+    int32_t i,
+    void* hdcDst,
+    int32_t x,
+    int32_t y,
+    int32_t dx,
+    int32_t dy,
+    COLORREF rgbBk,
+    COLORREF rgbFg,
+    uint32_t fStyle)
+{
+    (void)hdcDst;
+    (void)x;
+    (void)y;
+    (void)dx;
+    (void)dy;
+    (void)rgbBk;
+    (void)rgbFg;
+    (void)fStyle;
+
+    WinFormsXImageList* image_list = (WinFormsXImageList*)himl;
+    if (image_list == 0 || i < 0 || i >= image_list->count)
+    {
+        return 0;
+    }
+
+    return 1;
 }

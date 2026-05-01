@@ -120,11 +120,35 @@ public class TaskDialogUITests : ControlTestBase
         Assert.Equal(42, progressBar.Value);
     }
 
-    private static T FindOpenTaskDialogControl<T>(string? caption) where T : Control
+    [UIFact]
+    public void TaskDialog_ShowDialog_CommandLinkClick_ReturnsButton()
+    {
+        TaskDialogCommandLinkButton commandLink = new("Primary action", "Command link detail");
+        TaskDialogPage page = new()
+        {
+            Caption = nameof(TaskDialog_ShowDialog_CommandLinkClick_ReturnsButton),
+            Heading = "Choose"
+        };
+
+        page.Buttons.Add(commandLink);
+        page.Created += (sender, e) =>
+        {
+            Button visibleCommandLink = FindOpenTaskDialogControl<Button>(
+                page.Caption,
+                button => button.Text.Contains("Command link detail", StringComparison.Ordinal));
+
+            Assert.Contains('\n', visibleCommandLink.Text);
+            visibleCommandLink.PerformClick();
+        };
+
+        Assert.Equal(commandLink, TaskDialog.ShowDialog(page));
+    }
+
+    private static T FindOpenTaskDialogControl<T>(string? caption, Predicate<T>? match = null) where T : Control
     {
         foreach (Form form in Application.OpenForms)
         {
-            if (form.Text == caption && FindControl<T>(form) is { } control)
+            if (form.Text == caption && FindControl(form, match) is { } control)
             {
                 return control;
             }
@@ -133,16 +157,16 @@ public class TaskDialogUITests : ControlTestBase
         throw new InvalidOperationException($"Could not find visible {typeof(T).Name} in the open task dialog.");
     }
 
-    private static T? FindControl<T>(Control parent) where T : Control
+    private static T? FindControl<T>(Control parent, Predicate<T>? match = null) where T : Control
     {
         foreach (Control child in parent.Controls)
         {
-            if (child is T match)
+            if (child is T typedChild && match?.Invoke(typedChild) != false)
             {
-                return match;
+                return typedChild;
             }
 
-            if (FindControl<T>(child) is { } nestedMatch)
+            if (FindControl(child, match) is { } nestedMatch)
             {
                 return nestedMatch;
             }

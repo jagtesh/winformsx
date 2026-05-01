@@ -21,6 +21,8 @@ typedef void* IDropTarget;
 typedef void* ILockBytes;
 typedef void* IStream;
 typedef void* IUnknown;
+typedef struct IOleAdviseHolder IOleAdviseHolder;
+typedef struct IDataAdviseHolder IDataAdviseHolder;
 
 #define S_OK ((HRESULT)0)
 #define S_FALSE ((HRESULT)1)
@@ -65,6 +67,11 @@ typedef struct StreamState
     int used;
 } StreamState;
 
+typedef struct AdviseHolderState
+{
+    int used;
+} AdviseHolderState;
+
 typedef struct STGMEDIUM
 {
     DWORD tymed;
@@ -78,6 +85,8 @@ static IUnknown* g_message_filter;
 static DropRegistration g_drop_registrations[128];
 static LockBytesState g_lockbytes_states[64];
 static StreamState g_stream_states[64];
+static AdviseHolderState g_ole_advise_holders[64];
+static AdviseHolderState g_data_advise_holders[64];
 static uintptr_t g_next_synthetic_hglobal = (uintptr_t)0x10000;
 
 static DropRegistration* find_registration(HWND hwnd)
@@ -140,6 +149,20 @@ static StreamState* find_stream_state(IStream* stream)
         if (g_stream_states[i].used != 0 && stream == (IStream*)&g_stream_states[i])
         {
             return &g_stream_states[i];
+        }
+    }
+
+    return 0;
+}
+
+static void* allocate_opaque_holder(AdviseHolderState* holders, int count)
+{
+    for (int i = 0; i < count; i++)
+    {
+        if (holders[i].used == 0)
+        {
+            holders[i].used = 1;
+            return &holders[i];
         }
     }
 
@@ -233,6 +256,42 @@ WF_EXPORT HRESULT CreateILockBytesOnHGlobal(HGLOBAL hGlobal, BOOL fDeleteOnRelea
     state->hglobal = ensure_hglobal(hGlobal);
     state->delete_on_release = fDeleteOnRelease;
     *lockBytes = (ILockBytes*)state;
+    return S_OK;
+}
+
+WF_EXPORT HRESULT CreateOleAdviseHolder(IOleAdviseHolder** adviseHolder)
+{
+    if (adviseHolder == 0)
+    {
+        return E_INVALIDARG;
+    }
+
+    void* holder = allocate_opaque_holder(g_ole_advise_holders, 64);
+    if (holder == 0)
+    {
+        *adviseHolder = 0;
+        return E_OUTOFMEMORY;
+    }
+
+    *adviseHolder = (IOleAdviseHolder*)holder;
+    return S_OK;
+}
+
+WF_EXPORT HRESULT CreateDataAdviseHolder(IDataAdviseHolder** adviseHolder)
+{
+    if (adviseHolder == 0)
+    {
+        return E_INVALIDARG;
+    }
+
+    void* holder = allocate_opaque_holder(g_data_advise_holders, 64);
+    if (holder == 0)
+    {
+        *adviseHolder = 0;
+        return E_OUTOFMEMORY;
+    }
+
+    *adviseHolder = (IDataAdviseHolder*)holder;
     return S_OK;
 }
 

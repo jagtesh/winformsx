@@ -555,11 +555,25 @@ public class User32CompatibilityFacadeTests
                 Assert.Equal(0, NativeComCtl32.ImageList_Add(imageList, nint.Zero, nint.Zero));
                 Assert.Equal(1, NativeComCtl32.ImageList_ReplaceIcon(imageList, -1, nint.Zero));
                 Assert.Equal(2, NativeComCtl32.ImageList_GetImageCount(imageList));
+                Assert.Equal(2, NativeComCtl32.ImageList_AddMasked(imageList, nint.Zero, 0x0000FF00u));
+                Assert.Equal(3, NativeComCtl32.ImageList_GetImageCount(imageList));
+
+                Assert.True(NativeComCtl32.ImageList_Replace(imageList, 0, nint.Zero, nint.Zero));
+                Assert.False(NativeComCtl32.ImageList_Replace(imageList, 9, nint.Zero, nint.Zero));
 
                 Assert.True(NativeComCtl32.ImageList_GetImageInfo(imageList, 0, out NativeComCtl32.IMAGEINFO imageInfo));
                 Assert.NotEqual(nint.Zero, imageInfo._hbmImage);
                 Assert.Equal(16, imageInfo._rcImage._right);
                 Assert.Equal(20, imageInfo._rcImage._bottom);
+
+                Assert.True(NativeComCtl32.ImageList_Draw(imageList, 0, nint.Zero, 1, 2, 0));
+                Assert.True(NativeComCtl32.ImageList_DrawEx(imageList, 1, nint.Zero, 3, 4, 16, 20, 0xFFFFFFFFu, 0x00000000u, 0));
+                Assert.False(NativeComCtl32.ImageList_Draw(imageList, 12, nint.Zero, 0, 0, 0));
+                Assert.False(NativeComCtl32.ImageList_DrawEx(imageList, -1, nint.Zero, 0, 0, 16, 20, 0, 0, 0));
+
+                nint iconHandle = NativeComCtl32.ImageList_GetIcon(imageList, 1, 0);
+                Assert.NotEqual(nint.Zero, iconHandle);
+                Assert.Equal(nint.Zero, NativeComCtl32.ImageList_GetIcon(imageList, 99, 0));
 
                 Assert.Equal(0xFFFFFFFFu, NativeComCtl32.ImageList_SetBkColor(imageList, 0x000000FFu));
                 Assert.Equal(0x000000FFu, NativeComCtl32.ImageList_SetBkColor(imageList, 0xFFFFFFFFu));
@@ -710,6 +724,46 @@ public class User32CompatibilityFacadeTests
             Assert.Equal(0x0409u, NativeKernel32.GetSystemDefaultLCID());
             Assert.Equal(0x0409u, NativeKernel32.GetUserDefaultLCID());
             Assert.Equal(NativeKernel32.GetSystemDefaultLCID(), NativeKernel32.GetUserDefaultLCID());
+
+            NativeKernel32.FILETIME systemFileTime;
+            NativeKernel32.GetSystemTimeAsFileTime(&systemFileTime);
+
+            NativeKernel32.SYSTEMTIME convertedSystemTime;
+            Assert.True(NativeKernel32.FileTimeToSystemTime(&systemFileTime, &convertedSystemTime));
+
+            NativeKernel32.FILETIME convertedFileTime;
+            Assert.True(NativeKernel32.SystemTimeToFileTime(&convertedSystemTime, &convertedFileTime));
+            Assert.Equal(systemFileTime.dwLowDateTime, convertedFileTime.dwLowDateTime);
+            Assert.Equal(systemFileTime.dwHighDateTime, convertedFileTime.dwHighDateTime);
+
+            NativeKernel32.SYSTEMTIME utcSystemTime;
+            NativeKernel32.SYSTEMTIME localSystemTime;
+            NativeKernel32.GetSystemTime(&utcSystemTime);
+            NativeKernel32.GetLocalTime(&localSystemTime);
+
+            NativeKernel32.FILETIME utcFileTime;
+            NativeKernel32.FILETIME localFileTime;
+            Assert.True(NativeKernel32.SystemTimeToFileTime(&utcSystemTime, &utcFileTime));
+            Assert.True(NativeKernel32.SystemTimeToFileTime(&localSystemTime, &localFileTime));
+
+            ulong utcTicks = ((ulong)utcFileTime.dwHighDateTime << 32) | utcFileTime.dwLowDateTime;
+            ulong localTicks = ((ulong)localFileTime.dwHighDateTime << 32) | localFileTime.dwLowDateTime;
+            Assert.True(utcTicks > localTicks);
+            ulong offsetTicks = utcTicks - localTicks;
+            Assert.InRange(offsetTicks, 143_900_000_000UL, 144_100_000_000UL);
+
+            NativeKernel32.SYSTEMTIME invalidSystemTime = new()
+            {
+                wYear = 2026,
+                wMonth = 2,
+                wDay = 30
+            };
+
+            Assert.False(NativeKernel32.SystemTimeToFileTime(&invalidSystemTime, &utcFileTime));
+            Assert.False(NativeKernel32.FileTimeToSystemTime(null, &utcSystemTime));
+            Assert.False(NativeKernel32.FileTimeToSystemTime(&systemFileTime, null));
+            Assert.False(NativeKernel32.SystemTimeToFileTime(null, &utcFileTime));
+            Assert.False(NativeKernel32.SystemTimeToFileTime(&utcSystemTime, null));
 
             uint exitCode;
             Assert.True(NativeKernel32.GetExitCodeThread((nint)(-2), &exitCode));
@@ -930,6 +984,22 @@ public class User32CompatibilityFacadeTests
         nint lockBytes;
         Assert.Equal(S_OK, NativeOle32.CreateILockBytesOnHGlobal((nint)0x3210, true, &lockBytes));
         Assert.NotEqual(0, lockBytes);
+
+        Assert.Equal(E_INVALIDARG, NativeOle32.CreateOleAdviseHolder(null));
+        Assert.Equal(E_INVALIDARG, NativeOle32.CreateDataAdviseHolder(null));
+
+        nint oleAdviseHolder;
+        Assert.Equal(S_OK, NativeOle32.CreateOleAdviseHolder(&oleAdviseHolder));
+        Assert.NotEqual(0, oleAdviseHolder);
+
+        nint secondOleAdviseHolder;
+        Assert.Equal(S_OK, NativeOle32.CreateOleAdviseHolder(&secondOleAdviseHolder));
+        Assert.NotEqual(0, secondOleAdviseHolder);
+        Assert.NotEqual(oleAdviseHolder, secondOleAdviseHolder);
+
+        nint dataAdviseHolder;
+        Assert.Equal(S_OK, NativeOle32.CreateDataAdviseHolder(&dataAdviseHolder));
+        Assert.NotEqual(0, dataAdviseHolder);
 
         nint stream;
         Assert.Equal(S_OK, NativeOle32.CreateStreamOnHGlobal((nint)0x9876, false, &stream));
@@ -1764,6 +1834,16 @@ public class User32CompatibilityFacadeTests
 
         [DllImport(ComCtl32, ExactSpelling = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool ImageList_Replace(nint himl, int i, nint hbmImage, nint hbmMask);
+
+        [DllImport(ComCtl32, ExactSpelling = true)]
+        internal static extern int ImageList_AddMasked(nint himl, nint hbmImage, uint crMask);
+
+        [DllImport(ComCtl32, ExactSpelling = true)]
+        internal static extern nint ImageList_GetIcon(nint himl, int i, uint flags);
+
+        [DllImport(ComCtl32, ExactSpelling = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
         internal static extern bool ImageList_Remove(nint himl, int i);
 
         [DllImport(ComCtl32, ExactSpelling = true)]
@@ -1790,6 +1870,24 @@ public class User32CompatibilityFacadeTests
 
         [DllImport(ComCtl32, ExactSpelling = true)]
         internal static extern int ImageList_WriteEx(nint himl, uint flags, nint pstm);
+
+        [DllImport(ComCtl32, ExactSpelling = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool ImageList_Draw(nint himl, int i, nint hdcDst, int x, int y, uint style);
+
+        [DllImport(ComCtl32, ExactSpelling = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool ImageList_DrawEx(
+            nint himl,
+            int i,
+            nint hdcDst,
+            int x,
+            int y,
+            int dx,
+            int dy,
+            uint rgbBk,
+            uint rgbFg,
+            uint style);
     }
 
     private static partial class NativeWinSpool
@@ -1929,6 +2027,21 @@ public class User32CompatibilityFacadeTests
         internal static extern uint GetUserDefaultLCID();
 
         [DllImport(Kernel32, ExactSpelling = true)]
+        internal static extern void GetSystemTimeAsFileTime(FILETIME* lpSystemTimeAsFileTime);
+
+        [DllImport(Kernel32, ExactSpelling = true)]
+        internal static extern void GetSystemTime(SYSTEMTIME* lpSystemTime);
+
+        [DllImport(Kernel32, ExactSpelling = true)]
+        internal static extern void GetLocalTime(SYSTEMTIME* lpSystemTime);
+
+        [DllImport(Kernel32, ExactSpelling = true)]
+        internal static extern bool FileTimeToSystemTime(FILETIME* lpFileTime, SYSTEMTIME* lpSystemTime);
+
+        [DllImport(Kernel32, ExactSpelling = true)]
+        internal static extern bool SystemTimeToFileTime(SYSTEMTIME* lpSystemTime, FILETIME* lpFileTime);
+
+        [DllImport(Kernel32, ExactSpelling = true)]
         internal static extern nint GlobalAlloc(uint uFlags, nuint dwBytes);
 
         [DllImport(Kernel32, ExactSpelling = true)]
@@ -2010,6 +2123,24 @@ public class User32CompatibilityFacadeTests
             public nint hStdOutput;
             public nint hStdError;
         }
+
+        internal struct FILETIME
+        {
+            public uint dwLowDateTime;
+            public uint dwHighDateTime;
+        }
+
+        internal struct SYSTEMTIME
+        {
+            public ushort wYear;
+            public ushort wMonth;
+            public ushort wDayOfWeek;
+            public ushort wDay;
+            public ushort wHour;
+            public ushort wMinute;
+            public ushort wSecond;
+            public ushort wMilliseconds;
+        }
     }
 
     private static unsafe partial class NativeDwmApi
@@ -2086,6 +2217,12 @@ public class User32CompatibilityFacadeTests
 
         [DllImport(Ole32, ExactSpelling = true)]
         internal static extern int CreateILockBytesOnHGlobal(nint hGlobal, [MarshalAs(UnmanagedType.Bool)] bool deleteOnRelease, nint* lockBytes);
+
+        [DllImport(Ole32, ExactSpelling = true)]
+        internal static extern int CreateOleAdviseHolder(nint* adviseHolder);
+
+        [DllImport(Ole32, ExactSpelling = true)]
+        internal static extern int CreateDataAdviseHolder(nint* adviseHolder);
 
         [DllImport(Ole32, ExactSpelling = true)]
         internal static extern int CreateStreamOnHGlobal(nint hGlobal, [MarshalAs(UnmanagedType.Bool)] bool deleteOnRelease, nint* stream);

@@ -204,7 +204,11 @@ compatibility-facade coverage.
   import resolution with focused UIIntegration coverage. The latest native
   ImageList facade pass adds first-tier `ImageList_Create`, destroy,
   add/replace/remove, count, icon-size, `GetImageInfo`, background-color, and
-  write/write-ex exports with deterministic native shim state. The latest
+  write/write-ex exports with deterministic native shim state. The follow-up
+  ImageList draw/mask pass adds deterministic direct-import coverage for
+  `ImageList_Replace`, `ImageList_AddMasked`, `ImageList_GetIcon`,
+  `ImageList_Draw`, and `ImageList_DrawEx` so common source-compatible draw
+  probes no longer fail symbol resolution. The latest
   KERNEL32 facade pass removes the generated `GetModuleFileName` import from
   the managed path, adds PAL-backed module-file-name state, and packages a
   source-compatible `KERNEL32.dll` facade for `GetCurrentProcess`,
@@ -300,7 +304,7 @@ compatibility-facade coverage.
     button-result handling and owner-driven automation. `PageSetupDialog` now
     has a visible managed baseline with focused UIIntegration coverage.
     `TaskDialog` now has a visible managed baseline with focused coverage for
-    close, button, verification, radio, and progress-bar flows.
+    close, button, command-link, verification, radio, and progress-bar flows.
     `PrintPreviewDialog` now has a focused visible-dialog baseline backed by
     managed bitmap preview pages instead of unsupported EMF/metafile
     recording. Ordinary managed modal forms now synthesize `WM_ENTERIDLE` for
@@ -466,8 +470,8 @@ Impacted APIs and areas:
 - `OLE32.dll`: `OleInitialize`, `CoCreateInstance`, `CoGetClassObject`,
   `CoRegisterMessageFilter`, `CreateILockBytesOnHGlobal`,
   `CreateStreamOnHGlobal`, `GetHGlobalFromStream`, `CreateOleAdviseHolder`,
-  `OleCreatePictureIndirect`, `ReleaseStgMedium`, `OleIsCurrentClipboard`,
-  and data-object lifetime.
+  `CreateDataAdviseHolder`, `OleCreatePictureIndirect`, `ReleaseStgMedium`,
+  `OleIsCurrentClipboard`, and data-object lifetime.
 - `OLEAUT32.dll`: `SafeArray*`, `LoadRegTypeLib`, type-library and VARIANT
   support used by COM/property/editor paths.
 - `IMM32.dll`: basic context handles, open/conversion state, notify/release,
@@ -487,8 +491,9 @@ Plan:
   first-tier facade for `OleInitialize`, `OleUninitialize`, `CoInitialize`,
   `CoInitializeEx`, `CoUninitialize`, `CoCreateInstance`, `CoGetClassObject`,
   `CoRegisterMessageFilter`, `CreateILockBytesOnHGlobal`,
-  `CreateStreamOnHGlobal`, `GetHGlobalFromStream`, conservative
-  `ReleaseStgMedium`, conservative `OleCreatePictureIndirect`,
+  `CreateOleAdviseHolder`, `CreateDataAdviseHolder`, `CreateStreamOnHGlobal`,
+  `GetHGlobalFromStream`, conservative `ReleaseStgMedium`,
+  conservative `OleCreatePictureIndirect`,
   `OleSetClipboard`, `OleGetClipboard`, `OleFlushClipboard`,
   `OleIsCurrentClipboard`,
   `RegisterDragDrop`, `RevokeDragDrop`, and `DoDragDrop`.
@@ -567,9 +572,9 @@ Plan:
   is simple enough.
 - For `TaskDialog`, cover command links, verification checkbox, radio buttons,
   progress state, hyperlinks, page navigation, owner/modal lifetime, and default
-  button behavior. Verification, radio, and progress range/value/state behavior
-  have first focused coverage; command links, hyperlinks, and page navigation
-  remain.
+  button behavior. Verification, radio, command-link click flow, and progress
+  range/value/state behavior have first focused coverage; hyperlinks and page
+  navigation remain.
 
 ### 3. Printing And Spooler
 
@@ -685,6 +690,11 @@ Plan:
   PAL-owned; they exist to preserve source compatibility for WinForms code paths
   such as startup visibility, COM property descriptors, locale-sensitive page
   setup, and send-key timestamps.
+- Keep first-tier system-time helpers deterministic and ABI-simple:
+  `GetSystemTimeAsFileTime`, `GetSystemTime`, `GetLocalTime`,
+  `FileTimeToSystemTime`, and `SystemTimeToFileTime` return stable synthetic
+  UTC/local values and conversion behavior for source-compatible callers, but
+  do not attempt host timezone/DST fidelity.
 - Keep loader support first-tier and source-compatible: WinFormsX can return
   stable module handles and safe frees for managed/direct callers, but
   `GetProcAddress` remains conservative until PAL can expose real export tables.
@@ -745,7 +755,10 @@ Impacted APIs and controls:
 - Current state: managed image-list state exists and controls smoke passes.
   First-tier `GetImageInfo`, icon-size mutation, background color, write/write-ex,
   remove/replace bounds, handle cleanup, and synthetic bitmap metadata are now
-  covered. Some image-list native details remain fake or incomplete.
+  covered. The direct native facade now also covers first-tier draw/mask/get-icon
+  entry points (`ImageList_Replace`, `ImageList_AddMasked`, `ImageList_GetIcon`,
+  `ImageList_Draw`, `ImageList_DrawEx`) with deterministic handles and draw
+  acknowledgements. Some image-list native details remain fake or incomplete.
   `InitCommonControls` / `InitCommonControlsEx` now preserve deterministic
   requested-class state for managed feature probes, and direct
   source-compatible `COMCTL32.dll` imports for those init APIs now resolve
@@ -1006,9 +1019,11 @@ cases were previously blockers and should remain regression targets:
   covered; first-tier activation context state and basic thread/locale/startup
   helpers are covered; first-tier timing/perf + locale-codepage probes
   (`QueryPerformanceCounter`, `QueryPerformanceFrequency`, `GetTickCount64`,
-  `GetACP`, `GetOEMCP`, `GetSystemDefaultLCID`, `GetUserDefaultLCID`) are
-  covered; first-tier loader handles are covered; module resources and richer
-  export/resource lookup remain.
+  `GetACP`, `GetOEMCP`, `GetSystemDefaultLCID`, `GetUserDefaultLCID`) plus
+  deterministic time conversion helpers (`GetSystemTimeAsFileTime`,
+  `GetSystemTime`, `GetLocalTime`, `FileTimeToSystemTime`,
+  `SystemTimeToFileTime`) are covered; first-tier loader handles are covered;
+  module resources and richer export/resource lookup remain.
 - [~] COMCTL32/ImageList tier: first-tier image-list state, synthetic bitmap
   metadata, and managed enumeration fallback are covered; richer draw/mask and
   stream payload fidelity remain.
@@ -1031,6 +1046,10 @@ cases were previously blockers and should remain regression targets:
   `GetTickCount`, `GetTickCount64`, `QueryPerformanceCounter`,
   `QueryPerformanceFrequency`, `GetACP`, `GetOEMCP`,
   `GetSystemDefaultLCID`, and `GetUserDefaultLCID`.
+- [x] KERNEL32 first-tier system-time conversions now route through the direct
+  facade with deterministic WinFormsX behavior for `GetSystemTimeAsFileTime`,
+  `GetSystemTime`, `GetLocalTime`, `FileTimeToSystemTime`, and
+  `SystemTimeToFileTime`.
 - [x] KERNEL32 first-tier loader facade now routes `LoadLibraryW/A`,
   `LoadLibraryExW/A`, `FreeLibrary`, and `GetProcAddress` through PAL-owned
   synthetic module handles.
@@ -1041,7 +1060,8 @@ cases were previously blockers and should remain regression targets:
 - [x] KERNEL32 resource lookup facade now routes `FindResourceW/A`,
   `FindResourceExW/A`, `LoadResource`, `LockResource`, `SizeofResource`, and
   `FreeResource` through PAL-owned deterministic failure/default behavior.
-- [ ] Next KERNEL32 breadth: richer export-table compatibility.
+- [~] Next KERNEL32 breadth: richer export-table compatibility and optional
+  timezone/DST fidelity beyond deterministic fixed-offset local time.
 - [x] Managed DWM attribute wrappers now route `DwmSetWindowAttribute` /
   `DwmGetWindowAttribute` through deterministic WinFormsX state for internal
   Form/Control dark-mode, corner, and caption-color probes.
