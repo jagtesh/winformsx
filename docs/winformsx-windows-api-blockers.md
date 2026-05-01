@@ -273,7 +273,11 @@ compatibility-facade coverage.
   resource pass adds safe direct-import coverage for icon/cursor load, copy,
   destroy, draw, info, and resource-icon creation calls; this closes resolution
   failures but still leaves real stock cursor/icon image payloads as a resource
-  fidelity task.
+  fidelity task. The follow-up GDI+ facade pass adds first-tier
+  source-compatible direct-import coverage for `gdiplus.dll`
+  `GdiplusStartup`/`GdiplusShutdown` plus deterministic-safe probes
+  (`GdipGetImageDecodersSize`, `GdipCreateBitmapFromScan0`), without
+  enabling host-native GDI+ drawing behavior.
   The latest broad UIIntegration snapshot is now green at
   `Failed: 0, Passed: 259, Skipped: 1, Total: 260`.
 - First UIIntegration blockers observed:
@@ -296,10 +300,11 @@ compatibility-facade coverage.
     button-result handling and owner-driven automation. `PageSetupDialog` now
     has a visible managed baseline with focused UIIntegration coverage.
     `TaskDialog` now has a visible managed baseline with focused coverage for
-    close, button, verification, and radio flows. `PrintPreviewDialog` now has
-    a focused visible-dialog baseline backed by managed bitmap preview pages
-    instead of unsupported EMF/metafile recording. Ordinary managed modal forms
-    now synthesize `WM_ENTERIDLE` for their owner on `Shown`; focused
+    close, button, verification, radio, and progress-bar flows.
+    `PrintPreviewDialog` now has a focused visible-dialog baseline backed by
+    managed bitmap preview pages instead of unsupported EMF/metafile
+    recording. Ordinary managed modal forms now synthesize `WM_ENTERIDLE` for
+    their owner on `Shown`; focused
     `ThreadExceptionDialog`, `GridErrorDialog`, `MdiWindowDialog`,
     `MaskDesignerDialog`, and `FormatStringDialog` coverage passes. Remaining
     dialog work is broader managed service parity for larger
@@ -461,7 +466,8 @@ Impacted APIs and areas:
 - `OLE32.dll`: `OleInitialize`, `CoCreateInstance`, `CoGetClassObject`,
   `CoRegisterMessageFilter`, `CreateILockBytesOnHGlobal`,
   `CreateStreamOnHGlobal`, `GetHGlobalFromStream`, `CreateOleAdviseHolder`,
-  `OleCreatePictureIndirect`, `ReleaseStgMedium`, and data-object lifetime.
+  `OleCreatePictureIndirect`, `ReleaseStgMedium`, `OleIsCurrentClipboard`,
+  and data-object lifetime.
 - `OLEAUT32.dll`: `SafeArray*`, `LoadRegTypeLib`, type-library and VARIANT
   support used by COM/property/editor paths.
 - `IMM32.dll`: basic context handles, open/conversion state, notify/release,
@@ -484,6 +490,7 @@ Plan:
   `CreateStreamOnHGlobal`, `GetHGlobalFromStream`, conservative
   `ReleaseStgMedium`, conservative `OleCreatePictureIndirect`,
   `OleSetClipboard`, `OleGetClipboard`, `OleFlushClipboard`,
+  `OleIsCurrentClipboard`,
   `RegisterDragDrop`, `RevokeDragDrop`, and `DoDragDrop`.
 - Add an `OLEAUT32.dll` WinFormsX facade only for ABI-safe
   source-compatibility APIs. The latest pass adds BSTR allocation/free/length,
@@ -560,7 +567,9 @@ Plan:
   is simple enough.
 - For `TaskDialog`, cover command links, verification checkbox, radio buttons,
   progress state, hyperlinks, page navigation, owner/modal lifetime, and default
-  button behavior.
+  button behavior. Verification, radio, and progress range/value/state behavior
+  have first focused coverage; command links, hyperlinks, and page navigation
+  remain.
 
 ### 3. Printing And Spooler
 
@@ -716,6 +725,10 @@ Plan:
 - First-tier stock-object and background-mode probes now avoid generated GDI32
   imports as well: stock brush/object type metadata is deterministic and
   `GetBkMode`/`SetBkMode` preserve per-DC state.
+- First-tier direct `gdiplus.dll` facade coverage now resolves
+  `GdiplusStartup`/`GdiplusShutdown` and deterministic-safe probe defaults for
+  `GdipGetImageDecodersSize` and `GdipCreateBitmapFromScan0` so direct
+  DllImport callers do not fail module resolution.
 - Add native GDI facade coverage only for lightweight handles, metrics, icon
   conversion, and compatibility probes.
 - Treat full GDI drawing emulation as out of scope unless a WinForms control or
@@ -991,8 +1004,11 @@ cases were previously blockers and should remain regression targets:
 - [~] KERNEL32 tier expansion: process/thread/module-path facade is covered;
   direct last-error and first-tier `Global*` / `Local*` memory state are
   covered; first-tier activation context state and basic thread/locale/startup
-  helpers are covered; first-tier loader handles are covered; module resources
-  and richer export/resource lookup remain.
+  helpers are covered; first-tier timing/perf + locale-codepage probes
+  (`QueryPerformanceCounter`, `QueryPerformanceFrequency`, `GetTickCount64`,
+  `GetACP`, `GetOEMCP`, `GetSystemDefaultLCID`, `GetUserDefaultLCID`) are
+  covered; first-tier loader handles are covered; module resources and richer
+  export/resource lookup remain.
 - [~] COMCTL32/ImageList tier: first-tier image-list state, synthetic bitmap
   metadata, and managed enumeration fallback are covered; richer draw/mask and
   stream payload fidelity remain.
@@ -1012,7 +1028,9 @@ cases were previously blockers and should remain regression targets:
 - [x] KERNEL32 basic thread/locale/startup helpers now route through PAL and
   direct facade exports for `CloseHandle`, `DuplicateHandle`, `FormatMessage`,
   `GetExitCodeThread`, `GetLocaleInfoEx`, `GetStartupInfo`, `GetThreadLocale`,
-  and `GetTickCount`.
+  `GetTickCount`, `GetTickCount64`, `QueryPerformanceCounter`,
+  `QueryPerformanceFrequency`, `GetACP`, `GetOEMCP`,
+  `GetSystemDefaultLCID`, and `GetUserDefaultLCID`.
 - [x] KERNEL32 first-tier loader facade now routes `LoadLibraryW/A`,
   `LoadLibraryExW/A`, `FreeLibrary`, and `GetProcAddress` through PAL-owned
   synthetic module handles.

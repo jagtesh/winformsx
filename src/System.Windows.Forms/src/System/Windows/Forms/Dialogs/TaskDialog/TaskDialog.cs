@@ -1043,6 +1043,29 @@ public partial class TaskDialog : IWin32Window
             case TASKDIALOG_MESSAGES.TDM_ENABLE_RADIO_BUTTON:
                 _managedDialogForm.SetRadioButtonEnabled((int)wParam, (nint)lParam != 0);
                 break;
+
+            case TASKDIALOG_MESSAGES.TDM_SET_MARQUEE_PROGRESS_BAR:
+                _managedDialogForm.SetProgressBarMode((BOOL)wParam);
+                break;
+
+            case TASKDIALOG_MESSAGES.TDM_SET_PROGRESS_BAR_MARQUEE:
+                _managedDialogForm.SetProgressBarMode((BOOL)wParam);
+                break;
+
+            case TASKDIALOG_MESSAGES.TDM_SET_PROGRESS_BAR_RANGE:
+                nint range = (nint)lParam;
+                _managedDialogForm.SetProgressBarRange(
+                    (int)(range & 0xFFFF),
+                    (int)((range >> 16) & 0xFFFF));
+                break;
+
+            case TASKDIALOG_MESSAGES.TDM_SET_PROGRESS_BAR_POS:
+                _managedDialogForm.SetProgressBarPosition((int)wParam);
+                break;
+
+            case TASKDIALOG_MESSAGES.TDM_SET_PROGRESS_BAR_STATE:
+                _managedDialogForm.SetProgressBarState((uint)(int)wParam);
+                break;
         }
     }
 
@@ -1846,6 +1869,7 @@ public partial class TaskDialog : IWin32Window
         private readonly Dictionary<int, RadioButton> _radioButtons = [];
         private readonly Label _headingLabel = new() { AutoSize = true, Dock = DockStyle.Top };
         private readonly Label _contentLabel = new() { AutoSize = true, Dock = DockStyle.Top, Padding = new Padding(0, 8, 0, 0) };
+        private readonly ProgressBar? _progressBar;
         private readonly CheckBox? _verificationCheckBox;
         private bool _updatingControls;
 
@@ -1869,6 +1893,19 @@ public partial class TaskDialog : IWin32Window
             FormBorderStyle = FormBorderStyle.FixedDialog;
             ClientSize = new Size(460, 240);
             MinimumSize = new Size(360, 180);
+
+            if (page.ProgressBar?.IsCreated == true)
+            {
+                _progressBar = new ProgressBar
+                {
+                    Dock = DockStyle.Top,
+                    Minimum = page.ProgressBar.Minimum,
+                    Maximum = Math.Max(page.ProgressBar.Minimum, page.ProgressBar.Maximum),
+                    Padding = new Padding(0, 10, 0, 0),
+                    Style = IsMarqueeProgressBar(page.ProgressBar.State) ? ProgressBarStyle.Marquee : ProgressBarStyle.Blocks,
+                    Value = Math.Clamp(page.ProgressBar.Value, page.ProgressBar.Minimum, Math.Max(page.ProgressBar.Minimum, page.ProgressBar.Maximum))
+                };
+            }
 
             if (page.Verification?.IsCreated == true)
             {
@@ -1961,6 +1998,43 @@ public partial class TaskDialog : IWin32Window
             }
         }
 
+        public void SetProgressBarMode(bool marquee)
+        {
+            if (_progressBar is not null)
+            {
+                _progressBar.Style = marquee ? ProgressBarStyle.Marquee : ProgressBarStyle.Blocks;
+            }
+        }
+
+        public void SetProgressBarRange(int minimum, int maximum)
+        {
+            if (_progressBar is null)
+            {
+                return;
+            }
+
+            maximum = Math.Max(minimum, maximum);
+            _progressBar.Maximum = maximum;
+            _progressBar.Minimum = minimum;
+            _progressBar.Value = Math.Clamp(_progressBar.Value, minimum, maximum);
+        }
+
+        public void SetProgressBarPosition(int position)
+        {
+            if (_progressBar is not null)
+            {
+                _progressBar.Value = Math.Clamp(position, _progressBar.Minimum, _progressBar.Maximum);
+            }
+        }
+
+        public void SetProgressBarState(uint state)
+        {
+            if (_progressBar is not null && state is PInvoke.PBST_NORMAL or PInvoke.PBST_PAUSED or PInvoke.PBST_ERROR)
+            {
+                _progressBar.Style = ProgressBarStyle.Blocks;
+            }
+        }
+
         private TableLayoutPanel CreateContent(IReadOnlyList<(int buttonID, string text)> customButtonElements, int defaultButtonID)
         {
             TableLayoutPanel root = new()
@@ -1986,6 +2060,11 @@ public partial class TaskDialog : IWin32Window
             UpdateTextElement(TASKDIALOG_ELEMENTS.TDE_CONTENT, _page.Text);
             body.Controls.Add(_headingLabel);
             body.Controls.Add(_contentLabel);
+
+            if (_progressBar is not null)
+            {
+                body.Controls.Add(_progressBar);
+            }
 
             foreach (TaskDialogRadioButton radioButton in _page.RadioButtons)
             {
@@ -2096,5 +2175,8 @@ public partial class TaskDialog : IWin32Window
                 CancelButton = button;
             }
         }
+
+        private static bool IsMarqueeProgressBar(TaskDialogProgressBarState state) =>
+            state is TaskDialogProgressBarState.Marquee or TaskDialogProgressBarState.MarqueePaused;
     }
 }

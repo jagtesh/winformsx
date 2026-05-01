@@ -93,6 +93,9 @@
     <WinFormsXGdi32ShimSource>$(MSBuildProjectDirectory)/Native/Gdi32Shim/winformsx_gdi32.c</WinFormsXGdi32ShimSource>
     <WinFormsXGdi32ShimOutputDirectory>$(IntermediateOutputPath)winformsx-gdi32/</WinFormsXGdi32ShimOutputDirectory>
     <WinFormsXGdi32ShimBinary>$(WinFormsXGdi32ShimOutputDirectory)GDI32.dll</WinFormsXGdi32ShimBinary>
+    <WinFormsXGdiPlusShimSource>$(MSBuildProjectDirectory)/Native/GdiPlusShim/winformsx_gdiplus.c</WinFormsXGdiPlusShimSource>
+    <WinFormsXGdiPlusShimOutputDirectory>$(IntermediateOutputPath)winformsx-gdiplus/</WinFormsXGdiPlusShimOutputDirectory>
+    <WinFormsXGdiPlusShimBinary>$(WinFormsXGdiPlusShimOutputDirectory)gdiplus.dll</WinFormsXGdiPlusShimBinary>
     <WinFormsXShell32ShimSource>$(MSBuildProjectDirectory)/Native/Shell32Shim/winformsx_shell32.c</WinFormsXShell32ShimSource>
     <WinFormsXShell32ShimOutputDirectory>$(IntermediateOutputPath)winformsx-shell32/</WinFormsXShell32ShimOutputDirectory>
     <WinFormsXShell32ShimBinary>$(WinFormsXShell32ShimOutputDirectory)SHELL32.dll</WinFormsXShell32ShimBinary>
@@ -200,6 +203,14 @@
     <None Include="$(WinFormsXGdi32ShimOutputDirectory)libGDI32.dll.so" TargetPath="libGDI32.dll.so" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
     <None Include="$(WinFormsXGdi32ShimOutputDirectory)GDI32.dll.so" TargetPath="GDI32.dll.so" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
     <None Include="$(WinFormsXGdi32ShimOutputDirectory)libgdi32.so" TargetPath="libgdi32.so" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+    <None Include="$(WinFormsXGdiPlusShimOutputDirectory)gdiplus.dll" TargetPath="gdiplus.dll" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" />
+    <None Include="$(WinFormsXGdiPlusShimOutputDirectory)gdiplus" TargetPath="gdiplus" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" />
+    <None Include="$(WinFormsXGdiPlusShimOutputDirectory)Gdiplus.dll.dylib" TargetPath="Gdiplus.dll.dylib" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+    <None Include="$(WinFormsXGdiPlusShimOutputDirectory)libGdiplus.dll.dylib" TargetPath="libGdiplus.dll.dylib" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+    <None Include="$(WinFormsXGdiPlusShimOutputDirectory)libgdiplus.dylib" TargetPath="libgdiplus.dylib" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+    <None Include="$(WinFormsXGdiPlusShimOutputDirectory)libgdiplus.dll.so" TargetPath="libgdiplus.dll.so" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+    <None Include="$(WinFormsXGdiPlusShimOutputDirectory)gdiplus.dll.so" TargetPath="gdiplus.dll.so" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+    <None Include="$(WinFormsXGdiPlusShimOutputDirectory)libgdiplus.so" TargetPath="libgdiplus.so" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
     <None Include="$(WinFormsXShell32ShimOutputDirectory)SHELL32.dll" TargetPath="SHELL32.dll" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" />
     <None Include="$(WinFormsXShell32ShimOutputDirectory)shell32.dll" TargetPath="shell32.dll" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" />
     <None Include="$(WinFormsXShell32ShimOutputDirectory)shell32" TargetPath="shell32" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" />
@@ -437,6 +448,25 @@
     <Copy SourceFiles="$(WinFormsXGdi32ShimBinary)" DestinationFiles="$(WinFormsXGdi32ShimOutputDirectory)libGDI32.dll.so" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
     <Copy SourceFiles="$(WinFormsXGdi32ShimBinary)" DestinationFiles="$(WinFormsXGdi32ShimOutputDirectory)GDI32.dll.so" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
     <Copy SourceFiles="$(WinFormsXGdi32ShimBinary)" DestinationFiles="$(WinFormsXGdi32ShimOutputDirectory)libgdi32.so" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+  </Target>
+
+  <Target Name="BuildWinFormsXGdiPlusShim"
+          BeforeTargets="PrepareForBuild;GetCopyToOutputDirectoryItems"
+          Inputs="$(WinFormsXGdiPlusShimSource)"
+          Outputs="$(WinFormsXGdiPlusShimBinary)"
+          Condition="'$(OS)' != 'Windows_NT'">
+    <MakeDir Directories="$(WinFormsXGdiPlusShimOutputDirectory)" />
+    <Exec Condition="$([MSBuild]::IsOSPlatform('OSX'))"
+          Command="cc -dynamiclib -fvisibility=hidden &quot;$(WinFormsXGdiPlusShimSource)&quot; -o &quot;$(WinFormsXGdiPlusShimBinary)&quot;" />
+    <Exec Condition="$([MSBuild]::IsOSPlatform('Linux'))"
+          Command="cc -shared -fPIC -fvisibility=hidden &quot;$(WinFormsXGdiPlusShimSource)&quot; -o &quot;$(WinFormsXGdiPlusShimBinary)&quot;" />
+    <Copy SourceFiles="$(WinFormsXGdiPlusShimBinary)" DestinationFiles="$(WinFormsXGdiPlusShimOutputDirectory)gdiplus" />
+    <Copy SourceFiles="$(WinFormsXGdiPlusShimBinary)" DestinationFiles="$(WinFormsXGdiPlusShimOutputDirectory)Gdiplus.dll.dylib" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+    <Copy SourceFiles="$(WinFormsXGdiPlusShimBinary)" DestinationFiles="$(WinFormsXGdiPlusShimOutputDirectory)libGdiplus.dll.dylib" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+    <Copy SourceFiles="$(WinFormsXGdiPlusShimBinary)" DestinationFiles="$(WinFormsXGdiPlusShimOutputDirectory)libgdiplus.dylib" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+    <Copy SourceFiles="$(WinFormsXGdiPlusShimBinary)" DestinationFiles="$(WinFormsXGdiPlusShimOutputDirectory)libgdiplus.dll.so" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+    <Copy SourceFiles="$(WinFormsXGdiPlusShimBinary)" DestinationFiles="$(WinFormsXGdiPlusShimOutputDirectory)gdiplus.dll.so" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+    <Copy SourceFiles="$(WinFormsXGdiPlusShimBinary)" DestinationFiles="$(WinFormsXGdiPlusShimOutputDirectory)libgdiplus.so" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
   </Target>
 
   <Target Name="BuildWinFormsXShell32Shim"

@@ -8,7 +8,7 @@ namespace Windows.Win32;
 
 internal static unsafe partial class PInvokeCore
 {
-    private static readonly Lock s_globalMemoryLock = new();
+    private static readonly object s_globalMemoryLock = new();
     private static readonly Dictionary<nint, nuint> s_globalMemorySizes = [];
 
     internal static HGLOBAL WinFormsXGlobalAlloc(GLOBAL_ALLOC_FLAGS uFlags, nuint dwBytes)

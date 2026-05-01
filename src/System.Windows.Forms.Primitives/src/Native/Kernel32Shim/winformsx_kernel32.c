@@ -100,6 +100,7 @@ typedef struct WinFormsXKernel32Dispatch
 static WinFormsXKernel32Dispatch g_dispatch;
 static DWORD g_last_error;
 static uint64_t g_tick_count;
+static uint64_t g_performance_counter;
 static intptr_t g_next_module_handle = 0x710000;
 static intptr_t g_next_activation_context = 0x610000;
 static void* g_current_activation_context;
@@ -650,6 +651,60 @@ WF_EXPORT DWORD GetTickCount(void)
 
     g_tick_count += 16;
     return (DWORD)g_tick_count;
+}
+
+WF_EXPORT uint64_t GetTickCount64(void)
+{
+    if (g_dispatch.get_tick_count != 0)
+    {
+        return (uint64_t)g_dispatch.get_tick_count();
+    }
+
+    g_tick_count += 16;
+    return g_tick_count;
+}
+
+WF_EXPORT BOOL QueryPerformanceFrequency(int64_t* frequency)
+{
+    if (frequency == 0)
+    {
+        return 0;
+    }
+
+    *frequency = 10000000;
+    return 1;
+}
+
+WF_EXPORT BOOL QueryPerformanceCounter(int64_t* counter)
+{
+    if (counter == 0)
+    {
+        return 0;
+    }
+
+    g_performance_counter += 166667;
+    *counter = (int64_t)g_performance_counter;
+    return 1;
+}
+
+WF_EXPORT DWORD GetACP(void)
+{
+    return 1252;
+}
+
+WF_EXPORT DWORD GetOEMCP(void)
+{
+    return 437;
+}
+
+WF_EXPORT DWORD GetSystemDefaultLCID(void)
+{
+    return 0x0409;
+}
+
+WF_EXPORT DWORD GetUserDefaultLCID(void)
+{
+    return 0x0409;
 }
 
 WF_EXPORT void* GlobalAlloc(DWORD flags, SIZE_T size)

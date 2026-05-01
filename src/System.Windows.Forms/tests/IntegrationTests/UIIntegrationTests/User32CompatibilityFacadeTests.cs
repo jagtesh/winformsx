@@ -692,6 +692,24 @@ public class User32CompatibilityFacadeTests
 
             uint tickCount = NativeKernel32.GetTickCount();
             Assert.True(tickCount > 0);
+            ulong tickCount64 = NativeKernel32.GetTickCount64();
+            Assert.True(tickCount64 >= tickCount);
+
+            long performanceFrequency;
+            Assert.True(NativeKernel32.QueryPerformanceFrequency(&performanceFrequency));
+            Assert.Equal(10_000_000L, performanceFrequency);
+
+            long performanceCounter1;
+            long performanceCounter2;
+            Assert.True(NativeKernel32.QueryPerformanceCounter(&performanceCounter1));
+            Assert.True(NativeKernel32.QueryPerformanceCounter(&performanceCounter2));
+            Assert.True(performanceCounter2 > performanceCounter1);
+
+            Assert.Equal(1252u, NativeKernel32.GetACP());
+            Assert.Equal(437u, NativeKernel32.GetOEMCP());
+            Assert.Equal(0x0409u, NativeKernel32.GetSystemDefaultLCID());
+            Assert.Equal(0x0409u, NativeKernel32.GetUserDefaultLCID());
+            Assert.Equal(NativeKernel32.GetSystemDefaultLCID(), NativeKernel32.GetUserDefaultLCID());
 
             uint exitCode;
             Assert.True(NativeKernel32.GetExitCodeThread((nint)(-2), &exitCode));
@@ -930,6 +948,8 @@ public class User32CompatibilityFacadeTests
         Assert.Equal(S_OK, NativeOle32.OleGetClipboard(&actualDataObject));
         Assert.Equal(dataObject, actualDataObject);
         Assert.Equal(S_OK, NativeOle32.OleFlushClipboard());
+        Assert.Equal(S_OK, NativeOle32.OleIsCurrentClipboard(dataObject));
+        Assert.Equal(S_FALSE, NativeOle32.OleIsCurrentClipboard((nint)0x7F7F7F7F));
 
         nint hwnd = 0x2468;
         nint dropTarget = 0x1357;
@@ -1111,6 +1131,68 @@ public class User32CompatibilityFacadeTests
         Assert.True(NativeGdi32.DeleteDC(infoDc));
 
         Assert.True(NativeGdi32.DeleteDC(dc));
+    }
+
+    [Fact]
+    public void DirectGdiPlusDllImports_ResolveToWinFormsXFacade()
+    {
+        const int Ok = 0;
+        const int InvalidParameter = 2;
+        const int NotImplemented = 6;
+
+        NativeGdiPlus.GdiplusStartupInput startupInput = new()
+        {
+            GdiplusVersion = 1,
+            DebugEventCallback = 0,
+            SuppressBackgroundThread = false,
+            SuppressExternalCodecs = false,
+        };
+
+        Assert.Equal(
+            Ok,
+            NativeGdiPlus.GdiplusStartup(
+                out nuint token,
+                ref startupInput,
+                out NativeGdiPlus.GdiplusStartupOutput startupOutput));
+        Assert.NotEqual(0u, token);
+        Assert.Equal(0, startupOutput.NotificationHook);
+        Assert.Equal(0, startupOutput.NotificationUnhook);
+
+        Assert.Equal(Ok, NativeGdiPlus.GdipGetImageDecodersSize(out uint numberOfDecoders, out uint decoderBufferSize));
+        Assert.Equal(0u, numberOfDecoders);
+        Assert.Equal(0u, decoderBufferSize);
+
+        Assert.Equal(
+            NotImplemented,
+            NativeGdiPlus.GdipCreateBitmapFromScan0(
+                8,
+                8,
+                0,
+                0,
+                0,
+                out nint bitmap));
+        Assert.Equal(0, bitmap);
+
+        Assert.Equal(
+            InvalidParameter,
+            NativeGdiPlus.GdipCreateBitmapFromScan0(
+                0,
+                8,
+                0,
+                0,
+                0,
+                out bitmap));
+
+        startupInput.GdiplusVersion = 0;
+        Assert.Equal(
+            InvalidParameter,
+            NativeGdiPlus.GdiplusStartup(
+                out nuint invalidToken,
+                ref startupInput,
+                out _));
+        Assert.Equal(0u, invalidToken);
+
+        NativeGdiPlus.GdiplusShutdown(token);
     }
 
     [Fact]
@@ -1826,6 +1908,27 @@ public class User32CompatibilityFacadeTests
         internal static extern uint GetTickCount();
 
         [DllImport(Kernel32, ExactSpelling = true)]
+        internal static extern ulong GetTickCount64();
+
+        [DllImport(Kernel32, ExactSpelling = true)]
+        internal static extern bool QueryPerformanceFrequency(long* lpFrequency);
+
+        [DllImport(Kernel32, ExactSpelling = true)]
+        internal static extern bool QueryPerformanceCounter(long* lpPerformanceCount);
+
+        [DllImport(Kernel32, ExactSpelling = true)]
+        internal static extern uint GetACP();
+
+        [DllImport(Kernel32, ExactSpelling = true)]
+        internal static extern uint GetOEMCP();
+
+        [DllImport(Kernel32, ExactSpelling = true)]
+        internal static extern uint GetSystemDefaultLCID();
+
+        [DllImport(Kernel32, ExactSpelling = true)]
+        internal static extern uint GetUserDefaultLCID();
+
+        [DllImport(Kernel32, ExactSpelling = true)]
         internal static extern nint GlobalAlloc(uint uFlags, nuint dwBytes);
 
         [DllImport(Kernel32, ExactSpelling = true)]
@@ -1998,6 +2101,9 @@ public class User32CompatibilityFacadeTests
 
         [DllImport(Ole32, ExactSpelling = true)]
         internal static extern int OleFlushClipboard();
+
+        [DllImport(Ole32, ExactSpelling = true)]
+        internal static extern int OleIsCurrentClipboard(nint dataObject);
 
         [DllImport(Ole32, ExactSpelling = true)]
         internal static extern int RegisterDragDrop(nint hwnd, nint dropTarget);
@@ -2240,6 +2346,50 @@ public class User32CompatibilityFacadeTests
             [MarshalAs(UnmanagedType.LPWStr)]
             public string? lpszDatatype;
             public uint fwType;
+        }
+    }
+
+    private static partial class NativeGdiPlus
+    {
+        private const string GdiPlus = "gdiplus.dll";
+
+        [DllImport(GdiPlus, ExactSpelling = true)]
+        internal static extern int GdiplusStartup(
+            out nuint token,
+            ref GdiplusStartupInput input,
+            out GdiplusStartupOutput output);
+
+        [DllImport(GdiPlus, ExactSpelling = true)]
+        internal static extern void GdiplusShutdown(nuint token);
+
+        [DllImport(GdiPlus, ExactSpelling = true)]
+        internal static extern int GdipGetImageDecodersSize(out uint numberOfDecoders, out uint size);
+
+        [DllImport(GdiPlus, ExactSpelling = true)]
+        internal static extern int GdipCreateBitmapFromScan0(
+            int width,
+            int height,
+            int stride,
+            int pixelFormat,
+            nint scan0,
+            out nint bitmap);
+
+        [StructLayout(LayoutKind.Sequential)]
+        internal struct GdiplusStartupInput
+        {
+            internal uint GdiplusVersion;
+            internal nint DebugEventCallback;
+            [MarshalAs(UnmanagedType.Bool)]
+            internal bool SuppressBackgroundThread;
+            [MarshalAs(UnmanagedType.Bool)]
+            internal bool SuppressExternalCodecs;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        internal struct GdiplusStartupOutput
+        {
+            internal nint NotificationHook;
+            internal nint NotificationUnhook;
         }
     }
 

@@ -335,6 +335,11 @@ WF_EXPORT HRESULT OleFlushClipboard(void)
     return S_OK;
 }
 
+WF_EXPORT HRESULT OleIsCurrentClipboard(IDataObject* dataObject)
+{
+    return dataObject == g_clipboard ? S_OK : S_FALSE;
+}
+
 WF_EXPORT HRESULT RegisterDragDrop(HWND hwnd, IDropTarget* dropTarget)
 {
     if (hwnd == 0)
