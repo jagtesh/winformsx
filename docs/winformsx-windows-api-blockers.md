@@ -356,11 +356,18 @@ compatibility-facade coverage.
   - Focused Button UIIntegration coverage is green. Any future button failures
     should be treated as regressions or newly exposed shared infrastructure
     gaps.
+  - Focused `RichTextBox` fallback coverage is green for the current managed
+    text/RTF slice: plain-text assignment no longer gets misclassified as RTF
+    when stream flags include overlapping `SF_TEXT` bits, and focused
+    `RichTextBoxTests` reports `4 passed, 0 failed`.
   - Focused `PropertyGrid` coverage is now green:
     `38 passed, 0 failed, 0 skipped`. The latest pass closes the
     `MsgWaitForMultipleObjectsEx` modal-loop blocker, selected-entry
     dropdown/dialog button fragment navigation, and PropertyGridView bounds
-    reporting.
+    reporting. A follow-up signed-style conversion fix also keeps
+    PropertyGrid dropdown-holder/listbox popup creation from overflowing on
+    `WS_POPUP` styles; focused dropdown-holder and listbox accessibility
+    fragment-navigation coverage now reports `8 passed, 0 failed`.
   - Focused anchor/MDI resize coverage is now green:
     `31 passed, 0 failed`. The latest pass closes the direct
     `GetWindowPlacement` import and MDI minimized-child anchor-bottom failure.

@@ -5424,11 +5424,11 @@ public unsafe partial class Control :
         CreateParams cp = CreateParams;
 
         // We would need to get adornments metrics for both (old and new) Dpi in case application is in PerMonitorV2 mode and Dpi changed.
-        AdjustWindowRectExForControlDpi(ref adornmentsAfterDpiChange, (WINDOW_STYLE)cp.Style, bMenu: false, (WINDOW_EX_STYLE)cp.ExStyle);
+        AdjustWindowRectExForControlDpi(ref adornmentsAfterDpiChange, unchecked((WINDOW_STYLE)(uint)cp.Style), bMenu: false, unchecked((WINDOW_EX_STYLE)(uint)cp.ExStyle));
 
         if (_oldDeviceDpi != _deviceDpi && OsVersion.IsWindows10_1703OrGreater())
         {
-            AdjustWindowRectExForDpi(ref adornmentsBeforeDpiChange, (WINDOW_STYLE)cp.Style, bMenu: false, (WINDOW_EX_STYLE)cp.ExStyle, _oldDeviceDpi);
+            AdjustWindowRectExForDpi(ref adornmentsBeforeDpiChange, unchecked((WINDOW_STYLE)(uint)cp.Style), bMenu: false, unchecked((WINDOW_EX_STYLE)(uint)cp.ExStyle), _oldDeviceDpi);
         }
         else
         {
@@ -9862,7 +9862,7 @@ public unsafe partial class Control :
     {
         CreateParams cp = CreateParams;
         RECT adornments = default;
-        AdjustWindowRectExForControlDpi(ref adornments, (WINDOW_STYLE)cp.Style, false, (WINDOW_EX_STYLE)cp.ExStyle);
+        AdjustWindowRectExForControlDpi(ref adornments, unchecked((WINDOW_STYLE)(uint)cp.Style), false, unchecked((WINDOW_EX_STYLE)(uint)cp.ExStyle));
         Size minSize = MinimumSize;
         Size maxSize = MaximumSize;
 

@@ -31,7 +31,7 @@ public partial class ToolStripTextBox
                 RECT rect = default;
                 CreateParams cp = CreateParams;
 
-                AdjustWindowRectExForControlDpi(ref rect, (WINDOW_STYLE)cp.Style, false, (WINDOW_EX_STYLE)cp.ExStyle);
+                AdjustWindowRectExForControlDpi(ref rect, unchecked((WINDOW_STYLE)(uint)cp.Style), false, unchecked((WINDOW_EX_STYLE)(uint)cp.ExStyle));
 
                 // the coordinates we get back are negative, we need to translate this back to positive.
                 int offsetX = -rect.left; // one to get back to 0,0, another to translate

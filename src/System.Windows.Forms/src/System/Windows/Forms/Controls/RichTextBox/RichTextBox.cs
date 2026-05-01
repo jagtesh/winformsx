@@ -3179,7 +3179,7 @@ public partial class RichTextBox : TextBoxBase
             value = value[..nullTerminatedLength];
         }
 
-        bool rtf = (flags & PInvoke.SF_RTF) != 0 || (flags & PInvoke.SF_RTFNOOBJS) != 0;
+        bool rtf = (flags & PInvoke.SF_RTF) != 0;
         if (rtf)
         {
             if (value.Length > 0 && !value.StartsWith(SZ_RTF_TAG, StringComparison.Ordinal))
@@ -3203,7 +3203,7 @@ public partial class RichTextBox : TextBoxBase
 
     private void WriteManagedStreamOut(Stream data, uint flags, bool includeCrLfs)
     {
-        bool rtf = (flags & PInvoke.SF_RTF) != 0 || (flags & PInvoke.SF_RTFNOOBJS) != 0;
+        bool rtf = (flags & PInvoke.SF_RTF) != 0;
         string value = rtf
             ? _textRtf ?? CreateSimpleRtf(_textPlain ?? base.Text)
             : _textPlain ?? base.Text;

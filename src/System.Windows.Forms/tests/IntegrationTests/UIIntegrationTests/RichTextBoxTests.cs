@@ -193,6 +193,18 @@ This is hidden text preceeding a \v #link3#\v0 custom link.\par
         });
     }
 
+    [UIFact]
+    public async Task RichTextBox_SetPlainText_DoesNotThrowAsync()
+    {
+        await RunTestAsync(async (form, richTextBox) =>
+        {
+            const string text = "Hello text cursor";
+            richTextBox.Text = text;
+            Assert.Equal(text, richTextBox.Text);
+            await Task.CompletedTask;
+        });
+    }
+
     private unsafe void MakeLink(RichTextBox control, string text)
     {
         control.Select(control.Text.IndexOf(text, StringComparison.Ordinal), text.Length);

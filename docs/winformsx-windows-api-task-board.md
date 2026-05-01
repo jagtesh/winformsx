@@ -694,14 +694,27 @@ Ordered by observed frequency across components and blocker blast radius:
       `CreateParams.Style`, `CreateParams.ExStyle`, `GWL_STYLE`, and
       `GWL_EXSTYLE` as wrapped unsigned style values before converting to
       `WINDOW_STYLE` / `WINDOW_EX_STYLE`.
-    - The remaining focused failures are now accessibility fragment/navigation
-      relationships around `PropertyDescriptorGridEntry`,
-      `GridViewTextBox`, `GridViewListBox`, and `DropDownHolder`, rather than
-      dropdown-holder form construction overflows.
+    - Follow-up: `Form`, `Control`, and `ToolStripTextBox` sizing paths now
+      apply the same wrapped unsigned style conversion before DPI/window-rect
+      adjustment, so popup/dropdown controls using high-bit `WS_POPUP` style
+      bits do not overflow during handle creation. This closes the
+      `GridViewListBox` / `DropDownHolder` accessibility fragment-navigation
+      cluster that was blocked before provider relationships could be tested.
   - Verification:
     - `dotnet build src/System.Windows.Forms/tests/IntegrationTests/UIIntegrationTests/System.Windows.Forms.UI.IntegrationTests.csproj -c Debug -v:q` -> `Build succeeded`.
-    - `dotnet test ... --filter "FullyQualifiedName~PropertyGrid" -v:q` -> `Passed: 22, Failed: 16, Skipped: 32`.
+    - `dotnet test ... --filter "FullyQualifiedName~PropertyGridView_GridViewListBox_GridViewListBoxAccessibleObjectTests|FullyQualifiedName~PropertyGridView_DropDownHolder_DropDownHolderAccessibleObjectTests" -v:q` -> `Passed: 8, Failed: 0, Skipped: 0`.
     - `WinformsControlsTest --control-smoke-test` -> `total=42 passed=41 failed=0 skipped=1`.
+
+- Landed:
+  - Closed a managed `RichTextBox` fallback stream-classification bug:
+    - plain-text assignment through the fallback path no longer treats
+      overlapping stream flag bits as RTF;
+    - RTF import/export detection is now keyed only on `SF_RTF`, matching the
+      intended managed fallback split between plain text and simple RTF.
+  - Verification:
+    - `dotnet test ... --filter "FullyQualifiedName~System.Windows.Forms.UITests.RichTextBoxTests" -v:q` -> `Passed: 4, Failed: 0, Skipped: 0`.
+    - Combined focused run with the PropertyGrid dropdown accessibility cluster:
+      `Passed: 12, Failed: 0, Skipped: 0`.
 
 - Landed:
   - Restored visible Impeller rendering for `WinFormsX.Samples` and the controls smoke harness by initializing GLFW's Vulkan loader with the Homebrew `vulkan-loader` entrypoint before creating the Silk/GLFW Vulkan window.

@@ -3434,7 +3434,7 @@ public partial class Form : ContainerControl
     private Size ComputeWindowSize(Size clientSize)
     {
         CreateParams cp = CreateParams;
-        return ComputeWindowSize(clientSize, (WINDOW_STYLE)cp.Style, (WINDOW_EX_STYLE)cp.ExStyle);
+        return ComputeWindowSize(clientSize, unchecked((WINDOW_STYLE)(uint)cp.Style), unchecked((WINDOW_EX_STYLE)(uint)cp.ExStyle));
     }
 
     /// <summary>
@@ -3864,7 +3864,7 @@ public partial class Form : ContainerControl
         {
             // When computing the client window size, don't tell them that we are going to be maximized.
             int maskedStyle = cp.Style & ~(int)(WINDOW_STYLE.WS_MAXIMIZE | WINDOW_STYLE.WS_MINIMIZE);
-            Size correct = ComputeWindowSize(ClientSize, (WINDOW_STYLE)maskedStyle, (WINDOW_EX_STYLE)cp.ExStyle);
+            Size correct = ComputeWindowSize(ClientSize, unchecked((WINDOW_STYLE)(uint)maskedStyle), unchecked((WINDOW_EX_STYLE)(uint)cp.ExStyle));
             cp.Width = correct.Width;
             cp.Height = correct.Height;
         }
