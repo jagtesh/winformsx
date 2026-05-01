@@ -65,26 +65,22 @@ internal sealed class ImpellerPlatformProvider : IPlatformProvider
             // If Vulkan window creation fell back to a normal Silk window, the only
             // presentable surface is the current OpenGL framebuffer.
             var windowInterop = (ImpellerWindowInterop)Window;
-            var silkWindow = windowInterop.GetSilkWindow((HWND)hwnd);
+            HWND backendHwnd = windowInterop.GetBackendSurfaceOwner((HWND)hwnd);
+            var silkWindow = backendHwnd == HWND.Null ? null : windowInterop.GetSilkWindow(backendHwnd);
             if (silkWindow is null)
             {
-                // Traverse GetParent until we find one with a SilkWindow.
-                var curr = (HWND)hwnd;
-                while (curr != HWND.Null && silkWindow is null)
-                {
-                    curr = windowInterop.GetParent(curr);
-                    silkWindow = windowInterop.GetSilkWindow(curr);
-                }
+                Trace("[BackendInit] no Silk render surface owner");
+                return null;
             }
 
-            Trace($"[BackendInit] silkWindow null? {silkWindow is null}");
+            Trace($"[BackendInit] backendHwnd=0x{(nint)backendHwnd:X} silkWindow null? {silkWindow is null}");
 
             if (TryCreateOpenGlContext(silkWindow, version, out nint glCtx))
             {
                 Trace($"[BackendInit] OpenGLES context=0x{glCtx:X}");
                 var glBackend = new Platform.Impeller.SilkPlatformBackend(silkWindow, glCtx);
                 Trace("[BackendInit] OpenGLES backend created");
-                return ((nint impellerContext, global::System.Drawing.IPlatformBackend backend)?)(glCtx, glBackend);
+                return ((nint backendHwnd, nint impellerContext, global::System.Drawing.IPlatformBackend backend)?)(backendHwnd, glCtx, glBackend);
             }
 
             // Create the Impeller Vulkan context with an explicit loader-backed proc resolver.
@@ -113,7 +109,7 @@ internal sealed class ImpellerPlatformProvider : IPlatformProvider
 
             var backend = new Platform.Impeller.SilkPlatformBackend(silkWindow, impellerCtx);
             Trace("[BackendInit] backend created");
-            return ((nint impellerContext, global::System.Drawing.IPlatformBackend backend)?)(impellerCtx, backend);
+            return ((nint backendHwnd, nint impellerContext, global::System.Drawing.IPlatformBackend backend)?)(backendHwnd, impellerCtx, backend);
         });
     }
 

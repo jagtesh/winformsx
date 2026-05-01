@@ -276,6 +276,8 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                 if (!renderReady)
                     return;
 
+                using var backendScope = Drawing.Impeller.ImpellerBackendInitializer.UseBackendForHwnd((nint)handle);
+
                 // Flutter/wxWidgets pattern: the Render event is the ONLY place
                 // where the GPU context is current.  We own the frame lifecycle here.
                 int logicalW = silkWindow.Size.X;
@@ -3878,6 +3880,35 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
         return null;
     }
 
+    internal HWND GetBackendSurfaceOwner(HWND hWnd)
+    {
+        HWND current = hWnd;
+        ImpellerWindowState? state;
+        while (_windows.TryGetValue(current, out state))
+        {
+            if (state.SilkWindow is not null)
+            {
+                return current;
+            }
+
+            current = state.Parent;
+        }
+
+        Control? control = Control.FromHandle(hWnd) ?? Control.FromChildHandle(hWnd);
+        while (control is not null)
+        {
+            HWND handle = (HWND)(nint)control.Handle;
+            if (_windows.TryGetValue(handle, out state) && state.SilkWindow is not null)
+            {
+                return handle;
+            }
+
+            control = control.Parent;
+        }
+
+        return HWND.Null;
+    }
+
     internal ImpellerWindowState? GetWindowState(HWND hWnd)
     {
         _windows.TryGetValue(hWnd, out var state);
@@ -3889,6 +3920,11 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
         if (_windows.TryGetValue(hWnd, out var state))
         {
             state.NativeHwnd = HWND.Null;
+            if (state.SilkWindow is not null)
+            {
+                Drawing.Impeller.ImpellerBackendInitializer.RemoveBackend((nint)hWnd);
+            }
+
             state.SilkWindow?.Dispose();
             _windows.Remove(hWnd);
             if (_activeWindow == hWnd)

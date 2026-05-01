@@ -2,7 +2,7 @@
 
 Source: [winformsx-windows-api-blockers.md](docs/winformsx-windows-api-blockers.md)
 
-Current baseline: `42 total, 41 passed, 0 failed, 1 skipped` with `MediaPlayer` skipped.
+Current baseline: `44 total, 43 passed, 0 failed, 1 skipped` with `MediaPlayer` skipped.
 
 ## Impact Priority Queue (2026-04-29 refresh)
 
@@ -322,6 +322,17 @@ Ordered by observed frequency across components and blocker blast radius:
       `OwnedModalForm_ShowDialog_CreatesIndependentBackendSurface`, and the
       managed common dialog, TaskDialog, and MessageBox focused group reports
       `Passed: 26, Failed: 0`.
+    - Latest multi-window Drawing backend pass:
+      `System.Drawing` no longer reuses a singleton Impeller backend for every
+      `Graphics.FromHwndInternal` call. Backend ownership is now keyed by
+      HWND/top-level render surface, `Graphics.FromHdcInternal(IntPtr.Zero)` is
+      scoped to the HWND currently being rendered, and backend state is removed
+      when the owning Silk surface is destroyed. This closes the blank
+      popup/modal symptom where secondary windows stayed empty while their
+      contents appeared in the owner window. Controls smoke now includes
+      `TopLevelSurfaceIsolation` and `ModalSurfaceIsolation`; focused runs pass,
+      and the full smoke harness reports
+      `total=44 passed=43 failed=0 skipped=1`.
     - Latest print-preview pass:
       `PreviewPrintController` now records preview pages into managed bitmaps
       instead of EMF/metafile pages, avoiding the unsupported managed drawing
@@ -1285,11 +1296,14 @@ Ordered by observed frequency across components and blocker blast radius:
 ## Diagnostics and Integration
 
 - [x] WXA-2101: Add hang diagnostics and timeout capture around `UIIntegrationTests` to isolate first real stack for each failing case.
-- [~] WXA-2103: Add visible render-surface diagnostics for blank-window
-  regressions. Controls smoke now enforces first-frame presentation and
-  owner/root-handle correctness for visible top-level forms. UIIntegration
-  still needs an out-of-process visible-window harness or a dedicated offscreen
-  renderer because real Silk/Vulkan windows can block inside `Window.Create`
+- [x] WXA-2103: Add visible render-surface diagnostics for blank-window
+  regressions. Controls smoke now enforces first-frame presentation,
+  owner/root-handle correctness, and distinct Drawing backend ownership for
+  visible true top-level forms. Dedicated `TopLevelSurfaceIsolation` and
+  `ModalSurfaceIsolation` smoke cases cover the secondary-window/modal
+  render-target class directly. UIIntegration may still need a separate
+  out-of-process visible-window harness for broader visual assertions because
+  real Silk/Vulkan windows can block inside `Window.Create`
   under the in-process vstest host.
 - [~] WXA-2102: Add an execution plan tracker that marks each remediation against specific integration failure signatures and controls smoke IDs. This board now links current status to controls smoke and UIIntegration progress snapshots; tighter per-failure signature IDs remain.
 

@@ -12,7 +12,16 @@ internal static class ControlSmokeTestRunner
 {
     public static int Run()
     {
-        List<ControlSmokeTestResult> results = [];
+        List<ControlSmokeTestResult> results =
+        [
+            RunTopLevelSurfaceIsolationRegression(),
+            RunModalSurfaceIsolationRegression()
+        ];
+
+        foreach (ControlSmokeTestResult result in results)
+        {
+            WriteResult(result);
+        }
 
         foreach (ControlSmokeTestCase testCase in ControlSmokeTestCatalog.TestCases)
         {
@@ -36,7 +45,21 @@ internal static class ControlSmokeTestRunner
 
     public static int RunSingle(string testCaseName)
     {
-        ControlSmokeTestCase? testCase = null;
+        if (string.Equals(testCaseName, "TopLevelSurfaceIsolation", StringComparison.OrdinalIgnoreCase))
+        {
+            ControlSmokeTestResult regressionResult = RunTopLevelSurfaceIsolationRegression();
+            WriteResult(regressionResult);
+            return regressionResult.Passed ? 0 : 1;
+        }
+
+        if (string.Equals(testCaseName, "ModalSurfaceIsolation", StringComparison.OrdinalIgnoreCase))
+        {
+            ControlSmokeTestResult regressionResult = RunModalSurfaceIsolationRegression();
+            WriteResult(regressionResult);
+            return regressionResult.Passed ? 0 : 1;
+        }
+
+        ControlSmokeTestCase testCase = null;
         if (Enum.TryParse(testCaseName, ignoreCase: true, out System.Windows.Forms.IntegrationTests.Common.MainFormControlsTabOrder tabOrder))
         {
             ControlSmokeTestCatalog.TestCasesByTabOrder.TryGetValue(tabOrder, out testCase);
@@ -176,6 +199,176 @@ internal static class ControlSmokeTestRunner
                 {
                     form.Dispose();
                 }
+            }
+        }
+    }
+
+    private static ControlSmokeTestResult RunTopLevelSurfaceIsolationRegression()
+    {
+        Stopwatch stopwatch = Stopwatch.StartNew();
+        Form owner = null;
+        Form popup = null;
+        int controlCount = 0;
+        int createdHandleCount = 0;
+
+        try
+        {
+            owner = new Form
+            {
+                Text = "Smoke Owner",
+                StartPosition = FormStartPosition.Manual,
+                Location = new Point(-32000, -32000),
+                Size = new Size(320, 220),
+                BackColor = Color.LightSkyBlue
+            };
+            owner.Controls.Add(new Label
+            {
+                Text = "Owner",
+                Dock = DockStyle.Fill,
+                TextAlign = ContentAlignment.MiddleCenter
+            });
+
+            popup = new Form
+            {
+                Text = "Smoke Popup",
+                StartPosition = FormStartPosition.Manual,
+                Location = new Point(-31640, -32000),
+                Size = new Size(280, 180),
+                BackColor = Color.LightGoldenrodYellow
+            };
+            popup.Controls.Add(new Label
+            {
+                Text = "Popup",
+                Dock = DockStyle.Fill,
+                TextAlign = ContentAlignment.MiddleCenter
+            });
+
+            controlCount = CountControls(owner) + CountControls(popup);
+            owner.Show();
+            popup.Show(owner);
+            Application.DoEvents();
+            VerifyVisibleTopLevelFormsPresented();
+
+            createdHandleCount = CountCreatedHandles(owner) + CountCreatedHandles(popup);
+            return ControlSmokeTestResult.Pass(
+                "TopLevelSurfaceIsolation",
+                stopwatch.Elapsed,
+                controlCount,
+                createdHandleCount);
+        }
+        catch (Exception ex)
+        {
+            return ControlSmokeTestResult.Fail(
+                "TopLevelSurfaceIsolation",
+                stopwatch.Elapsed,
+                controlCount,
+                createdHandleCount,
+                ex.GetType().FullName ?? ex.GetType().Name,
+                FormatErrorMessage(ex));
+        }
+        finally
+        {
+            try
+            {
+                popup?.Close();
+                popup?.Dispose();
+                owner?.Close();
+                owner?.Dispose();
+                Application.DoEvents();
+            }
+            catch
+            {
+                popup?.Dispose();
+                owner?.Dispose();
+            }
+        }
+    }
+
+    private static ControlSmokeTestResult RunModalSurfaceIsolationRegression()
+    {
+        Stopwatch stopwatch = Stopwatch.StartNew();
+        Form owner = null;
+        Form dialog = null;
+        int controlCount = 0;
+        int createdHandleCount = 0;
+
+        try
+        {
+            owner = new Form
+            {
+                Text = "Smoke Modal Owner",
+                StartPosition = FormStartPosition.Manual,
+                Location = new Point(-32000, -32000),
+                Size = new Size(320, 220),
+                BackColor = Color.LightBlue
+            };
+            owner.Controls.Add(new Label
+            {
+                Text = "Owner",
+                Dock = DockStyle.Fill,
+                TextAlign = ContentAlignment.MiddleCenter
+            });
+
+            dialog = new Form
+            {
+                Text = "Smoke Modal Dialog",
+                StartPosition = FormStartPosition.Manual,
+                Location = new Point(-31640, -32000),
+                Size = new Size(280, 180),
+                BackColor = Color.MistyRose
+            };
+            dialog.Controls.Add(new Button
+            {
+                Text = "Close",
+                Dock = DockStyle.Fill,
+                DialogResult = DialogResult.OK
+            });
+            dialog.AcceptButton = (IButtonControl)dialog.Controls[0];
+            dialog.Shown += (_, _) =>
+            {
+                Application.DoEvents();
+                VerifyVisibleTopLevelFormsPresented();
+                dialog.DialogResult = DialogResult.OK;
+                dialog.Close();
+            };
+
+            controlCount = CountControls(owner) + CountControls(dialog);
+            owner.Show();
+            Application.DoEvents();
+            dialog.ShowDialog(owner);
+            Application.DoEvents();
+
+            createdHandleCount = CountCreatedHandles(owner) + CountCreatedHandles(dialog);
+            return ControlSmokeTestResult.Pass(
+                "ModalSurfaceIsolation",
+                stopwatch.Elapsed,
+                controlCount,
+                createdHandleCount);
+        }
+        catch (Exception ex)
+        {
+            return ControlSmokeTestResult.Fail(
+                "ModalSurfaceIsolation",
+                stopwatch.Elapsed,
+                controlCount,
+                createdHandleCount,
+                ex.GetType().FullName ?? ex.GetType().Name,
+                FormatErrorMessage(ex));
+        }
+        finally
+        {
+            try
+            {
+                dialog?.Close();
+                dialog?.Dispose();
+                owner?.Close();
+                owner?.Dispose();
+                Application.DoEvents();
+            }
+            catch
+            {
+                dialog?.Dispose();
+                owner?.Dispose();
             }
         }
     }
@@ -336,6 +529,8 @@ internal static class ControlSmokeTestRunner
             return;
         }
 
+        List<(HWND Hwnd, Form Form, object Backend)> topLevelBackends = [];
+
         foreach (Form form in Application.OpenForms.Cast<Form>().ToArray())
         {
             if (!form.Visible || !form.IsHandleCreated)
@@ -344,11 +539,8 @@ internal static class ControlSmokeTestRunner
             }
 
             HWND hwnd = (HWND)(nint)form.Handle;
-            ImpellerWindowState? state = windowInterop.GetWindowState(hwnd);
-            if (state is null)
-            {
-                throw new InvalidOperationException($"Visible form '{form.Text}' handle 0x{(nint)hwnd:X} was not registered with the Impeller window provider.");
-            }
+            ImpellerWindowState state = windowInterop.GetWindowState(hwnd)
+                ?? throw new InvalidOperationException($"Visible form '{form.Text}' handle 0x{(nint)hwnd:X} was not registered with the Impeller window provider.");
 
             if (!ImpellerWindowInterop.IsTopLevelWindowStyle(state.Style))
             {
@@ -380,6 +572,25 @@ internal static class ControlSmokeTestRunner
             {
                 throw new InvalidOperationException(
                     $"Visible form '{form.Text}' handle 0x{(nint)hwnd:X} painted root 0x{(nint)state.LastPaintedRootHandle:X} instead of itself.");
+            }
+
+            using Graphics graphics = form.CreateGraphics();
+            object backend = typeof(Graphics).GetField("_backend", BindingFlags.Instance | BindingFlags.NonPublic)?.GetValue(graphics);
+            if (backend is not null)
+            {
+                topLevelBackends.Add((hwnd, form, backend));
+            }
+        }
+
+        for (int i = 0; i < topLevelBackends.Count; i++)
+        {
+            for (int j = i + 1; j < topLevelBackends.Count; j++)
+            {
+                if (ReferenceEquals(topLevelBackends[i].Backend, topLevelBackends[j].Backend))
+                {
+                    throw new InvalidOperationException(
+                        $"Visible top-level forms '{topLevelBackends[i].Form.Text}' handle 0x{(nint)topLevelBackends[i].Hwnd:X} and '{topLevelBackends[j].Form.Text}' handle 0x{(nint)topLevelBackends[j].Hwnd:X} share the same Impeller backend.");
+                }
             }
         }
     }

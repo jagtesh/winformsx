@@ -6,12 +6,15 @@ compatibility-facade coverage.
 
 ## Current Status Snapshot
 
-- Controls smoke harness: `42 total, 41 passed, 0 failed, 1 skipped`. The
+- Controls smoke harness: `44 total, 43 passed, 0 failed, 1 skipped`. The
   harness now asserts that every visible true top-level form creates an
-  Impeller/Silk render surface, presents at least one frame, and paints itself
-  rather than an owner window. MDI child forms are intentionally excluded from
-  the top-level surface requirement because they are hosted inside the MDI
-  client and render through the parent surface.
+  Impeller/Silk render surface, presents at least one frame, paints itself
+  rather than an owner window, and does not share its Drawing backend with
+  another visible true top-level window. Dedicated `TopLevelSurfaceIsolation`
+  and `ModalSurfaceIsolation` smoke cases cover the blank-popup/modal class
+  where a secondary window rendered into its owner surface. MDI child forms are
+  intentionally excluded from the top-level surface requirement because they
+  are hosted inside the MDI client and render through the parent surface.
 - Skipped controls smoke case: `MediaPlayer`, because it is Windows Media Player
   ActiveX and remains intentionally out of scope for the first compatibility
   pass.
@@ -128,8 +131,15 @@ compatibility-facade coverage.
   through. The
   latest owned-dialog render-target pass fixes modal dialog painting by
   treating `WS_CHILD`, not owner handle presence, as the top-level discriminator
-  in the Impeller window registry. Owned modal dialogs now receive independent
-  backend surfaces instead of painting into their owner windows. The
+  in the Impeller window registry. The follow-up multi-surface Drawing pass
+  removes the singleton Impeller backend from `System.Drawing`, resolves
+  backend ownership per HWND/top-level render surface, and scopes
+  `Graphics.FromHdcInternal(IntPtr.Zero)` to the HWND currently being rendered.
+  Owned modal dialogs and ordinary secondary top-level windows now receive
+  independent backend surfaces instead of painting into their owner windows.
+  Focused `TopLevelSurfaceIsolation` and `ModalSurfaceIsolation` smoke
+  regressions pass, and the full controls smoke harness reports
+  `44 total, 43 passed, 0 failed, 1 skipped`. The
   latest printing pass removes generated
   `winspool.drv` imports from the first managed print paths, adds deterministic
   no-printer defaults for `EnumPrinters`, `DeviceCapabilities`, and
