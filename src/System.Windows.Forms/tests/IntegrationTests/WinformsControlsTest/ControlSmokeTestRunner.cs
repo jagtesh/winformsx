@@ -5,7 +5,6 @@ using System.Drawing;
 using System.Reflection;
 using System.Windows.Forms.Platform;
 using Windows.Win32.Foundation;
-using Windows.Win32.UI.WindowsAndMessaging;
 
 namespace WinFormsControlsTest;
 
