@@ -5,6 +5,7 @@ using System.ComponentModel;
 using System.Drawing;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Windows.Forms.Analyzers.Diagnostics;
 using TASKDIALOGCONFIG_FooterIcon = Windows.Win32.UI.Controls.TASKDIALOGCONFIG._Anonymous2_e__Union;
 using TASKDIALOGCONFIG_MainIcon = Windows.Win32.UI.Controls.TASKDIALOGCONFIG._Anonymous1_e__Union;
@@ -995,6 +996,18 @@ public partial class TaskDialog : IWin32Window
         }
     }
 
+    private unsafe void OnManagedHyperlinkClicked(string linkHref)
+    {
+        fixed (char* linkHrefPtr = linkHref)
+        {
+            HandleTaskDialogCallback(
+                _handle,
+                TASKDIALOG_NOTIFICATIONS.TDN_HYPERLINK_CLICKED,
+                default,
+                (LPARAM)linkHrefPtr);
+        }
+    }
+
     private void HandleManagedTaskDialogMessage(TASKDIALOG_MESSAGES message, WPARAM wParam, LPARAM lParam)
     {
         Debug.Assert(_managedDialogForm is not null);
@@ -1436,6 +1449,35 @@ public partial class TaskDialog : IWin32Window
             _isInNavigate = false;
         }
 
+        if (_managedDialogForm is not null)
+        {
+            page.Bind(
+                this,
+                out _,
+                out _,
+                out IEnumerable<(int buttonID, string text)> customButtonElements,
+                out _,
+                out _,
+                out _,
+                out int defaultButtonID,
+                out _);
+
+            TaskDialogPage previousPage = _boundPage!;
+            previousPage.Unbind();
+            _boundPage = page;
+
+            _managedDialogForm.NavigateToPage(page, customButtonElements.ToArray(), defaultButtonID);
+            _boundPage.ApplyInitialization();
+
+            if (!_raisedPageCreated)
+            {
+                _raisedPageCreated = true;
+                _boundPage.OnCreated(EventArgs.Empty);
+            }
+
+            return;
+        }
+
         // Note: We don't unbind the previous page here - this will be done
         // when the TDN_NAVIGATED notification occurs, because technically
         // the controls of both the previous page AND the new page exist
@@ -1864,13 +1906,13 @@ public partial class TaskDialog : IWin32Window
     private sealed class ManagedTaskDialogForm : Form
     {
         private readonly TaskDialog _ownerDialog;
-        private readonly TaskDialogPage _page;
         private readonly Dictionary<int, Button> _buttons = [];
         private readonly Dictionary<int, RadioButton> _radioButtons = [];
         private readonly Label _headingLabel = new() { AutoSize = true, Dock = DockStyle.Top };
-        private readonly Label _contentLabel = new() { AutoSize = true, Dock = DockStyle.Top, Padding = new Padding(0, 8, 0, 0) };
-        private readonly ProgressBar? _progressBar;
-        private readonly CheckBox? _verificationCheckBox;
+        private readonly LinkLabel _contentLabel = new() { AutoSize = true, Dock = DockStyle.Top, Padding = new Padding(0, 8, 0, 0) };
+        private TaskDialogPage _page;
+        private ProgressBar? _progressBar;
+        private CheckBox? _verificationCheckBox;
         private bool _updatingControls;
 
         public ManagedTaskDialogForm(
@@ -1882,6 +1924,13 @@ public partial class TaskDialog : IWin32Window
         {
             _ownerDialog = ownerDialog;
             _page = page;
+            _contentLabel.LinkClicked += (sender, e) =>
+            {
+                if (e.Link.LinkData is string linkHref)
+                {
+                    _ownerDialog.OnManagedHyperlinkClicked(linkHref);
+                }
+            };
 
             Text = TaskDialogPage.IsNativeStringNullOrEmpty(page.Caption)
                 ? Application.ProductName
@@ -1894,35 +1943,30 @@ public partial class TaskDialog : IWin32Window
             ClientSize = new Size(460, 240);
             MinimumSize = new Size(360, 180);
 
-            if (page.ProgressBar?.IsCreated == true)
-            {
-                _progressBar = new ProgressBar
-                {
-                    Dock = DockStyle.Top,
-                    Minimum = page.ProgressBar.Minimum,
-                    Maximum = Math.Max(page.ProgressBar.Minimum, page.ProgressBar.Maximum),
-                    Padding = new Padding(0, 10, 0, 0),
-                    Style = IsMarqueeProgressBar(page.ProgressBar.State) ? ProgressBarStyle.Marquee : ProgressBarStyle.Blocks,
-                    Value = Math.Clamp(page.ProgressBar.Value, page.ProgressBar.Minimum, Math.Max(page.ProgressBar.Minimum, page.ProgressBar.Maximum))
-                };
-            }
-
-            if (page.Verification?.IsCreated == true)
-            {
-                _verificationCheckBox = new CheckBox
-                {
-                    AutoSize = true,
-                    Checked = page.Verification.Checked,
-                    Dock = DockStyle.Top,
-                    Padding = new Padding(0, 10, 0, 0),
-                    Text = page.Verification.Text
-                };
-            }
-
+            ConfigurePageControls();
             Controls.Add(CreateContent(customButtonElements, defaultButtonID));
         }
 
         public int ResultButtonID { get; private set; }
+
+        public void NavigateToPage(
+            TaskDialogPage page,
+            IReadOnlyList<(int buttonID, string text)> customButtonElements,
+            int defaultButtonID)
+        {
+            _page = page;
+            Text = TaskDialogPage.IsNativeStringNullOrEmpty(page.Caption)
+                ? Application.ProductName
+                : page.Caption;
+
+            _buttons.Clear();
+            _radioButtons.Clear();
+            AcceptButton = null;
+            CancelButton = null;
+            ConfigurePageControls();
+            Controls.Clear();
+            Controls.Add(CreateContent(customButtonElements, defaultButtonID));
+        }
 
         protected override void OnShown(EventArgs e)
         {
@@ -1945,9 +1989,135 @@ public partial class TaskDialog : IWin32Window
                     _headingLabel.Text = text;
                     break;
                 case TASKDIALOG_ELEMENTS.TDE_CONTENT:
-                    _contentLabel.Text = text;
+                    SetContentText(text);
                     break;
             }
+        }
+
+        private void ConfigurePageControls()
+        {
+            _progressBar = null;
+            _verificationCheckBox = null;
+
+            if (_page.ProgressBar?.IsCreated == true)
+            {
+                _progressBar = new ProgressBar
+                {
+                    Dock = DockStyle.Top,
+                    Minimum = _page.ProgressBar.Minimum,
+                    Maximum = Math.Max(_page.ProgressBar.Minimum, _page.ProgressBar.Maximum),
+                    Padding = new Padding(0, 10, 0, 0),
+                    Style = IsMarqueeProgressBar(_page.ProgressBar.State) ? ProgressBarStyle.Marquee : ProgressBarStyle.Blocks,
+                    Value = Math.Clamp(_page.ProgressBar.Value, _page.ProgressBar.Minimum, Math.Max(_page.ProgressBar.Minimum, _page.ProgressBar.Maximum))
+                };
+            }
+
+            if (_page.Verification?.IsCreated == true)
+            {
+                _verificationCheckBox = new CheckBox
+                {
+                    AutoSize = true,
+                    Checked = _page.Verification.Checked,
+                    Dock = DockStyle.Top,
+                    Padding = new Padding(0, 10, 0, 0),
+                    Text = _page.Verification.Text
+                };
+            }
+        }
+
+        private void SetContentText(string? text)
+        {
+            _contentLabel.Links.Clear();
+            text ??= string.Empty;
+
+            if (!_page.EnableLinks || text.Length == 0)
+            {
+                _contentLabel.Text = text;
+                return;
+            }
+
+            StringBuilder renderedText = new(text.Length);
+            List<(int start, int length, string href)> links = [];
+            int currentIndex = 0;
+
+            while (currentIndex < text.Length)
+            {
+                int anchorStart = text.IndexOf("<a", currentIndex, StringComparison.OrdinalIgnoreCase);
+                if (anchorStart < 0)
+                {
+                    renderedText.Append(text, currentIndex, text.Length - currentIndex);
+                    break;
+                }
+
+                int tagEnd = text.IndexOf('>', anchorStart);
+                int anchorEnd = text.IndexOf("</a>", tagEnd < 0 ? anchorStart : tagEnd, StringComparison.OrdinalIgnoreCase);
+                if (tagEnd < 0 || anchorEnd < 0)
+                {
+                    renderedText.Append(text, currentIndex, text.Length - currentIndex);
+                    break;
+                }
+
+                string? href = TryGetHref(text.Substring(anchorStart, tagEnd - anchorStart + 1));
+                if (href is null)
+                {
+                    renderedText.Append(text, currentIndex, tagEnd - currentIndex + 1);
+                    currentIndex = tagEnd + 1;
+                    continue;
+                }
+
+                renderedText.Append(text, currentIndex, anchorStart - currentIndex);
+                int linkStart = renderedText.Length;
+                renderedText.Append(text, tagEnd + 1, anchorEnd - tagEnd - 1);
+                int linkLength = renderedText.Length - linkStart;
+
+                if (linkLength > 0)
+                {
+                    links.Add((linkStart, linkLength, href));
+                }
+
+                currentIndex = anchorEnd + "</a>".Length;
+            }
+
+            _contentLabel.Text = renderedText.ToString();
+            foreach ((int start, int length, string href) in links)
+            {
+                _contentLabel.Links.Add(start, length, href);
+            }
+        }
+
+        private static string? TryGetHref(string anchorTag)
+        {
+            int hrefStart = anchorTag.IndexOf("href", StringComparison.OrdinalIgnoreCase);
+            if (hrefStart < 0)
+            {
+                return null;
+            }
+
+            int equalsIndex = anchorTag.IndexOf('=', hrefStart);
+            if (equalsIndex < 0)
+            {
+                return null;
+            }
+
+            int valueStart = equalsIndex + 1;
+            while (valueStart < anchorTag.Length && char.IsWhiteSpace(anchorTag[valueStart]))
+            {
+                valueStart++;
+            }
+
+            if (valueStart >= anchorTag.Length)
+            {
+                return null;
+            }
+
+            char quote = anchorTag[valueStart];
+            if (quote is not ('\'' or '"'))
+            {
+                return null;
+            }
+
+            int valueEnd = anchorTag.IndexOf(quote, valueStart + 1);
+            return valueEnd > valueStart ? anchorTag.Substring(valueStart + 1, valueEnd - valueStart - 1) : null;
         }
 
         public void SetButtonEnabled(int buttonID, bool enabled)

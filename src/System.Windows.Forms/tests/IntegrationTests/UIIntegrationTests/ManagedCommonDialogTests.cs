@@ -174,6 +174,53 @@ public class ManagedCommonDialogTests : ControlTestBase
     }
 
     [UIFact]
+    public void OwnedTopLevelWindow_WithOwner_IsNotTreatedAsChild()
+    {
+        ImpellerWindowInterop windowInterop = Assert.IsType<ImpellerWindowInterop>(PlatformApi.Window);
+        HWND owner = windowInterop.CreateWindowEx(
+            default,
+            "WinFormsXTestOwner",
+            "Owner",
+            WINDOW_STYLE.WS_OVERLAPPEDWINDOW,
+            100,
+            100,
+            640,
+            480,
+            HWND.Null,
+            HMENU.Null,
+            HINSTANCE.Null,
+            null);
+        HWND dialog = windowInterop.CreateWindowEx(
+            default,
+            "WinFormsXTestDialog",
+            "Dialog",
+            WINDOW_STYLE.WS_CAPTION | WINDOW_STYLE.WS_SYSMENU,
+            250,
+            260,
+            320,
+            200,
+            owner,
+            HMENU.Null,
+            HINSTANCE.Null,
+            null);
+
+        try
+        {
+            Assert.Equal(owner, windowInterop.GetParent(dialog));
+            Assert.False(windowInterop.IsChild(owner, dialog));
+
+            Assert.True(windowInterop.GetWindowRect(dialog, out RECT dialogRect));
+            Assert.Equal(250, dialogRect.left);
+            Assert.Equal(260, dialogRect.top);
+        }
+        finally
+        {
+            windowInterop.DestroyWindow(dialog);
+            windowInterop.DestroyWindow(owner);
+        }
+    }
+
+    [UIFact]
     public void FileDialog_FilterPatterns_SelectsRequestedFilterIndex()
     {
         Assert.Equal(["*.png", "*.jpg"], ImpellerDialogInterop.GetFilterPatterns("Images|*.png;*.jpg|Text|*.txt", 1));

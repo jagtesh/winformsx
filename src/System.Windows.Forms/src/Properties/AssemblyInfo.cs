@@ -10,6 +10,7 @@ using System.Runtime.CompilerServices;
 [assembly: InternalsVisibleTo("System.Windows.Forms.Primitives.TestUtilities, PublicKey=00000000000000000400000000000000")]
 [assembly: InternalsVisibleTo("System.Windows.Forms.Interop.Tests, PublicKey=00000000000000000400000000000000")]
 [assembly: InternalsVisibleTo("System.Windows.Forms.UI.IntegrationTests, PublicKey=00000000000000000400000000000000")]
+[assembly: System.Runtime.CompilerServices.InternalsVisibleToAttribute("WinformsControlsTest, PublicKey=00000000000000000400000000000000")]
 [assembly: InternalsVisibleTo("ScratchProjectWithInternals, PublicKey=00000000000000000400000000000000")]
 [assembly: InternalsVisibleTo("ComDisabled.Tests, PublicKey=00000000000000000400000000000000")]
 

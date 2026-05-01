@@ -69,6 +69,18 @@ typedef struct SYSTEMTIME
     uint16_t w_milliseconds;
 } SYSTEMTIME;
 
+typedef enum SyntheticModuleKind
+{
+    SyntheticModuleUnknown = 0,
+    SyntheticModuleKernel32 = 1
+} SyntheticModuleKind;
+
+typedef struct SyntheticModule
+{
+    void* handle;
+    SyntheticModuleKind kind;
+} SyntheticModule;
+
 typedef struct WinFormsXKernel32Dispatch
 {
     uint32_t version;
@@ -124,6 +136,507 @@ static intptr_t g_next_module_handle = 0x710000;
 static intptr_t g_next_activation_context = 0x610000;
 static void* g_current_activation_context;
 static const int64_t g_local_time_offset_ticks = -(4ll * 60ll * 60ll * 10000000ll);
+static SyntheticModule g_synthetic_modules[64];
+static const char g_command_line_a[] = "dotnet WinFormsX";
+static const WCHAR g_command_line_w[] =
+{
+    'd', 'o', 't', 'n', 'e', 't', ' ', 'W', 'i', 'n', 'F', 'o', 'r', 'm', 's', 'X', 0
+};
+
+static char ascii_lower(char value)
+{
+    return value >= 'A' && value <= 'Z' ? (char)(value + ('a' - 'A')) : value;
+}
+
+static BOOL ascii_equals_ignore_case(const char* left, const char* right)
+{
+    if (left == 0 || right == 0)
+    {
+        return 0;
+    }
+
+    while (*left != 0 && *right != 0)
+    {
+        if (ascii_lower(*left) != ascii_lower(*right))
+        {
+            return 0;
+        }
+
+        left++;
+        right++;
+    }
+
+    return *left == 0 && *right == 0;
+}
+
+static const char* ascii_basename(const char* value)
+{
+    const char* basename = value;
+    if (value == 0)
+    {
+        return 0;
+    }
+
+    for (const char* current = value; *current != 0; current++)
+    {
+        if (*current == '/' || *current == '\\')
+        {
+            basename = current + 1;
+        }
+    }
+
+    return basename;
+}
+
+static SyntheticModuleKind classify_module_name_a(const char* module_name)
+{
+    const char* basename = ascii_basename(module_name);
+    if (basename == 0 || *basename == 0)
+    {
+        return SyntheticModuleUnknown;
+    }
+
+    if (ascii_equals_ignore_case(basename, "kernel32")
+        || ascii_equals_ignore_case(basename, "kernel32.dll")
+        || ascii_equals_ignore_case(basename, "KERNEL32.dll.dylib")
+        || ascii_equals_ignore_case(basename, "libKERNEL32.dll.dylib")
+        || ascii_equals_ignore_case(basename, "libKERNEL32.dll.so")
+        || ascii_equals_ignore_case(basename, "KERNEL32.dll.so")
+        || ascii_equals_ignore_case(basename, "libkernel32.dylib")
+        || ascii_equals_ignore_case(basename, "libkernel32.so"))
+    {
+        return SyntheticModuleKernel32;
+    }
+
+    return SyntheticModuleUnknown;
+}
+
+static SyntheticModuleKind classify_module_name_w(const WCHAR* module_name)
+{
+    char buffer[96];
+    size_t length = 0;
+    if (module_name == 0)
+    {
+        return SyntheticModuleUnknown;
+    }
+
+    while (module_name[length] != 0 && length + 1 < sizeof(buffer))
+    {
+        WCHAR value = module_name[length];
+        buffer[length] = value <= 0x7f ? (char)value : '?';
+        length++;
+    }
+
+    buffer[length] = 0;
+    return classify_module_name_a(buffer);
+}
+
+static void copy_ascii_to_wide(const char* source, WCHAR* destination, size_t destination_length)
+{
+    size_t length = 0;
+    if (destination == 0 || destination_length == 0)
+    {
+        return;
+    }
+
+    if (source != 0)
+    {
+        while (source[length] != 0 && length + 1 < destination_length)
+        {
+            destination[length] = (WCHAR)(uint8_t)source[length];
+            length++;
+        }
+    }
+
+    destination[length] = 0;
+}
+
+static BOOL copy_wide_to_ascii(const WCHAR* source, char* destination, size_t destination_length)
+{
+    size_t length = 0;
+    if (source == 0 || destination == 0 || destination_length == 0)
+    {
+        return 0;
+    }
+
+    while (source[length] != 0 && length + 1 < destination_length)
+    {
+        WCHAR value = source[length];
+        if (value > 0x7f)
+        {
+            return 0;
+        }
+
+        destination[length] = (char)value;
+        length++;
+    }
+
+    if (source[length] != 0)
+    {
+        return 0;
+    }
+
+    destination[length] = 0;
+    return 1;
+}
+
+static size_t copy_environment_value_a(const char* value, char* buffer, DWORD size)
+{
+    size_t length = strlen(value);
+    if (buffer == 0 || size == 0)
+    {
+        return length + 1;
+    }
+
+    if (length >= size)
+    {
+        buffer[0] = 0;
+        return length + 1;
+    }
+
+    memcpy(buffer, value, length + 1);
+    return length;
+}
+
+static size_t copy_environment_value_w(const char* value, WCHAR* buffer, DWORD size)
+{
+    size_t length = strlen(value);
+    if (buffer == 0 || size == 0)
+    {
+        return length + 1;
+    }
+
+    if (length >= size)
+    {
+        buffer[0] = 0;
+        return length + 1;
+    }
+
+    copy_ascii_to_wide(value, buffer, size);
+    return length;
+}
+
+static BOOL set_environment_value_a(const char* name, const char* value)
+{
+    if (name == 0 || name[0] == 0)
+    {
+        return 0;
+    }
+
+#if defined(_WIN32)
+    return _putenv_s(name, value == 0 ? "" : value) == 0;
+#else
+    if (value == 0)
+    {
+        return unsetenv(name) == 0;
+    }
+
+    return setenv(name, value, 1) == 0;
+#endif
+}
+
+static void append_char_a(char value, char* buffer, DWORD size, size_t* total)
+{
+    if (buffer != 0 && size > 0 && *total + 1 < size)
+    {
+        buffer[*total] = value;
+    }
+
+    (*total)++;
+}
+
+static void append_string_a(const char* value, char* buffer, DWORD size, size_t* total)
+{
+    if (value == 0)
+    {
+        return;
+    }
+
+    while (*value != 0)
+    {
+        append_char_a(*value, buffer, size, total);
+        value++;
+    }
+}
+
+static DWORD expand_environment_strings_a(const char* source, char* destination, DWORD size)
+{
+    size_t total = 0;
+    if (source == 0)
+    {
+        return 0;
+    }
+
+    for (size_t i = 0; source[i] != 0; i++)
+    {
+        if (source[i] == '%')
+        {
+            size_t end = i + 1;
+            while (source[end] != 0 && source[end] != '%')
+            {
+                end++;
+            }
+
+            if (source[end] == '%' && end > i + 1)
+            {
+                char name[256];
+                size_t name_length = end - i - 1;
+                if (name_length < sizeof(name))
+                {
+                    memcpy(name, source + i + 1, name_length);
+                    name[name_length] = 0;
+                    const char* value = getenv(name);
+                    if (value != 0)
+                    {
+                        append_string_a(value, destination, size, &total);
+                        i = end;
+                        continue;
+                    }
+                }
+            }
+        }
+
+        append_char_a(source[i], destination, size, &total);
+    }
+
+    if (destination != 0 && size > 0)
+    {
+        size_t terminator = total < size ? total : (size_t)size - 1;
+        destination[terminator] = 0;
+    }
+
+    return (DWORD)(total + 1);
+}
+
+static void append_char_w(WCHAR value, WCHAR* buffer, DWORD size, size_t* total)
+{
+    if (buffer != 0 && size > 0 && *total + 1 < size)
+    {
+        buffer[*total] = value;
+    }
+
+    (*total)++;
+}
+
+static void append_ascii_as_wide(const char* value, WCHAR* buffer, DWORD size, size_t* total)
+{
+    if (value == 0)
+    {
+        return;
+    }
+
+    while (*value != 0)
+    {
+        append_char_w((WCHAR)(uint8_t)*value, buffer, size, total);
+        value++;
+    }
+}
+
+static DWORD expand_environment_strings_w(const WCHAR* source, WCHAR* destination, DWORD size)
+{
+    size_t total = 0;
+    if (source == 0)
+    {
+        return 0;
+    }
+
+    for (size_t i = 0; source[i] != 0; i++)
+    {
+        if (source[i] == '%')
+        {
+            size_t end = i + 1;
+            while (source[end] != 0 && source[end] != '%')
+            {
+                end++;
+            }
+
+            if (source[end] == '%' && end > i + 1)
+            {
+                char name[256];
+                size_t name_length = end - i - 1;
+                if (name_length < sizeof(name))
+                {
+                    BOOL valid_name = 1;
+                    for (size_t j = 0; j < name_length; j++)
+                    {
+                        if (source[i + 1 + j] > 0x7f)
+                        {
+                            valid_name = 0;
+                            break;
+                        }
+
+                        name[j] = (char)source[i + 1 + j];
+                    }
+
+                    if (valid_name)
+                    {
+                        name[name_length] = 0;
+                        const char* value = getenv(name);
+                        if (value != 0)
+                        {
+                            append_ascii_as_wide(value, destination, size, &total);
+                            i = end;
+                            continue;
+                        }
+                    }
+                }
+            }
+        }
+
+        append_char_w(source[i], destination, size, &total);
+    }
+
+    if (destination != 0 && size > 0)
+    {
+        size_t terminator = total < size ? total : (size_t)size - 1;
+        destination[terminator] = 0;
+    }
+
+    return (DWORD)(total + 1);
+}
+
+static void remember_synthetic_module(void* handle, SyntheticModuleKind kind)
+{
+    if (handle == 0 || kind == SyntheticModuleUnknown)
+    {
+        return;
+    }
+
+    for (size_t i = 0; i < sizeof(g_synthetic_modules) / sizeof(g_synthetic_modules[0]); i++)
+    {
+        if (g_synthetic_modules[i].handle == handle)
+        {
+            g_synthetic_modules[i].kind = kind;
+            return;
+        }
+
+        if (g_synthetic_modules[i].handle == 0)
+        {
+            g_synthetic_modules[i].handle = handle;
+            g_synthetic_modules[i].kind = kind;
+            return;
+        }
+    }
+}
+
+static SyntheticModuleKind get_synthetic_module_kind(void* handle)
+{
+    if (handle == 0)
+    {
+        return SyntheticModuleUnknown;
+    }
+
+    for (size_t i = 0; i < sizeof(g_synthetic_modules) / sizeof(g_synthetic_modules[0]); i++)
+    {
+        if (g_synthetic_modules[i].handle == handle)
+        {
+            return g_synthetic_modules[i].kind;
+        }
+    }
+
+    return SyntheticModuleUnknown;
+}
+
+static void* synthetic_kernel32_proc_address(const char* proc_name)
+{
+    static const char* exports[] =
+    {
+        "GetCurrentProcess",
+        "GetCurrentThread",
+        "GetCurrentProcessId",
+        "GetCurrentThreadId",
+        "GetModuleHandleW",
+        "GetModuleHandleA",
+        "GetModuleHandle",
+        "GetModuleFileNameW",
+        "GetModuleFileNameA",
+        "GetModuleFileName",
+        "GetCommandLineW",
+        "GetCommandLineA",
+        "GetCommandLine",
+        "GetEnvironmentVariableW",
+        "GetEnvironmentVariableA",
+        "GetEnvironmentVariable",
+        "SetEnvironmentVariableW",
+        "SetEnvironmentVariableA",
+        "SetEnvironmentVariable",
+        "ExpandEnvironmentStringsW",
+        "ExpandEnvironmentStringsA",
+        "ExpandEnvironmentStrings",
+        "LoadLibraryExW",
+        "LoadLibraryW",
+        "LoadLibraryExA",
+        "LoadLibraryA",
+        "LoadLibrary",
+        "FreeLibrary",
+        "GetProcAddress",
+        "FindResourceW",
+        "FindResourceA",
+        "FindResource",
+        "FindResourceExW",
+        "FindResourceExA",
+        "LoadResource",
+        "LockResource",
+        "SizeofResource",
+        "FreeResource",
+        "GetLastError",
+        "SetLastError",
+        "CloseHandle",
+        "DuplicateHandle",
+        "FormatMessageW",
+        "FormatMessage",
+        "GetExitCodeThread",
+        "GetLocaleInfoEx",
+        "GetStartupInfoW",
+        "GetStartupInfo",
+        "GetThreadLocale",
+        "GetTickCount",
+        "GetSystemTimeAsFileTime",
+        "GetSystemTime",
+        "GetLocalTime",
+        "FileTimeToSystemTime",
+        "SystemTimeToFileTime",
+        "GetTickCount64",
+        "QueryPerformanceFrequency",
+        "QueryPerformanceCounter",
+        "GetACP",
+        "GetOEMCP",
+        "GetSystemDefaultLCID",
+        "GetUserDefaultLCID",
+        "GlobalAlloc",
+        "GlobalReAlloc",
+        "GlobalLock",
+        "GlobalUnlock",
+        "GlobalSize",
+        "GlobalFree",
+        "LocalAlloc",
+        "LocalReAlloc",
+        "LocalLock",
+        "LocalUnlock",
+        "LocalSize",
+        "LocalFree",
+        "CreateActCtxW",
+        "CreateActCtx",
+        "ActivateActCtx",
+        "DeactivateActCtx",
+        "GetCurrentActCtx"
+    };
+
+    if (proc_name == 0 || (uintptr_t)proc_name <= 0xffffu)
+    {
+        return 0;
+    }
+
+    for (size_t i = 0; i < sizeof(exports) / sizeof(exports[0]); i++)
+    {
+        if (ascii_equals_ignore_case(proc_name, exports[i]))
+        {
+            return (void*)(intptr_t)(0x7f000000u + ((uint32_t)i + 1u) * 0x10u);
+        }
+    }
+
+    return 0;
+}
 
 static int is_leap_year(int year)
 {
@@ -418,16 +931,25 @@ WF_EXPORT void* GetModuleHandleW(const WCHAR* module_name)
 {
     if (g_dispatch.get_module_handle != 0)
     {
-        return g_dispatch.get_module_handle(module_name);
+        void* handle = g_dispatch.get_module_handle(module_name);
+        remember_synthetic_module(handle, classify_module_name_w(module_name));
+        return handle;
     }
 
-    return (void*)(intptr_t)0x400000;
+    void* handle = (void*)(intptr_t)0x400000;
+    remember_synthetic_module(handle, classify_module_name_w(module_name));
+    return handle;
 }
 
 WF_EXPORT void* GetModuleHandleA(const char* module_name)
 {
-    (void)module_name;
-    return GetModuleHandleW(0);
+    WCHAR wide_module_name[260];
+    copy_ascii_to_wide(module_name, wide_module_name, sizeof(wide_module_name) / sizeof(wide_module_name[0]));
+    void* handle = g_dispatch.get_module_handle != 0
+        ? g_dispatch.get_module_handle(module_name == 0 ? 0 : wide_module_name)
+        : (void*)(intptr_t)0x400000;
+    remember_synthetic_module(handle, classify_module_name_a(module_name));
+    return handle;
 }
 
 WF_EXPORT void* GetModuleHandle(const WCHAR* module_name)
@@ -474,11 +996,128 @@ WF_EXPORT DWORD GetModuleFileName(void* module, WCHAR* filename, DWORD size)
     return GetModuleFileNameW(module, filename, size);
 }
 
+WF_EXPORT WCHAR* GetCommandLineW(void)
+{
+    return (WCHAR*)g_command_line_w;
+}
+
+WF_EXPORT char* GetCommandLineA(void)
+{
+    return (char*)g_command_line_a;
+}
+
+WF_EXPORT WCHAR* GetCommandLine(void)
+{
+    return GetCommandLineW();
+}
+
+WF_EXPORT DWORD GetEnvironmentVariableW(const WCHAR* name, WCHAR* buffer, DWORD size)
+{
+    char ascii_name[512];
+    if (!copy_wide_to_ascii(name, ascii_name, sizeof(ascii_name)))
+    {
+        if (buffer != 0 && size > 0)
+        {
+            buffer[0] = 0;
+        }
+
+        return 0;
+    }
+
+    const char* value = getenv(ascii_name);
+    if (value == 0)
+    {
+        if (buffer != 0 && size > 0)
+        {
+            buffer[0] = 0;
+        }
+
+        return 0;
+    }
+
+    return (DWORD)copy_environment_value_w(value, buffer, size);
+}
+
+WF_EXPORT DWORD GetEnvironmentVariableA(const char* name, char* buffer, DWORD size)
+{
+    if (name == 0 || name[0] == 0)
+    {
+        if (buffer != 0 && size > 0)
+        {
+            buffer[0] = 0;
+        }
+
+        return 0;
+    }
+
+    const char* value = getenv(name);
+    if (value == 0)
+    {
+        if (buffer != 0 && size > 0)
+        {
+            buffer[0] = 0;
+        }
+
+        return 0;
+    }
+
+    return (DWORD)copy_environment_value_a(value, buffer, size);
+}
+
+WF_EXPORT DWORD GetEnvironmentVariable(const WCHAR* name, WCHAR* buffer, DWORD size)
+{
+    return GetEnvironmentVariableW(name, buffer, size);
+}
+
+WF_EXPORT BOOL SetEnvironmentVariableW(const WCHAR* name, const WCHAR* value)
+{
+    char ascii_name[512];
+    char ascii_value[2048];
+    if (!copy_wide_to_ascii(name, ascii_name, sizeof(ascii_name)))
+    {
+        return 0;
+    }
+
+    if (value != 0 && !copy_wide_to_ascii(value, ascii_value, sizeof(ascii_value)))
+    {
+        return 0;
+    }
+
+    return set_environment_value_a(ascii_name, value == 0 ? 0 : ascii_value);
+}
+
+WF_EXPORT BOOL SetEnvironmentVariableA(const char* name, const char* value)
+{
+    return set_environment_value_a(name, value);
+}
+
+WF_EXPORT BOOL SetEnvironmentVariable(const WCHAR* name, const WCHAR* value)
+{
+    return SetEnvironmentVariableW(name, value);
+}
+
+WF_EXPORT DWORD ExpandEnvironmentStringsW(const WCHAR* source, WCHAR* destination, DWORD size)
+{
+    return expand_environment_strings_w(source, destination, size);
+}
+
+WF_EXPORT DWORD ExpandEnvironmentStringsA(const char* source, char* destination, DWORD size)
+{
+    return expand_environment_strings_a(source, destination, size);
+}
+
+WF_EXPORT DWORD ExpandEnvironmentStrings(const WCHAR* source, WCHAR* destination, DWORD size)
+{
+    return ExpandEnvironmentStringsW(source, destination, size);
+}
+
 WF_EXPORT void* LoadLibraryExW(const WCHAR* file_name, void* file, DWORD flags)
 {
     if (g_dispatch.load_library_ex != 0)
     {
-        return g_dispatch.load_library_ex(file_name, file, flags);
+        void* handle = g_dispatch.load_library_ex(file_name, file, flags);
+        remember_synthetic_module(handle, classify_module_name_w(file_name));
+        return handle;
     }
 
     (void)file;
@@ -489,7 +1128,9 @@ WF_EXPORT void* LoadLibraryExW(const WCHAR* file_name, void* file, DWORD flags)
     }
 
     g_next_module_handle++;
-    return (void*)g_next_module_handle;
+    void* handle = (void*)g_next_module_handle;
+    remember_synthetic_module(handle, classify_module_name_w(file_name));
+    return handle;
 }
 
 WF_EXPORT void* LoadLibraryW(const WCHAR* file_name)
@@ -504,10 +1145,21 @@ WF_EXPORT void* LoadLibraryExA(const char* file_name, void* file, DWORD flags)
         return 0;
     }
 
+    if (g_dispatch.load_library_ex != 0)
+    {
+        WCHAR wide_file_name[260];
+        copy_ascii_to_wide(file_name, wide_file_name, sizeof(wide_file_name) / sizeof(wide_file_name[0]));
+        void* handle = g_dispatch.load_library_ex(wide_file_name, file, flags);
+        remember_synthetic_module(handle, classify_module_name_a(file_name));
+        return handle;
+    }
+
     (void)file;
     (void)flags;
     g_next_module_handle++;
-    return (void*)g_next_module_handle;
+    void* handle = (void*)g_next_module_handle;
+    remember_synthetic_module(handle, classify_module_name_a(file_name));
+    return handle;
 }
 
 WF_EXPORT void* LoadLibraryA(const char* file_name)
@@ -534,11 +1186,18 @@ WF_EXPORT void* GetProcAddress(void* module, const char* proc_name)
 {
     if (g_dispatch.get_proc_address != 0)
     {
-        return g_dispatch.get_proc_address(module, proc_name);
+        void* dispatch_result = g_dispatch.get_proc_address(module, proc_name);
+        if (dispatch_result != 0)
+        {
+            return dispatch_result;
+        }
     }
 
-    (void)module;
-    (void)proc_name;
+    if (get_synthetic_module_kind(module) == SyntheticModuleKernel32)
+    {
+        return synthetic_kernel32_proc_address(proc_name);
+    }
+
     return 0;
 }
 

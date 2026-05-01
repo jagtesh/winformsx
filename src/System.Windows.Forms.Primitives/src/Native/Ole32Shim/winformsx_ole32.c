@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 #include <stdint.h>
+#include <stdlib.h>
 
 #if defined(_WIN32)
 #define WF_EXPORT __declspec(dllexport)
@@ -21,6 +22,7 @@ typedef void* IDropTarget;
 typedef void* ILockBytes;
 typedef void* IStream;
 typedef void* IUnknown;
+typedef void* IMalloc;
 typedef struct IOleAdviseHolder IOleAdviseHolder;
 typedef struct IDataAdviseHolder IDataAdviseHolder;
 
@@ -29,6 +31,7 @@ typedef struct IDataAdviseHolder IDataAdviseHolder;
 #define E_INVALIDARG ((HRESULT)0x80070057u)
 #define E_OUTOFMEMORY ((HRESULT)0x8007000Eu)
 #define E_NOINTERFACE ((HRESULT)0x80004002u)
+#define E_NOTIMPL ((HRESULT)0x80004001u)
 #define REGDB_E_CLASSNOTREG ((HRESULT)0x80040154u)
 #define CLIPBRD_E_BAD_DATA ((HRESULT)0x800401D3u)
 #define DRAGDROP_S_CANCEL ((HRESULT)0x00040101u)
@@ -88,6 +91,7 @@ static StreamState g_stream_states[64];
 static AdviseHolderState g_ole_advise_holders[64];
 static AdviseHolderState g_data_advise_holders[64];
 static uintptr_t g_next_synthetic_hglobal = (uintptr_t)0x10000;
+static uint32_t g_next_guid_counter = 1;
 
 static DropRegistration* find_registration(HWND hwnd)
 {
@@ -226,6 +230,55 @@ WF_EXPORT HRESULT CoGetClassObject(const GUID* rclsid, DWORD clsContext, LPVOID 
     }
 
     return REGDB_E_CLASSNOTREG;
+}
+
+WF_EXPORT void* CoTaskMemAlloc(uintptr_t size)
+{
+    return malloc(size);
+}
+
+WF_EXPORT void* CoTaskMemRealloc(void* block, uintptr_t size)
+{
+    return realloc(block, size);
+}
+
+WF_EXPORT void CoTaskMemFree(void* block)
+{
+    free(block);
+}
+
+WF_EXPORT HRESULT CoGetMalloc(DWORD memContext, IMalloc** mallocObject)
+{
+    (void)memContext;
+    if (mallocObject == 0)
+    {
+        return E_INVALIDARG;
+    }
+
+    *mallocObject = 0;
+    return E_NOTIMPL;
+}
+
+WF_EXPORT HRESULT CoCreateGuid(GUID* guid)
+{
+    if (guid == 0)
+    {
+        return E_INVALIDARG;
+    }
+
+    uint32_t counter = g_next_guid_counter++;
+    guid->Data1 = 0x57465800u | (counter & 0xFFu);
+    guid->Data2 = 0x4F4Cu;
+    guid->Data3 = 0x4532u;
+    guid->Data4[0] = 0x80u;
+    guid->Data4[1] = 0x00u;
+    guid->Data4[2] = (uint8_t)((counter >> 24) & 0xFFu);
+    guid->Data4[3] = (uint8_t)((counter >> 16) & 0xFFu);
+    guid->Data4[4] = (uint8_t)((counter >> 8) & 0xFFu);
+    guid->Data4[5] = (uint8_t)(counter & 0xFFu);
+    guid->Data4[6] = 0x33u;
+    guid->Data4[7] = 0x32u;
+    return S_OK;
 }
 
 WF_EXPORT HRESULT CoRegisterMessageFilter(IUnknown* messageFilter, IUnknown** previousMessageFilter)

@@ -82,6 +82,7 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
     // Internal window registry: HWND -> ImpellerSurface mapping
     private static long s_nextHandle = 0x10000;
     private static readonly string? s_traceFile = Environment.GetEnvironmentVariable("WINFORMSX_TRACE_FILE");
+    private static readonly string? s_renderer = Environment.GetEnvironmentVariable("WINFORMSX_RENDERER");
     private static readonly HiDpiMode s_hiDpiMode = ParseHiDpiMode();
     private static readonly float s_hiDpiScaleOverride = ParseHiDpiScaleOverride();
     private static readonly long s_targetFrameIntervalMs = ParseTargetFrameIntervalMs();
@@ -173,7 +174,7 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
     {
         int effectiveWidth = nWidth > 0 ? nWidth : 800;
         int effectiveHeight = nHeight > 0 ? nHeight : 600;
-        bool isTopLevel = hWndParent == HWND.Null;
+        bool isTopLevel = IsTopLevelWindowStyle(dwStyle);
         int effectiveX = isTopLevel ? NormalizeTopLevelWindowCoordinate(x, DefaultTopLevelWindowX) : NormalizeChildWindowCoordinate(x);
         int effectiveY = isTopLevel ? NormalizeTopLevelWindowCoordinate(y, DefaultTopLevelWindowY) : NormalizeChildWindowCoordinate(y);
         SHOW_WINDOW_CMD initialShowCmd = dwStyle.HasFlag(WINDOW_STYLE.WS_MAXIMIZE)
@@ -352,6 +353,13 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                         // This stays on the PAL/Impeller path and avoids native GDI+ surfaces.
                         Control? root = ResolveTopLevelControl(handle);
                         TracePaint($"[Render] resolvedRoot={(root is null ? "null" : root.GetType().Name)} handle=0x{(nint)handle:X}");
+                        if (_windows.TryGetValue(handle, out var painting))
+                        {
+                            painting.LastPaintedRootHandle = root is { IsHandleCreated: true }
+                                ? (HWND)(nint)root.Handle
+                                : HWND.Null;
+                        }
+
                         if (root is null || root.Width <= 0 || root.Height <= 0)
                         {
                             TracePaint($"[Render] fallbackClear rootNullOrEmpty={root is null} rootSize={(root is null ? "n/a" : $"{root.Width}x{root.Height}")}");
@@ -410,6 +418,7 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                         {
                             rendered.Dirty = false;
                             rendered.HasPresentedFrame = true;
+                            rendered.PresentedFrameCount++;
                         }
                     }
                     catch (Exception ex)
@@ -769,6 +778,12 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
 
     private static IWindow CreateInitializedSilkWindow(WindowOptions vulkanOptions)
     {
+        if (StringComparer.OrdinalIgnoreCase.Equals(s_renderer, "default"))
+        {
+            TracePaint("[Window] WINFORMSX_RENDERER=default; creating fallback Silk window");
+            return CreateFallbackSilkWindow(vulkanOptions);
+        }
+
         if (VulkanLoaderResolver.TryConfigureRuntime(out string? runtimeDetail))
         {
             TracePaint($"[Window] Vulkan runtime configured: {runtimeDetail}");
@@ -802,29 +817,40 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
 
         try
         {
+            TracePaint("[Window] Creating Vulkan Silk window");
             IWindow vulkanWindow = Window.Create(vulkanOptions);
+            TracePaint("[Window] Initializing Vulkan Silk window");
             vulkanWindow.Initialize();
+            TracePaint("[Window] Vulkan Silk window initialized");
             return vulkanWindow;
         }
         catch (Exception ex) when (IsVulkanWindowUnavailable(ex))
         {
             TracePaint($"[Window] Vulkan window unavailable; falling back to default Silk window. {ex.GetType().Name}: {ex.Message}");
 
-            WindowOptions fallbackOptions = WindowOptions.Default;
-            fallbackOptions.Title = vulkanOptions.Title;
-            fallbackOptions.Position = vulkanOptions.Position;
-            fallbackOptions.Size = vulkanOptions.Size;
-            fallbackOptions.IsVisible = vulkanOptions.IsVisible;
-            fallbackOptions.WindowBorder = vulkanOptions.WindowBorder;
-            fallbackOptions.TopMost = vulkanOptions.TopMost;
-            fallbackOptions.FramesPerSecond = vulkanOptions.FramesPerSecond;
-            fallbackOptions.UpdatesPerSecond = vulkanOptions.UpdatesPerSecond;
-            fallbackOptions.ShouldSwapAutomatically = false;
-
-            IWindow fallbackWindow = Window.Create(fallbackOptions);
-            fallbackWindow.Initialize();
-            return fallbackWindow;
+            return CreateFallbackSilkWindow(vulkanOptions);
         }
+    }
+
+    private static IWindow CreateFallbackSilkWindow(WindowOptions sourceOptions)
+    {
+        WindowOptions fallbackOptions = WindowOptions.Default;
+        fallbackOptions.Title = sourceOptions.Title;
+        fallbackOptions.Position = sourceOptions.Position;
+        fallbackOptions.Size = sourceOptions.Size;
+        fallbackOptions.IsVisible = sourceOptions.IsVisible;
+        fallbackOptions.WindowBorder = sourceOptions.WindowBorder;
+        fallbackOptions.TopMost = sourceOptions.TopMost;
+        fallbackOptions.FramesPerSecond = sourceOptions.FramesPerSecond;
+        fallbackOptions.UpdatesPerSecond = sourceOptions.UpdatesPerSecond;
+        fallbackOptions.ShouldSwapAutomatically = false;
+
+        TracePaint("[Window] Creating fallback Silk window");
+        IWindow fallbackWindow = Window.Create(fallbackOptions);
+        TracePaint("[Window] Initializing fallback Silk window");
+        fallbackWindow.Initialize();
+        TracePaint("[Window] Fallback Silk window initialized");
+        return fallbackWindow;
     }
 
     private static bool TryInitializeGlfwVulkanLoader(nint vkGetInstanceProcAddr, out string? detail)
@@ -3712,6 +3738,12 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
         return Math.Clamp(milliseconds, minValue, maxValue);
     }
 
+    internal static bool IsTopLevelWindowStyle(WINDOW_STYLE style)
+        => !style.HasFlag(WINDOW_STYLE.WS_CHILD);
+
+    private static bool IsTopLevelWindowState(ImpellerWindowState state)
+        => IsTopLevelWindowStyle(state.Style);
+
     private void MarkDirty(HWND hWnd)
         => MarkDirty(hWnd, s_dirtyCoalesceMs);
 
@@ -3746,7 +3778,7 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
         HWND current = hWnd;
         while (_windows.TryGetValue(current, out state!))
         {
-            if (state.Parent == HWND.Null)
+            if (IsTopLevelWindowState(state))
             {
                 return true;
             }
@@ -3758,7 +3790,7 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
         while (control is not null)
         {
             HWND handle = (HWND)(nint)control.Handle;
-            if (_windows.TryGetValue(handle, out state!) && state.Parent == HWND.Null)
+            if (_windows.TryGetValue(handle, out state!) && IsTopLevelWindowState(state))
             {
                 return true;
             }
@@ -3768,7 +3800,7 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
 
         foreach (var candidate in _windows.Values)
         {
-            if (candidate.Parent == HWND.Null && candidate.Visible)
+            if (IsTopLevelWindowState(candidate) && candidate.Visible)
             {
                 state = candidate;
                 return true;
@@ -3912,6 +3944,10 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
                 (WPARAM)(nuint)(show ? 1u : 0u),
                 (LPARAM)0,
                 out _);
+            if (show)
+            {
+                MarkDirtyImmediate(hWnd);
+            }
 
             return true;
         }
@@ -3925,7 +3961,8 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
     public bool IsWindowEnabled(HWND hWnd) => _windows.TryGetValue(hWnd, out var s) && s.Enabled;
     public HWND SetActiveWindow(HWND hWnd) { _activeWindow = hWnd; return hWnd; }
     public bool SetForegroundWindow(HWND hWnd) { _activeWindow = hWnd; return true; }
-    public bool IsChild(HWND hWndParent, HWND hWnd) => _windows.TryGetValue(hWnd, out var s) && s.Parent == hWndParent;
+    public bool IsChild(HWND hWndParent, HWND hWnd)
+        => _windows.TryGetValue(hWnd, out var s) && !IsTopLevelWindowState(s) && s.Parent == hWndParent;
     public HWND GetWindow(HWND hWnd, GET_WINDOW_CMD uCmd) => HWND.Null;
     public bool UpdateWindow(HWND hWnd)
     {
@@ -3937,7 +3974,7 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
     {
         if (_windows.TryGetValue(hWnd, out var s))
         {
-            if (s.Parent == HWND.Null)
+            if (IsTopLevelWindowState(s))
             {
                 x = NormalizeTopLevelWindowCoordinate(x, DefaultTopLevelWindowX);
                 y = NormalizeTopLevelWindowCoordinate(y, DefaultTopLevelWindowY);
@@ -3972,7 +4009,7 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
         {
             if (!flags.HasFlag(SET_WINDOW_POS_FLAGS.SWP_NOMOVE))
             {
-                if (s.Parent == HWND.Null)
+                if (IsTopLevelWindowState(s))
                 {
                     x = NormalizeTopLevelWindowCoordinate(x, DefaultTopLevelWindowX);
                     y = NormalizeTopLevelWindowCoordinate(y, DefaultTopLevelWindowY);
@@ -4598,7 +4635,7 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
         nint bestHandle = 0;
         foreach ((nint handleKey, ImpellerWindowState state) in _windows)
         {
-            if (state.Parent != HWND.Null)
+            if (!IsTopLevelWindowState(state))
             {
                 continue;
             }
@@ -4638,7 +4675,7 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
     private bool IsHitTestableTopLevelWindow(HWND handle)
     {
         if (!_windows.TryGetValue(handle, out ImpellerWindowState? state)
-            || state.Parent != HWND.Null
+            || !IsTopLevelWindowState(state)
             || !state.Visible)
         {
             return false;
@@ -4708,19 +4745,22 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
 
         if (_windows.TryGetValue(hwnd, out ImpellerWindowState? state))
         {
-            long x = state.Parent == HWND.Null
+            bool isTopLevel = IsTopLevelWindowState(state);
+            long x = isTopLevel
                 ? NormalizeTopLevelWindowCoordinate(state.X, DefaultTopLevelWindowX)
                 : NormalizeChildWindowCoordinate(state.X);
-            long y = state.Parent == HWND.Null
+            long y = isTopLevel
                 ? NormalizeTopLevelWindowCoordinate(state.Y, DefaultTopLevelWindowY)
                 : NormalizeChildWindowCoordinate(state.Y);
-            HWND currentParent = state.Parent;
+
+            HWND currentParent = isTopLevel ? HWND.Null : state.Parent;
             while (currentParent != HWND.Null && _windows.TryGetValue(currentParent, out ImpellerWindowState? parentState))
             {
-                x += parentState.Parent == HWND.Null
+                bool parentIsTopLevel = IsTopLevelWindowState(parentState);
+                x += parentIsTopLevel
                     ? NormalizeTopLevelWindowCoordinate(parentState.X, DefaultTopLevelWindowX)
                     : NormalizeChildWindowCoordinate(parentState.X);
-                y += parentState.Parent == HWND.Null
+                y += parentIsTopLevel
                     ? NormalizeTopLevelWindowCoordinate(parentState.Y, DefaultTopLevelWindowY)
                     : NormalizeChildWindowCoordinate(parentState.Y);
                 currentParent = parentState.Parent;
@@ -5043,10 +5083,23 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
 
     private static Control? ResolveTopLevelControl(HWND preferredHandle)
     {
-        Control? resolved = Control.FromHandle(preferredHandle);
+        Control? resolved = Control.FromHandle(preferredHandle) ?? Control.FromChildHandle(preferredHandle);
         if (resolved is not null)
         {
             return resolved;
+        }
+
+        foreach (Form form in Application.OpenForms)
+        {
+            if (form.IsHandleCreated && (HWND)(nint)form.Handle == preferredHandle)
+            {
+                return form;
+            }
+        }
+
+        if (preferredHandle != HWND.Null)
+        {
+            return null;
         }
 
         foreach (Form form in Application.OpenForms)
@@ -5100,6 +5153,8 @@ internal sealed class ImpellerWindowState
     public long LastRenderTickMs;
     public bool Dirty = true;
     public bool HasPresentedFrame;
+    public int PresentedFrameCount;
+    public HWND LastPaintedRootHandle;
     public int LastLogicalWidth;
     public int LastLogicalHeight;
     public int LastFramebufferWidth;

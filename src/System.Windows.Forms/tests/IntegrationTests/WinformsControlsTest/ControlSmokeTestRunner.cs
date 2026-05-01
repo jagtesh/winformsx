@@ -3,6 +3,9 @@
 
 using System.Drawing;
 using System.Reflection;
+using System.Windows.Forms.Platform;
+using Windows.Win32.Foundation;
+using Windows.Win32.UI.WindowsAndMessaging;
 
 namespace WinFormsControlsTest;
 
@@ -140,6 +143,7 @@ internal static class ControlSmokeTestRunner
 
             form.Show();
             Application.DoEvents();
+            VerifyVisibleTopLevelFormsPresented();
 
             createdHandleCount = CountCreatedHandles(form);
 
@@ -324,6 +328,61 @@ internal static class ControlSmokeTestRunner
         }
 
         return count;
+    }
+
+    private static void VerifyVisibleTopLevelFormsPresented()
+    {
+        if (PlatformApi.Window is not ImpellerWindowInterop windowInterop)
+        {
+            return;
+        }
+
+        foreach (Form form in Application.OpenForms.Cast<Form>().ToArray())
+        {
+            if (!form.Visible || !form.IsHandleCreated)
+            {
+                continue;
+            }
+
+            HWND hwnd = (HWND)(nint)form.Handle;
+            ImpellerWindowState? state = windowInterop.GetWindowState(hwnd);
+            if (state is null)
+            {
+                throw new InvalidOperationException($"Visible form '{form.Text}' handle 0x{(nint)hwnd:X} was not registered with the Impeller window provider.");
+            }
+
+            if (!ImpellerWindowInterop.IsTopLevelWindowStyle(state.Style))
+            {
+                continue;
+            }
+
+            for (int i = 0; i < 20; i++)
+            {
+                windowInterop.UpdateWindow(hwnd);
+                windowInterop.PumpEvents();
+                Application.DoEvents();
+                if (windowInterop.GetWindowState(hwnd)?.PresentedFrameCount > 0)
+                {
+                    break;
+                }
+            }
+
+            if (state.SilkWindow is null)
+            {
+                throw new InvalidOperationException($"Visible form '{form.Text}' handle 0x{(nint)hwnd:X} did not create an Impeller/Silk render surface.");
+            }
+
+            if (state.PresentedFrameCount <= 0)
+            {
+                throw new InvalidOperationException($"Visible form '{form.Text}' handle 0x{(nint)hwnd:X} did not present an Impeller frame.");
+            }
+
+            if (state.LastPaintedRootHandle != hwnd)
+            {
+                throw new InvalidOperationException(
+                    $"Visible form '{form.Text}' handle 0x{(nint)hwnd:X} painted root 0x{(nint)state.LastPaintedRootHandle:X} instead of itself.");
+            }
+        }
     }
 
     private sealed record ControlSmokeTestResult(

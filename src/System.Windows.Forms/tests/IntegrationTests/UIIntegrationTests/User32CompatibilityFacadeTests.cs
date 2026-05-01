@@ -645,9 +645,91 @@ public class User32CompatibilityFacadeTests
                 new string(nativePathPointer, 0, (int)nativeLength));
             }
 
+            char* commandLineW = NativeKernel32.GetCommandLineW();
+            Assert.NotEqual(nint.Zero, (nint)commandLineW);
+            Assert.Contains("WinFormsX", new string(commandLineW));
+
+            nint commandLineA = NativeKernel32.GetCommandLineA();
+            Assert.NotEqual(nint.Zero, commandLineA);
+            Assert.Contains("WinFormsX", Marshal.PtrToStringAnsi(commandLineA));
+
+            string environmentName = $"WINFORMSX_KERNEL32_DIRECT_ENV_{Environment.ProcessId}";
+            Assert.True(NativeKernel32.SetEnvironmentVariableW(environmentName, null));
+            try
+            {
+                Span<char> environmentBuffer = stackalloc char[128];
+                fixed (char* environmentBufferPointer = environmentBuffer)
+                {
+                    Assert.Equal(0u, NativeKernel32.GetEnvironmentVariableW(
+                        environmentName,
+                        environmentBufferPointer,
+                        (uint)environmentBuffer.Length));
+
+                    Assert.True(NativeKernel32.SetEnvironmentVariableW(environmentName, "AlphaBeta"));
+                    Assert.Equal(10u, NativeKernel32.GetEnvironmentVariableW(environmentName, environmentBufferPointer, 4));
+                    Assert.Equal('\0', environmentBuffer[0]);
+
+                    uint environmentLength = NativeKernel32.GetEnvironmentVariableW(
+                        environmentName,
+                        environmentBufferPointer,
+                        (uint)environmentBuffer.Length);
+                    Assert.Equal(9u, environmentLength);
+                    Assert.Equal("AlphaBeta", new string(environmentBufferPointer, 0, (int)environmentLength));
+
+                    string expandSource = $"Value=%{environmentName}%; Missing=%WINFORMSX_KERNEL32_MISSING_ENV%";
+                    string expectedExpansion = "Value=AlphaBeta; Missing=%WINFORMSX_KERNEL32_MISSING_ENV%";
+                    Assert.True(NativeKernel32.ExpandEnvironmentStringsW(expandSource, environmentBufferPointer, 8) > 8);
+                    uint expandedLength = NativeKernel32.ExpandEnvironmentStringsW(
+                        expandSource,
+                        environmentBufferPointer,
+                        (uint)environmentBuffer.Length);
+                    Assert.Equal((uint)expectedExpansion.Length + 1u, expandedLength);
+                    Assert.Equal(expectedExpansion, new string(environmentBufferPointer, 0, (int)expandedLength - 1));
+                }
+
+                byte* ansiEnvironmentBuffer = stackalloc byte[64];
+                Assert.True(NativeKernel32.SetEnvironmentVariableA(environmentName, "Gamma"));
+                Assert.Equal(6u, NativeKernel32.GetEnvironmentVariableA(environmentName, ansiEnvironmentBuffer, 3));
+
+                uint ansiEnvironmentLength = NativeKernel32.GetEnvironmentVariableA(environmentName, ansiEnvironmentBuffer, 64);
+                Assert.Equal(5u, ansiEnvironmentLength);
+                Assert.Equal("Gamma", Marshal.PtrToStringAnsi((nint)ansiEnvironmentBuffer, (int)ansiEnvironmentLength));
+
+                byte* ansiExpansionBuffer = stackalloc byte[128];
+                string expectedAnsiExpansion = "A=Gamma";
+                uint ansiExpandedLength = NativeKernel32.ExpandEnvironmentStringsA(
+                    $"A=%{environmentName}%",
+                    ansiExpansionBuffer,
+                    128);
+                Assert.Equal((uint)expectedAnsiExpansion.Length + 1u, ansiExpandedLength);
+                Assert.Equal(expectedAnsiExpansion, Marshal.PtrToStringAnsi((nint)ansiExpansionBuffer, (int)ansiExpandedLength - 1));
+
+                Assert.True(NativeKernel32.SetEnvironmentVariableA(environmentName, null));
+                Assert.Equal(0u, NativeKernel32.GetEnvironmentVariableA(environmentName, ansiEnvironmentBuffer, 64));
+            }
+            finally
+            {
+                NativeKernel32.SetEnvironmentVariableW(environmentName, null);
+            }
+
             nint loadedModule = NativeKernel32.LoadLibraryEx("WinFormsX.LoaderSmoke.dll", nint.Zero, 0);
             Assert.NotEqual(nint.Zero, loadedModule);
             Assert.Equal((nint)PInvoke.LoadLibraryEx("WinFormsX.LoaderSmoke.dll", 0), loadedModule);
+
+            nint kernel32Module = NativeKernel32.LoadLibraryEx("KERNEL32.dll", nint.Zero, 0);
+            Assert.NotEqual(nint.Zero, kernel32Module);
+            Assert.Equal(NativeKernel32.GetModuleHandle("KERNEL32.dll"), kernel32Module);
+
+            nint getTickCount64 = NativeKernel32.GetProcAddress(kernel32Module, "GetTickCount64");
+            Assert.NotEqual(nint.Zero, getTickCount64);
+            Assert.Equal(getTickCount64, NativeKernel32.GetProcAddress(kernel32Module, "GetTickCount64"));
+            Assert.NotEqual(getTickCount64, NativeKernel32.GetProcAddress(kernel32Module, "GetTickCount"));
+            Assert.NotEqual(nint.Zero, NativeKernel32.GetProcAddress(kernel32Module, "GetSystemTimeAsFileTime"));
+            Assert.NotEqual(nint.Zero, NativeKernel32.GetProcAddress(kernel32Module, "GetProcAddress"));
+            Assert.Equal(nint.Zero, NativeKernel32.GetProcAddress(kernel32Module, "MissingExport"));
+            Assert.Equal(nint.Zero, NativeKernel32.GetProcAddress(loadedModule, "GetTickCount64"));
+            Assert.True(NativeKernel32.FreeLibrary(kernel32Module));
+
             Assert.True(NativeKernel32.FreeLibrary(loadedModule));
             Assert.Equal(nint.Zero, NativeKernel32.GetProcAddress(loadedModule, "MissingExport"));
 
@@ -960,6 +1042,7 @@ public class User32CompatibilityFacadeTests
         const int S_FALSE = 1;
         const int E_INVALIDARG = unchecked((int)0x80070057);
         const int E_NOINTERFACE = unchecked((int)0x80004002);
+        const int E_NOTIMPL = unchecked((int)0x80004001);
         const int REGDB_E_CLASSNOTREG = unchecked((int)0x80040154);
         const int DRAGDROP_S_CANCEL = 0x00040101;
         const int DRAGDROP_E_ALREADYREGISTERED = unchecked((int)0x80040101);
@@ -972,6 +1055,58 @@ public class User32CompatibilityFacadeTests
             REGDB_E_CLASSNOTREG,
             NativeOle32.CoCreateInstance(null, 0, 0, null, &createdObject));
         Assert.Equal(0, createdObject);
+
+        byte* buffer = (byte*)NativeOle32.CoTaskMemAlloc(4);
+        try
+        {
+            Assert.NotEqual(0, (nint)buffer);
+            buffer[0] = 0x11;
+            buffer[1] = 0x22;
+            buffer[2] = 0x33;
+            buffer[3] = 0x44;
+
+            nint resizedBuffer = NativeOle32.CoTaskMemRealloc((nint)buffer, 8);
+            Assert.NotEqual(0, resizedBuffer);
+            buffer = (byte*)resizedBuffer;
+            Assert.NotEqual(0, (nint)buffer);
+            Assert.Equal((byte)0x11, buffer[0]);
+            Assert.Equal((byte)0x22, buffer[1]);
+            Assert.Equal((byte)0x33, buffer[2]);
+            Assert.Equal((byte)0x44, buffer[3]);
+
+            buffer[4] = 0x55;
+            buffer[5] = 0x66;
+            buffer[6] = 0x77;
+            buffer[7] = 0x88;
+
+            resizedBuffer = NativeOle32.CoTaskMemRealloc((nint)buffer, 4);
+            Assert.NotEqual(0, resizedBuffer);
+            buffer = (byte*)resizedBuffer;
+            Assert.NotEqual(0, (nint)buffer);
+            Assert.Equal((byte)0x11, buffer[0]);
+            Assert.Equal((byte)0x22, buffer[1]);
+            Assert.Equal((byte)0x33, buffer[2]);
+            Assert.Equal((byte)0x44, buffer[3]);
+        }
+        finally
+        {
+            NativeOle32.CoTaskMemFree((nint)buffer);
+            NativeOle32.CoTaskMemFree(0);
+        }
+
+        nint mallocObject = (nint)0x1234;
+        Assert.Equal(E_NOTIMPL, NativeOle32.CoGetMalloc(1, &mallocObject));
+        Assert.Equal(0, mallocObject);
+        Assert.Equal(E_INVALIDARG, NativeOle32.CoGetMalloc(1, null));
+
+        Guid firstGuid;
+        Guid secondGuid;
+        Assert.Equal(S_OK, NativeOle32.CoCreateGuid(&firstGuid));
+        Assert.Equal(S_OK, NativeOle32.CoCreateGuid(&secondGuid));
+        Assert.NotEqual(Guid.Empty, firstGuid);
+        Assert.NotEqual(Guid.Empty, secondGuid);
+        Assert.NotEqual(firstGuid, secondGuid);
+        Assert.Equal(E_INVALIDARG, NativeOle32.CoCreateGuid(null));
 
         nint previousFilter;
         Assert.Equal(S_OK, NativeOle32.CoRegisterMessageFilter((nint)0x1111, &previousFilter));
@@ -1060,6 +1195,8 @@ public class User32CompatibilityFacadeTests
     public unsafe void DirectOleAut32DllImports_ResolveToWinFormsXFacade()
     {
         const int S_OK = 0;
+        const int E_INVALIDARG = unchecked((int)0x80070057);
+        const int DISP_E_ARRAYISLOCKED = unchecked((int)0x8002000D);
         const int TYPE_E_CANTLOADLIBRARY = unchecked((int)0x80029C4A);
 
         nint bstr = NativeOleAut32.SysAllocString("WinFormsX");
@@ -1086,6 +1223,9 @@ public class User32CompatibilityFacadeTests
         void* safeArray = NativeOleAut32.SafeArrayCreate(3, 1, &bound);
         Assert.NotEqual(0, (nint)safeArray);
         Assert.Equal(1u, NativeOleAut32.SafeArrayGetDim(safeArray));
+        ushort vt;
+        Assert.Equal(S_OK, NativeOleAut32.SafeArrayGetVartype(safeArray, &vt));
+        Assert.Equal(3, vt);
 
         int lowerBound;
         int upperBound;
@@ -1102,10 +1242,42 @@ public class User32CompatibilityFacadeTests
         Assert.Equal(S_OK, NativeOleAut32.SafeArrayGetElement(safeArray, &index, &actualValue));
         Assert.Equal(value, actualValue);
 
+        void* elementPointer;
+        Assert.Equal(S_OK, NativeOleAut32.SafeArrayPtrOfIndex(safeArray, &index, &elementPointer));
+        Assert.NotEqual(0, (nint)elementPointer);
+        Assert.Equal(value, *(int*)elementPointer);
+
         void* data;
         Assert.Equal(S_OK, NativeOleAut32.SafeArrayAccessData(safeArray, &data));
         Assert.NotEqual(0, (nint)data);
+        NativeOleAut32.SAFEARRAYBOUND expandedBound = new()
+        {
+            cElements = 5,
+            lLbound = 2
+        };
+        Assert.Equal(DISP_E_ARRAYISLOCKED, NativeOleAut32.SafeArrayRedim(safeArray, &expandedBound));
         Assert.Equal(S_OK, NativeOleAut32.SafeArrayUnaccessData(safeArray));
+
+        Assert.Equal(S_OK, NativeOleAut32.SafeArrayRedim(safeArray, &expandedBound));
+        Assert.Equal(S_OK, NativeOleAut32.SafeArrayGetUBound(safeArray, 1, &upperBound));
+        Assert.Equal(6, upperBound);
+
+        actualValue = 0;
+        Assert.Equal(S_OK, NativeOleAut32.SafeArrayGetElement(safeArray, &index, &actualValue));
+        Assert.Equal(value, actualValue);
+
+        index = 6;
+        value = 84;
+        Assert.Equal(S_OK, NativeOleAut32.SafeArrayPutElement(safeArray, &index, &value));
+        actualValue = 0;
+        Assert.Equal(S_OK, NativeOleAut32.SafeArrayGetElement(safeArray, &index, &actualValue));
+        Assert.Equal(value, actualValue);
+
+        index = 7;
+        elementPointer = (void*)0x1234;
+        Assert.Equal(E_INVALIDARG, NativeOleAut32.SafeArrayPtrOfIndex(safeArray, &index, &elementPointer));
+        Assert.Equal(0, (nint)elementPointer);
+
         Assert.Equal(S_OK, NativeOleAut32.SafeArrayDestroy(safeArray));
     }
 
@@ -1209,6 +1381,7 @@ public class User32CompatibilityFacadeTests
         const int Ok = 0;
         const int InvalidParameter = 2;
         const int NotImplemented = 6;
+        const int PixelFormat32bppArgb = 0x0026200A;
 
         NativeGdiPlus.GdiplusStartupInput startupInput = new()
         {
@@ -1252,6 +1425,80 @@ public class User32CompatibilityFacadeTests
                 0,
                 0,
                 out bitmap));
+
+        Assert.Equal(InvalidParameter, NativeGdiPlus.GdipCreateBitmapFromHBITMAP(0, 0, out nint hbitmapImage));
+        Assert.Equal(0, hbitmapImage);
+
+        Assert.Equal(Ok, NativeGdiPlus.GdipCreateBitmapFromHBITMAP((nint)0x7100, 0, out hbitmapImage));
+        Assert.NotEqual(0, hbitmapImage);
+        Assert.Equal(Ok, NativeGdiPlus.GdipGetImageWidth(hbitmapImage, out uint imageWidth));
+        Assert.Equal(16u, imageWidth);
+        Assert.Equal(Ok, NativeGdiPlus.GdipGetImageHeight(hbitmapImage, out uint imageHeight));
+        Assert.Equal(16u, imageHeight);
+
+        Assert.Equal(InvalidParameter, NativeGdiPlus.GdipCreateBitmapFromHICON(0, out nint hiconImage));
+        Assert.Equal(0, hiconImage);
+
+        Assert.Equal(Ok, NativeGdiPlus.GdipCreateBitmapFromHICON((nint)0x7200, out hiconImage));
+        Assert.NotEqual(0, hiconImage);
+        Assert.Equal(Ok, NativeGdiPlus.GdipGetImageWidth(hiconImage, out imageWidth));
+        Assert.Equal(32u, imageWidth);
+        Assert.Equal(Ok, NativeGdiPlus.GdipGetImageHeight(hiconImage, out imageHeight));
+        Assert.Equal(32u, imageHeight);
+        Assert.Equal(Ok, NativeGdiPlus.GdipGetImageFlags(hiconImage, out uint imageFlags));
+        Assert.Equal(0u, imageFlags);
+        Assert.Equal(Ok, NativeGdiPlus.GdipGetImagePixelFormat(hiconImage, out int pixelFormat));
+        Assert.Equal(PixelFormat32bppArgb, pixelFormat);
+        Assert.Equal(Ok, NativeGdiPlus.GdipGetImageHorizontalResolution(hiconImage, out float horizontalResolution));
+        Assert.Equal(96.0f, horizontalResolution);
+        Assert.Equal(Ok, NativeGdiPlus.GdipGetImageVerticalResolution(hiconImage, out float verticalResolution));
+        Assert.Equal(96.0f, verticalResolution);
+
+        string imagePath = global::System.IO.Path.GetTempFileName();
+        try
+        {
+            global::System.IO.File.WriteAllBytes(imagePath, [0x42]);
+
+            Assert.Equal(Ok, NativeGdiPlus.GdipLoadImageFromFile(imagePath, out nint fileImage));
+            Assert.NotEqual(0, fileImage);
+            Assert.Equal(Ok, NativeGdiPlus.GdipGetImageWidth(fileImage, out imageWidth));
+            Assert.Equal(64u, imageWidth);
+            Assert.Equal(Ok, NativeGdiPlus.GdipGetImageHeight(fileImage, out imageHeight));
+            Assert.Equal(64u, imageHeight);
+            Assert.Equal(Ok, NativeGdiPlus.GdipGetImagePixelFormat(fileImage, out pixelFormat));
+            Assert.Equal(PixelFormat32bppArgb, pixelFormat);
+            Assert.Equal(Ok, NativeGdiPlus.GdipDisposeImage(fileImage));
+
+            Assert.Equal(Ok, NativeGdiPlus.GdipLoadImageFromFileICM(imagePath, out nint icmFileImage));
+            Assert.NotEqual(0, icmFileImage);
+            Assert.Equal(Ok, NativeGdiPlus.GdipGetImageHorizontalResolution(icmFileImage, out horizontalResolution));
+            Assert.Equal(96.0f, horizontalResolution);
+            Assert.Equal(Ok, NativeGdiPlus.GdipDisposeImage(icmFileImage));
+
+            Assert.Equal(InvalidParameter, NativeGdiPlus.GdipLoadImageFromFile(imagePath + ".missing", out nint missingFileImage));
+            Assert.Equal(0, missingFileImage);
+        }
+        finally
+        {
+            global::System.IO.File.Delete(imagePath);
+        }
+
+        Assert.Equal(InvalidParameter, NativeGdiPlus.GdipLoadImageFromFile(null, out nint nullFileImage));
+        Assert.Equal(0, nullFileImage);
+        Assert.Equal(InvalidParameter, NativeGdiPlus.GdipLoadImageFromFile(string.Empty, out nint emptyFileImage));
+        Assert.Equal(0, emptyFileImage);
+        Assert.Equal(InvalidParameter, NativeGdiPlus.GdipLoadImageFromStream(0, out nint streamImage));
+        Assert.Equal(0, streamImage);
+        Assert.Equal(NotImplemented, NativeGdiPlus.GdipLoadImageFromStream((nint)0x7300, out streamImage));
+        Assert.Equal(0, streamImage);
+        Assert.Equal(NotImplemented, NativeGdiPlus.GdipLoadImageFromStreamICM((nint)0x7400, out nint icmStreamImage));
+        Assert.Equal(0, icmStreamImage);
+
+        Assert.Equal(Ok, NativeGdiPlus.GdipDisposeImage(hbitmapImage));
+        Assert.Equal(InvalidParameter, NativeGdiPlus.GdipGetImageWidth(hbitmapImage, out _));
+        Assert.Equal(InvalidParameter, NativeGdiPlus.GdipDisposeImage(hbitmapImage));
+        Assert.Equal(InvalidParameter, NativeGdiPlus.GdipDisposeImage(0));
+        Assert.Equal(Ok, NativeGdiPlus.GdipDisposeImage(hiconImage));
 
         startupInput.GdiplusVersion = 0;
         Assert.Equal(
@@ -1934,6 +2181,32 @@ public class User32CompatibilityFacadeTests
         [DllImport(Kernel32, EntryPoint = "GetModuleFileNameW", ExactSpelling = true)]
         internal static extern uint GetModuleFileName(nint hModule, char* lpFilename, uint nSize);
 
+        [DllImport(Kernel32, ExactSpelling = true)]
+        internal static extern char* GetCommandLineW();
+
+        [DllImport(Kernel32, ExactSpelling = true)]
+        internal static extern nint GetCommandLineA();
+
+        [DllImport(Kernel32, ExactSpelling = true, CharSet = CharSet.Unicode)]
+        internal static extern uint GetEnvironmentVariableW(string lpName, char* lpBuffer, uint nSize);
+
+        [DllImport(Kernel32, ExactSpelling = true, CharSet = CharSet.Ansi)]
+        internal static extern uint GetEnvironmentVariableA(string lpName, byte* lpBuffer, uint nSize);
+
+        [DllImport(Kernel32, ExactSpelling = true, CharSet = CharSet.Unicode)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool SetEnvironmentVariableW(string lpName, string? lpValue);
+
+        [DllImport(Kernel32, ExactSpelling = true, CharSet = CharSet.Ansi)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool SetEnvironmentVariableA(string lpName, string? lpValue);
+
+        [DllImport(Kernel32, ExactSpelling = true, CharSet = CharSet.Unicode)]
+        internal static extern uint ExpandEnvironmentStringsW(string lpSrc, char* lpDst, uint nSize);
+
+        [DllImport(Kernel32, ExactSpelling = true, CharSet = CharSet.Ansi)]
+        internal static extern uint ExpandEnvironmentStringsA(string lpSrc, byte* lpDst, uint nSize);
+
         [DllImport(Kernel32, EntryPoint = "LoadLibraryExW", CharSet = CharSet.Unicode, ExactSpelling = true)]
         internal static extern nint LoadLibraryEx(string lpLibFileName, nint hFile, uint dwFlags);
 
@@ -2213,6 +2486,21 @@ public class User32CompatibilityFacadeTests
         internal static extern int CoCreateInstance(void* clsid, nint outer, uint clsContext, void* iid, nint* createdObject);
 
         [DllImport(Ole32, ExactSpelling = true)]
+        internal static extern nint CoTaskMemAlloc(nuint size);
+
+        [DllImport(Ole32, ExactSpelling = true)]
+        internal static extern nint CoTaskMemRealloc(nint block, nuint size);
+
+        [DllImport(Ole32, ExactSpelling = true)]
+        internal static extern void CoTaskMemFree(nint block);
+
+        [DllImport(Ole32, ExactSpelling = true)]
+        internal static extern int CoGetMalloc(uint memContext, nint* mallocObject);
+
+        [DllImport(Ole32, ExactSpelling = true)]
+        internal static extern int CoCreateGuid(Guid* guid);
+
+        [DllImport(Ole32, ExactSpelling = true)]
         internal static extern int CoRegisterMessageFilter(nint messageFilter, nint* previousMessageFilter);
 
         [DllImport(Ole32, ExactSpelling = true)]
@@ -2303,16 +2591,25 @@ public class User32CompatibilityFacadeTests
         internal static extern int SafeArrayGetUBound(void* array, uint dimension, int* upperBound);
 
         [DllImport(OleAut32, ExactSpelling = true)]
+        internal static extern int SafeArrayGetVartype(void* array, ushort* vt);
+
+        [DllImport(OleAut32, ExactSpelling = true)]
         internal static extern int SafeArrayAccessData(void* array, void** data);
 
         [DllImport(OleAut32, ExactSpelling = true)]
         internal static extern int SafeArrayUnaccessData(void* array);
 
         [DllImport(OleAut32, ExactSpelling = true)]
+        internal static extern int SafeArrayPtrOfIndex(void* array, int* indices, void** data);
+
+        [DllImport(OleAut32, ExactSpelling = true)]
         internal static extern int SafeArrayPutElement(void* array, int* indices, void* value);
 
         [DllImport(OleAut32, ExactSpelling = true)]
         internal static extern int SafeArrayGetElement(void* array, int* indices, void* value);
+
+        [DllImport(OleAut32, ExactSpelling = true)]
+        internal static extern int SafeArrayRedim(void* array, SAFEARRAYBOUND* bound);
 
         internal struct SAFEARRAYBOUND
         {
@@ -2510,6 +2807,45 @@ public class User32CompatibilityFacadeTests
             int pixelFormat,
             nint scan0,
             out nint bitmap);
+
+        [DllImport(GdiPlus, ExactSpelling = true)]
+        internal static extern int GdipCreateBitmapFromHBITMAP(nint hbm, nint hpal, out nint bitmap);
+
+        [DllImport(GdiPlus, ExactSpelling = true)]
+        internal static extern int GdipCreateBitmapFromHICON(nint hicon, out nint bitmap);
+
+        [DllImport(GdiPlus, ExactSpelling = true)]
+        internal static extern int GdipLoadImageFromFile([MarshalAs(UnmanagedType.LPWStr)] string? filename, out nint image);
+
+        [DllImport(GdiPlus, ExactSpelling = true)]
+        internal static extern int GdipLoadImageFromFileICM([MarshalAs(UnmanagedType.LPWStr)] string? filename, out nint image);
+
+        [DllImport(GdiPlus, ExactSpelling = true)]
+        internal static extern int GdipLoadImageFromStream(nint stream, out nint image);
+
+        [DllImport(GdiPlus, ExactSpelling = true)]
+        internal static extern int GdipLoadImageFromStreamICM(nint stream, out nint image);
+
+        [DllImport(GdiPlus, ExactSpelling = true)]
+        internal static extern int GdipDisposeImage(nint image);
+
+        [DllImport(GdiPlus, ExactSpelling = true)]
+        internal static extern int GdipGetImageWidth(nint image, out uint width);
+
+        [DllImport(GdiPlus, ExactSpelling = true)]
+        internal static extern int GdipGetImageHeight(nint image, out uint height);
+
+        [DllImport(GdiPlus, ExactSpelling = true)]
+        internal static extern int GdipGetImageFlags(nint image, out uint flags);
+
+        [DllImport(GdiPlus, ExactSpelling = true)]
+        internal static extern int GdipGetImagePixelFormat(nint image, out int pixelFormat);
+
+        [DllImport(GdiPlus, ExactSpelling = true)]
+        internal static extern int GdipGetImageHorizontalResolution(nint image, out float resolution);
+
+        [DllImport(GdiPlus, ExactSpelling = true)]
+        internal static extern int GdipGetImageVerticalResolution(nint image, out float resolution);
 
         [StructLayout(LayoutKind.Sequential)]
         internal struct GdiplusStartupInput

@@ -1,6 +1,7 @@
 ﻿// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using System.Reflection;
 using Xunit.Abstractions;
 
 namespace System.Windows.Forms.UITests;
@@ -142,6 +143,75 @@ public class TaskDialogUITests : ControlTestBase
         };
 
         Assert.Equal(commandLink, TaskDialog.ShowDialog(page));
+    }
+
+    [UIFact]
+    public void TaskDialog_ShowDialog_LinkClick_RaisesLinkClicked()
+    {
+        string? clickedHref = null;
+        TaskDialogPage page = new()
+        {
+            Caption = nameof(TaskDialog_ShowDialog_LinkClick_RaisesLinkClicked),
+            EnableLinks = true,
+            Text = "Open <a href=\"winformsx://docs\">docs</a>"
+        };
+
+        page.LinkClicked += (sender, e) =>
+        {
+            clickedHref = e.LinkHref;
+            page.BoundDialog!.Close();
+        };
+
+        page.Created += (sender, e) =>
+        {
+            LinkLabel visibleContent = FindOpenTaskDialogControl<LinkLabel>(
+                page.Caption,
+                label => label.Text == "Open docs" && label.Links.Count == 1);
+
+            MethodInfo onLinkClicked = typeof(LinkLabel).GetMethod(
+                "OnLinkClicked",
+                BindingFlags.Instance | BindingFlags.NonPublic)!;
+            onLinkClicked.Invoke(visibleContent, [new LinkLabelLinkClickedEventArgs(visibleContent.Links[0])]);
+        };
+
+        Assert.Equal(TaskDialogButton.Cancel, TaskDialog.ShowDialog(page));
+        Assert.Equal("winformsx://docs", clickedHref);
+    }
+
+    [UIFact]
+    public void TaskDialog_ShowDialog_Navigate_RebuildsVisiblePage()
+    {
+        bool firstDestroyed = false;
+        bool secondCreated = false;
+
+        TaskDialogPage first = new()
+        {
+            Caption = nameof(TaskDialog_ShowDialog_Navigate_RebuildsVisiblePage),
+            Heading = "First",
+            Text = "First content"
+        };
+
+        TaskDialogPage second = new()
+        {
+            Caption = nameof(TaskDialog_ShowDialog_Navigate_RebuildsVisiblePage),
+            Heading = "Second",
+            Text = "Second content"
+        };
+
+        first.Created += (sender, e) => first.Navigate(second);
+        first.Destroyed += (sender, e) => firstDestroyed = true;
+        second.Created += (sender, e) =>
+        {
+            secondCreated = true;
+            FindOpenTaskDialogControl<LinkLabel>(
+                second.Caption,
+                label => label.Text == "Second content");
+            second.BoundDialog!.Close();
+        };
+
+        Assert.Equal(TaskDialogButton.Cancel, TaskDialog.ShowDialog(first));
+        Assert.True(firstDestroyed);
+        Assert.True(secondCreated);
     }
 
     private static T FindOpenTaskDialogControl<T>(string? caption, Predicate<T>? match = null) where T : Control

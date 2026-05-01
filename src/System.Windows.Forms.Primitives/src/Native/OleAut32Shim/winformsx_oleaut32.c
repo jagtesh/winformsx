@@ -22,6 +22,8 @@ typedef void* SAFEARRAY;
 
 #define S_OK ((HRESULT)0)
 #define E_INVALIDARG ((HRESULT)0x80070057u)
+#define E_OUTOFMEMORY ((HRESULT)0x8007000Eu)
+#define DISP_E_ARRAYISLOCKED ((HRESULT)0x8002000Du)
 #define TYPE_E_CANTLOADLIBRARY ((HRESULT)0x80029C4Au)
 #define VT_EMPTY ((VARTYPE)0)
 #define VT_I4 ((VARTYPE)3)
@@ -331,6 +333,18 @@ WF_EXPORT HRESULT SafeArrayGetUBound(SAFEARRAY* array, UINT dimension, LONG* upp
     return S_OK;
 }
 
+WF_EXPORT HRESULT SafeArrayGetVartype(SAFEARRAY* array, VARTYPE* vt)
+{
+    WinFormsXSafeArray* value = as_safe_array(array);
+    if (value == 0 || vt == 0)
+    {
+        return E_INVALIDARG;
+    }
+
+    *vt = value->vt;
+    return S_OK;
+}
+
 WF_EXPORT HRESULT SafeArrayAccessData(SAFEARRAY* array, void** data)
 {
     WinFormsXSafeArray* value = as_safe_array(array);
@@ -360,6 +374,24 @@ WF_EXPORT HRESULT SafeArrayUnaccessData(SAFEARRAY* array)
     return S_OK;
 }
 
+WF_EXPORT HRESULT SafeArrayPtrOfIndex(SAFEARRAY* array, LONG* indices, void** data)
+{
+    WinFormsXSafeArray* safe_array = as_safe_array(array);
+    ULONG offset = 0;
+    if (safe_array == 0 || data == 0 || !array_offset(safe_array, indices, &offset))
+    {
+        if (data != 0)
+        {
+            *data = 0;
+        }
+
+        return E_INVALIDARG;
+    }
+
+    *data = (uint8_t*)safe_array->pvData + offset * safe_array->cbElements;
+    return S_OK;
+}
+
 WF_EXPORT HRESULT SafeArrayPutElement(SAFEARRAY* array, LONG* indices, void* value)
 {
     WinFormsXSafeArray* safe_array = as_safe_array(array);
@@ -383,5 +415,49 @@ WF_EXPORT HRESULT SafeArrayGetElement(SAFEARRAY* array, LONG* indices, void* val
     }
 
     memcpy(value, (uint8_t*)safe_array->pvData + offset * safe_array->cbElements, safe_array->cbElements);
+    return S_OK;
+}
+
+WF_EXPORT HRESULT SafeArrayRedim(SAFEARRAY* array, SAFEARRAYBOUND* bound)
+{
+    WinFormsXSafeArray* safe_array = as_safe_array(array);
+    if (safe_array == 0 || bound == 0 || safe_array->cDims != 1 || bound->cElements == 0)
+    {
+        return E_INVALIDARG;
+    }
+
+    if (safe_array->cLocks > 0)
+    {
+        return DISP_E_ARRAYISLOCKED;
+    }
+
+    ULONG new_count = bound->cElements;
+    void* new_data = calloc(new_count, safe_array->cbElements);
+    if (new_data == 0)
+    {
+        return E_OUTOFMEMORY;
+    }
+
+    SAFEARRAYBOUND old_bound = safe_array->bounds[0];
+    LONG old_lower = old_bound.lLbound;
+    LONG old_upper = old_lower + (LONG)old_bound.cElements - 1;
+    LONG new_lower = bound->lLbound;
+    LONG new_upper = new_lower + (LONG)bound->cElements - 1;
+    LONG copy_lower = old_lower > new_lower ? old_lower : new_lower;
+    LONG copy_upper = old_upper < new_upper ? old_upper : new_upper;
+
+    for (LONG index = copy_lower; index <= copy_upper; index++)
+    {
+        ULONG old_offset = (ULONG)(index - old_lower);
+        ULONG new_offset = (ULONG)(index - new_lower);
+        memcpy(
+            (uint8_t*)new_data + new_offset * safe_array->cbElements,
+            (uint8_t*)safe_array->pvData + old_offset * safe_array->cbElements,
+            safe_array->cbElements);
+    }
+
+    free(safe_array->pvData);
+    safe_array->pvData = new_data;
+    safe_array->bounds[0] = *bound;
     return S_OK;
 }

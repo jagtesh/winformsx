@@ -6,10 +6,21 @@ compatibility-facade coverage.
 
 ## Current Status Snapshot
 
-- Controls smoke harness: `42 total, 41 passed, 0 failed, 1 skipped`.
+- Controls smoke harness: `42 total, 41 passed, 0 failed, 1 skipped`. The
+  harness now asserts that every visible true top-level form creates an
+  Impeller/Silk render surface, presents at least one frame, and paints itself
+  rather than an owner window. MDI child forms are intentionally excluded from
+  the top-level surface requirement because they are hosted inside the MDI
+  client and render through the parent surface.
 - Skipped controls smoke case: `MediaPlayer`, because it is Windows Media Player
   ActiveX and remains intentionally out of scope for the first compatibility
   pass.
+- Rendering watch item: an attempted in-process UIIntegration visible-window
+  regression reproduced the hidden-backend limitation, but both Vulkan and the
+  default Silk window path can block inside `Window.Create` under the vstest
+  host. Keep UIIntegration's hidden/virtual backend path for now and use the
+  controls smoke harness or a future out-of-process visible harness for
+  frame-present assertions.
 - USER32 direct-DllImport facade exists for the first source-compatibility tier:
   cursor/message position, keyboard state, focus/active/foreground window,
   desktop window, system metrics, visibility, enabled state, and the
@@ -115,6 +126,10 @@ compatibility-facade coverage.
   selection of a seeded custom color. Direct COMDLG32 exports still return
   deterministic cancel/default state until ABI-safe visible services are wired
   through. The
+  latest owned-dialog render-target pass fixes modal dialog painting by
+  treating `WS_CHILD`, not owner handle presence, as the top-level discriminator
+  in the Impeller window registry. Owned modal dialogs now receive independent
+  backend surfaces instead of painting into their owner windows. The
   latest printing pass removes generated
   `winspool.drv` imports from the first managed print paths, adds deterministic
   no-printer defaults for `EnumPrinters`, `DeviceCapabilities`, and
@@ -231,6 +246,13 @@ compatibility-facade coverage.
   managed and direct `LoadLibraryW/A`, `LoadLibraryExW/A`, `FreeLibrary`, and
   `GetProcAddress` through PAL-owned synthetic module handles, preserving safe
   source-compatible loader behavior without native OS loader dependence. The
+  follow-up loader/export pass lets `GetProcAddress` return stable nonzero
+  synthetic addresses for KERNEL32 exports implemented by the native facade,
+  while keeping unknown modules/exports at deterministic zero. The latest
+  command-line/environment pass adds direct facade coverage for
+  `GetCommandLineW/A`, `GetEnvironmentVariableW/A`,
+  `SetEnvironmentVariableW/A`, and `ExpandEnvironmentStringsW/A`, using stable
+  compatibility command-line metadata and process environment state. The
   latest resource lookup pass adds conservative PAL-backed `FindResourceW/A`,
   `FindResourceExW/A`, `LoadResource`, `LockResource`, `SizeofResource`, and
   `FreeResource` coverage to the managed wrappers and native `KERNEL32.dll`
@@ -280,8 +302,17 @@ compatibility-facade coverage.
   fidelity task. The follow-up GDI+ facade pass adds first-tier
   source-compatible direct-import coverage for `gdiplus.dll`
   `GdiplusStartup`/`GdiplusShutdown` plus deterministic-safe probes
-  (`GdipGetImageDecodersSize`, `GdipCreateBitmapFromScan0`), without
-  enabling host-native GDI+ drawing behavior.
+  (`GdipGetImageDecodersSize`, `GdipCreateBitmapFromScan0`). The current GDI+
+  conversion pass adds synthetic image handles for `GdipCreateBitmapFromHBITMAP`
+  and `GdipCreateBitmapFromHICON`, with deterministic `GdipGetImageWidth`,
+  `GdipGetImageHeight`, and `GdipDisposeImage` behavior. The current GDI+
+  stream/file probe pass adds existing-file synthetic image creation through
+  `GdipLoadImageFromFile`/`GdipLoadImageFromFileICM`, deterministic stream
+  probe failures for `GdipLoadImageFromStream`/`GdipLoadImageFromStreamICM`,
+  and synthetic metadata through `GdipGetImageFlags`,
+  `GdipGetImagePixelFormat`, `GdipGetImageHorizontalResolution`, and
+  `GdipGetImageVerticalResolution`. These probes do not enable host-native GDI+
+  drawing behavior or real bitmap/icon/file/stream pixel decoding.
   The latest broad UIIntegration snapshot is now green at
   `Failed: 0, Passed: 259, Skipped: 1, Total: 260`.
 - First UIIntegration blockers observed:
@@ -468,7 +499,8 @@ implementations.
 Impacted APIs and areas:
 
 - `OLE32.dll`: `OleInitialize`, `CoCreateInstance`, `CoGetClassObject`,
-  `CoRegisterMessageFilter`, `CreateILockBytesOnHGlobal`,
+  `CoTaskMemAlloc`, `CoTaskMemRealloc`, `CoTaskMemFree`, `CoGetMalloc`,
+  `CoCreateGuid`, `CoRegisterMessageFilter`, `CreateILockBytesOnHGlobal`,
   `CreateStreamOnHGlobal`, `GetHGlobalFromStream`, `CreateOleAdviseHolder`,
   `CreateDataAdviseHolder`, `OleCreatePictureIndirect`, `ReleaseStgMedium`,
   `OleIsCurrentClipboard`, and data-object lifetime.
@@ -490,6 +522,8 @@ Plan:
   source-compatibility APIs, backed by PAL state. The latest pass adds a native
   first-tier facade for `OleInitialize`, `OleUninitialize`, `CoInitialize`,
   `CoInitializeEx`, `CoUninitialize`, `CoCreateInstance`, `CoGetClassObject`,
+  `CoTaskMemAlloc`, `CoTaskMemRealloc`, `CoTaskMemFree`, conservative
+  `CoGetMalloc` failure, monotonic deterministic `CoCreateGuid`,
   `CoRegisterMessageFilter`, `CreateILockBytesOnHGlobal`,
   `CreateOleAdviseHolder`, `CreateDataAdviseHolder`, `CreateStreamOnHGlobal`,
   `GetHGlobalFromStream`, conservative `ReleaseStgMedium`,
@@ -501,9 +535,9 @@ Plan:
   source-compatibility APIs. The latest pass adds BSTR allocation/free/length,
   `VariantClear`, `PropVariantClear`, deterministic missing-type-library
   behavior for `LoadRegTypeLib`, and minimal owned SAFEARRAY storage for
-  creation, bounds, access/unaccess, get/put, and destroy. Registered
-  type-library backed dispatch and full automation marshaling remain richer
-  COM/type-info gaps.
+  creation, bounds, vartype, element pointer lookup, access/unaccess, get/put,
+  one-dimensional redim, and destroy. Registered type-library backed dispatch
+  and full automation marshaling remain richer COM/type-info gaps.
 - Move core clipboard/data-object/drag-drop behavior into managed PAL services.
 - Keep IME v1 as a managed input-language/context state layer. Expand only
   toward actual composition/candidate behavior when tests require it.
@@ -574,7 +608,8 @@ Plan:
   progress state, hyperlinks, page navigation, owner/modal lifetime, and default
   button behavior. Verification, radio, command-link click flow, and progress
   range/value/state behavior have first focused coverage; hyperlinks and page
-  navigation remain.
+  navigation now have first focused managed-fallback coverage as well. Richer
+  native option fidelity remains.
 
 ### 3. Printing And Spooler
 
@@ -675,6 +710,8 @@ Impacted APIs and areas:
 - Process/thread state: `GetCurrentProcess`, `GetCurrentProcessId`,
   `GetCurrentThread`, `GetCurrentThreadId`, `GetExitCodeThread`,
   `GetStartupInfo`, and timing/perf counters.
+- Startup/config probes: `GetCommandLine`, `GetEnvironmentVariable`,
+  `SetEnvironmentVariable`, and `ExpandEnvironmentStrings`.
 - Locale/error: `FormatMessage`, `GetLocaleInfoEx`, `GetSystemDefaultLCID`,
   `GetThreadLocale`, `GetACP`, `SetLastError`, and last-error propagation.
 
@@ -696,8 +733,15 @@ Plan:
   UTC/local values and conversion behavior for source-compatible callers, but
   do not attempt host timezone/DST fidelity.
 - Keep loader support first-tier and source-compatible: WinFormsX can return
-  stable module handles and safe frees for managed/direct callers, but
-  `GetProcAddress` remains conservative until PAL can expose real export tables.
+  stable module handles, safe frees, and stable synthetic `GetProcAddress`
+  results for known facade-owned KERNEL32 exports. These addresses are
+  deterministic compatibility tokens, not callable native function pointers or
+  broad export-table emulation.
+- Keep command-line/environment support startup-oriented: direct callers get a
+  stable synthetic command line, Win32-style environment buffer sizing,
+  set/unset behavior backed by the process environment where available, and
+  simple `%NAME%` expansion. This is compatibility metadata, not exact argv or
+  shell-expansion reconstruction.
 - Keep the first-tier `KERNEL32.dll` facade limited to ABI-simple process,
   thread, and module-path APIs until tests justify broader loader/resource
   semantics.
@@ -738,7 +782,15 @@ Plan:
 - First-tier direct `gdiplus.dll` facade coverage now resolves
   `GdiplusStartup`/`GdiplusShutdown` and deterministic-safe probe defaults for
   `GdipGetImageDecodersSize` and `GdipCreateBitmapFromScan0` so direct
-  DllImport callers do not fail module resolution.
+  DllImport callers do not fail module resolution. Synthetic image-handle
+  conversion probes now also cover `GdipCreateBitmapFromHBITMAP`,
+  `GdipCreateBitmapFromHICON`, `GdipDisposeImage`, `GdipGetImageWidth`, and
+  `GdipGetImageHeight` with deterministic default dimensions and disposal
+  invalidation. Existing-file load probes now create synthetic image handles for
+  `GdipLoadImageFromFile` and `GdipLoadImageFromFileICM`; COM stream image-load
+  probes resolve but return deterministic failure defaults, and image metadata
+  probes return stable flags, pixel format, and 96 DPI resolution values for
+  synthetic handles.
 - Add native GDI facade coverage only for lightweight handles, metrics, icon
   conversion, and compatibility probes.
 - Treat full GDI drawing emulation as out of scope unless a WinForms control or
@@ -1023,7 +1075,8 @@ cases were previously blockers and should remain regression targets:
   deterministic time conversion helpers (`GetSystemTimeAsFileTime`,
   `GetSystemTime`, `GetLocalTime`, `FileTimeToSystemTime`,
   `SystemTimeToFileTime`) are covered; first-tier loader handles are covered;
-  module resources and richer export/resource lookup remain.
+  first-tier command-line/environment probes are covered; module resources and
+  richer export/resource lookup remain.
 - [~] COMCTL32/ImageList tier: first-tier image-list state, synthetic bitmap
   metadata, and managed enumeration fallback are covered; richer draw/mask and
   stream payload fidelity remain.
@@ -1050,9 +1103,14 @@ cases were previously blockers and should remain regression targets:
   facade with deterministic WinFormsX behavior for `GetSystemTimeAsFileTime`,
   `GetSystemTime`, `GetLocalTime`, `FileTimeToSystemTime`, and
   `SystemTimeToFileTime`.
+- [x] KERNEL32 command-line/environment probes now route through the direct
+  facade for `GetCommandLineW/A`, `GetEnvironmentVariableW/A`,
+  `SetEnvironmentVariableW/A`, and `ExpandEnvironmentStringsW/A`, with
+  deterministic command-line metadata and Win32-style buffer sizing.
 - [x] KERNEL32 first-tier loader facade now routes `LoadLibraryW/A`,
   `LoadLibraryExW/A`, `FreeLibrary`, and `GetProcAddress` through PAL-owned
-  synthetic module handles.
+  synthetic module handles, with deterministic nonzero `GetProcAddress`
+  tokens for known KERNEL32 facade exports.
 - [x] USER32 menu item generated-import cleanup now routes internal
   `EnableMenuItem`, `GetMenuItemCount`, and `GetMenuItemInfo` calls through
   PAL-backed wrappers; the visible controls catalog starts and paints without a
@@ -1060,8 +1118,9 @@ cases were previously blockers and should remain regression targets:
 - [x] KERNEL32 resource lookup facade now routes `FindResourceW/A`,
   `FindResourceExW/A`, `LoadResource`, `LockResource`, `SizeofResource`, and
   `FreeResource` through PAL-owned deterministic failure/default behavior.
-- [~] Next KERNEL32 breadth: richer export-table compatibility and optional
-  timezone/DST fidelity beyond deterministic fixed-offset local time.
+- [~] Next KERNEL32 breadth: broader module export-table compatibility,
+  callable delegate/pointer semantics where safe, and optional timezone/DST
+  fidelity beyond deterministic fixed-offset local time.
 - [x] Managed DWM attribute wrappers now route `DwmSetWindowAttribute` /
   `DwmGetWindowAttribute` through deterministic WinFormsX state for internal
   Form/Control dark-mode, corner, and caption-color probes.
