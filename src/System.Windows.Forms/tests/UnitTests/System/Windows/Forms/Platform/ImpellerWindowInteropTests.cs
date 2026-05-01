@@ -8,6 +8,36 @@ namespace System.Windows.Forms.Tests;
 
 public class ImpellerWindowInteropTests
 {
+    [Fact]
+    public void CreateWindowEx_MessageOnlyTopLevel_DoesNotCreateBackendSurface()
+    {
+        ImpellerWindowInterop windowInterop = new();
+        HWND hwnd = windowInterop.CreateWindowEx(
+            default,
+            "WinFormsXTestMessageOnly",
+            null,
+            WINDOW_STYLE.WS_OVERLAPPED,
+            0,
+            0,
+            0,
+            0,
+            HWND.HWND_MESSAGE,
+            HMENU.Null,
+            HINSTANCE.Null,
+            null);
+
+        try
+        {
+            hwnd.Should().NotBe(HWND.Null);
+            windowInterop.GetWindowState(hwnd).Should().NotBeNull();
+            windowInterop.GetSilkWindow(hwnd).Should().BeNull();
+        }
+        finally
+        {
+            windowInterop.DestroyWindow(hwnd);
+        }
+    }
+
     [Theory]
     [InlineData(200, 100, 900, 600, 200, 100)]
     [InlineData(2000, 1300, 900, 600, 899, 599)]

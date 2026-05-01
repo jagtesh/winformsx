@@ -219,9 +219,17 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
             WndProc = 0x1,
         };
 
-        if (isTopLevel
+        bool shouldCreateBackendSurface = isTopLevel
             && ShouldCreateBackendForHiddenTopLevelWindow()
-            && ShouldCreateBackendSurface(dwStyle, dwExStyle))
+            && ShouldCreateBackendSurface(dwStyle, dwExStyle, hWndParent);
+
+        if (isTopLevel)
+        {
+            TracePaint(
+                $"[CreateWindowEx] hwnd=0x{(nint)handle:X} class={lpClassName ?? "<null>"} title={lpWindowName ?? "<null>"} parent=0x{(nint)hWndParent:X} style=0x{(uint)dwStyle:X8} ex=0x{(uint)dwExStyle:X8} backend={shouldCreateBackendSurface}");
+        }
+
+        if (shouldCreateBackendSurface)
         {
             var options = WindowOptions.DefaultVulkan;
             options.Title = lpWindowName ?? string.Empty;
@@ -752,8 +760,13 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
     private static bool ShouldCreateBackendForHiddenTopLevelWindow()
         => Environment.GetEnvironmentVariable("WINFORMSX_SUPPRESS_HIDDEN_BACKEND") != "1";
 
-    private static bool ShouldCreateBackendSurface(WINDOW_STYLE style, WINDOW_EX_STYLE exStyle)
+    private static bool ShouldCreateBackendSurface(WINDOW_STYLE style, WINDOW_EX_STYLE exStyle, HWND parent)
     {
+        if (parent == HWND.HWND_MESSAGE)
+        {
+            return false;
+        }
+
         bool isPopup = style.HasFlag(WINDOW_STYLE.WS_POPUP);
         bool isToolWindow = exStyle.HasFlag(WINDOW_EX_STYLE.WS_EX_TOOLWINDOW);
         bool isAppWindow = exStyle.HasFlag(WINDOW_EX_STYLE.WS_EX_APPWINDOW);
