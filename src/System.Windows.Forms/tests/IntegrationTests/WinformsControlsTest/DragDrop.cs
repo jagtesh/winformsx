@@ -10,7 +10,7 @@ namespace WinFormsControlsTest;
 [DesignerCategory("Default")]
 public partial class DragDrop : Form
 {
-    private static readonly string s_dragDropDataDirectory = Path.Combine("Data", "DragDrop");
+    private static readonly string s_dragDropDataDirectory = TestAssetPaths.DataPath("DragDrop");
     private const string NyanCatAsciiTxt = @"NyanCatAscii.txt";
     private const string DragAcceptRtf = @"DragAccept.rtf";
     private readonly string _nyanCatAscii = string.Empty;
@@ -382,15 +382,11 @@ public partial class DragDrop : Form
 
     private void OpenCats()
     {
-        string dragDropDataDirectory = Path.Combine(
-            Directory.GetCurrentDirectory(),
-            s_dragDropDataDirectory);
-
-        if (Directory.Exists(dragDropDataDirectory))
+        if (Directory.Exists(s_dragDropDataDirectory))
         {
             ProcessStartInfo startInfo = new()
             {
-                Arguments = dragDropDataDirectory,
+                Arguments = s_dragDropDataDirectory,
                 FileName = "explorer.exe"
             };
 
@@ -401,7 +397,6 @@ public partial class DragDrop : Form
     private string ReadAsciiText()
     {
         string nyanCatAsciiPath = Path.Combine(
-            Directory.GetCurrentDirectory(),
             s_dragDropDataDirectory,
             NyanCatAsciiTxt);
 

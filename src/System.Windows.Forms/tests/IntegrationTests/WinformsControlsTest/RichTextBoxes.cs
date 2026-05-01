@@ -14,7 +14,7 @@ public partial class RichTextBoxes : Form
     {
         InitializeComponent();
 
-        richTextBox1.LoadFile(File.OpenRead(Path.Combine("Data", "example.rtf")), RichTextBoxStreamType.RichText);
+        richTextBox1.LoadFile(File.OpenRead(TestAssetPaths.DataPath("example.rtf")), RichTextBoxStreamType.RichText);
         Load += Form1_Load;
     }
 

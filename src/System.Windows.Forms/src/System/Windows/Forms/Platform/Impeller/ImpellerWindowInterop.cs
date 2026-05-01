@@ -959,8 +959,7 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
         {
             if (c is TabControl tc)
             {
-                if (s_firstPaint)
-                    Console.Error.WriteLine($"[FixupTabPages] Found TabControl. TabPages.Count={tc.TabPages.Count}");
+                TracePaint($"[FixupTabPages] Found TabControl. TabPages.Count={tc.TabPages.Count}");
 
                 int selectedIndex = tc.SelectedIndex;
                 if (selectedIndex < 0 && tc.TabPages.Count > 0)
@@ -996,8 +995,7 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
 
                         if (shouldBeVisible)
                         {
-                            if (s_firstPaint)
-                                Console.Error.WriteLine($"[FixupTabPages] Made '{page.Text}' visible: {page.Bounds}. Page Controls Count={page.Controls.Count}");
+                            TracePaint($"[FixupTabPages] Made '{page.Text}' visible: {page.Bounds}. Page Controls Count={page.Controls.Count}");
 
                             // Recurse into the now-visible page.
                             FixupTabPages(page);
@@ -1016,7 +1014,6 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
     /// Recursively paint a control and all its children using the shared
     /// Impeller-backed Graphics object from the Render event handler.
     /// </summary>
-    private static bool s_firstPaint = true;
     private static void PaintControlTree(Control control, System.Drawing.Graphics g, System.Drawing.Rectangle clipRect, bool isRoot = true)
     {
         using var guard = WinFormsXExecutionGuard.Enter(
@@ -1026,8 +1023,7 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
         try
         {
             TracePaint($"[Paint] {control.GetType().Name} visible={control.Visible} bounds={control.Bounds} children={control.Controls.Count}");
-            if (s_firstPaint)
-                Console.Error.WriteLine($"[Paint] {control.GetType().Name} @ ({control.Left},{control.Top}) {control.Width}x{control.Height} children={control.Controls.Count}");
+            TracePaint($"[Paint] {control.GetType().Name} @ ({control.Left},{control.Top}) {control.Width}x{control.Height} children={control.Controls.Count}");
 
             // PAL fallback paint: always draw control background via backend so controls
             // remain visible even when Win32/GDI-dependent paint paths throw on macOS.
@@ -1128,8 +1124,7 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
         {
             var child = control.Controls[i];
 
-            if (s_firstPaint)
-                Console.Error.WriteLine($"  child[{i}] {child.GetType().Name} Visible={child.Visible} Bounds={child.Bounds}");
+            TracePaint($"  child[{i}] {child.GetType().Name} Visible={child.Visible} Bounds={child.Bounds}");
 
             if (!child.Visible || child.Width <= 0 || child.Height <= 0)
             {
@@ -1149,9 +1144,6 @@ internal sealed class ImpellerWindowInterop : IWindowInterop
 
             g.Restore(state);
         }
-
-        if (isRoot)
-            s_firstPaint = false;
     }
 
     private static void DrawButton(System.Windows.Forms.Button button, System.Drawing.Graphics g)
