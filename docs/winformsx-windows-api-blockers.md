@@ -259,6 +259,11 @@ compatibility-facade coverage.
   execute reports an accepted launch, folder/PIDL/shell-item APIs fail
   deterministically, file-drop queries return empty state, and SHLWAPI path
   existence/relative/extension helpers provide basic deterministic behavior.
+  The follow-up shell resource pass adds first-tier source-compatible direct
+  import coverage for `SHGetStockIconInfo`, `ExtractAssociatedIconW/A`,
+  `ExtractIconExW/A`, and `SHGetFileInfoW/A` with deterministic icon handles,
+  icon indices, and synthetic path/type defaults; real OS-native file
+  association integration remains out of scope.
   The follow-up GDI32 breadth pass adds safe bitmap, DIB section, font, and
   region constructors to the direct-import facade. The current GDI32 breadth
   pass adds safe direct-import coverage for drawing copy/fill calls, palette
@@ -455,8 +460,8 @@ Impacted APIs and areas:
 
 - `OLE32.dll`: `OleInitialize`, `CoCreateInstance`, `CoGetClassObject`,
   `CoRegisterMessageFilter`, `CreateILockBytesOnHGlobal`,
-  `CreateOleAdviseHolder`, `OleCreatePictureIndirect`, `ReleaseStgMedium`,
-  storage/stream helpers, and data-object lifetime.
+  `CreateStreamOnHGlobal`, `GetHGlobalFromStream`, `CreateOleAdviseHolder`,
+  `OleCreatePictureIndirect`, `ReleaseStgMedium`, and data-object lifetime.
 - `OLEAUT32.dll`: `SafeArray*`, `LoadRegTypeLib`, type-library and VARIANT
   support used by COM/property/editor paths.
 - `IMM32.dll`: basic context handles, open/conversion state, notify/release,
@@ -475,6 +480,9 @@ Plan:
   source-compatibility APIs, backed by PAL state. The latest pass adds a native
   first-tier facade for `OleInitialize`, `OleUninitialize`, `CoInitialize`,
   `CoInitializeEx`, `CoUninitialize`, `CoCreateInstance`, `CoGetClassObject`,
+  `CoRegisterMessageFilter`, `CreateILockBytesOnHGlobal`,
+  `CreateStreamOnHGlobal`, `GetHGlobalFromStream`, conservative
+  `ReleaseStgMedium`, conservative `OleCreatePictureIndirect`,
   `OleSetClipboard`, `OleGetClipboard`, `OleFlushClipboard`,
   `RegisterDragDrop`, `RevokeDragDrop`, and `DoDragDrop`.
 - Add an `OLEAUT32.dll` WinFormsX facade only for ABI-safe
@@ -593,15 +601,18 @@ Already covered by the first facade:
 - `GetCursorPos`, `SetCursorPos`, `GetAsyncKeyState`, `MapVirtualKey`,
   `SendInput`, `GetFocus`, `SetFocus`, `GetDesktopWindow`, `GetActiveWindow`,
   `SetActiveWindow`, `GetForegroundWindow`, `SetForegroundWindow`,
-  `GetSystemMetrics`, `IsWindow`, `IsWindowVisible`, `IsWindowEnabled`, and
-  `EnableWindow`.
+  `GetSystemMetrics`, `IsWindow`, `IsWindowVisible`, `IsWindowEnabled`,
+  `EnableWindow`, `UpdateWindow`, `InvalidateRect`, and `ValidateRect`.
+- Cautious direct-import message queue slice:
+  `RegisterWindowMessageW/A`, `PostMessageW/A`, `SendMessageW/A`,
+  `PeekMessageW/A`, `GetMessageW/A`, `TranslateMessage`, `DispatchMessageW/A`,
+  and `MsgWaitForMultipleObjectsEx` now resolve through the WinFormsX PAL
+  message interop instead of requiring a native USER32 queue.
 
 Still blocked or incomplete:
 
 - Window/message APIs: `CreateWindowEx`, `DestroyWindow`, `DefWindowProc`,
-  `CallWindowProc`, `SendMessage`, `PostMessage`, `PeekMessage`, `GetMessage`,
-  `DispatchMessage`, `TranslateMessage`, `RegisterWindowMessage`,
-  `UpdateWindow`, `InvalidateRect`, `ValidateRect`, and paint message flow.
+  `CallWindowProc`, and native paint message flow parity.
 - Geometry and hierarchy: `GetWindowRect`, `GetClientRect`, `ClientToScreen`,
   `ScreenToClient`, `MapWindowPoints`, `WindowFromPoint`,
   `ChildWindowFromPointEx`, `GetParent`, `SetParent`, `GetWindow`,
@@ -623,7 +634,10 @@ Still blocked or incomplete:
   time, and power/status probes.
 - Cautious tier: hooks, timers, subclass/window-proc callbacks, MDI frame/child
   proc behavior, raw input, global OS state, and APIs where Windows callback
-  semantics matter.
+  semantics matter. The newly covered direct-import message APIs are intentionally
+  conservative: they route to the managed PAL queue and deterministic dispatch,
+  not a host OS USER32 queue, so full Win32 queue filtering and callback timing
+  fidelity are still cautious-tier gaps.
 
 Plan:
 
@@ -739,10 +753,12 @@ Plan:
 
 Impacted APIs and areas:
 
-- Stock/system icons: first-tier `SHGetStockIconInfo` managed fallback is in
-  place; remaining work covers `ExtractAssociatedIcon`, application icon,
-  shield, warning/error/info/question, desktop/computer, and file-type icons
-  through a centralized resource provider.
+- Stock/system icons: first-tier managed/direct-import coverage is in place for
+  `SHGetStockIconInfo`, `ExtractAssociatedIconW/A`, `ExtractIconExW/A`, and
+  `SHGetFileInfoW/A` with deterministic handles, indices, and synthetic
+  metadata defaults. Remaining work covers richer application/file-type icon
+  fidelity, shield/warning/info/question variants, and centralized stock icon
+  resource mapping beyond first-tier placeholders.
 - Shell dialogs/items: `SHCreateShellItem`, `SHCreateItemFromParsingName`,
   folder browser shell items, known folders, pinned places, hidden files, and
   recent-files behavior.

@@ -74,6 +74,78 @@ public class User32CompatibilityFacadeTests
                 Assert.Equal(managedWait, nativeWait);
             }
 
+            const string registeredMessageName = "WinFormsX.User32.MessageQueueSlice";
+            uint registeredWindowMessage = NativeUser32.RegisterWindowMessageW(registeredMessageName);
+            Assert.True(registeredWindowMessage >= 0xC000);
+            Assert.Equal(registeredWindowMessage, NativeUser32.RegisterWindowMessageW(registeredMessageName));
+            Assert.Equal(registeredWindowMessage, NativeUser32.RegisterWindowMessageA(registeredMessageName));
+
+            const uint PM_REMOVE = 0x0001;
+            for (int i = 0; i < 16; i++)
+            {
+                if (!NativeUser32.PeekMessageW(out _, nint.Zero, 0, 0, PM_REMOVE))
+                {
+                    break;
+                }
+            }
+
+            Assert.Equal(
+                NativeUser32.SendMessageW(nint.Zero, registeredWindowMessage, (nint)0x11, (nint)0x22),
+                NativeUser32.SendMessageA(nint.Zero, registeredWindowMessage, (nint)0x11, (nint)0x22));
+
+            Assert.True(NativeUser32.PostMessageW(nint.Zero, registeredWindowMessage, (nint)0x44, (nint)0x55));
+            Assert.True(NativeUser32.PeekMessageW(out NativeUser32.MSG peekW, nint.Zero, 0, 0, PM_REMOVE));
+            Assert.Equal(registeredWindowMessage, peekW._message);
+            Assert.Equal((nuint)0x44, peekW._wParam);
+            Assert.Equal((nint)0x55, peekW._lParam);
+
+            Assert.True(NativeUser32.PostMessageA(nint.Zero, registeredWindowMessage, (nint)0x66, (nint)0x77));
+            Assert.True(NativeUser32.PeekMessageA(out NativeUser32.MSG peekA, nint.Zero, 0, 0, PM_REMOVE));
+            Assert.Equal(registeredWindowMessage, peekA._message);
+            Assert.Equal((nuint)0x66, peekA._wParam);
+            Assert.Equal((nint)0x77, peekA._lParam);
+
+            Assert.True(NativeUser32.PostMessageW(nint.Zero, registeredWindowMessage, (nint)0x88, (nint)0x99));
+            Assert.True(NativeUser32.GetMessageW(out NativeUser32.MSG getW, nint.Zero, 0, 0));
+            Assert.Equal(registeredWindowMessage, getW._message);
+            Assert.Equal((nuint)0x88, getW._wParam);
+            Assert.Equal((nint)0x99, getW._lParam);
+
+            Assert.True(NativeUser32.PostMessageA(nint.Zero, registeredWindowMessage, (nint)0xAA, (nint)0xBB));
+            Assert.True(NativeUser32.GetMessageA(out NativeUser32.MSG getA, nint.Zero, 0, 0));
+            Assert.Equal(registeredWindowMessage, getA._message);
+            Assert.Equal((nuint)0xAA, getA._wParam);
+            Assert.Equal((nint)0xBB, getA._lParam);
+
+            NativeUser32.MSG nativeDispatchMessage = new()
+            {
+                _hwnd = nint.Zero,
+                _message = registeredWindowMessage,
+                _wParam = (nuint)0xA1,
+                _lParam = (nint)0xB2,
+                _time = 1,
+                _pt = new Point(7, 9),
+            };
+            MSG managedDispatchMessage = new()
+            {
+                hwnd = HWND.Null,
+                message = registeredWindowMessage,
+                wParam = (WPARAM)(nuint)0xA1,
+                lParam = (LPARAM)(nint)0xB2,
+                time = 1,
+                pt = new Point(7, 9),
+            };
+
+            Assert.Equal((bool)PInvoke.TranslateMessage(managedDispatchMessage), NativeUser32.TranslateMessage(ref nativeDispatchMessage));
+
+            unsafe
+            {
+                MSG managedDispatchCopy = managedDispatchMessage;
+                nint managedDispatchResult = (nint)PInvoke.DispatchMessage(&managedDispatchCopy);
+                Assert.Equal(managedDispatchResult, NativeUser32.DispatchMessageW(ref nativeDispatchMessage));
+                Assert.Equal(managedDispatchResult, NativeUser32.DispatchMessageA(ref nativeDispatchMessage));
+            }
+
             uint virtualKey = (uint)VIRTUAL_KEY.VK_RETURN;
             uint nativeScan = NativeUser32.MapVirtualKey(virtualKey, (uint)MAP_VIRTUAL_KEY_TYPE.MAPVK_VK_TO_VSC);
             uint managedScan = PInvoke.MapVirtualKey(virtualKey, MAP_VIRTUAL_KEY_TYPE.MAPVK_VK_TO_VSC);
@@ -814,6 +886,8 @@ public class User32CompatibilityFacadeTests
     {
         const int S_OK = 0;
         const int S_FALSE = 1;
+        const int E_INVALIDARG = unchecked((int)0x80070057);
+        const int E_NOINTERFACE = unchecked((int)0x80004002);
         const int REGDB_E_CLASSNOTREG = unchecked((int)0x80040154);
         const int DRAGDROP_S_CANCEL = 0x00040101;
         const int DRAGDROP_E_ALREADYREGISTERED = unchecked((int)0x80040101);
@@ -826,6 +900,28 @@ public class User32CompatibilityFacadeTests
             REGDB_E_CLASSNOTREG,
             NativeOle32.CoCreateInstance(null, 0, 0, null, &createdObject));
         Assert.Equal(0, createdObject);
+
+        nint previousFilter;
+        Assert.Equal(S_OK, NativeOle32.CoRegisterMessageFilter((nint)0x1111, &previousFilter));
+        Assert.Equal(0, previousFilter);
+        Assert.Equal(S_OK, NativeOle32.CoRegisterMessageFilter((nint)0x2222, &previousFilter));
+        Assert.Equal((nint)0x1111, previousFilter);
+        Assert.Equal(S_OK, NativeOle32.CoRegisterMessageFilter(0, &previousFilter));
+        Assert.Equal((nint)0x2222, previousFilter);
+
+        nint lockBytes;
+        Assert.Equal(S_OK, NativeOle32.CreateILockBytesOnHGlobal((nint)0x3210, true, &lockBytes));
+        Assert.NotEqual(0, lockBytes);
+
+        nint stream;
+        Assert.Equal(S_OK, NativeOle32.CreateStreamOnHGlobal((nint)0x9876, false, &stream));
+        Assert.NotEqual(0, stream);
+
+        nint streamHGlobal;
+        Assert.Equal(S_OK, NativeOle32.GetHGlobalFromStream(stream, &streamHGlobal));
+        Assert.Equal((nint)0x9876, streamHGlobal);
+        Assert.Equal(E_INVALIDARG, NativeOle32.GetHGlobalFromStream((nint)0x4321, &streamHGlobal));
+        Assert.Equal(0, streamHGlobal);
 
         nint dataObject = 0x12345678;
         Assert.Equal(S_OK, NativeOle32.OleSetClipboard(dataObject));
@@ -843,6 +939,28 @@ public class User32CompatibilityFacadeTests
         uint effect = 1;
         Assert.Equal(DRAGDROP_S_CANCEL, NativeOle32.DoDragDrop(dataObject, 0, 1, &effect));
         Assert.Equal(0u, effect);
+
+        nint pictureObject;
+        Assert.Equal(E_INVALIDARG, NativeOle32.OleCreatePictureIndirect(null, null, false, &pictureObject));
+        Assert.Equal(0, pictureObject);
+        Assert.Equal(E_NOINTERFACE, NativeOle32.OleCreatePictureIndirect((void*)0x1111, (void*)0x2222, false, &pictureObject));
+        Assert.Equal(0, pictureObject);
+
+        NativeOle32.NativeStgMedium medium = new()
+        {
+            tymed = 4u,
+            unionMember = stream,
+            pUnkForRelease = 0,
+        };
+
+        NativeOle32.ReleaseStgMedium(&medium);
+        Assert.Equal(0u, medium.tymed);
+        Assert.Equal(0, medium.unionMember);
+        Assert.Equal(0, medium.pUnkForRelease);
+
+        nint postReleaseHGlobal;
+        Assert.Equal(E_INVALIDARG, NativeOle32.GetHGlobalFromStream(stream, &postReleaseHGlobal));
+        Assert.Equal(0, postReleaseHGlobal);
 
         Assert.Equal(S_OK, NativeOle32.RevokeDragDrop(hwnd));
         NativeOle32.OleUninitialize();
@@ -999,6 +1117,10 @@ public class User32CompatibilityFacadeTests
     public unsafe void DirectShell32DllImports_ResolveToWinFormsXFacade()
     {
         const int E_NOTIMPL = unchecked((int)0x80004001);
+        const int S_OK = 0;
+        const uint SHGSI_SMALLICON = 0x000000001;
+        const uint SHGSI_ICON = 0x000000100;
+        const uint SHGFI_ICON = 0x000000100;
 
         Assert.True(NativeShell32.Shell_NotifyIconW(0, 0));
         NativeShell32.DragAcceptFiles(0x2468, true);
@@ -1014,6 +1136,89 @@ public class User32CompatibilityFacadeTests
         Assert.Equal(0, shellItem);
 
         Assert.True(NativeShell32.ShellExecuteW(0, null, "https://example.invalid", null, null, 1) > 32);
+
+        NativeShell32.SHSTOCKICONINFOW stockIconInfo = new()
+        {
+            _cbSize = (uint)Marshal.SizeOf<NativeShell32.SHSTOCKICONINFOW>(),
+            _szPath = string.Empty,
+        };
+        Assert.Equal(S_OK, NativeShell32.SHGetStockIconInfo(4, SHGSI_ICON | SHGSI_SMALLICON, ref stockIconInfo));
+        Assert.NotEqual(0, stockIconInfo._hIcon);
+        Assert.Equal(4, stockIconInfo._iSysImageIndex);
+        Assert.Equal(4, stockIconInfo._iIcon);
+        Assert.NotNull(stockIconInfo._szPath);
+        Assert.Contains("WinFormsX\\StockIcon\\", stockIconInfo._szPath);
+
+        char* associatedPathW = stackalloc char[260];
+        associatedPathW[0] = '\0';
+        ushort associatedIconIndexW = 7;
+        nint associatedIconW = NativeShell32.ExtractAssociatedIconW(0, associatedPathW, &associatedIconIndexW);
+        Assert.NotEqual(0, associatedIconW);
+        Assert.Equal((ushort)7, associatedIconIndexW);
+        Assert.Contains("WinFormsX.ico", new string(associatedPathW));
+
+        byte* associatedPathA = stackalloc byte[260];
+        associatedPathA[0] = 0;
+        ushort associatedIconIndexA = 9;
+        nint associatedIconA = NativeShell32.ExtractAssociatedIconA(0, associatedPathA, &associatedIconIndexA);
+        Assert.NotEqual(0, associatedIconA);
+        Assert.Equal((ushort)9, associatedIconIndexA);
+        string? associatedPathAnsi = Marshal.PtrToStringAnsi((nint)associatedPathA);
+        Assert.NotNull(associatedPathAnsi);
+        Assert.Contains("WinFormsX.ico", associatedPathAnsi);
+
+        nint* largeIcons = stackalloc nint[2];
+        nint* smallIcons = stackalloc nint[2];
+        Assert.Equal(2u, NativeShell32.ExtractIconExW("sample.txt", 3, largeIcons, smallIcons, 2));
+        Assert.NotEqual(0, largeIcons[0]);
+        Assert.NotEqual(0, smallIcons[0]);
+        Assert.NotEqual(largeIcons[0], smallIcons[0]);
+
+        nint* largeIconsA = stackalloc nint[2];
+        nint* smallIconsA = stackalloc nint[2];
+        Assert.Equal(2u, NativeShell32.ExtractIconExA("sample.txt", 5, largeIconsA, smallIconsA, 2));
+        Assert.NotEqual(0, largeIconsA[1]);
+        Assert.NotEqual(0, smallIconsA[1]);
+
+        NativeShell32.SHFILEINFOW shellFileInfoW = new()
+        {
+            _szDisplayName = string.Empty,
+            _szTypeName = string.Empty,
+        };
+        Assert.NotEqual(
+            0,
+            NativeShell32.SHGetFileInfoW(
+                "sample.txt",
+                0x00000080,
+                ref shellFileInfoW,
+                (uint)Marshal.SizeOf<NativeShell32.SHFILEINFOW>(),
+                SHGFI_ICON));
+        Assert.NotEqual(0, shellFileInfoW._hIcon);
+        Assert.Equal(0x00000080u, shellFileInfoW._dwAttributes);
+        Assert.NotNull(shellFileInfoW._szDisplayName);
+        Assert.NotNull(shellFileInfoW._szTypeName);
+        Assert.Contains("WinFormsX File", shellFileInfoW._szDisplayName);
+        Assert.Contains("WinFormsX Type", shellFileInfoW._szTypeName);
+
+        NativeShell32.SHFILEINFOA shellFileInfoA = new()
+        {
+            _szDisplayName = string.Empty,
+            _szTypeName = string.Empty,
+        };
+        Assert.NotEqual(
+            0,
+            NativeShell32.SHGetFileInfoA(
+                "sample.txt",
+                0x00000020,
+                ref shellFileInfoA,
+                (uint)Marshal.SizeOf<NativeShell32.SHFILEINFOA>(),
+                SHGFI_ICON));
+        Assert.NotEqual(0, shellFileInfoA._hIcon);
+        Assert.Equal(0x00000020u, shellFileInfoA._dwAttributes);
+        Assert.NotNull(shellFileInfoA._szDisplayName);
+        Assert.NotNull(shellFileInfoA._szTypeName);
+        Assert.Contains("WinFormsX File", shellFileInfoA._szDisplayName);
+        Assert.Contains("WinFormsX Type", shellFileInfoA._szTypeName);
     }
 
     [Fact]
@@ -1047,6 +1252,17 @@ public class User32CompatibilityFacadeTests
     {
         private const string User32 = "USER32.dll";
 
+        [StructLayout(LayoutKind.Sequential)]
+        internal struct MSG
+        {
+            internal nint _hwnd;
+            internal uint _message;
+            internal nuint _wParam;
+            internal nint _lParam;
+            internal uint _time;
+            internal Point _pt;
+        }
+
         [DllImport(User32, ExactSpelling = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
         internal static extern bool GetCursorPos(out Point point);
@@ -1065,6 +1281,52 @@ public class User32CompatibilityFacadeTests
             uint dwMilliseconds,
             uint dwWakeMask,
             uint dwFlags);
+
+        [DllImport(User32, EntryPoint = "RegisterWindowMessageW", CharSet = CharSet.Unicode, ExactSpelling = true)]
+        internal static extern uint RegisterWindowMessageW(string value);
+
+        [DllImport(User32, EntryPoint = "RegisterWindowMessageA", CharSet = CharSet.Ansi, ExactSpelling = true)]
+        internal static extern uint RegisterWindowMessageA(string value);
+
+        [DllImport(User32, EntryPoint = "PostMessageW", ExactSpelling = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool PostMessageW(nint hwnd, uint msg, nint wParam, nint lParam);
+
+        [DllImport(User32, EntryPoint = "PostMessageA", ExactSpelling = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool PostMessageA(nint hwnd, uint msg, nint wParam, nint lParam);
+
+        [DllImport(User32, EntryPoint = "SendMessageW", ExactSpelling = true)]
+        internal static extern nint SendMessageW(nint hwnd, uint msg, nint wParam, nint lParam);
+
+        [DllImport(User32, EntryPoint = "SendMessageA", ExactSpelling = true)]
+        internal static extern nint SendMessageA(nint hwnd, uint msg, nint wParam, nint lParam);
+
+        [DllImport(User32, EntryPoint = "PeekMessageW", ExactSpelling = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool PeekMessageW(out MSG msg, nint hwnd, uint filterMin, uint filterMax, uint removeFlags);
+
+        [DllImport(User32, EntryPoint = "PeekMessageA", ExactSpelling = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool PeekMessageA(out MSG msg, nint hwnd, uint filterMin, uint filterMax, uint removeFlags);
+
+        [DllImport(User32, EntryPoint = "GetMessageW", ExactSpelling = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool GetMessageW(out MSG msg, nint hwnd, uint filterMin, uint filterMax);
+
+        [DllImport(User32, EntryPoint = "GetMessageA", ExactSpelling = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool GetMessageA(out MSG msg, nint hwnd, uint filterMin, uint filterMax);
+
+        [DllImport(User32, EntryPoint = "TranslateMessage", ExactSpelling = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool TranslateMessage(ref MSG msg);
+
+        [DllImport(User32, EntryPoint = "DispatchMessageW", ExactSpelling = true)]
+        internal static extern nint DispatchMessageW(ref MSG msg);
+
+        [DllImport(User32, EntryPoint = "DispatchMessageA", ExactSpelling = true)]
+        internal static extern nint DispatchMessageA(ref MSG msg);
 
         [DllImport(User32, ExactSpelling = true)]
         internal static extern short GetAsyncKeyState(int vkey);
@@ -1717,6 +1979,18 @@ public class User32CompatibilityFacadeTests
         internal static extern int CoCreateInstance(void* clsid, nint outer, uint clsContext, void* iid, nint* createdObject);
 
         [DllImport(Ole32, ExactSpelling = true)]
+        internal static extern int CoRegisterMessageFilter(nint messageFilter, nint* previousMessageFilter);
+
+        [DllImport(Ole32, ExactSpelling = true)]
+        internal static extern int CreateILockBytesOnHGlobal(nint hGlobal, [MarshalAs(UnmanagedType.Bool)] bool deleteOnRelease, nint* lockBytes);
+
+        [DllImport(Ole32, ExactSpelling = true)]
+        internal static extern int CreateStreamOnHGlobal(nint hGlobal, [MarshalAs(UnmanagedType.Bool)] bool deleteOnRelease, nint* stream);
+
+        [DllImport(Ole32, ExactSpelling = true)]
+        internal static extern int GetHGlobalFromStream(nint stream, nint* hGlobal);
+
+        [DllImport(Ole32, ExactSpelling = true)]
         internal static extern int OleSetClipboard(nint dataObject);
 
         [DllImport(Ole32, ExactSpelling = true)]
@@ -1733,6 +2007,19 @@ public class User32CompatibilityFacadeTests
 
         [DllImport(Ole32, ExactSpelling = true)]
         internal static extern int DoDragDrop(nint dataObject, nint dropSource, uint allowedEffects, uint* effect);
+
+        [DllImport(Ole32, ExactSpelling = true)]
+        internal static extern void ReleaseStgMedium(NativeStgMedium* medium);
+
+        [DllImport(Ole32, ExactSpelling = true)]
+        internal static extern int OleCreatePictureIndirect(void* pictureDescription, void* iid, [MarshalAs(UnmanagedType.Bool)] bool ownsHandle, nint* pictureObject);
+
+        internal struct NativeStgMedium
+        {
+            public uint tymed;
+            public nint unionMember;
+            public nint pUnkForRelease;
+        }
     }
 
     private static unsafe partial class NativeOleAut32
@@ -1960,6 +2247,41 @@ public class User32CompatibilityFacadeTests
     {
         private const string Shell32 = "SHELL32.dll";
 
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        internal struct SHSTOCKICONINFOW
+        {
+            internal uint _cbSize;
+            internal nint _hIcon;
+            internal int _iSysImageIndex;
+            internal int _iIcon;
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 260)]
+            internal string? _szPath;
+        }
+
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        internal struct SHFILEINFOW
+        {
+            internal nint _hIcon;
+            internal int _iIcon;
+            internal uint _dwAttributes;
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 260)]
+            internal string? _szDisplayName;
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 80)]
+            internal string? _szTypeName;
+        }
+
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi)]
+        internal struct SHFILEINFOA
+        {
+            internal nint _hIcon;
+            internal int _iIcon;
+            internal uint _dwAttributes;
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 260)]
+            internal string? _szDisplayName;
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 80)]
+            internal string? _szTypeName;
+        }
+
         [DllImport(Shell32, ExactSpelling = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
         internal static extern bool Shell_NotifyIconW(uint message, nint data);
@@ -1982,6 +2304,27 @@ public class User32CompatibilityFacadeTests
 
         [DllImport(Shell32, ExactSpelling = true, CharSet = CharSet.Unicode)]
         internal static extern nint ShellExecuteW(nint hwnd, string? operation, string? file, string? parameters, string? directory, int showCommand);
+
+        [DllImport(Shell32, ExactSpelling = true)]
+        internal static extern int SHGetStockIconInfo(int stockIconId, uint flags, ref SHSTOCKICONINFOW stockIconInfo);
+
+        [DllImport(Shell32, ExactSpelling = true)]
+        internal static extern nint ExtractAssociatedIconW(nint instance, char* iconPath, ushort* iconIndex);
+
+        [DllImport(Shell32, ExactSpelling = true)]
+        internal static extern nint ExtractAssociatedIconA(nint instance, byte* iconPath, ushort* iconIndex);
+
+        [DllImport(Shell32, ExactSpelling = true, CharSet = CharSet.Unicode)]
+        internal static extern uint ExtractIconExW(string? fileName, int iconIndex, nint* largeIcons, nint* smallIcons, uint iconCount);
+
+        [DllImport(Shell32, ExactSpelling = true, CharSet = CharSet.Ansi)]
+        internal static extern uint ExtractIconExA(string? fileName, int iconIndex, nint* largeIcons, nint* smallIcons, uint iconCount);
+
+        [DllImport(Shell32, ExactSpelling = true, CharSet = CharSet.Unicode)]
+        internal static extern nint SHGetFileInfoW(string? path, uint fileAttributes, ref SHFILEINFOW shellFileInfo, uint cbFileInfo, uint flags);
+
+        [DllImport(Shell32, ExactSpelling = true, CharSet = CharSet.Ansi)]
+        internal static extern nint SHGetFileInfoA(string? path, uint fileAttributes, ref SHFILEINFOA shellFileInfo, uint cbFileInfo, uint flags);
     }
 
     private static partial class NativeShlwApi

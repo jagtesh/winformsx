@@ -133,8 +133,11 @@ Ordered by observed frequency across components and blocker blast radius:
       without relying on OS-only SystemEvents plumbing.
     - Direct source-compatible `OLE32.dll` imports now resolve through a
       packaged native facade for first-tier initialization, class-activation
-      failure, OLE clipboard pointer storage, drag/drop registration state,
-      and cancelled `DoDragDrop` defaults.
+      failure, message-filter registration, OLE clipboard pointer storage,
+      drag/drop registration state, lock-bytes/stream helper creation
+      (`CreateILockBytesOnHGlobal`, `CreateStreamOnHGlobal`,
+      `GetHGlobalFromStream`), conservative `ReleaseStgMedium` cleanup, and
+      conservative `OleCreatePictureIndirect` failure defaults.
     - Direct source-compatible `OLEAUT32.dll` imports now resolve through a
       packaged native facade for first-tier BSTR allocation/free/length,
       variant clearing, conservative missing-type-library results, and
@@ -1002,6 +1005,19 @@ Ordered by observed frequency across components and blocker blast radius:
     - Full `UIIntegrationTests`: `Failed: 0, Passed: 259, Skipped: 1, Total: 260`.
     - `WinformsControlsTest --control-smoke-test`: `total=42 passed=41 failed=0 skipped=1`.
 - In-progress local changes (next commit):
+  - Expanded the native `SHELL32.dll` facade with deterministic first-tier
+    resource/icon direct imports for source-compatible callers:
+    `SHGetStockIconInfo`, `ExtractAssociatedIconW/A`, `ExtractIconExW/A`, and
+    `SHGetFileInfoW/A`.
+  - Added focused direct-import assertions in
+    `DirectShell32DllImports_ResolveToWinFormsXFacade` to validate stable
+    handle/index/path/type defaults without claiming OS-native file
+    association integration.
+  - Verification:
+    - Build `System.Windows.Forms.UI.IntegrationTests`: succeeded.
+    - UIIntegration filter
+      `DirectShell32DllImports_ResolveToWinFormsXFacade`: `Passed: 1, Failed: 0`.
+- In-progress local changes (next commit):
   - Expanded the native `GDI32.dll` facade with safe first-tier bitmap, DIB
     section, font, and region constructors: `CreateBitmap`,
     `CreateCompatibleBitmap`, `CreateDIBSection`, `CreateFontIndirectW`,
@@ -1049,6 +1065,25 @@ Ordered by observed frequency across components and blocker blast radius:
     - Build `System.Windows.Forms.UI.IntegrationTests`: succeeded.
     - UIIntegration filter
       `DirectOleAut32DllImports_ResolveToWinFormsXFacade`: `Passed: 1, Failed: 0`.
+- In-progress local changes (next commit):
+  - Added cautious USER32 direct-import message queue coverage in the native
+    facade and managed dispatch registration for:
+    `RegisterWindowMessageW/A`, `SendMessageW/A`, `PostMessageW/A`,
+    `PeekMessageW/A`, `GetMessageW/A`, `TranslateMessage`, and
+    `DispatchMessageW/A`.
+  - Extended `User32CompatibilityFacadeTests.DirectDllImports_RouteToWinFormsXPal`
+    with focused deterministic assertions for registration, queue posting/peek/get,
+    and dispatch/translate parity without requiring a host OS message loop.
+  - Verification:
+    - Build `System.Windows.Forms.UI.IntegrationTests`:
+      failed due existing `IDE1006` naming-rule violations in
+      `User32CompatibilityFacadeTests.NativeShell32` field names
+      (lines 2253-2282, outside USER32 ownership scope).
+    - UIIntegration filter
+      `FullyQualifiedName~User32CompatibilityFacadeTests.DirectDllImports_RouteToWinFormsXPal`
+      (`--no-build`): `Passed: 1, Failed: 0`.
+    - `WinformsControlsTest --control-smoke-test`:
+      `total=42 passed=41 failed=0 skipped=1`.
 
 ## Task Legend
 
@@ -1069,9 +1104,9 @@ Ordered by observed frequency across components and blocker blast radius:
 
 ## OLE, COM, Clipboard, IME, Drag/Drop
 
-- [~] WXA-1101: Implement PAL-backed `OleInitialize`, `CoInitialize`, `CoCreateInstance` and core `OLE32.dll` facade contracts. Managed wrappers cover current WinForms paths, and the native `OLE32.dll` facade now resolves first-tier direct imports for initialization, uninitialization, and deterministic class-activation failure; richer COM activation remains.
+- [~] WXA-1101: Implement PAL-backed `OleInitialize`, `CoInitialize`, `CoCreateInstance` and core `OLE32.dll` facade contracts. Managed wrappers cover current WinForms paths, and the native `OLE32.dll` facade now resolves first-tier direct imports for initialization/uninitialization, deterministic class-activation failure, `CoRegisterMessageFilter`, `CreateILockBytesOnHGlobal`, `CreateStreamOnHGlobal`, and `GetHGlobalFromStream`; richer COM activation and broader COM object lifetime semantics remain.
 - [~] WXA-1102: Implement clipboard helpers (`OleGetClipboard`, `OleSetClipboard`, `OleFlushClipboard`) with managed storage and format metadata. Managed wrappers cover safe defaults, and the native `OLE32.dll` facade now stores/retrieves the current OLE clipboard pointer for direct import callers; richer data-object ownership/format metadata remains.
-- [~] WXA-1103: Implement `RevokeDragDrop`/`RegisterDragDrop`/`DoDragDrop` event flow and default drop effects. Managed WinForms drag/drop event flow is covered, and the native `OLE32.dll` facade now tracks direct registration/revocation state and returns cancelled default drag effects; richer native drop-target callback flow remains.
+- [~] WXA-1103: Implement `RevokeDragDrop`/`RegisterDragDrop`/`DoDragDrop` event flow and default drop effects. Managed WinForms drag/drop event flow is covered, and the native `OLE32.dll` facade now tracks direct registration/revocation state, returns cancelled default drag effects, and applies conservative `ReleaseStgMedium` and `OleCreatePictureIndirect` behavior for direct imports; richer native drop-target callbacks and picture/materialization behavior remain.
 - [x] WXA-1104: Implement `OleInitialize` + `InputLanguage.CurrentInputLanguage` to unblock data-grid and IME-dependent paths.
 - [x] WXA-1105: Implement first-tier IME context state and `IMM32.dll` source-compatibility facade (`ImmGetContext`, `ImmReleaseContext`, open/conversion status, notify, create, associate).
 - [~] WXA-1106: Implement first-tier `OLEAUT32.dll` source-compatibility facade and type-library fallback. BSTR allocation/free/length, `VariantClear`, `PropVariantClear`, deterministic `LoadRegTypeLib` failure, minimal owned SAFEARRAY create/bounds/access/get/put/destroy behavior, and null-type-info dispatch construction are covered; real `ITypeLib`/`ITypeInfo` and full automation marshaling remain.
@@ -1097,7 +1132,7 @@ Ordered by observed frequency across components and blocker blast radius:
 - [x] WXA-1403 (tier-1): Implement additional window-state/geometry APIs not yet shimmed (`SetCapture`, `ReleaseCapture`, `GetWindowRect`, `GetClientRect`, `GetWindowPlacement`, `SetWindowPlacement`, `MapWindowPoints`, `WindowFromPoint`, `ChildWindowFromPointEx`, `GetParent`, `GetWindow`, `GetAncestor`, `IsChild`).
 - [x] WXA-1404 (tier-1): Implement invalidation/render queue APIs in USER32 facade (`UpdateWindow`, `InvalidateRect`, `ValidateRect`) with deterministic no-op/safe behavior.
 - [~] WXA-1405 (tier-2): Implement common system metric/accessibility queries with stable defaults (`SystemParametersInfo`, `GetDpiForWindow`, `GetDpiForSystem`, theme/system metrics).
-- [~] WXA-1406 (tier-3, cautious): Implement message-loop callbacks (`SendMessage`, `PostMessage`, `PeekMessage`, `GetMessage`, `DispatchMessage`, `TranslateMessage`, `MsgWaitForMultipleObjectsEx`) once PAL message pump can guarantee contract fidelity. `MsgWaitForMultipleObjectsEx` is now covered for PropertyGrid modal waits and direct USER32 source compatibility.
+- [~] WXA-1406 (tier-3, cautious): Implement message-loop callbacks (`SendMessage`, `PostMessage`, `PeekMessage`, `GetMessage`, `DispatchMessage`, `TranslateMessage`, `MsgWaitForMultipleObjectsEx`) once PAL message pump can guarantee contract fidelity. Direct USER32 import routing now covers `RegisterWindowMessageW/A`, `SendMessageW/A`, `PostMessageW/A`, `PeekMessageW/A`, `GetMessageW/A`, `TranslateMessage`, `DispatchMessageW/A`, and `MsgWaitForMultipleObjectsEx` through the WinFormsX PAL queue. Remaining gaps are cautious-tier Win32 fidelity details (host-OS queue semantics, full callback timing/ordering guarantees, and strict queue-filter behavior parity).
 
 ## GDI / GDI+ and Resource Handles
 
@@ -1114,7 +1149,7 @@ Ordered by observed frequency across components and blocker blast radius:
 ## Shell / Resources / Icons / Cursors
 
 - [~] WXA-1701: Add stock icon and cursor provider service with canonical fallback set (`Application`, default status/error/warning/info/question, shield, folder/file, message/task dialog, scroll/dropdown arrows). SystemIcons now supplies distinct managed application/status/help/lock/folder/printer fallback icons without native resources or font-dependent drawing; the shell stock-icon wrapper shares this fallback state. Custom cursor streams/files now preserve serializable payload bytes; stock cursor, scroll/dropdown arrow, and broader shell/task-dialog icon coverage remain.
-- [~] WXA-1702: Implement icon extraction/service equivalents for `ExtractAssociatedIcon`, `SHGetStockIconInfo`, shell execute placeholders. First-tier `SHGetStockIconInfo` now returns deterministic managed stock icon info; direct `SHELL32.dll` imports now resolve safe tray, file-drop, folder/PIDL/shell-item, `FindExecutable`, and `ShellExecute` placeholder behavior; direct `SHLWAPI.dll` imports now resolve basic path helpers. `ExtractAssociatedIcon`, real file-association metadata, and OS-native shell integration remain.
+- [~] WXA-1702: Implement icon extraction/service equivalents for `ExtractAssociatedIcon`, `SHGetStockIconInfo`, shell execute placeholders. First-tier `SHGetStockIconInfo` now returns deterministic managed stock icon info; direct `SHELL32.dll` imports now resolve safe tray, file-drop, folder/PIDL/shell-item, `FindExecutable`, `ShellExecute`, `ExtractAssociatedIconW/A`, `ExtractIconExW/A`, and `SHGetFileInfoW/A` placeholder behavior with deterministic handle/index/path/type defaults; direct `SHLWAPI.dll` imports now resolve basic path helpers. Real file-association metadata and OS-native shell integration remain.
 - [x] WXA-1703: Add and centralize required icons/cursors in WinFormsX resources; ensure `Button.ico`, `ImageInError.ico`, `PropertiesTab.ico`, `ShieldIcon.ico`, and any missing icon/cursor assets are embedded with license notices. Current inventory confirms the required icons and bundled WinForms cursor set are already present in repo resources, embedded by existing project globs, and covered by `EmbeddedResourceTests` / `SystemIconsTests`; no downloaded assets or new notices are needed for this pass.
 - [~] WXA-1704: Harden `.resx` load/save and `ResXDataNode` behavior for image/icon/cursor/stream payloads. Custom cursor `ISerializable` data is now available for stream/file cursors, and `ResXDataNode.ISerializable` snapshots stable data-node/file-ref metadata instead of throwing; full `.resx` object metadata and stock cursor/icon payload fidelity remain.
 

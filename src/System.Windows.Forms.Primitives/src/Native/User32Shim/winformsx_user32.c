@@ -42,6 +42,16 @@ typedef struct WinFormsXPoint
     int32_t y;
 } WinFormsXPoint;
 
+typedef struct WinFormsXMsg
+{
+    HWND hwnd;
+    UINT message;
+    WPARAM wParam;
+    LPARAM lParam;
+    UINT time;
+    WinFormsXPoint pt;
+} WinFormsXMsg;
+
 typedef struct WinFormsXWindowPlacement
 {
     UINT length;
@@ -118,6 +128,13 @@ typedef struct WinFormsXUser32Dispatch
     BOOL (*update_window)(HWND hwnd);
     BOOL (*invalidate_rect)(HWND hwnd, const WinFormsXRect* rect, INT erase);
     BOOL (*validate_rect)(HWND hwnd, const WinFormsXRect* rect);
+    UINT (*register_window_message)(const WCHAR* value);
+    BOOL (*post_message)(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam);
+    intptr_t (*send_message)(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam);
+    BOOL (*peek_message)(WinFormsXMsg* msg, HWND hwnd, UINT filter_min, UINT filter_max, UINT remove_flags);
+    BOOL (*get_message)(WinFormsXMsg* msg, HWND hwnd, UINT filter_min, UINT filter_max);
+    BOOL (*translate_message)(const WinFormsXMsg* msg);
+    intptr_t (*dispatch_message)(const WinFormsXMsg* msg);
     UINT (*msg_wait_for_multiple_objects_ex)(UINT n_count, const intptr_t* handles, UINT milliseconds, UINT wake_mask, UINT flags);
     BOOL (*open_clipboard)(HWND hwnd_new_owner);
     BOOL (*close_clipboard)(void);
@@ -461,6 +478,134 @@ WF_EXPORT BOOL InvalidateRect(HWND hwnd, const WinFormsXRect* rect, BOOL erase)
 WF_EXPORT BOOL ValidateRect(HWND hwnd, const WinFormsXRect* rect)
 {
     return g_dispatch.validate_rect != 0 ? g_dispatch.validate_rect(hwnd, rect) : 0;
+}
+
+WF_EXPORT UINT RegisterWindowMessageW(const WCHAR* value)
+{
+    return g_dispatch.register_window_message != 0 ? g_dispatch.register_window_message(value) : 0;
+}
+
+WF_EXPORT UINT RegisterWindowMessageA(const char* value)
+{
+    if (value == 0 || g_dispatch.register_window_message == 0)
+    {
+        return 0;
+    }
+
+    WCHAR buffer[512];
+    int i = 0;
+    for (; i < 511 && value[i] != 0; i++)
+    {
+        buffer[i] = (WCHAR)(unsigned char)value[i];
+    }
+
+    buffer[i] = 0;
+    return g_dispatch.register_window_message(buffer);
+}
+
+WF_EXPORT UINT RegisterWindowMessage(const WCHAR* value)
+{
+    return RegisterWindowMessageW(value);
+}
+
+WF_EXPORT BOOL PostMessageW(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
+{
+    return g_dispatch.post_message != 0 ? g_dispatch.post_message(hwnd, msg, wparam, lparam) : 0;
+}
+
+WF_EXPORT BOOL PostMessageA(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
+{
+    return PostMessageW(hwnd, msg, wparam, lparam);
+}
+
+WF_EXPORT BOOL PostMessage(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
+{
+    return PostMessageW(hwnd, msg, wparam, lparam);
+}
+
+WF_EXPORT intptr_t SendMessageW(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
+{
+    return g_dispatch.send_message != 0 ? g_dispatch.send_message(hwnd, msg, wparam, lparam) : 0;
+}
+
+WF_EXPORT intptr_t SendMessageA(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
+{
+    return SendMessageW(hwnd, msg, wparam, lparam);
+}
+
+WF_EXPORT intptr_t SendMessage(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
+{
+    return SendMessageW(hwnd, msg, wparam, lparam);
+}
+
+WF_EXPORT BOOL PeekMessageW(WinFormsXMsg* msg, HWND hwnd, UINT filter_min, UINT filter_max, UINT remove_flags)
+{
+    if (g_dispatch.peek_message != 0)
+    {
+        return g_dispatch.peek_message(msg, hwnd, filter_min, filter_max, remove_flags);
+    }
+
+    if (msg != 0)
+    {
+        memset(msg, 0, sizeof(*msg));
+    }
+
+    return 0;
+}
+
+WF_EXPORT BOOL PeekMessageA(WinFormsXMsg* msg, HWND hwnd, UINT filter_min, UINT filter_max, UINT remove_flags)
+{
+    return PeekMessageW(msg, hwnd, filter_min, filter_max, remove_flags);
+}
+
+WF_EXPORT BOOL PeekMessage(WinFormsXMsg* msg, HWND hwnd, UINT filter_min, UINT filter_max, UINT remove_flags)
+{
+    return PeekMessageW(msg, hwnd, filter_min, filter_max, remove_flags);
+}
+
+WF_EXPORT BOOL GetMessageW(WinFormsXMsg* msg, HWND hwnd, UINT filter_min, UINT filter_max)
+{
+    if (g_dispatch.get_message != 0)
+    {
+        return g_dispatch.get_message(msg, hwnd, filter_min, filter_max);
+    }
+
+    if (msg != 0)
+    {
+        memset(msg, 0, sizeof(*msg));
+    }
+
+    return 0;
+}
+
+WF_EXPORT BOOL GetMessageA(WinFormsXMsg* msg, HWND hwnd, UINT filter_min, UINT filter_max)
+{
+    return GetMessageW(msg, hwnd, filter_min, filter_max);
+}
+
+WF_EXPORT BOOL GetMessage(WinFormsXMsg* msg, HWND hwnd, UINT filter_min, UINT filter_max)
+{
+    return GetMessageW(msg, hwnd, filter_min, filter_max);
+}
+
+WF_EXPORT BOOL TranslateMessage(const WinFormsXMsg* msg)
+{
+    return g_dispatch.translate_message != 0 ? g_dispatch.translate_message(msg) : 1;
+}
+
+WF_EXPORT intptr_t DispatchMessageW(const WinFormsXMsg* msg)
+{
+    return g_dispatch.dispatch_message != 0 ? g_dispatch.dispatch_message(msg) : 0;
+}
+
+WF_EXPORT intptr_t DispatchMessageA(const WinFormsXMsg* msg)
+{
+    return DispatchMessageW(msg);
+}
+
+WF_EXPORT intptr_t DispatchMessage(const WinFormsXMsg* msg)
+{
+    return DispatchMessageW(msg);
 }
 
 WF_EXPORT UINT MsgWaitForMultipleObjectsEx(UINT n_count, const intptr_t* handles, UINT milliseconds, UINT wake_mask, UINT flags)

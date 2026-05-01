@@ -1,7 +1,6 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-using System.Drawing;
 using System.Runtime.InteropServices;
 using Windows.Win32.UI.Input.KeyboardAndMouse;
 
@@ -91,6 +90,13 @@ internal static unsafe class WinFormsXUser32Shim
             UpdateWindow = &UpdateWindow,
             InvalidateRect = &InvalidateRect,
             ValidateRect = &ValidateRect,
+            RegisterWindowMessage = &RegisterWindowMessage,
+            PostMessage = &PostMessage,
+            SendMessage = &SendMessage,
+            PeekMessage = &PeekMessage,
+            GetMessage = &GetMessage,
+            TranslateMessage = &TranslateMessage,
+            DispatchMessage = &DispatchMessage,
             MsgWaitForMultipleObjectsEx = &MsgWaitForMultipleObjectsEx,
             OpenClipboard = &OpenClipboard,
             CloseClipboard = &CloseClipboard,
@@ -150,7 +156,7 @@ internal static unsafe class WinFormsXUser32Shim
     }
 
     [UnmanagedCallersOnly]
-    private static int GetCursorPos(Point* point)
+    private static int GetCursorPos(WinFormsXPoint* point)
     {
         if (point is null)
         {
@@ -159,8 +165,9 @@ internal static unsafe class WinFormsXUser32Shim
 
         try
         {
-            bool result = PlatformApi.Input.GetCursorPos(out Point managedPoint);
-            *point = managedPoint;
+            bool result = PlatformApi.Input.GetCursorPos(out System.Drawing.Point managedPoint);
+            point->x = managedPoint.X;
+            point->y = managedPoint.Y;
             return result ? 1 : 0;
         }
         catch
@@ -959,6 +966,146 @@ internal static unsafe class WinFormsXUser32Shim
     }
 
     [UnmanagedCallersOnly]
+    private static uint RegisterWindowMessage(char* value)
+    {
+        if (value is null)
+        {
+            return 0;
+        }
+
+        try
+        {
+            string name = new(value);
+            if (name.Length == 0)
+            {
+                return 0;
+            }
+
+            return PlatformApi.Message.RegisterWindowMessage(name);
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    [UnmanagedCallersOnly]
+    private static int PostMessage(nint hwnd, uint msg, nint wParam, nint lParam)
+    {
+        try
+        {
+            return PlatformApi.Message.PostMessage((HWND)hwnd, msg, (WPARAM)wParam, (LPARAM)lParam) ? 1 : 0;
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    [UnmanagedCallersOnly]
+    private static nint SendMessage(nint hwnd, uint msg, nint wParam, nint lParam)
+    {
+        try
+        {
+            return (nint)PlatformApi.Message.SendMessage((HWND)hwnd, msg, (WPARAM)wParam, (LPARAM)lParam);
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    [UnmanagedCallersOnly]
+    private static int PeekMessage(WinFormsXMsg* lpMsg, nint hwnd, uint filterMin, uint filterMax, uint removeFlags)
+    {
+        if (lpMsg is null)
+        {
+            return 0;
+        }
+
+        try
+        {
+            bool result = PlatformApi.Message.PeekMessage(
+                out MSG msg,
+                (HWND)hwnd,
+                filterMin,
+                filterMax,
+                (PEEK_MESSAGE_REMOVE_TYPE)removeFlags);
+
+            if (result)
+            {
+                CopyMessage(msg, lpMsg);
+                return 1;
+            }
+        }
+        catch
+        {
+        }
+
+        *lpMsg = default;
+        return 0;
+    }
+
+    [UnmanagedCallersOnly]
+    private static int GetMessage(WinFormsXMsg* lpMsg, nint hwnd, uint filterMin, uint filterMax)
+    {
+        if (lpMsg is null)
+        {
+            return 0;
+        }
+
+        try
+        {
+            bool result = PlatformApi.Message.GetMessage(out MSG msg, (HWND)hwnd, filterMin, filterMax);
+            CopyMessage(msg, lpMsg);
+            return result ? 1 : 0;
+        }
+        catch
+        {
+            *lpMsg = default;
+            return 0;
+        }
+    }
+
+    [UnmanagedCallersOnly]
+    private static int TranslateMessage(WinFormsXMsg* lpMsg)
+    {
+        if (lpMsg is null)
+        {
+            return 0;
+        }
+
+        try
+        {
+            MSG managed = CreateMessage(*lpMsg);
+            return PlatformApi.Message.TranslateMessage(in managed) ? 1 : 0;
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    [UnmanagedCallersOnly]
+    private static nint DispatchMessage(WinFormsXMsg* lpMsg)
+    {
+        if (lpMsg is null)
+        {
+            return 0;
+        }
+
+        try
+        {
+            MSG managed = CreateMessage(*lpMsg);
+            return (nint)PlatformApi.Message.DispatchMessage(in managed);
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    [UnmanagedCallersOnly]
     private static uint MsgWaitForMultipleObjectsEx(
         uint nCount,
         nint* handles,
@@ -1200,7 +1347,7 @@ internal static unsafe class WinFormsXUser32Shim
     {
         public uint Version;
         public uint Size;
-        public delegate* unmanaged<Point*, int> GetCursorPos;
+        public delegate* unmanaged<WinFormsXPoint*, int> GetCursorPos;
         public delegate* unmanaged<int, int, int> SetCursorPos;
         public delegate* unmanaged<int, short> GetAsyncKeyState;
         public delegate* unmanaged<uint, uint, uint> MapVirtualKey;
@@ -1253,6 +1400,13 @@ internal static unsafe class WinFormsXUser32Shim
         public delegate* unmanaged<nint, int> UpdateWindow;
         public delegate* unmanaged<nint, WinFormsXRect*, int, int> InvalidateRect;
         public delegate* unmanaged<nint, WinFormsXRect*, int> ValidateRect;
+        public delegate* unmanaged<char*, uint> RegisterWindowMessage;
+        public delegate* unmanaged<nint, uint, nint, nint, int> PostMessage;
+        public delegate* unmanaged<nint, uint, nint, nint, nint> SendMessage;
+        public delegate* unmanaged<WinFormsXMsg*, nint, uint, uint, uint, int> PeekMessage;
+        public delegate* unmanaged<WinFormsXMsg*, nint, uint, uint, int> GetMessage;
+        public delegate* unmanaged<WinFormsXMsg*, int> TranslateMessage;
+        public delegate* unmanaged<WinFormsXMsg*, nint> DispatchMessage;
         public delegate* unmanaged<uint, nint*, uint, uint, uint, uint> MsgWaitForMultipleObjectsEx;
         public delegate* unmanaged<nint, int> OpenClipboard;
         public delegate* unmanaged<int> CloseClipboard;
@@ -1297,6 +1451,17 @@ internal static unsafe class WinFormsXUser32Shim
     }
 
     [StructLayout(LayoutKind.Sequential)]
+    private struct WinFormsXMsg
+    {
+        public nint hwnd;
+        public uint message;
+        public nuint wParam;
+        public nint lParam;
+        public uint time;
+        public WinFormsXPoint pt;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
     private struct WinFormsXIconInfo
     {
         public int fIcon;
@@ -1313,5 +1478,29 @@ internal static unsafe class WinFormsXUser32Shim
         destination->right = source.right;
         destination->bottom = source.bottom;
         return true;
+    }
+
+    private static MSG CreateMessage(WinFormsXMsg message)
+    {
+        return new MSG
+        {
+            hwnd = (HWND)message.hwnd,
+            message = message.message,
+            wParam = (WPARAM)message.wParam,
+            lParam = (LPARAM)message.lParam,
+            time = message.time,
+            pt = new System.Drawing.Point(message.pt.x, message.pt.y),
+        };
+    }
+
+    private static void CopyMessage(in MSG source, WinFormsXMsg* destination)
+    {
+        destination->hwnd = (nint)source.hwnd;
+        destination->message = source.message;
+        destination->wParam = (nuint)source.wParam.Value;
+        destination->lParam = source.lParam;
+        destination->time = source.time;
+        destination->pt.x = source.pt.X;
+        destination->pt.y = source.pt.Y;
     }
 }
